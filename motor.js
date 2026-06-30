@@ -1,5 +1,6 @@
 const ayarlar = require('./ayarlar.js');
 const h = require('./1_hafiza.js');
+const kaliciHafiza = require('./5_kalici_hafiza.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -116,6 +117,12 @@ const m = {
     },
 
     sanalPozisyonKaydet: async (symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision) => {
+        const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
+        if (!izin.uygun) {
+            console.log(`🛡️ [SANAL EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
+            return false;
+        }
+
         const sanalId = `SANAL-${Date.now()}-${h.state.sanalEmirSayaci++}`;
 
         h.state.aktifPozisyonlar.push({
@@ -123,8 +130,10 @@ const m = {
             yon,
             girisFiyati: canliFiyat,
             sl,
+            ilkSl: sl,
             tp,
             miktar: guvenliMiktar,
+            pozisyonDegeri: guvenliMiktar * canliFiyat,
             sanal: true,
             sanalOrderId: sanalId,
             acilisZamani: Date.now(),
@@ -137,6 +146,8 @@ const m = {
         if (yon === 'LONG') h.state.alinanlar.push(symbol);
         else h.state.aktifShortlar.push(symbol);
         h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
+        kaliciHafiza.yeniEmirSay();
+        kaliciHafiza.kaydet('sanal-pozisyon-acildi');
 
         console.log(`🧪 [SANAL POZİSYON AÇILDI] ${symbol} ${yon} | Giriş: ${canliFiyat.toFixed(pPrecision)} | Miktar: ${guvenliMiktar} | SL: ${sl.toFixed(pPrecision)} | TP: ${tp.toFixed(pPrecision)} | ID: ${sanalId}`);
 
@@ -155,6 +166,12 @@ const m = {
 
     pozisyonAc: async (symbol, yon, canliFiyat) => {
         try {
+            const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
+            if (!izin.uygun) {
+                console.log(`🛡️ [EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
+                return false;
+            }
+
             const kural = h.state.basamaklar[symbol] || {};
             const toplamDolar = ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac;
             const hamMiktar = toplamDolar / canliFiyat;
@@ -252,6 +269,7 @@ const m = {
             if (yon === 'LONG') h.state.alinanlar.push(symbol);
             else h.state.aktifShortlar.push(symbol);
             h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
+            kaliciHafiza.yeniEmirSay();
 
             await h.telegramMesajGonder(
                 `🚀 <b>[POZİSYON AÇILDI]</b>\n` +

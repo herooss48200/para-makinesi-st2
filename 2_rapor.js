@@ -1,7 +1,6 @@
 require('dotenv').config();
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
-const versiyonBilgi = require('./versiyon.js');
 
 function yuzde(n) {
     return Number.isFinite(n) ? n.toFixed(1) : '0.0';
@@ -24,8 +23,6 @@ function canliRaporMetniOlustur() {
         `(${saat})\n` +
         `--------------------------------\n` +
         `🧪 <b>Emir Modu:</b> ${mod}\n` +
-        `🧩 <b>Versiyon:</b> ${versiyonBilgi.versiyon.kod}\n` +
-        `⏱️ <b>Periyot:</b> Pusu ${ayarlar.pusuPeriyodu} | Sniper ${ayarlar.sniperPeriyodu}\n` +
         `📦 <b>Aktif Pozisyon:</b> ${h.state.aktifPozisyonlar.length} / ${ayarlar.maxPozisyonSayisi}\n` +
         `🔄 <b>Toplam Açılan Emir:</b> ${s.toplamAcilanEmir || 0}\n` +
         `🎯 <b>Aktif Pusu:</b> ${pusuSayisi} | 🟢 Long: ${longPusu} | 🔴 Short: ${shortPusu}\n\n` +

@@ -6,6 +6,7 @@ const revizyon = require('./revizyon.js');
 const ayarlar = require('./ayarlar.js');
 const rapor = require('./2_rapor.js');
 const versiyonBilgi = require('./versiyon.js');
+const kaliciHafiza = require('./5_kalici_hafiza.js');
 
 let donguCalisiyor = false;
 let sonOzetLog = 0;
@@ -18,6 +19,7 @@ async function baslat() {
     try {
         await piyasa.sembolleriYukle();
         await piyasa.acikPozisyonlariBorsadanDevral();
+        kaliciHafiza.yukle();
         await revizyon.derinGecmisiInsaEt();
 
         const s = h.state.basariOzeti;
@@ -27,6 +29,7 @@ async function baslat() {
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
             `📊 Strateji: ${ayarlar.pusuPeriyodu} pusu + ${ayarlar.sniperPeriyodu} sniper\n` +
             `📡 İzlenen Sembol: ${h.state.semboller.length}\n` +
+            `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
             `💰 Cüzdan Net PNL: ${s.netKarZarar.toFixed(2)} USDT\n\n` +
             `<i>Sistem kapanmış mumları izliyor, pusu kuruyor ve sniper tetik bekliyor...</i>`;
 

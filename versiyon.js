@@ -1,23 +1,25 @@
-﻿// ============================================================
-// PARA MAKNES BINANCE - SÜRÜM KMLK DOSYASI
+// ============================================================
+// PARA MAKİNESİ BINANCE - SÜRÜM KİMLİK DOSYASI
+// AWS Stable v2.1.3
 // ============================================================
 
-module.exports = {
-    isim: "Para Makinesi Binance",
-    kodAdi: "SNIPER",
-    botSurumu: "2.1.0",
-    stratejiSurumu: "1.0.0",
-    yayinTarihi: "25.06.2026",
+const versiyon = {
+    isim: 'Para Makinesi Binance',
+    kodAdi: 'SNIPER',
+    kod: 'AWS Stable v2.1.3',
+    botSurumu: '2.1.3',
+    stratejiSurumu: '1.0.3',
+    yayinTarihi: '26.06.2026',
 
     ortam: {
         aws: true,
         github: true,
-        emirModu: "SANAL"
+        emirModu: 'SANAL'
     },
 
     strateji: {
-        pusuPeriyodu: "4h",
-        sniperPeriyodu: "5m",
+        pusuPeriyodu: '4h',
+        sniperPeriyodu: '5m',
         bollingerPusu: true,
         superTrendOnayi: true,
         pusuOrtaBandFiltresi: true,
@@ -27,19 +29,46 @@ module.exports = {
     },
 
     degisiklikler: [
-        "Pusu ve Sniper farklı zaman dilimi desteği aktif edildi.",
-        "Pusu Kalite Filtresi eklendi.",
-        "Bollinger Orta Band filtresi pusu tarafına taşındı.",
-        "Sniper tarafındaki orta band filtresi kaldırıldı.",
-        "Dinamik kademeli stop sistemi geliştirildi.",
-        "Telegram canlı raporlarına versiyon bilgisi eklendi.",
-        "AWS sunucu altyapısı kuruldu.",
-        "GitHub Private Repository sürüm yönetimine geçildi."
+        'bot.js ile uyumlu kisaOzet() ve telegramOzet() fonksiyonları eklendi.',
+        'Sürüm kimliği AWS Stable v2.1.3 olarak güncellendi.',
+        'Pusu ve Sniper farklı zaman dilimi desteği korundu.',
+        'Telegram canlı raporlarına sürüm bilgisi uyumlu hale getirildi.',
+        'GitHub -> AWS stable çalışma akışı için dosya adları normalize edildi.',
+        'Sanal pozisyon kalıcı hafızası eklendi.',
+        'Restart sonrası aynı sembolde tekrar emir açılması engellendi.',
+        'Döngü başına ve günlük yeni emir limitleri eklendi.',
+        'Pusu raporu Telegram için kısaltıldı.'
     ],
 
     notlar: [
-        "Pusu Motoru ilk grafik kontrollerinde doğrulandı.",
-        "Sniper Motoru ve dönüş trendi tespiti test aşamasındadır.",
-        "Risk Motoru sanal işlemlerde gözlemlenmeye devam edecektir."
+        'Varsayılan emir modu güvenlik için SANAL olarak tutuldu.',
+        'Gerçek/testnet emir geçişi ayarlar.js içindeki sanalEmirModu ile yönetilir.',
+        'AWS üzerinde PM2 ile bot.js çalıştırılmalıdır.',
+        'data/sanal-state.json çalışma zamanı hafıza dosyasıdır; GitHub’a eklenmemelidir.'
     ]
+};
+
+function kisaOzet() {
+    return `${versiyon.isim} ${versiyon.botSurumu} | ${versiyon.kodAdi} | Strateji ${versiyon.stratejiSurumu}`;
+}
+
+function telegramOzet() {
+    const mod = versiyon.ortam?.emirModu || 'BILINMIYOR';
+    return `${versiyon.botSurumu} / ${versiyon.kodAdi} / ${mod}`;
+}
+
+function detayliOzet() {
+    return {
+        ...versiyon,
+        kisaOzet: kisaOzet(),
+        telegramOzet: telegramOzet()
+    };
+}
+
+module.exports = {
+    ...versiyon,
+    versiyon,
+    kisaOzet,
+    telegramOzet,
+    detayliOzet
 };

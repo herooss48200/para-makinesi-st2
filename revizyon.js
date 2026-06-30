@@ -15,25 +15,6 @@ function mumDonustur(x) {
     };
 }
 
-
-function periyotMs(periyot) {
-    const yazi = String(periyot || '5m').trim();
-    const sayi = parseInt(yazi, 10);
-    if (!Number.isFinite(sayi) || sayi <= 0) return 5 * 60 * 1000;
-    if (yazi.endsWith('m')) return sayi * 60 * 1000;
-    if (yazi.endsWith('h')) return sayi * 60 * 60 * 1000;
-    if (yazi.endsWith('d')) return sayi * 24 * 60 * 60 * 1000;
-    return sayi * 60 * 1000;
-}
-
-function otomatikTazelemeMs(periyot, tip) {
-    const ms = periyotMs(periyot);
-    // Uzun pusu periyotlarında yeni kapanan mumu kaçırmamak için makul aralıklarla kontrol eder.
-    // Sniper tarafı daha hızlı kontrol edilir ama REST yükü aşırı artmasın diye alt sınır vardır.
-    if (tip === 'PUSU') return Math.max(30000, Math.min(ms / 10, 5 * 60 * 1000));
-    return Math.max(10000, Math.min(ms / 5, 60 * 1000));
-}
-
 function sadeceKapanmisMumlar(mumlar) {
     const now = Date.now();
     return (mumlar || []).filter(x => Number(x.closeTime) <= now).map(mumDonustur);
@@ -45,7 +26,6 @@ async function derinGecmisiInsaEt() {
     h.state.canliFiyatlar = {};
     h.state.sniperMumlar = {};
     h.state.sniperSuperTrend = {};
-    h.state.sniperBollinger = {};
     h.state.sonPusuMumZamani = {};
 
     const PARALEL = 15;
@@ -78,19 +58,13 @@ async function derinGecmisiInsaEt() {
 
     await superTrendHesapla(true);
 
-    const pusuTazelemeMs = ayarlar.pusuVeriTazelemeMs || otomatikTazelemeMs(ayarlar.pusuPeriyodu || '5m', 'PUSU');
-    const sniperTazelemeMs = ayarlar.superTrendTazelemeMs || otomatikTazelemeMs(ayarlar.sniperPeriyodu || '1m', 'SNIPER');
-
-    console.log(`⏱️ Pusu Periyodu: ${ayarlar.pusuPeriyodu} | Sniper Periyodu: ${ayarlar.sniperPeriyodu}`);
-    console.log(`⏱️ Pusu veri kontrolü: ${Math.round(pusuTazelemeMs / 1000)} sn | Sniper kontrolü: ${Math.round(sniperTazelemeMs / 1000)} sn`);
-
     setInterval(async () => {
         await pusuVerileriniTazele();
-    }, pusuTazelemeMs);
+    }, ayarlar.pusuVeriTazelemeMs || 30000);
 
     setInterval(async () => {
         await superTrendHesapla(false);
-    }, sniperTazelemeMs);
+    }, ayarlar.superTrendTazelemeMs || 10000);
 }
 
 async function pusuVerileriniTazele() {
@@ -147,8 +121,6 @@ async function superTrendHesapla(baslangic = false) {
                 const kapanmis = sadeceKapanmisMumlar(ham);
                 if (kapanmis.length >= (ayarlar.superTrendPeriod || 10) + 2) {
                     h.state.sniperMumlar[sym] = kapanmis;
-                    const sniperFiyatlar = kapanmis.map(x => x.close);
-                    h.state.sniperBollinger[sym] = m.hesaplaBollinger(sniperFiyatlar);
                     const st = m.hesaplaSuperTrend(kapanmis);
                     if (st && st.trend) {
                         h.state.sniperSuperTrend[sym] = st.trend;
@@ -167,7 +139,7 @@ async function superTrendHesapla(baslangic = false) {
 
     h.state.sonSniperGuncellemeZamani = Date.now();
     if (baslangic || guncellenen > 0 || hatali > 0) {
-        console.log(`📊 [${new Date().toLocaleTimeString()}] ${ayarlar.sniperPeriyodu} SuperTrend+Bollinger: ${guncellenen} coin güncellendi, ${hatali} coin hatalı.`);
+        console.log(`📊 [${new Date().toLocaleTimeString()}] SuperTrend: ${guncellenen} coin güncellendi, ${hatali} coin hatalı.`);
     }
 }
 

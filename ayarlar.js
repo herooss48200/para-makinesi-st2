@@ -16,7 +16,7 @@ const ayarlar = {
     // ========================================
     calisilmakIstenenUsdtMiktar: 5,
     mevcutKaldirac: 10,
-    maxPozisyonSayisi: 40,
+    maxPozisyonSayisi: 10,
 
     // ========================================
     // EMİR MODU
@@ -100,6 +100,26 @@ const ayarlar = {
     // ESKİ FİLTRE: Sniper orta band filtresi.
     // Bu sürümde varsayılan kapalıdır; çünkü hedef kırılırken fiyatın sniper orta bandı geçmesi normaldir.
     sniperOrtaBandFiltresi: false,
+
+
+
+    // ========================================
+    // RİSK VE KALICI HAFIZA KORUMALARI
+    // ========================================
+    // Sanal pozisyonlar data/sanal-state.json dosyasına kaydedilir.
+    // Bot restart olunca aynı pozisyonlar geri yüklenir; aynı sembolde tekrar emir açılmaz.
+    sanalPozisyonHafizasiAktif: true,
+    kaliciHafizaLogAktif: true,
+
+    // Ani çoklu tetiklerde sistemi sakinleştirir.
+    // Bir döngüde en fazla bu kadar yeni pozisyon açılır.
+    maxYeniEmirDonguBasina: 1,
+
+    // Günlük toplam yeni emir limiti. 0 = limitsiz.
+    gunlukMaxYeniEmir: 8,
+
+    // Pusu raporundaki sembol listesini Telegram'da okunabilir tutar.
+    pusuRaporuMaxSembol: 20,
 
     // ========================================
     // TELEGRAM RAPORLAMA

@@ -29,6 +29,8 @@ const state = {
     canliRaporMesajlari: {},
     canliRaporSonGonderimZamani: {},
     sonCanliRaporMetni: '',
+    gunlukLimitTarihi: new Date().toISOString().slice(0, 10),
+    gunlukAcilanEmirSayisi: 0,
     basariOzeti: {
         tp: 0,
         sl: 0,

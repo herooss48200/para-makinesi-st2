@@ -2,6 +2,7 @@ const h = require('./1_hafiza.js');
 const m = require('./motor.js');
 const ayarlar = require('./ayarlar.js');
 const rapor = require('./2_rapor.js');
+const kaliciHafiza = require('./5_kalici_hafiza.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -172,7 +173,20 @@ async function piyasayiTaraVePusuKur() {
 async function pusulariDenetleVeIslemAc() {
     if (h.state.aktifPozisyonlar.length >= ayarlar.maxPozisyonSayisi) return;
 
+    let buDongudeAcilanEmir = 0;
+    const maxYeniEmirDongu = ayarlar.maxYeniEmirDonguBasina || 1;
+
     for (const [sym, pusu] of Object.entries(h.state.pusuListesi)) {
+        if (buDongudeAcilanEmir >= maxYeniEmirDongu) {
+            console.log(`🧯 [DÖNGÜ EMİR LİMİTİ] Bu döngüde ${buDongudeAcilanEmir}/${maxYeniEmirDongu} yeni emir açıldı. Kalan tetikler sonraki döngüye bırakıldı.`);
+            break;
+        }
+
+        if (kaliciHafiza.acikPozisyonVarMi(sym)) {
+            console.log(`🛡️ [PUSU TEMİZLENDİ] ${sym} için zaten aktif pozisyon var. Yeni emir engellendi.`);
+            delete h.state.pusuListesi[sym];
+            continue;
+        }
         const canliFiyat = h.state.canliFiyatlar[sym];
         const superTrendYonu = h.state.sniperSuperTrend[sym];
         const hedef = Number(pusu.targetLevel);
@@ -243,8 +257,12 @@ async function pusulariDenetleVeIslemAc() {
 
         if (!tetikTamam || !ortaBandUygun) continue;
 
-        if (pusu.yon === 'LONG' && h.state.alinanlar.includes(sym)) continue;
-        if (pusu.yon === 'SHORT' && h.state.aktifShortlar.includes(sym)) continue;
+        const emirIzni = kaliciHafiza.emirAcilabilirMi(sym, pusu.yon);
+        if (!emirIzni.uygun) {
+            console.log(`🛡️ [TETİK ENGELLENDİ] ${sym} ${pusu.yon} | ${emirIzni.sebep}`);
+            if (emirIzni.sebep.includes('zaten aktif pozisyon')) delete h.state.pusuListesi[sym];
+            continue;
+        }
 
         console.log(`🎯 [SNIPER TETİĞİ] ${sym} ${pusu.yon} | fiyat kırılımı + ${ayarlar.sniperPeriyodu} SuperTrend tamamlandı. | ${pusuKaliteMetni(pusu)}`);
         if (pusu.kirilimZamani && pusu.trendOnayiZamani) {
@@ -255,9 +273,11 @@ async function pusulariDenetleVeIslemAc() {
 
         const basarili = await m.pozisyonAc(sym, pusu.yon, canliFiyat);
         if (basarili) {
+            buDongudeAcilanEmir++;
             delete h.state.pusuListesi[sym];
+            kaliciHafiza.kaydet('pusu-tetik-pozisyon-acildi');
             await rapor.raporGonder(true);
-            break;
+            if (buDongudeAcilanEmir >= maxYeniEmirDongu) break;
         }
     }
 }
@@ -267,15 +287,42 @@ function pozisyonListelerindenSil(pos) {
     else h.state.aktifShortlar = h.state.aktifShortlar.filter(x => x !== pos.sym);
 }
 
+function pozisyonDegeriHesapla(pos) {
+    const miktar = Number(pos.miktar || pos.quantity || 0);
+    const giris = Number(pos.girisFiyati || 0);
+    if (miktar > 0 && giris > 0) return miktar * giris;
+    return (ayarlar.calisilmakIstenenUsdtMiktar || 0) * (ayarlar.mevcutKaldirac || 1);
+}
+
+function kapanisSebebiDuzenle(pos, sebep, kapanisFiyati) {
+    if (!sebep || !sebep.includes('SL')) return sebep;
+
+    const giris = Number(pos.girisFiyati || 0);
+    if (!giris || !kapanisFiyati) return sebep;
+
+    const fiyatKarYuzde = pos.yon === 'LONG'
+        ? ((kapanisFiyati - giris) / giris) * 100
+        : ((giris - kapanisFiyati) / giris) * 100;
+
+    if (fiyatKarYuzde > 0.05) return 'İz Süren Stop / Kâr Koruma';
+    if (Math.abs(fiyatKarYuzde) <= 0.05) return 'Başabaş Stop / Komisyon';
+    return sebep;
+}
+
 async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     const komisyonOrani = ayarlar.sanalKomisyonOrani ?? 0.0005;
-    const marjinDolar = ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac;
-    const toplamKomisyon = marjinDolar * komisyonOrani * 2;
-    const brutKarZarar = pos.yon === 'LONG'
-        ? marjinDolar * ((kapanisFiyati - pos.girisFiyati) / pos.girisFiyati)
-        : marjinDolar * ((pos.girisFiyati - kapanisFiyati) / pos.girisFiyati);
+    const pozisyonDegeri = pozisyonDegeriHesapla(pos);
+    const toplamKomisyon = pozisyonDegeri * komisyonOrani * 2;
+    const fiyatKarYuzdesi = pos.yon === 'LONG'
+        ? ((kapanisFiyati - pos.girisFiyati) / pos.girisFiyati) * 100
+        : ((pos.girisFiyati - kapanisFiyati) / pos.girisFiyati) * 100;
+    const brutKarZarar = pozisyonDegeri * (fiyatKarYuzdesi / 100);
     const netKarZarar = brutKarZarar - toplamKomisyon;
-    const karYuzdesi = (netKarZarar / ayarlar.calisilmakIstenenUsdtMiktar) * 100;
+    const netPozisyonYuzdesi = pozisyonDegeri > 0 ? (netKarZarar / pozisyonDegeri) * 100 : 0;
+    const netMarjinYuzdesi = (ayarlar.calisilmakIstenenUsdtMiktar || 0) > 0
+        ? (netKarZarar / ayarlar.calisilmakIstenenUsdtMiktar) * 100
+        : 0;
+    const duzeltilmisSebep = kapanisSebebiDuzenle(pos, sebep, kapanisFiyati);
 
     h.state.basariOzeti.toplamKomisyon += toplamKomisyon;
     h.state.basariOzeti.netKarZarar += netKarZarar;
@@ -284,6 +331,10 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         h.state.basariOzeti.tp++;
         if (pos.yon === 'LONG') h.state.basariOzeti.longTp++;
         else h.state.basariOzeti.shortTp++;
+    } else if (Math.abs(fiyatKarYuzdesi) <= 0.05 && netKarZarar <= 0) {
+        h.state.basariOzeti.be++;
+        if (pos.yon === 'LONG') h.state.basariOzeti.longBe++;
+        else h.state.basariOzeti.shortBe++;
     } else {
         h.state.basariOzeti.sl++;
         if (pos.yon === 'LONG') h.state.basariOzeti.longSl++;
@@ -291,18 +342,21 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     }
 
     const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
-    const emoji = netKarZarar > 0 ? '✅' : '❌';
+    const emoji = netKarZarar > 0 ? '✅' : (Math.abs(fiyatKarYuzdesi) <= 0.05 ? '⚖️' : '❌');
     const baslik = pos.sanal ? '[SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]';
 
     await h.telegramMesajGonder(
         `${emoji} <b>${baslik}</b>\n` +
         `🔀 ${pos.sym} (${pos.yon})\n` +
-        `📌 Sebep: ${sebep}\n` +
+        `📌 Sebep: ${duzeltilmisSebep}\n` +
         `📥 Giriş: ${pos.girisFiyati.toFixed(pPrecision)}\n` +
         `📤 Çıkış: ${kapanisFiyati.toFixed(pPrecision)}\n` +
+        `📦 Pozisyon: ${pozisyonDegeri.toFixed(4)} USDT\n` +
+        `📊 Fiyat Hareketi: %${fiyatKarYuzdesi.toFixed(2)}\n` +
+        `📈 Brüt PNL: ${brutKarZarar.toFixed(4)} USDT\n` +
         `💸 Komisyon: ${toplamKomisyon.toFixed(4)} USDT\n` +
-        `📈 Net PNL: ${netKarZarar.toFixed(4)} USDT\n` +
-        `📊 Kâr %: %${karYuzdesi.toFixed(2)}`
+        `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT\n` +
+        `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}`
     );
 }
 
@@ -484,6 +538,7 @@ async function izSurmeyiGuncelle() {
                     await rapor.raporGonder(true);
                 }
                 pos.breakevenYeniAktif = false;
+                kaliciHafiza.kaydet('sanal-stop-guncellendi');
             }
 
             const kapanis = sanalKapanisKontrol(pos, canliFiyat);
@@ -492,6 +547,7 @@ async function izSurmeyiGuncelle() {
                 await kapanisRaporla(pos, kapanis.fiyat, kapanis.sebep);
                 h.state.aktifPozisyonlar.splice(i, 1);
                 pozisyonListelerindenSil(pos);
+                kaliciHafiza.kaydet('sanal-pozisyon-kapandi');
                 await rapor.raporGonder(true);
             }
             continue;
@@ -560,10 +616,20 @@ async function pusuRaporuGonder() {
     if (raporListesi.length === 0) return;
     sonRaporZamani = now;
 
-    const longList = raporListesi.filter(p => p.yon === 'LONG').map(p => `${p.sym}(${p.senaryo})`).join(', ');
-    const shortList = raporListesi.filter(p => p.yon === 'SHORT').map(p => `${p.sym}(${p.senaryo})`).join(', ');
+    function listeyiKisalt(liste) {
+        const max = ayarlar.pusuRaporuMaxSembol || 20;
+        const ilk = liste.slice(0, max).map(p => `${p.sym}(${p.senaryo})`);
+        const kalan = Math.max(0, liste.length - max);
+        return ilk.join(', ') + (kalan > 0 ? `\n… +${kalan} pusu daha` : '');
+    }
 
-    const mesaj = `🔔 <b>PUSU RAPORU</b>\n\n` +
+    const longlar = raporListesi.filter(p => p.yon === 'LONG');
+    const shortlar = raporListesi.filter(p => p.yon === 'SHORT');
+    const longList = listeyiKisalt(longlar);
+    const shortList = listeyiKisalt(shortlar);
+
+    const mesaj = `🔔 <b>PUSU RAPORU</b>\n` +
+        `📊 Toplam: ${raporListesi.length} | LONG: ${longlar.length} | SHORT: ${shortlar.length}\n\n` +
         (longList ? `📈 <b>LONG</b>\n${longList}\n\n` : '') +
         (shortList ? `📉 <b>SHORT</b>\n${shortList}` : '');
 
