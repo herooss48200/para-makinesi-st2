@@ -16,7 +16,7 @@ const ayarlar = {
     // ========================================
     calisilmakIstenenUsdtMiktar: 5,
     mevcutKaldirac: 10,
-    maxPozisyonSayisi: 10,
+    maxPozisyonSayisi: 100,
 
     // ========================================
     // EMİR MODU
@@ -113,13 +113,13 @@ const ayarlar = {
 
     // Ani çoklu tetiklerde sistemi sakinleştirir.
     // Bir döngüde en fazla bu kadar yeni pozisyon açılır.
-    maxYeniEmirDonguBasina: 1,
+    maxYeniEmirDonguBasina: 100,
 
     // Günlük toplam yeni emir limiti. 0 = limitsiz.
-    gunlukMaxYeniEmir: 8,
+    gunlukMaxYeniEmir: 1000,
 
     // Pusu raporundaki sembol listesini Telegram'da okunabilir tutar.
-    pusuRaporuMaxSembol: 20,
+    pusuRaporuMaxSembol: 100,
 
     // ========================================
     // TELEGRAM RAPORLAMA
