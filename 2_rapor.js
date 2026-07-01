@@ -13,9 +13,16 @@ function canliRaporMetniOlustur() {
     const be = s.be || 0;
     const sonucToplam = tp + sl;
     const basariOrani = sonucToplam > 0 ? (tp / sonucToplam) * 100 : 0;
-    const pusuSayisi = Object.keys(h.state.pusuListesi).length;
-    const longPusu = Object.values(h.state.pusuListesi).filter(x => x.yon === 'LONG').length;
-    const shortPusu = Object.values(h.state.pusuListesi).filter(x => x.yon === 'SHORT').length;
+    const pusuDegerleri = Object.values(h.state.pusuListesi);
+    const pusuSayisi = pusuDegerleri.length;
+    const longPusu = pusuDegerleri.filter(x => x.yon === 'LONG').length;
+    const shortPusu = pusuDegerleri.filter(x => x.yon === 'SHORT').length;
+    const kaliteOlanlar = pusuDegerleri.filter(x => x.pusuKalite && Number.isFinite(Number(x.pusuKalite.puan)));
+    const kaliteOrt = kaliteOlanlar.length ? kaliteOlanlar.reduce((t, x) => t + Number(x.pusuKalite.puan || 0), 0) / kaliteOlanlar.length : 0;
+    const kaliteA = kaliteOlanlar.filter(x => x.pusuKalite.sinif === 'A').length;
+    const kaliteB = kaliteOlanlar.filter(x => x.pusuKalite.sinif === 'B').length;
+    const kaliteC = kaliteOlanlar.filter(x => x.pusuKalite.sinif === 'C').length;
+    const kaliteD = kaliteOlanlar.filter(x => x.pusuKalite.sinif === 'D').length;
     const saat = new Date().toLocaleTimeString('tr-TR', { hour12: false });
     const mod = ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE';
 
@@ -25,7 +32,8 @@ function canliRaporMetniOlustur() {
         `🧪 <b>Emir Modu:</b> ${mod}\n` +
         `📦 <b>Aktif Pozisyon:</b> ${h.state.aktifPozisyonlar.length} / ${ayarlar.maxPozisyonSayisi}\n` +
         `🔄 <b>Toplam Açılan Emir:</b> ${s.toplamAcilanEmir || 0}\n` +
-        `🎯 <b>Aktif Pusu:</b> ${pusuSayisi} | 🟢 Long: ${longPusu} | 🔴 Short: ${shortPusu}\n\n` +
+        `🎯 <b>Aktif Pusu:</b> ${pusuSayisi} | 🟢 Long: ${longPusu} | 🔴 Short: ${shortPusu}\n` +
+        `🏅 <b>Pusu Kalitesi:</b> Ort: ${kaliteOlanlar.length ? kaliteOrt.toFixed(1) : 'YOK'} | A:${kaliteA} B:${kaliteB} C:${kaliteC} D:${kaliteD}\n\n` +
         `🎯 <b>BAŞARILI İŞLEMLER (TP):</b> ${tp}\n` +
         `   L 🟢 <b>Long:</b> ${s.longTp || 0} | 🔴 <b>Short:</b> ${s.shortTp || 0}\n\n` +
         `❌ <b>BAŞARISIZ İŞLEMLER (SL):</b> ${sl}\n` +

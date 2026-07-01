@@ -116,7 +116,7 @@ const m = {
         return { senaryo: null, targetLevel: 0 };
     },
 
-    sanalPozisyonKaydet: async (symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision) => {
+    sanalPozisyonKaydet: async (symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi = null) => {
         const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
         if (!izin.uygun) {
             console.log(`🛡️ [SANAL EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
@@ -140,7 +140,8 @@ const m = {
             mevcutTpYuzdesi: 0,
             tpKademe: 0,
             sonTpSeviyesi: tp,
-            breakevenAktif: false
+            breakevenAktif: false,
+            girisAnalizi
         });
 
         if (yon === 'LONG') h.state.alinanlar.push(symbol);
@@ -149,7 +150,28 @@ const m = {
         kaliciHafiza.yeniEmirSay();
         kaliciHafiza.kaydet('sanal-pozisyon-acildi');
 
-        console.log(`🧪 [SANAL POZİSYON AÇILDI] ${symbol} ${yon} | Giriş: ${canliFiyat.toFixed(pPrecision)} | Miktar: ${guvenliMiktar} | SL: ${sl.toFixed(pPrecision)} | TP: ${tp.toFixed(pPrecision)} | ID: ${sanalId}`);
+        const analizSatiri = girisAnalizi
+            ? ` | TF: Trend ${girisAnalizi.trendPeriyodu || 'YOK'} / Pusu ${girisAnalizi.pusuPeriyodu} / Sniper ${girisAnalizi.sniperPeriyodu} | Tetik: ${Number(girisAnalizi.tetikFiyati || 0).toFixed(pPrecision)} | Sapma: %${Number(girisAnalizi.tetikSapmaYuzde || 0).toFixed(4)} | Kırılım→Emir: ${girisAnalizi.kirilimdanEmreMs ?? 'YOK'} ms | ST→Emir: ${girisAnalizi.trenddenEmreMs ?? 'YOK'} ms | ST: ${girisAnalizi.superTrendYonu || 'YOK'} (${girisAnalizi.stKaynak || 'YOK'})`
+            : '';
+        console.log(`🧪 [SANAL POZİSYON AÇILDI] ${symbol} ${yon} | Giriş: ${canliFiyat.toFixed(pPrecision)} | Miktar: ${guvenliMiktar} | SL: ${sl.toFixed(pPrecision)} | TP: ${tp.toFixed(pPrecision)} | ID: ${sanalId}${analizSatiri}`);
+
+        const analizMesaji = girisAnalizi
+            ? `\n\n📊 <b>Giriş Teşhisi</b>\n` +
+              `🕒 Trend TF: ${girisAnalizi.trendPeriyodu || 'YOK'} | Pusu TF: ${girisAnalizi.pusuPeriyodu} | Sniper TF: ${girisAnalizi.sniperPeriyodu}\n` +
+              `🎯 Hedef: ${Number(girisAnalizi.hedefFiyati || 0).toFixed(pPrecision)}\n` +
+              `🚦 Tetik: ${Number(girisAnalizi.tetikFiyati || 0).toFixed(pPrecision)}\n` +
+              `🧩 Tetik Modu: ${girisAnalizi.tetikModu || 'YOK'}\n` +
+              `📍 Giriş-Tetik Sapması: %${Number(girisAnalizi.tetikSapmaYuzde || 0).toFixed(4)}\n` +
+              (girisAnalizi.emirSnapshot ? `🧊 RAW Canlı: ${Number(girisAnalizi.emirSnapshot.canliFiyatRaw || 0).toPrecision(12)} | RAW Tetik: ${Number(girisAnalizi.emirSnapshot.tetikRaw || 0).toPrecision(12)} | Compare: ${girisAnalizi.emirSnapshot.compareText} = ${girisAnalizi.emirSnapshot.compareResult ? 'TRUE ✅' : 'FALSE ❌'}\n` : '') +
+              (girisAnalizi.emirSnapshot ? `🚧 Geç Giriş: ${girisAnalizi.emirSnapshot.gecGirisUygun ? 'UYGUN ✅' : 'GEÇ KALMIŞ ❌'} | Max Sapma: %${Number(girisAnalizi.emirSnapshot.maxGirisSapmaYuzde || 0).toFixed(2)}\n` : '') +
+              `📈 ST(${girisAnalizi.trendPeriyodu || 'YOK'}): ${girisAnalizi.superTrendYonu || 'YOK'} (${girisAnalizi.stKaynak || 'YOK'})${girisAnalizi.superTrendEtki ? ` | Etki: ${girisAnalizi.superTrendEtki.puan}/20 | Yaş: ${girisAnalizi.superTrendEtki.yasMum} | Mesafe: %${Number(girisAnalizi.superTrendEtki.mesafeYuzde || 0).toFixed(2)}` : ''}\n` +
+              `⏱️ Kırılım→Emir: ${girisAnalizi.kirilimdanEmreMs ?? 'YOK'} ms\n` +
+              `⏱️ ST→Emir: ${girisAnalizi.trenddenEmreMs ?? 'YOK'} ms\n` +
+              `🧭 Sıra: ${girisAnalizi.tetikSirasi || 'YOK'}\n` +
+              `📌 Senaryo: ${girisAnalizi.senaryo || 'YOK'} | Sayaç: ${girisAnalizi.pusuSayaci || 0}/${girisAnalizi.maxPusuBeklemeMum ?? 0}` +
+              (girisAnalizi.pusuDebug ? `\n\n${girisAnalizi.pusuDebug}` : '') +
+              (girisAnalizi.sniperDebug ? `\n\n${girisAnalizi.sniperDebug}` : '')
+            : '';
 
         await h.telegramMesajGonder(
             `🧪 <b>[SANAL POZİSYON AÇILDI]</b>\n` +
@@ -158,13 +180,14 @@ const m = {
             `📦 Miktar: ${guvenliMiktar}\n` +
             `🛡️ Sanal SL: ${sl.toFixed(pPrecision)}\n` +
             `🎯 Sanal Final TP: ${tp.toFixed(pPrecision)}\n` +
-            `🆔 ${sanalId}`
+            `🆔 ${sanalId}` +
+            analizMesaji
         );
 
         return true;
     },
 
-    pozisyonAc: async (symbol, yon, canliFiyat) => {
+    pozisyonAc: async (symbol, yon, canliFiyat, girisAnalizi = null) => {
         try {
             const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
             if (!izin.uygun) {
@@ -194,7 +217,7 @@ const m = {
 
             if (ayarlar.sanalEmirModu) {
                 console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${yon}`);
-                return await m.sanalPozisyonKaydet(symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision);
+                return await m.sanalPozisyonKaydet(symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi);
             }
 
             console.log(`⚙️ [BINANCE API] ${symbol} ${yon} Market + Koruma Emirleri Hazırlanıyor...`);
@@ -263,7 +286,8 @@ const m = {
                 mevcutTpYuzdesi: 0,
                 tpKademe: 0,
                 sonTpSeviyesi: tp,
-                breakevenAktif: false
+                breakevenAktif: false,
+                girisAnalizi
             });
 
             if (yon === 'LONG') h.state.alinanlar.push(symbol);
@@ -277,7 +301,8 @@ const m = {
                 `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
                 `📦 Miktar: ${guvenliMiktar}\n` +
                 `🛡️ Borsaya İletilen SL: ${sl.toFixed(pPrecision)}\n` +
-                `🎯 Borsaya İletilen Final TP: ${tp.toFixed(pPrecision)}`
+                `🎯 Borsaya İletilen Final TP: ${tp.toFixed(pPrecision)}` +
+                (girisAnalizi?.superTrendEtki ? `\n📈 ST Etki: ${girisAnalizi.superTrendEtki.puan}/20 | Yaş: ${girisAnalizi.superTrendEtki.yasMum} | Mesafe: %${Number(girisAnalizi.superTrendEtki.mesafeYuzde || 0).toFixed(2)} | ${girisAnalizi.superTrendEtki.durum}` : '')
             );
 
             console.log(`✅ [TELEGRAM] ${symbol} için mesaj gönderildi.`);

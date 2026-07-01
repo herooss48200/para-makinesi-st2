@@ -33,8 +33,16 @@ const ayarlar = {
     // TRAILING: Stop canlı fiyatı yüzde mesafeyle takip eder.
     stopTakipModu: 'KADEME',
 
-    // KADEME modunda 1. kademe girişe çeker, 2. kademe 1. kademeyi korur.
+    // KADEME modunda eski davranış: 1. kademe görülür görülmez SL girişe çekiliyordu.
+    // v2.1.10: Başabaş artık gecikmeli çalışır. İlk küçük kârda hemen girişe çekmez.
+    // Örn: tpAdimYuzdesi 0.4 ve breakevenTetikKademe 2 ise BE ancak %0.8 kâr görülünce aktif olur.
     breakevenTetikYuzde: 0.4,
+    breakevenTetikKademe: 2,
+    breakevenTamponYuzde: 0.03,
+    // Kademe stop kaç kademe geriden gelsin? 2 = daha geniş nefes, 1 = daha agresif koruma.
+    kademeStopGeridenKademe: 2,
+    // Pozisyon açıldıktan sonra BE için minimum bekleme. 0 = kapalı.
+    breakevenMinimumBeklemeSaniye: 0,
     izSurenStopTakipYuzdesi: 0.4,
     izSurenStopAktivasyon: 0.8,
     stopBildirimMinYuzde: 0.01,
@@ -66,20 +74,64 @@ const ayarlar = {
     // ========================================
     // ZAMAN DİLİMİ VE PERİYOTLAR
     // ========================================
-    // Pusu ve sniper periyotları birbirinden tamamen bağımsızdır.
-    // Örnekler: '5m', '15m', '1h', '4h'.
-    pusuPeriyodu: '4h',
-    sniperPeriyodu: '5m',
+    // v2.1.11: Üç katmanlı yapı.
+    // Trend/SuperTrend onayı büyük periyottan, pusu Bollinger setup'ı orta periyottan, sniper hassas girişten gelir.
+    // Trend filtresi: 4h SuperTrend yön onayı
+    // Pusu: 1h Bollinger pusu mumu
+    // Sniper: 3m canlı tetik/teşhis mumu
+    trendPeriyodu: '4h',
+    superTrendPeriyodu: '4h',
+    pusuPeriyodu: '1h',
+    sniperPeriyodu: '3m',
+    trendFiltresiAktif: true,
+    trendFiltresiModu: 'ONAY', // ONAY: ST yönü işlem yönüyle aynı olmalı | BILGI: sadece log/risk etiketi
 
     // ========================================
     // PUSU VE TETİKLEME KURALLARI
     // ========================================
     proximityYuzdesi: 0.5,
-    tetikYuzdesi: 0.25,
+    // v2.1.4-c hedef-tetik düzeltmesi:
+    // KIRMIZI_MUM_ALT_BAND / YESIL_MUM_UST_BAND senaryolarında
+    // bot artık hedef kırılır kırılmaz tetik alır.
+    // Eski değer 0.25 idi; bu hedef üstüne %0.25 buffer ekleyip geç giriş görüntüsü oluşturuyordu.
+    tetikYuzdesi: 0,
     maxPusuBeklemeMum: 3,
     // Pusu süresi içinde fiyat kırılımı ve SuperTrend onayı hangi sırayla gelirse gelsin,
     // ikisi de tamamlandığı anda işlem açılır. Pusu sadece maxPusuBeklemeMum dolunca iptal edilir.
     pusuTetikSirasiSerbest: true,
+
+
+    // v2.1.13: Geç giriş koruması.
+    // Hedef kırıldıktan sonra fiyat fazla kaçtıysa işlem açılmaz.
+    // SHORT örnek: hedef 90, max %1.5 ise 88.65 altı geç kalmış sayılır ve pusu iptal edilir.
+    // LONG örnek: hedef 90, max %1.5 ise 91.35 üstü geç kalmış sayılır ve pusu iptal edilir.
+    maxGirisSapmaYuzde: 1.5,
+    gecGirisPusuyuIptalEt: true,
+
+    // v2.1.13: Emir anı ham fiyat snapshot/debug. Telegram giriş teşhisinde raw karşılaştırma gösterilir.
+    emirSnapshotAktif: true,
+    // Giriş anında kullanılan sniper mumunu ve tetik karşılaştırmalarını loglar.
+    // GMT/ZEC gibi işlemlerde fitil mi, kapanış mı, canlı fiyat mı tetiklediğini kesin gösterir.
+    debugSniperMum: true,
+
+    // Giriş anında pusu kurulan pusu periyodu mumun gerçekten kapanmış olup olmadığını loglar.
+    // Bu ayar, çalışan pusu mumu üzerinden pusu kurma şüphesini kesinleştirmek için eklendi.
+    debugPusuMum: true,
+
+    // v2.1.9: Pusu kalite puanı ve SuperTrend etki analizi hesaplanır ve Telegram giriş/kapanış raporlarına yazılır.
+    // Şimdilik sadece ölçüm modudur; emir engellemez.
+    pusuKalitePuanlamaAktif: true,
+    // Pusu kalite analiz kayıtları data/pusu-kalite-islemler.jsonl ve .csv dosyalarına yazılır.
+    pusuKaliteLogAktif: true,
+
+    // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
+    superTrendEtkiAnaliziAktif: true,
+
+    // Geç giriş düzeltmesi:
+    // true ise SuperTrend onay periyodu sadece kapanmış mumdan değil, canlı fiyatla oluşan geçici trend mumundan da hesaplanır.
+    // Böylece fiyat kırılımı önce geldiyse bot trend mum kapanışını beklemeden tetik alabilir.
+    canliSniperTetikAktif: true,
+
 
     // PUSU KALİTE FİLTRELERİ
     // true ise pusu kurulurken pusu periyodundaki Bollinger orta bandı kontrol edilir.
@@ -113,13 +165,13 @@ const ayarlar = {
 
     // Ani çoklu tetiklerde sistemi sakinleştirir.
     // Bir döngüde en fazla bu kadar yeni pozisyon açılır.
-    maxYeniEmirDonguBasina: 100,
+    maxYeniEmirDonguBasina: 1,
 
     // Günlük toplam yeni emir limiti. 0 = limitsiz.
-    gunlukMaxYeniEmir: 1000,
+    gunlukMaxYeniEmir: 0,
 
     // Pusu raporundaki sembol listesini Telegram'da okunabilir tutar.
-    pusuRaporuMaxSembol: 100,
+    pusuRaporuMaxSembol: 20,
 
     // ========================================
     // TELEGRAM RAPORLAMA
@@ -136,7 +188,8 @@ const ayarlar = {
     // ========================================
     pingInterval: 500,
     taranacakCoinSayisi: 100,
-    // null/0 bırakılırsa bot bu süreleri seçilen periyoda göre otomatik ayarlar.
+    // null/0 bırakılırsa varsayılan süre kullanılır. Canlı sniper tetik aktif olduğu için ST cache 10 sn'de bir tazelenir,
+    // emir kararı ise her ana döngüde canlı fiyatla tekrar hesaplanır.
     pusuVeriTazelemeMs: null,
     superTrendTazelemeMs: null,
     durumLogAraligiMs: 5000

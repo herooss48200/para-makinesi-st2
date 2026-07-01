@@ -20,12 +20,22 @@ function sadeceKapanmisMumlar(mumlar) {
     return (mumlar || []).filter(x => Number(x.closeTime) <= now).map(mumDonustur);
 }
 
+function superTrendOnayPeriyodu() {
+    return ayarlar.superTrendPeriyodu || ayarlar.trendPeriyodu || ayarlar.sniperPeriyodu || '5m';
+}
+
 async function derinGecmisiInsaEt() {
     console.log('📥 Başlangıç verileri çekiliyor...');
     h.state.yerelPusuHafizasi = {};
     h.state.canliFiyatlar = {};
     h.state.sniperMumlar = {};
+    h.state.sniperCanliMumlar = {};
     h.state.sniperSuperTrend = {};
+    h.state.sniperSuperTrendCanli = {};
+    h.state.trendMumlar = {};
+    h.state.trendCanliMumlar = {};
+    h.state.trendSuperTrend = {};
+    h.state.trendSuperTrendCanli = {};
     h.state.sonPusuMumZamani = {};
 
     const PARALEL = 15;
@@ -104,27 +114,40 @@ async function pusuVerileriniTazele() {
 }
 
 async function superTrendHesapla(baslangic = false) {
-    let guncellenen = 0;
+    let sniperGuncellenen = 0;
+    let trendGuncellenen = 0;
     let hatali = 0;
     const PARALEL = 15;
+    const stPeriyodu = superTrendOnayPeriyodu();
 
     for (let i = 0; i < h.state.semboller.length; i += PARALEL) {
         const batch = h.state.semboller.slice(i, i + PARALEL);
         await Promise.all(batch.map(async (sym) => {
             try {
-                const ham = await h.client.futuresCandles({
+                const sniperHam = await h.client.futuresCandles({
                     symbol: sym,
-                    interval: ayarlar.sniperPeriyodu || '1m',
+                    interval: ayarlar.sniperPeriyodu || '5m',
                     limit: 80
                 });
+                const sniperKapanmis = sadeceKapanmisMumlar(sniperHam);
+                if (sniperKapanmis.length >= 5) {
+                    h.state.sniperMumlar[sym] = sniperKapanmis;
+                    sniperGuncellenen++;
+                }
 
-                const kapanmis = sadeceKapanmisMumlar(ham);
-                if (kapanmis.length >= (ayarlar.superTrendPeriod || 10) + 2) {
-                    h.state.sniperMumlar[sym] = kapanmis;
-                    const st = m.hesaplaSuperTrend(kapanmis);
+                const trendHam = await h.client.futuresCandles({
+                    symbol: sym,
+                    interval: stPeriyodu,
+                    limit: 80
+                });
+                const trendKapanmis = sadeceKapanmisMumlar(trendHam);
+                if (trendKapanmis.length >= (ayarlar.superTrendPeriod || 10) + 2) {
+                    h.state.trendMumlar[sym] = trendKapanmis;
+                    const st = m.hesaplaSuperTrend(trendKapanmis);
                     if (st && st.trend) {
-                        h.state.sniperSuperTrend[sym] = st.trend;
-                        guncellenen++;
+                        h.state.trendSuperTrend[sym] = st.trend;
+                        h.state.sniperSuperTrend[sym] = st.trend; // Eski rapor/log uyumluluğu için alias.
+                        trendGuncellenen++;
                     } else {
                         hatali++;
                     }
@@ -138,8 +161,9 @@ async function superTrendHesapla(baslangic = false) {
     }
 
     h.state.sonSniperGuncellemeZamani = Date.now();
-    if (baslangic || guncellenen > 0 || hatali > 0) {
-        console.log(`📊 [${new Date().toLocaleTimeString()}] SuperTrend: ${guncellenen} coin güncellendi, ${hatali} coin hatalı.`);
+    h.state.sonTrendGuncellemeZamani = Date.now();
+    if (baslangic || trendGuncellenen > 0 || hatali > 0) {
+        console.log(`📊 [${new Date().toLocaleTimeString()}] Sniper veri (${ayarlar.sniperPeriyodu}): ${sniperGuncellenen} coin | SuperTrend trend/onay (${stPeriyodu}): ${trendGuncellenen} coin güncellendi, ${hatali} coin hatalı.`);
     }
 }
 

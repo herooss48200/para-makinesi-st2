@@ -27,7 +27,7 @@ async function baslat() {
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
             `🧪 Emir Modu: ${emirModu}\n` +
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
-            `📊 Strateji: ${ayarlar.pusuPeriyodu} pusu + ${ayarlar.sniperPeriyodu} sniper\n` +
+            `📊 Strateji: ${ayarlar.trendPeriyodu || ayarlar.superTrendPeriyodu || 'YOK'} trend + ${ayarlar.pusuPeriyodu} pusu + ${ayarlar.sniperPeriyodu} sniper\n` +
             `📡 İzlenen Sembol: ${h.state.semboller.length}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
             `💰 Cüzdan Net PNL: ${s.netKarZarar.toFixed(2)} USDT\n\n` +
