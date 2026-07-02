@@ -1,6 +1,7 @@
 const ayarlar = require('./ayarlar.js');
 const h = require('./1_hafiza.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
+const analizMerkezi = require('./7_analiz_merkezi.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -125,7 +126,7 @@ const m = {
 
         const sanalId = `SANAL-${Date.now()}-${h.state.sanalEmirSayaci++}`;
 
-        h.state.aktifPozisyonlar.push({
+        const yeniPozisyon = {
             sym: symbol,
             yon,
             girisFiyati: canliFiyat,
@@ -142,7 +143,9 @@ const m = {
             sonTpSeviyesi: tp,
             breakevenAktif: false,
             girisAnalizi
-        });
+        };
+        h.state.aktifPozisyonlar.push(yeniPozisyon);
+        analizMerkezi.acilisKaydet(yeniPozisyon);
 
         if (yon === 'LONG') h.state.alinanlar.push(symbol);
         else h.state.aktifShortlar.push(symbol);
@@ -273,7 +276,7 @@ const m = {
             if (tpSonuc?.orderId) console.log(`✅ [TP BAŞARILI] ${symbol} Order ID: ${tpSonuc.orderId}`);
             else console.log(`⚠️ [TP BAŞARISIZ] ${symbol} TP emri gönderilemedi!`);
 
-            h.state.aktifPozisyonlar.push({
+            const yeniPozisyon = {
                 sym: symbol,
                 yon,
                 girisFiyati: canliFiyat,
@@ -288,7 +291,9 @@ const m = {
                 sonTpSeviyesi: tp,
                 breakevenAktif: false,
                 girisAnalizi
-            });
+            };
+            h.state.aktifPozisyonlar.push(yeniPozisyon);
+            analizMerkezi.acilisKaydet(yeniPozisyon);
 
             if (yon === 'LONG') h.state.alinanlar.push(symbol);
             else h.state.aktifShortlar.push(symbol);

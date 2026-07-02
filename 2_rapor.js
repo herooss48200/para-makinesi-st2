@@ -1,6 +1,7 @@
 require('dotenv').config();
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
+const analizMerkezi = require('./7_analiz_merkezi.js');
 
 function yuzde(n) {
     return Number.isFinite(n) ? n.toFixed(1) : '0.0';
@@ -42,7 +43,8 @@ function canliRaporMetniOlustur() {
         `🏅 <b>KASA BAŞARI ORANI:</b> %${yuzde(basariOrani)}\n` +
         `--------------------------------\n` +
         `💸 <b>TOPLAM KOMİSYON:</b> ${s.toplamKomisyon.toFixed(4)} USDT\n` +
-        `👑 <b>NET KASA DURUMU:</b> ${s.netKarZarar.toFixed(4)} USDT`;
+        `👑 <b>NET KASA DURUMU:</b> ${s.netKarZarar.toFixed(4)} USDT` +
+        analizMerkezi.telegramOzetMetni();
 }
 
 async function raporGonder(oneCikar = false) {

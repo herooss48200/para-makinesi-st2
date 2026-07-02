@@ -4,6 +4,7 @@ const ayarlar = require('./ayarlar.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
+const analizMerkezi = require('./7_analiz_merkezi.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -259,7 +260,10 @@ function emirSnapshotOlustur(sym, yon, hedef, tetikFiyati, canliFiyat, aktifTren
         farkRaw: fiyat - tetik,
         tetikSapmaYuzde: Number(tetikSapmaYuzde.toFixed(8)),
         compareOperator: yon === 'LONG' ? '>=' : '<=',
-        compareText: `canliFiyat ${yon === 'LONG' ? '>=' : '<='} tetik`,
+        // Telegram HTML parse hatası olmaması için mesaj metninde < karakteri kullanmıyoruz.
+        // SHORT açılış mesajlarının gitmemesinin ana nedeni: 'canliFiyat <= tetik' metnindeki < karakterinin
+        // Telegram parse_mode=HTML tarafından etiket başlangıcı sanılmasıydı.
+        compareText: `canliFiyat ${yon === 'LONG' ? '≥' : '≤'} tetik`,
         compareResult: kirilim,
         maxGirisSapmaYuzde: maxSapma,
         gecGirisUygun,
@@ -849,15 +853,19 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     const baslik = pos.sanal ? '[SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]';
     const kaliteSonuc = netKarZarar > 0 ? 'TP' : (Math.abs(fiyatKarYuzdesi) <= 0.05 ? 'BE' : 'SL');
 
-    pusuKaliteMotoru.islemKapanisKaydet(pos, {
+    const kapanisAnalizPaketi = {
         sonuc: kaliteSonuc,
         kapanisSebebi: duzeltilmisSebep,
         kapanisFiyati,
         fiyatKarYuzdesi: Number(fiyatKarYuzdesi.toFixed(4)),
         netKarZarar: Number(netKarZarar.toFixed(6)),
         netPozisyonYuzdesi: Number(netPozisyonYuzdesi.toFixed(4)),
-        netMarjinYuzdesi: Number(netMarjinYuzdesi.toFixed(4))
-    });
+        netMarjinYuzdesi: Number(netMarjinYuzdesi.toFixed(4)),
+        komisyon: Number(toplamKomisyon.toFixed(6))
+    };
+
+    pusuKaliteMotoru.islemKapanisKaydet(pos, kapanisAnalizPaketi);
+    analizMerkezi.kapanisKaydet(pos, kapanisAnalizPaketi);
 
     await h.telegramMesajGonder(
         `${emoji} <b>${baslik}</b>\n` +
@@ -1062,6 +1070,7 @@ async function izSurmeyiGuncelle() {
         if (!canliFiyat) continue;
 
         const sanalPozisyon = ayarlar.sanalEmirModu || pos.sanal;
+        analizMerkezi.journeyGuncelle(pos, canliFiyat);
         const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
 
         if (sanalPozisyon) {

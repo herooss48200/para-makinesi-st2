@@ -1,15 +1,15 @@
 // ============================================================
 // PARA MAKİNESİ BINANCE - SÜRÜM KİMLİK DOSYASI
-// AWS Stable v2.1.13
+// AWS Stable v2.1.14.2
 // ============================================================
 
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'SNIPER',
-    kod: 'AWS Stable v2.1.13',
-    botSurumu: '2.1.13',
-    stratejiSurumu: '1.0.13',
-    yayinTarihi: '01.07.2026',
+    kodAdi: 'ANALIZ-TELEGRAM-FIX',
+    kod: 'AWS Stable v2.1.14.2',
+    botSurumu: '2.1.14.2',
+    stratejiSurumu: '1.0.14',
+    yayinTarihi: '02.07.2026',
 
     ortam: {
         aws: true,
@@ -18,7 +18,7 @@ const versiyon = {
     },
 
     strateji: {
-        trendPeriyodu: '4h',
+        trendPeriyodu: '1h',
         pusuPeriyodu: '1h',
         sniperPeriyodu: '3m',
         bollingerPusu: true,
@@ -32,7 +32,7 @@ const versiyon = {
 
     degisiklikler: [
         'bot.js ile uyumlu kisaOzet() ve telegramOzet() fonksiyonları eklendi.',
-        'Sürüm kimliği AWS Stable v2.1.13 olarak güncellendi.',
+        'Sürüm kimliği AWS Stable v2.1.14.2 olarak güncellendi.',
         'Pusu ve Sniper farklı zaman dilimi desteği korundu.',
         'Telegram canlı raporlarına sürüm bilgisi uyumlu hale getirildi.',
         'GitHub -> AWS stable çalışma akışı için dosya adları normalize edildi.',
@@ -54,7 +54,11 @@ const versiyon = {
         'v2.1.11: SuperTrend onayı sniper periyodundan ayrıldı; varsayılan yapı 4h trend/ST + 1h pusu + 5m sniper yapıldı.',
         'v2.1.13: Varsayılan yapı 4h trend/ST + 1h pusu + 3m sniper olarak güncellendi.',
         'v2.1.13: SHORT/LONG için maxGirisSapmaYuzde geç giriş koruması eklendi.',
-        'v2.1.13: Emir anı snapshot ve RAW fiyat/tetik karşılaştırması Telegram giriş teşhisine eklendi.'
+        'v2.1.13: Emir anı snapshot ve RAW fiyat/tetik karşılaştırması Telegram giriş teşhisine eklendi.',
+        'v2.1.14.1: Varsayılan yapı 1h SuperTrend filtresi + 1h pusu + 3m sniper olarak güncellendi.',
+        'v2.1.14.1: Argos Analiz Merkezi eklendi; açılış/kapanış, LONG/SHORT kalite özeti, son 10 işlem ve MFE/MAE yolculuk kaydı tutulur.',
+        'v2.1.14.1: Telegram canlı raporuna LONG ve SHORT ayrı kalite/sonuç/net PNL tablosu eklendi.',
+        'v2.1.14.2: SHORT sanal pozisyon açılış mesajlarını bozan Telegram HTML parse hatası düzeltildi; <= metni yerine ≤ kullanılır.'
     ],
 
     notlar: [
@@ -66,9 +70,10 @@ const versiyon = {
         'Pusu Kalite Motoru ölçüm modundadır; kalite sınıfı emir engellemez.',
         'SuperTrend Etki Analizi ölçüm modundadır; ST puanı emir engellemez.',
         'KADEME modunda başabaş artık ilk küçük kârda değil, breakevenTetikKademe ayarından sonra devreye girer.',
-        'v2.1.13 ile 3m sniper sadece tetik ve mum teşhisi için, 4h SuperTrend ise trend/onay katmanı için kullanılır.',
+        'v2.1.14.1 ile 3m sniper sadece tetik ve mum teşhisi için, 1h SuperTrend ise trend/onay katmanı için kullanılır.',
         '3 mum kuralı sniper mumuna değil, sadece 1h pusu mumuna göre çalışır.',
-        'Geç giriş filtresi aşılırsa pusu güvenlik amacıyla iptal edilir.'
+        'Geç giriş filtresi aşılırsa pusu güvenlik amacıyla iptal edilir.',
+        'SHORT açılış mesajında Telegram HTML parse hatası olmaması için dinamik karşılaştırma metinlerinde < karakteri kullanılmaz.'
     ]
 };
 

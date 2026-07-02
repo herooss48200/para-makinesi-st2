@@ -53,6 +53,13 @@ const state = {
         toplamKomisyon: 0,
         netKarZarar: 0
     },
+    analizOzeti: {
+        surum: '2.1.14.2',
+        sonGuncelleme: new Date().toISOString(),
+        long: { acilan: 0, kalite: { A: 0, B: 0, C: 0, D: 0, YOK: 0 }, tp: 0, sl: 0, be: 0, netKarZarar: 0, toplamKomisyon: 0 },
+        short: { acilan: 0, kalite: { A: 0, B: 0, C: 0, D: 0, YOK: 0 }, tp: 0, sl: 0, be: 0, netKarZarar: 0, toplamKomisyon: 0 },
+        son10Islem: []
+    },
     sanalEmirSayaci: 1
 };
 

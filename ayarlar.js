@@ -76,12 +76,13 @@ const ayarlar = {
     // ========================================
     // v2.1.11: Üç katmanlı yapı.
     // Trend/SuperTrend onayı büyük periyottan, pusu Bollinger setup'ı orta periyottan, sniper hassas girişten gelir.
-    // Trend filtresi: 4h SuperTrend yön onayı
+    // v2.1.14.1: Analiz testi için SuperTrend filtresi ve pusu aynı 1h periyotta ölçülür.
+    // Trend filtresi: 1h SuperTrend yön onayı
     // Pusu: 1h Bollinger pusu mumu
     // Sniper: 3m canlı tetik/teşhis mumu
-    trendPeriyodu: '4h',
-    superTrendPeriyodu: '4h',
-    pusuPeriyodu: '1h',
+    trendPeriyodu: '3m',
+    superTrendPeriyodu: '3m',
+    pusuPeriyodu: '15m',
     sniperPeriyodu: '3m',
     trendFiltresiAktif: true,
     trendFiltresiModu: 'ONAY', // ONAY: ST yönü işlem yönüyle aynı olmalı | BILGI: sadece log/risk etiketi
@@ -123,6 +124,13 @@ const ayarlar = {
     pusuKalitePuanlamaAktif: true,
     // Pusu kalite analiz kayıtları data/pusu-kalite-islemler.jsonl ve .csv dosyalarına yazılır.
     pusuKaliteLogAktif: true,
+
+    // ========================================
+    // ARGOS ANALİZ MERKEZİ
+    // ========================================
+    // Stratejiyi değiştirmez; açılış/kapanış/kalite/yolculuk verisini ölçer.
+    analizMerkeziAktif: true,
+
 
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
