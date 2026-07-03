@@ -38,11 +38,13 @@ const ayarlar = {
     // Örn: tpAdimYuzdesi 0.4 ve breakevenTetikKademe 2 ise BE ancak %0.8 kâr görülünce aktif olur.
     breakevenTetikYuzde: 0.4,
     breakevenTetikKademe: 2,
-    breakevenTamponYuzde: 0.03,
+    breakevenTamponYuzde: 0.12,
     // Kademe stop kaç kademe geriden gelsin? 2 = daha geniş nefes, 1 = daha agresif koruma.
     kademeStopGeridenKademe: 2,
     // Pozisyon açıldıktan sonra BE için minimum bekleme. 0 = kapalı.
     breakevenMinimumBeklemeSaniye: 0,
+    // BE/BE+ sınıflandırması için fiyat hareketi bandı. Komisyon çevresindeki kapanışlar TP/SL istatistiğini bozmasın.
+    breakevenSonucBandYuzde: 0.15,
     izSurenStopTakipYuzdesi: 0.4,
     izSurenStopAktivasyon: 0.8,
     stopBildirimMinYuzde: 0.01,
@@ -130,6 +132,10 @@ const ayarlar = {
     // ========================================
     // Stratejiyi değiştirmez; açılış/kapanış/kalite/yolculuk verisini ölçer.
     analizMerkeziAktif: true,
+    // v2.2.0 BlackBox: Her işlemde BTC ve coin için 5m/15m/1h/4h SuperTrend + Bollinger fotoğrafı alır.
+    blackboxAktif: true,
+    blackboxTimeframes: ['5m', '15m', '1h', '4h'],
+    blackboxBollingerTf: '15m',
 
 
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.

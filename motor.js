@@ -2,6 +2,7 @@ const ayarlar = require('./ayarlar.js');
 const h = require('./1_hafiza.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
+const blackbox = require('./8_blackbox.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -144,8 +145,15 @@ const m = {
             breakevenAktif: false,
             girisAnalizi
         };
+        // BlackBox açılış fotoğrafı: stratejiye müdahale etmez, sadece analiz verisi üretir.
+        yeniPozisyon.blackboxAcilis = await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
+            console.log(`⚠️ [BLACKBOX] Açılış snapshot alınamadı: ${symbol} ${yon} | ${err.message}`);
+            return null;
+        });
+
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
+        blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
 
         if (yon === 'LONG') h.state.alinanlar.push(symbol);
         else h.state.aktifShortlar.push(symbol);
@@ -183,7 +191,9 @@ const m = {
             `📦 Miktar: ${guvenliMiktar}\n` +
             `🛡️ Sanal SL: ${sl.toFixed(pPrecision)}\n` +
             `🎯 Sanal Final TP: ${tp.toFixed(pPrecision)}\n` +
-            `🆔 ${sanalId}` +
+            `🆔 ${sanalId}\n` +
+            `🕒 İşlem Açılış: ${blackbox.tarihSaat(yeniPozisyon.acilisZamani)}` +
+            blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
             analizMesaji
         );
 
@@ -292,8 +302,14 @@ const m = {
                 breakevenAktif: false,
                 girisAnalizi
             };
+            yeniPozisyon.blackboxAcilis = await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
+                console.log(`⚠️ [BLACKBOX] Açılış snapshot alınamadı: ${symbol} ${yon} | ${err.message}`);
+                return null;
+            });
+
             h.state.aktifPozisyonlar.push(yeniPozisyon);
             analizMerkezi.acilisKaydet(yeniPozisyon);
+            blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
 
             if (yon === 'LONG') h.state.alinanlar.push(symbol);
             else h.state.aktifShortlar.push(symbol);
@@ -307,6 +323,7 @@ const m = {
                 `📦 Miktar: ${guvenliMiktar}\n` +
                 `🛡️ Borsaya İletilen SL: ${sl.toFixed(pPrecision)}\n` +
                 `🎯 Borsaya İletilen Final TP: ${tp.toFixed(pPrecision)}` +
+                blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
                 (girisAnalizi?.superTrendEtki ? `\n📈 ST Etki: ${girisAnalizi.superTrendEtki.puan}/20 | Yaş: ${girisAnalizi.superTrendEtki.yasMum} | Mesafe: %${Number(girisAnalizi.superTrendEtki.mesafeYuzde || 0).toFixed(2)} | ${girisAnalizi.superTrendEtki.durum}` : '')
             );
 

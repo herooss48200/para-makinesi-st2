@@ -5,6 +5,7 @@ const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
+const blackbox = require('./8_blackbox.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -801,6 +802,44 @@ function pozisyonDegeriHesapla(pos) {
     return (ayarlar.calisilmakIstenenUsdtMiktar || 0) * (ayarlar.mevcutKaldirac || 1);
 }
 
+function fiyatGecerliMi(fiyat) {
+    const n = Number(fiyat);
+    return Number.isFinite(n) && n > 0;
+}
+
+function pozisyonKorumaFiyatlariniOnar(pos, kaynak = 'kontrol') {
+    const giris = Number(pos.girisFiyati || 0);
+    if (!fiyatGecerliMi(giris)) return false;
+
+    const slOrani = (ayarlar.sabitStopYuzdesi || 1.5) / 100;
+    const tpYuzdesi = ayarlar.stopTakipModu === 'KADEME'
+        ? (ayarlar.maxTpYuzdesi || 10)
+        : (ayarlar.sabitTpYuzdesi || 0.4);
+    const tpOrani = tpYuzdesi / 100;
+
+    const slMantikli = pos.yon === 'LONG'
+        ? fiyatGecerliMi(pos.sl) && Number(pos.sl) < giris
+        : fiyatGecerliMi(pos.sl) && Number(pos.sl) > giris;
+    const tpMantikli = pos.yon === 'LONG'
+        ? fiyatGecerliMi(pos.tp) && Number(pos.tp) > giris
+        : fiyatGecerliMi(pos.tp) && Number(pos.tp) < giris;
+
+    let onarildi = false;
+    if (!slMantikli) {
+        pos.sl = pos.yon === 'LONG' ? giris * (1 - slOrani) : giris * (1 + slOrani);
+        onarildi = true;
+    }
+    if (!tpMantikli) {
+        pos.tp = pos.yon === 'LONG' ? giris * (1 + tpOrani) : giris * (1 - tpOrani);
+        onarildi = true;
+    }
+
+    if (onarildi) {
+        console.log(`🛠️ [KORUMA FİYATI ONARILDI] ${pos.sym} ${pos.yon} | Kaynak: ${kaynak} | Giriş: ${giris} | SL: ${pos.sl} | TP: ${pos.tp}`);
+    }
+    return onarildi;
+}
+
 function kapanisSebebiDuzenle(pos, sebep, kapanisFiyati) {
     if (!sebep || !sebep.includes('SL')) return sebep;
 
@@ -834,11 +873,22 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     h.state.basariOzeti.toplamKomisyon += toplamKomisyon;
     h.state.basariOzeti.netKarZarar += netKarZarar;
 
-    if (netKarZarar > 0) {
+    const sebepText = String(duzeltilmisSebep || sebep || '').toUpperCase();
+    const beBandYuzde = Math.max(0.05, ayarlar.breakevenSonucBandYuzde || 0.15);
+    let kaliteSonuc = 'SL';
+    if (sebepText.includes('TP')) kaliteSonuc = 'TP';
+    else if (pos.breakevenAktif || sebepText.includes('BAŞABAŞ') || sebepText.includes('KOMİSYON') || Math.abs(fiyatKarYuzdesi) <= beBandYuzde) kaliteSonuc = 'BE';
+
+    // Kâr koruma/trailing stop SL emriyle kapanabilir; analizde zarar SL'i gibi sayılmamalı.
+    if (kaliteSonuc === 'SL' && netKarZarar >= 0) {
+        kaliteSonuc = 'BE';
+    }
+
+    if (kaliteSonuc === 'TP') {
         h.state.basariOzeti.tp++;
         if (pos.yon === 'LONG') h.state.basariOzeti.longTp++;
         else h.state.basariOzeti.shortTp++;
-    } else if (Math.abs(fiyatKarYuzdesi) <= 0.05 && netKarZarar <= 0) {
+    } else if (kaliteSonuc === 'BE') {
         h.state.basariOzeti.be++;
         if (pos.yon === 'LONG') h.state.basariOzeti.longBe++;
         else h.state.basariOzeti.shortBe++;
@@ -849,9 +899,9 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     }
 
     const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
-    const emoji = netKarZarar > 0 ? '✅' : (Math.abs(fiyatKarYuzdesi) <= 0.05 ? '⚖️' : '❌');
+    const emoji = kaliteSonuc === 'TP' ? '✅' : (kaliteSonuc === 'BE' ? (netKarZarar >= 0 ? '⚖️✅' : '⚖️') : '❌');
     const baslik = pos.sanal ? '[SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]';
-    const kaliteSonuc = netKarZarar > 0 ? 'TP' : (Math.abs(fiyatKarYuzdesi) <= 0.05 ? 'BE' : 'SL');
+    const kapanisZamani = Date.now();
 
     const kapanisAnalizPaketi = {
         sonuc: kaliteSonuc,
@@ -864,12 +914,21 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         komisyon: Number(toplamKomisyon.toFixed(6))
     };
 
+    pos.blackboxKapanis = await blackbox.snapshotAl(pos.sym, pos.yon, 'KAPANIS').catch(err => {
+        console.log(`⚠️ [BLACKBOX] Kapanış snapshot alınamadı: ${pos.sym} ${pos.yon} | ${err.message}`);
+        return null;
+    });
+
     pusuKaliteMotoru.islemKapanisKaydet(pos, kapanisAnalizPaketi);
     analizMerkezi.kapanisKaydet(pos, kapanisAnalizPaketi);
+    blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
 
     await h.telegramMesajGonder(
         `${emoji} <b>${baslik}</b>\n` +
         `🔀 ${pos.sym} (${pos.yon})\n` +
+        `🕒 Açılış: ${blackbox.tarihSaat(pos.acilisZamani || pos.zaman)}\n` +
+        `🕒 Kapanış: ${blackbox.tarihSaat(kapanisZamani)}\n` +
+        `⏳ Süre: ${blackbox.sureMetni(kapanisZamani - Number(pos.acilisZamani || pos.zaman || kapanisZamani))}\n` +
         `📌 Sebep: ${duzeltilmisSebep}\n` +
         `📥 Giriş: ${pos.girisFiyati.toFixed(pPrecision)}\n` +
         `📤 Çıkış: ${kapanisFiyati.toFixed(pPrecision)}\n` +
@@ -879,11 +938,22 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `💸 Komisyon: ${toplamKomisyon.toFixed(4)} USDT\n` +
         `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT\n` +
         (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | Sonuç: ${kaliteSonuc}\n` : '') +
-        `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}`
+        `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
+        blackbox.kapanisAnalizMetni(pos, kapanisAnalizPaketi, kapanisZamani) +
+        blackbox.telegramSnapshotMetni(pos.blackboxAcilis, 'AÇILIŞ FOTOĞRAFI') +
+        blackbox.telegramSnapshotMetni(pos.blackboxKapanis, 'KAPANIŞ FOTOĞRAFI') +
+        blackbox.gecisMetni(pos.blackboxAcilis, pos.blackboxKapanis)
     );
 }
 
 function sanalKapanisKontrol(pos, canliFiyat) {
+    pozisyonKorumaFiyatlariniOnar(pos, 'sanal-kapanis-kontrol');
+
+    if (!fiyatGecerliMi(pos.sl) || !fiyatGecerliMi(pos.tp) || !fiyatGecerliMi(pos.girisFiyati)) {
+        console.log(`🚫 [SANAL KAPANIŞ ENGELLENDİ] ${pos.sym} ${pos.yon} | Geçersiz fiyat | Giriş:${pos.girisFiyati} SL:${pos.sl} TP:${pos.tp}`);
+        return { kapandi: false };
+    }
+
     if (pos.yon === 'LONG') {
         if (canliFiyat <= pos.sl) return { kapandi: true, fiyat: pos.sl, sebep: 'Sanal SL' };
         if (canliFiyat >= pos.tp) return { kapandi: true, fiyat: pos.tp, sebep: 'Sanal TP' };
@@ -968,7 +1038,7 @@ function klasikTrailingHesapla(pos, canliFiyat) {
     if (pos.yon === 'LONG') {
         const karYuzde = ((canliFiyat - pos.girisFiyati) / pos.girisFiyati) * 100;
         if (karYuzde >= ayarlar.breakevenTetikYuzde && !pos.breakevenAktif) {
-            pos.sl = pos.girisFiyati;
+            pos.sl = pos.girisFiyati * (1 + Math.max(0, ayarlar.breakevenTamponYuzde || 0) / 100);
             pos.breakevenAktif = true;
             pos.breakevenYeniAktif = true;
             guncellemeGerekli = true;
@@ -983,7 +1053,7 @@ function klasikTrailingHesapla(pos, canliFiyat) {
     } else {
         const karYuzde = ((pos.girisFiyati - canliFiyat) / pos.girisFiyati) * 100;
         if (karYuzde >= ayarlar.breakevenTetikYuzde && !pos.breakevenAktif) {
-            pos.sl = pos.girisFiyati;
+            pos.sl = pos.girisFiyati * (1 - Math.max(0, ayarlar.breakevenTamponYuzde || 0) / 100);
             pos.breakevenAktif = true;
             pos.breakevenYeniAktif = true;
             guncellemeGerekli = true;

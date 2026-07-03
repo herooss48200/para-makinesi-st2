@@ -1,15 +1,15 @@
 // ============================================================
 // PARA MAKİNESİ BINANCE - SÜRÜM KİMLİK DOSYASI
-// AWS Stable v2.1.14.2
+// AWS Stable v2.4.0
 // ============================================================
 
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ANALIZ-TELEGRAM-FIX',
-    kod: 'AWS Stable v2.1.14.2',
-    botSurumu: '2.1.14.2',
+    kodAdi: 'BLACKBOX-INTELLIGENCE-PRO',
+    kod: 'AWS Stable v2.4.0',
+    botSurumu: '2.4.0',
     stratejiSurumu: '1.0.14',
-    yayinTarihi: '02.07.2026',
+    yayinTarihi: '03.07.2026',
 
     ortam: {
         aws: true,
@@ -31,8 +31,23 @@ const versiyon = {
     },
 
     degisiklikler: [
+        'v2.4.0: Kapanış mesajına aynı kombinasyon öğrenme kartı eklendi; BTC/Coin uyum + BB bölgesi için TP/SL/BE ve net sonuç birikir.',
+        'v2.4.0: Ana BlackBox raporuna en kârlı kombinasyonlar bölümü eklendi.',
+        'v2.4.0: Kapanış kartı max kâr/max zarar, komisyon, net PNL ve açılış→kapanış uyum değişimini tek analiz bloğunda gösterir.',
+        'v2.3.1: Açılış mesajına gerçek işlem açılış saati eklendi.',
+        'v2.3.1: Kapanış mesajına açılış saati, kapanış saati, işlem süresi ve BlackBox uyum değişim analizi eklendi.',
+        'v2.3.1: Aktif pozisyon BlackBox özetinde açılış zamanı ve pozisyon süresi gösterilir.',
+        'v2.3.0: Telegram ana raporuna kapanan işlemler için 8/8, 7/8, 6/8 SuperTrend uyum tabloları ve aktif pozisyon açılış fotoğrafları eklendi.',
+        'v2.3.0: Açılış ve kapanış mesajları BTC/Coin 5m/15m/1h/4h kartlarını çok satırlı okunabilir formata taşır.',
+        'v2.3.0: Kapanış mesajına açılış fotoğrafı, kapanış fotoğrafı ve trend değişim özeti eklendi.',
+        'v2.3.0: Bollinger orta, orta bölge ve alt/üst etkileri ana raporda ayrı sayılır.',
+        'v2.2.2: Telegram açılış mesajına BTC/Coin 5m/15m/1h/4h BlackBox SuperTrend kartı eklendi.',
+        'v2.2.2: Telegram kapanış mesajına açılış fotoğrafı, kapanış fotoğrafı ve trend değişimi eklendi.',
+        'v2.2.1: Sanal SL/TP fiyat doğrulaması eklendi; geçersiz 0 fiyatlı kapanışlar engellendi.',
+        'v2.2.1: Kârla kapanan kâr-koruma stopları zarar SL istatistiğine yazılmayacak şekilde sınıflandırıldı.',
+        'v2.2.1: BE sayaçlarındaki çift LONG BE artışı düzeltildi.',
         'bot.js ile uyumlu kisaOzet() ve telegramOzet() fonksiyonları eklendi.',
-        'Sürüm kimliği AWS Stable v2.1.14.2 olarak güncellendi.',
+        'Sürüm kimliği AWS Stable v2.2.2 olarak güncellendi.',
         'Pusu ve Sniper farklı zaman dilimi desteği korundu.',
         'Telegram canlı raporlarına sürüm bilgisi uyumlu hale getirildi.',
         'GitHub -> AWS stable çalışma akışı için dosya adları normalize edildi.',
@@ -58,7 +73,11 @@ const versiyon = {
         'v2.1.14.1: Varsayılan yapı 1h SuperTrend filtresi + 1h pusu + 3m sniper olarak güncellendi.',
         'v2.1.14.1: Argos Analiz Merkezi eklendi; açılış/kapanış, LONG/SHORT kalite özeti, son 10 işlem ve MFE/MAE yolculuk kaydı tutulur.',
         'v2.1.14.1: Telegram canlı raporuna LONG ve SHORT ayrı kalite/sonuç/net PNL tablosu eklendi.',
-        'v2.1.14.2: SHORT sanal pozisyon açılış mesajlarını bozan Telegram HTML parse hatası düzeltildi; <= metni yerine ≤ kullanılır.'
+        'v2.1.14.2: SHORT sanal pozisyon açılış mesajlarını bozan Telegram HTML parse hatası düzeltildi; <= metni yerine ≤ kullanılır.',
+        'v2.2.0: BlackBox Full Analysis eklendi; BTC ve coin için 5m/15m/1h/4h açılış-kapanış SuperTrend fotoğrafı Telegram ve JSONL/CSV loglarına yazılır.',
+        'v2.2.0: Telegram ana raporuna SuperTrend uyum etkisi, Bollinger orta bant etkisi ve son BlackBox işlem özeti eklendi.',
+        'v2.2.0: BE tamponu %0.12 yapıldı; komisyon sonrası zararda başabaş kapanışlarını azaltmak için BE+ koruması güçlendirildi.',
+        'v2.2.0: Kasa sonucu sınıflandırması kapanış sebebine göre TP/SL/BE olarak ayrıldı; BE+ küçük kâr olsa da ayrı izlenir.'
     ],
 
     notlar: [
@@ -73,7 +92,9 @@ const versiyon = {
         'v2.1.14.1 ile 3m sniper sadece tetik ve mum teşhisi için, 1h SuperTrend ise trend/onay katmanı için kullanılır.',
         '3 mum kuralı sniper mumuna değil, sadece 1h pusu mumuna göre çalışır.',
         'Geç giriş filtresi aşılırsa pusu güvenlik amacıyla iptal edilir.',
-        'SHORT açılış mesajında Telegram HTML parse hatası olmaması için dinamik karşılaştırma metinlerinde < karakteri kullanılmaz.'
+        'SHORT açılış mesajında Telegram HTML parse hatası olmaması için dinamik karşılaştırma metinlerinde < karakteri kullanılmaz.',
+        'BlackBox ölçüm katmanıdır; işlem açma yönünü veya pusu/sniper stratejisini değiştirmez.',
+        'BlackBox dosyaları: data/blackbox-snapshots.jsonl ve data/blackbox-trades.csv.'
     ]
 };
 
