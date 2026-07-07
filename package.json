@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-binance",
-  "version": "2.4.0",
+  "version": "3.0.1",
   "description": "Binance Futures üzerinde çalışan Telegram raporlamalı modüler Node.js işlem botu.",
   "main": "bot.js",
   "scripts": {

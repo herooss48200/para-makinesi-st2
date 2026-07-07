@@ -136,6 +136,33 @@ const ayarlar = {
     blackboxAktif: true,
     blackboxTimeframes: ['5m', '15m', '1h', '4h'],
     blackboxBollingerTf: '15m',
+    blackboxRaporTopKombinasyon: 5,
+    blackboxMinKombinasyonOrnek: 3,
+    blackboxMinTfOrnek: 5,
+    // v2.5.2: Karar laboratuvarı eşikleri. Sadece raporlar; emir yönünü veya filtreyi değiştirmez.
+    blackboxKararLaboratuvariAktif: true,
+    blackboxKararMinOrnek: 10,
+    blackboxKararBasariEsigi: 65,
+    blackboxRiskBasariEsigi: 35,
+    blackboxKararTopAday: 5,
+    // v3.0: Saf 256 BTC×Coin imza matrisi. BB/pusu kalitesi karıştırılmaz; emir motoruna dokunmaz.
+    blackbox256MatrixAktif: true,
+    blackbox256MatrixMinOrnek: 3,
+    blackbox256MatrixTopAday: 5,
+    // v2.5.6: Radar her imza için başarı/başarısızlık oranını ve ters yön test adaylığını açık yazar. Sadece Telegram uyarısıdır; emir motoruna dokunmaz.
+    blackboxTersYonMinOrnek: 10,
+    blackboxTersYonBasariEsigi: 35,
+    blackboxPusuKaliteStatsAktif: true,
+    // v2.5.3: Strategy Lab deney etiketi. Periyot değiştirince farklı ID ver; boş bırakılırsa ayarlardan otomatik üretilir.
+    strategyLabAktif: true,
+    strategyLabDeneyId: null,
+    strategyLabDeneyAdi: null,
+    blackboxTfHaritaMinOrnek: 1,
+    // v2.5.1: Telegram'da otomatik BlackBox istatistik raporu.
+    // Her 10 kapanışta bir ayrı rapor gönderir; canlı raporun içinde de özet görünmeye devam eder.
+    blackboxIstatistikRaporuAktif: true,
+    blackboxIstatistikRaporAraligiKapanis: 10,
+    blackboxIstatistikMinIslem: 10,
 
 
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.

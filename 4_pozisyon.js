@@ -11,6 +11,14 @@ let pusuRaporu = [];
 let sonRaporZamani = 0;
 const RAPOR_ARALIGI = 300000;
 
+// Aynı pozisyonun aynı kapanışını ikinci kez işlemeyi engeller.
+// Telegram gönderimi veya BlackBox tarafında hata olsa bile kapanan pozisyon tekrar sayılmamalı.
+const kapananPozisyonAnahtarlari = new Set();
+
+function pozisyonKapanisAnahtari(pos) {
+    return String(pos?.id || pos?.orderId || `${pos?.sym || 'YOK'}-${pos?.yon || 'YOK'}-${pos?.acilisZamani || pos?.zaman || '0'}-${pos?.girisFiyati || '0'}`);
+}
+
 function dinamikBasamak(sym, deger, tip = 'fiyat') {
     const kural = h.state.basamaklar[sym];
     if (!kural) return Number(deger).toFixed(4);
@@ -856,6 +864,13 @@ function kapanisSebebiDuzenle(pos, sebep, kapanisFiyati) {
 }
 
 async function kapanisRaporla(pos, kapanisFiyati, sebep) {
+    const kapanisAnahtari = pozisyonKapanisAnahtari(pos);
+    if (kapananPozisyonAnahtarlari.has(kapanisAnahtari)) {
+        console.log(`🧯 [TEKRAR KAPANIŞ ENGELLENDİ] ${pos.sym} ${pos.yon} | Anahtar: ${kapanisAnahtari}`);
+        return false;
+    }
+    kapananPozisyonAnahtarlari.add(kapanisAnahtari);
+
     const komisyonOrani = ayarlar.sanalKomisyonOrani ?? 0.0005;
     const pozisyonDegeri = pozisyonDegeriHesapla(pos);
     const toplamKomisyon = pozisyonDegeri * komisyonOrani * 2;
@@ -874,15 +889,27 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     h.state.basariOzeti.netKarZarar += netKarZarar;
 
     const sebepText = String(duzeltilmisSebep || sebep || '').toUpperCase();
-    const beBandYuzde = Math.max(0.05, ayarlar.breakevenSonucBandYuzde || 0.15);
+    const beBandYuzde = Math.max(0.03, ayarlar.breakevenSonucBandYuzde || 0.10);
+    const komisyonBandUsdt = toplamKomisyon * 1.25;
     let kaliteSonuc = 'SL';
-    if (sebepText.includes('TP')) kaliteSonuc = 'TP';
-    else if (pos.breakevenAktif || sebepText.includes('BAŞABAŞ') || sebepText.includes('KOMİSYON') || Math.abs(fiyatKarYuzdesi) <= beBandYuzde) kaliteSonuc = 'BE';
 
-    // Kâr koruma/trailing stop SL emriyle kapanabilir; analizde zarar SL'i gibi sayılmamalı.
-    if (kaliteSonuc === 'SL' && netKarZarar >= 0) {
+    if (sebepText.includes('TP')) {
+        kaliteSonuc = 'TP';
+    } else if (sebepText.includes('İZ SÜREN') || sebepText.includes('KÂR KORUMA') || sebepText.includes('KAR KORUMA')) {
+        kaliteSonuc = netKarZarar > 0 ? 'TP' : 'BE';
+    } else if (sebepText.includes('BAŞABAŞ') || sebepText.includes('KOMİSYON')) {
+        kaliteSonuc = Math.abs(netKarZarar) <= komisyonBandUsdt ? 'BE' : (netKarZarar > 0 ? 'TP' : 'SL');
+    } else if (Math.abs(fiyatKarYuzdesi) <= beBandYuzde && Math.abs(netKarZarar) <= komisyonBandUsdt) {
         kaliteSonuc = 'BE';
+    } else if (netKarZarar > komisyonBandUsdt) {
+        // Stop kâr bölgesine taşındıysa ve net sonuç gerçek kârsa başarı hanesine TP olarak yazılır.
+        kaliteSonuc = 'TP';
     }
+
+    // KRİTİK FIX:
+    // Sadece pos.breakevenAktif=true diye sonuç BE sayılamaz.
+    // Senin gördüğün "Max Kâr pozitif / Net -1.50 / Sonuç BE" çelişkisi buradan doğuyordu.
+    // BE yalnızca kapanış fiyatı/net PNL gerçekten başabaş bandındaysa yazılır; büyük zarar SL'dir.
 
     if (kaliteSonuc === 'TP') {
         h.state.basariOzeti.tp++;
@@ -923,7 +950,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     analizMerkezi.kapanisKaydet(pos, kapanisAnalizPaketi);
     blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
 
-    await h.telegramMesajGonder(
+    const telegramSonuclari = await h.telegramMesajGonder(
         `${emoji} <b>${baslik}</b>\n` +
         `🔀 ${pos.sym} (${pos.yon})\n` +
         `🕒 Açılış: ${blackbox.tarihSaat(pos.acilisZamani || pos.zaman)}\n` +
@@ -944,6 +971,20 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         blackbox.telegramSnapshotMetni(pos.blackboxKapanis, 'KAPANIŞ FOTOĞRAFI') +
         blackbox.gecisMetni(pos.blackboxAcilis, pos.blackboxKapanis)
     );
+
+    const telegramOk = Array.isArray(telegramSonuclari) && telegramSonuclari.some(x => x?.sonuc?.ok);
+    console.log(`${telegramOk ? '✅' : '⚠️'} [TELEGRAM KAPANIŞ] ${pos.sym} ${pos.yon} | Sonuç: ${kaliteSonuc} | Net: ${netKarZarar.toFixed(4)} | Parça/deneme: ${Array.isArray(telegramSonuclari) ? telegramSonuclari.length : 0}`);
+
+    // v2.5.1: Her N kapanışta bir ayrı BlackBox istatistik raporu gönder.
+    // Canlı rapor içinde özet var; bu rapor ise Telegram'da kaçırılmayacak ayrı analiz mesajıdır.
+    try {
+        if (blackbox.istatistikRaporGerekli && blackbox.istatistikRaporGerekli()) {
+            await h.telegramMesajGonder(blackbox.telegramIstatistikRaporMetni());
+            kaliciHafiza.kaydet('blackbox-istatistik-raporu-gonderildi');
+        }
+    } catch (err) {
+        console.error(`⚠️ [BLACKBOX İSTATİSTİK RAPOR HATASI] ${err.message}`);
+    }
 }
 
 function sanalKapanisKontrol(pos, canliFiyat) {
@@ -1159,10 +1200,21 @@ async function izSurmeyiGuncelle() {
 
             const kapanis = sanalKapanisKontrol(pos, canliFiyat);
             if (kapanis.kapandi) {
+                if (pos.kapanisIsleniyor) continue;
+                pos.kapanisIsleniyor = true;
                 console.log(`🧪 [SANAL KAPANDI] ${pos.sym} ${pos.yon} | Sebep: ${kapanis.sebep} | Fiyat: ${kapanis.fiyat.toFixed(pPrecision)}`);
-                await kapanisRaporla(pos, kapanis.fiyat, kapanis.sebep);
+
+                // KRİTİK FIX: Pozisyonu rapor/Telegram beklemeden önce aktif listeden çıkar.
+                // Aksi halde Telegram/BlackBox tarafında oluşan tek bir hata, aynı TP/SL'nin her döngüde tekrar gönderilmesine yol açar.
                 h.state.aktifPozisyonlar.splice(i, 1);
                 pozisyonListelerindenSil(pos);
+
+                try {
+                    await kapanisRaporla(pos, kapanis.fiyat, kapanis.sebep);
+                } catch (err) {
+                    console.error(`❌ [KAPANIŞ RAPOR HATASI] ${pos.sym} ${pos.yon} | ${err.message}`);
+                }
+
                 kaliciHafiza.kaydet('sanal-pozisyon-kapandi');
                 await rapor.raporGonder(true);
             }
@@ -1173,10 +1225,16 @@ async function izSurmeyiGuncelle() {
         const borsaMiktar = borsaPoz ? Math.abs(parseFloat(borsaPoz.positionAmt)) : 0;
 
         if (borsaMiktar === 0) {
+            if (pos.kapanisIsleniyor) continue;
+            pos.kapanisIsleniyor = true;
             console.log(`🛑 [KAPANDI] ${pos.sym} pozisyonu kapandı. Rapor iletiliyor...`);
-            await kapanisRaporla(pos, canliFiyat, 'Borsa pozisyonu kapandı');
             h.state.aktifPozisyonlar.splice(i, 1);
             pozisyonListelerindenSil(pos);
+            try {
+                await kapanisRaporla(pos, canliFiyat, 'Borsa pozisyonu kapandı');
+            } catch (err) {
+                console.error(`❌ [KAPANIŞ RAPOR HATASI] ${pos.sym} ${pos.yon} | ${err.message}`);
+            }
             await rapor.raporGonder(true);
             continue;
         }

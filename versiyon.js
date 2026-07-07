@@ -1,15 +1,15 @@
 // ============================================================
 // PARA MAKİNESİ BINANCE - SÜRÜM KİMLİK DOSYASI
-// AWS Stable v2.4.0
+// AWS Stable v3.0.1-STRATEGY-LAB-LIVE-SIGNATURE
 // ============================================================
 
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'BLACKBOX-INTELLIGENCE-PRO',
-    kod: 'AWS Stable v2.4.0',
-    botSurumu: '2.4.0',
+    kodAdi: 'AGROS-STRATEGY-LAB',
+    kod: 'AWS Stable v3.0.1-STRATEGY-LAB-LIVE-SIGNATURE',
+    botSurumu: '3.0.1-STRATEGY-LAB-LIVE-SIGNATURE',
     stratejiSurumu: '1.0.14',
-    yayinTarihi: '03.07.2026',
+    yayinTarihi: '07.07.2026',
 
     ortam: {
         aws: true,
@@ -31,6 +31,31 @@ const versiyon = {
     },
 
     degisiklikler: [
+        'v3.0.1: Açılış Telegram kartına işlem açıldığı anda o 256 BTC×Coin imzasının geçmiş başarı oranı, TP/SL/BE, net, ortalama net, güven ve sıralama bilgisi eklendi.',
+        'v3.0.1: Kapanış analizine güncellenmiş 256 imza performansı eklendi; kapanan işlemden sonra aynı imzanın yeni oranı anında görünür.',
+        'v3.0.1: Açılış fotoğrafında artık sadece L_B0111_C1001 gibi kısa imza değil, emojili BTC/Coin zaman dilimi açılımı ve geçmiş karar satırı birlikte gösterilir.',
+        'v3.0.0: 256 BTC×Coin imza matrisi eklendi; BTC 5m/15m/1h/4h ve Coin 5m/15m/1h/4h bit kombinasyonları saf şekilde ayrı istatistiklenir.',
+        'v3.0.0: Her 10 kapanışta Telegram raporuna En Başarılı 256 İmzaları, En Başarısız 256 İmzaları ve 256 Matris Ters Yön Test Adayları bölümü eklenir.',
+        'v3.0.0: 256 matris BB, pusu kalitesi veya sembolü karıştırmaz; yalnızca BTC-Coin zaman dilimi ilişkisini ölçer ve işlem motoruna dokunmaz.',
+        'v2.5.6: Strategy Lab Radar satırları net oran formatına taşındı; her imza için başarı %, başarısızlık %, BE %, örnek sayısı, net ve ortalama net Telegram’da açıkça yazılır.',
+        'v2.5.6: Çok başarısız veya %100 başarısız imzalarda ters yön test adayı kararı daha görünür hale getirildi; işlem motoruna müdahale etmez, bilimsel deney önerisi üretir.',
+        'v2.5.5: AGROS Strategy Lab Radar eklendi; her 10 kapanışta Telegram’a en başarılı, en başarısız, %100 başarısız ve ters yön test adayı imzalar ayrı bölüm olarak gönderilir.',
+        'v2.5.5: Büyük oranda başarısız imzalar için SHORT yerine LONG / LONG yerine SHORT test önerisi üretir; emir motoruna dokunmaz, sadece bilimsel deney uyarısı verir.',
+        'v2.5.4: Strategy Lab imza sistemi eklendi; BTC/Coin uyum puanının hangi zaman dilimlerinden geldiği key, kısa imza ve okunabilir etiket olarak JSONL/CSV kayıtlarına yazılır.',
+        'v2.5.4: Telegram BlackBox açılış/kapanış fotoğrafına renkli Strategy Lab imzası eklendi; LONG uyumları yeşil, SHORT uyumları kırmızı, ters zaman dilimleri siyah gösterilir.',
+        'v2.5.4: Tam kombinasyon istatistikleri artık sadece 3/4-1/4 skorunu değil BTC[5m+15m] ve Coin[15m] gibi gerçek periyot imzasını kullanır.',
+        'v2.5.3: AGROS Strategy Lab eklendi; aktif deney kimliği, periyot/parametre etiketi ve deney karşılaştırması Telegram raporlarına yazılır.',
+        'v2.5.3: BTC/Coin 5m-15m-1h-4h etkileri ayrı ayrı UP/DOWN + LONG/SHORT kırılımıyla raporlanır; BTC 1/4 olduğunda hangi TF olduğu görülebilir.',
+        'v2.5.3: Agros bulgusu bölümü en güçlü ve en zayıf ölçümü örnek sayısı, başarı, net ve güven seviyesiyle özetler.',
+        'v2.5.2: Agros Karar Laboratuvarı eklendi; güçlü kombinasyon adayları ve filtre/yasak adayları Telegram raporunda görünür.',
+        'v2.5.2: Pusu kalite sınıfı ve dip/tepe dalga senaryosu istatistikleri BlackBox özetine eklendi.',
+        'v2.5.2: Karar laboratuvarı sadece ölçüm yapar; emir yönü, kasa, TP/SL/BE ve iz süren stop mantığına müdahale etmez.',
+        'v2.5.1: BlackBox tam kombinasyon istatistik raporu Telegram’a her 10 kapanışta bir ayrı mesaj olarak gönderilir.',
+        'v2.5.1: BTC/Coin TF, BB+yön, trend aynı/ters yön ve en zayıf kombinasyon raporları eklendi.',
+        'v2.5.0-FIX: Telegram mesajları 3900 karakterlik güvenli parçalara bölünür; uzun BlackBox kapanış kartları kaybolmaz.',
+        'v2.5.0-FIX: Telegram HTML parse hatasında aynı mesaj düz metin olarak tekrar denenir; LONG/SHORT kapanış kartları sessizce düşmez.',
+        'v2.5.0-FIX: BE sınıflandırması sadece breakevenAktif bayrağına göre yapılmaz; net zarar büyükse sonuç SL yazılır.',
+        'v2.5.0-FIX: Kapanış Telegram gönderim sonucu konsola LONG/SHORT ayırt etmeden açıkça yazılır.',
         'v2.4.0: Kapanış mesajına aynı kombinasyon öğrenme kartı eklendi; BTC/Coin uyum + BB bölgesi için TP/SL/BE ve net sonuç birikir.',
         'v2.4.0: Ana BlackBox raporuna en kârlı kombinasyonlar bölümü eklendi.',
         'v2.4.0: Kapanış kartı max kâr/max zarar, komisyon, net PNL ve açılış→kapanış uyum değişimini tek analiz bloğunda gösterir.',
@@ -81,6 +106,14 @@ const versiyon = {
     ],
 
     notlar: [
+        'v3.0.1 Live Signature modülü emir motoruna dokunmaz; işlem açılışında yalnızca o imzanın geçmiş istatistiksel bağlamını Telegram’da gösterir.',
+        'v3.0.0 256 Matrix raporu, hangi BTC-Coin zaman dilimi imzasının en başarılı veya en başarısız olduğunu tek Telegram raporunda gösterir; otomatik emir yönü değiştirme yoktur.',
+        'v2.5.6 Ratio Radar her imza için net başarı oranını yazar ve ters yön test adayını karar satırı olarak öne çıkarır; otomatik emir yönü değiştirme güvenlik için kapalıdır.',
+        'v2.5.5 Strategy Lab Radar ters yön adaylarını Telegram’da gösterir; otomatik emir yönü değiştirme güvenlik için kapalıdır ve işlem motoruna müdahale edilmemiştir.',
+        'v2.5.4 Strategy Lab Signature emir motoruna dokunmaz; sadece analiz/telemetri katmanında hangi uyum puanının hangi zaman diliminden geldiğini kaydeder.',
+        'v2.5.3 Strategy Lab emir motoruna dokunmaz; amaç farklı TF/periyot deneylerinin performansını Telegram ve CSV/JSONL üzerinden karşılaştırmaktır.',
+        'Periyot testi değiştirirken ayarlar.js içindeki strategyLabDeneyId/strategyLabDeneyAdi alanları doldurulursa deneyler birbirinden net ayrılır.',
+        'v2.5.2 Agros Lab strateji değiştirmez; Telegram üzerinden hangi kombinasyonların kazandırdığını takip etmek için tasarlanmıştır.',
         'Varsayılan emir modu güvenlik için SANAL olarak tutuldu.',
         'Gerçek/testnet emir geçişi ayarlar.js içindeki sanalEmirModu ile yönetilir.',
         'AWS üzerinde PM2 ile bot.js çalıştırılmalıdır.',

@@ -107,6 +107,44 @@ function yerelTelegramIstegiAt(path, veri) {
     });
 }
 
+function telegramMetniParcala(mesaj, limit = 3900) {
+    const text = String(mesaj || '');
+    if (text.length <= limit) return [text];
+
+    const satirlar = text.split('\n');
+    const parcalar = [];
+    let aktif = '';
+
+    for (const satir of satirlar) {
+        const eklenecek = aktif ? aktif + '\n' + satir : satir;
+        if (eklenecek.length <= limit) {
+            aktif = eklenecek;
+            continue;
+        }
+        if (aktif) parcalar.push(aktif);
+        if (satir.length <= limit) {
+            aktif = satir;
+        } else {
+            for (let i = 0; i < satir.length; i += limit) {
+                parcalar.push(satir.slice(i, i + limit));
+            }
+            aktif = '';
+        }
+    }
+    if (aktif) parcalar.push(aktif);
+    return parcalar;
+}
+
+function telegramHtmlTemizle(mesaj) {
+    return String(mesaj || '')
+        .replace(/<\/?b>/g, '')
+        .replace(/<\/?i>/g, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+}
+
 async function telegramMesajGonder(mesaj) {
     if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
         console.log('⚠️ Telegram bilgileri eksik, mesaj gönderilmedi.');
@@ -114,21 +152,40 @@ async function telegramMesajGonder(mesaj) {
     }
 
     const sonuclar = [];
+    const parcalar = telegramMetniParcala(mesaj);
+
     for (const chat_id of TELEGRAM_CHAT_IDS) {
-        try {
-            const sonuc = await yerelTelegramIstegiAt('sendMessage', {
-                chat_id,
-                text: mesaj,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true
-            });
-            sonuclar.push({ chat_id, sonuc });
-            if (!sonuc || !sonuc.ok) {
-                console.log(`⚠️ Telegram iletim sorunu: ${chat_id} | ${sonuc?.description || 'bilinmeyen hata'}`);
+        for (let idx = 0; idx < parcalar.length; idx++) {
+            const parcaBaslik = parcalar.length > 1 ? `(${idx + 1}/${parcalar.length})\n` : '';
+            const text = parcaBaslik + parcalar[idx];
+            try {
+                let sonuc = await yerelTelegramIstegiAt('sendMessage', {
+                    chat_id,
+                    text,
+                    parse_mode: 'HTML',
+                    disable_web_page_preview: true
+                });
+
+                // Telegram HTML parse hatası veya uzun mesaj yüzünden kritik kapanış mesajları kaybolmasın.
+                // HTML sürümü başarısız olursa aynı parçayı düz metin olarak tekrar gönderiyoruz.
+                if (!sonuc || !sonuc.ok) {
+                    const aciklama = sonuc?.description || sonuc?.raw || 'bilinmeyen hata';
+                    console.log(`⚠️ Telegram HTML iletim sorunu: ${chat_id} | ${aciklama} | Düz metin tekrar deneniyor.`);
+                    sonuc = await yerelTelegramIstegiAt('sendMessage', {
+                        chat_id,
+                        text: telegramHtmlTemizle(text),
+                        disable_web_page_preview: true
+                    });
+                }
+
+                sonuclar.push({ chat_id, parca: idx + 1, toplamParca: parcalar.length, sonuc });
+                if (!sonuc || !sonuc.ok) {
+                    console.log(`⚠️ Telegram iletim sorunu: ${chat_id} | ${sonuc?.description || sonuc?.raw || 'bilinmeyen hata'}`);
+                }
+            } catch (err) {
+                console.error(`❌ Telegram Hatası: ${err.message}`);
+                sonuclar.push({ chat_id, parca: idx + 1, toplamParca: parcalar.length, sonuc: { ok: false, description: err.message } });
             }
-        } catch (err) {
-            console.error(`❌ Telegram Hatası: ${err.message}`);
-            sonuclar.push({ chat_id, sonuc: { ok: false, description: err.message } });
         }
     }
     return sonuclar;
