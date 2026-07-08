@@ -136,7 +136,7 @@ const ayarlar = {
     blackboxAktif: true,
     blackboxTimeframes: ['5m', '15m', '1h', '4h'],
     blackboxBollingerTf: '15m',
-    blackboxRaporTopKombinasyon: 5,
+    blackboxRaporTopKombinasyon: 10,
     blackboxMinKombinasyonOrnek: 3,
     blackboxMinTfOrnek: 5,
     // v2.5.2: Karar laboratuvarı eşikleri. Sadece raporlar; emir yönünü veya filtreyi değiştirmez.
@@ -144,11 +144,11 @@ const ayarlar = {
     blackboxKararMinOrnek: 10,
     blackboxKararBasariEsigi: 65,
     blackboxRiskBasariEsigi: 35,
-    blackboxKararTopAday: 5,
+    blackboxKararTopAday: 10,
     // v3.0: Saf 256 BTC×Coin imza matrisi. BB/pusu kalitesi karıştırılmaz; emir motoruna dokunmaz.
     blackbox256MatrixAktif: true,
     blackbox256MatrixMinOrnek: 3,
-    blackbox256MatrixTopAday: 5,
+    blackbox256MatrixTopAday: 10,
     // v2.5.6: Radar her imza için başarı/başarısızlık oranını ve ters yön test adaylığını açık yazar. Sadece Telegram uyarısıdır; emir motoruna dokunmaz.
     blackboxTersYonMinOrnek: 10,
     blackboxTersYonBasariEsigi: 35,
@@ -158,11 +158,15 @@ const ayarlar = {
     strategyLabDeneyId: null,
     strategyLabDeneyAdi: null,
     blackboxTfHaritaMinOrnek: 1,
-    // v2.5.1: Telegram'da otomatik BlackBox istatistik raporu.
-    // Her 10 kapanışta bir ayrı rapor gönderir; canlı raporun içinde de özet görünmeye devam eder.
+    // v3.0.3: Telegram'da otomatik BTC/Coin uyum analiz raporu.
+    // Kapanış bazlı tetik korunur; ayrıca dakika bazlı ayrı rapor eklendi.
+    // Dakika bazlı rapor kapanış minimumuna bağlı değildir; ilk rapor bot açılışından sonra ayarlanan süre dolunca gelir.
+    // Bu rapor canlı rapor gibi eski mesajı düzenlemez; Telegram'a ayrı mesaj olarak düşer.
     blackboxIstatistikRaporuAktif: true,
     blackboxIstatistikRaporAraligiKapanis: 10,
     blackboxIstatistikMinIslem: 10,
+    blackboxIstatistikDakikaRaporuAktif: true,
+    blackboxIstatistikRaporAraligiDakika: 10,
 
 
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
@@ -213,6 +217,8 @@ const ayarlar = {
 
     // Pusu raporundaki sembol listesini Telegram'da okunabilir tutar.
     pusuRaporuMaxSembol: 20,
+    // v3.0.2: Pusu raporu Telegram'ı kirletmesin diye yalnızca bot açılışından sonraki ilk dolu pusu taramasında gönderilir.
+    pusuRaporuSadeceBaslangicta: true,
 
     // ========================================
     // TELEGRAM RAPORLAMA

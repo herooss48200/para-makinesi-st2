@@ -1,6 +1,10 @@
 {
   "name": "para-makinesi-binance",
-  "version": "3.0.1",
+<<<<<<< HEAD
+  "version": "3.0.4",
+=======
+  "version": "3.0.4",
+>>>>>>> 7a0acee (v3.0.4 Strategy Lab Report Cleanup)
   "description": "Binance Futures üzerinde çalışan Telegram raporlamalı modüler Node.js işlem botu.",
   "main": "bot.js",
   "scripts": {

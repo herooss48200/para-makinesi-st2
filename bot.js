@@ -59,6 +59,18 @@ async function baslat() {
                     await rapor.raporGonder(false);
                 }
 
+                // v3.0.2 FIX: Strategy Lab toplu başarı/uyum analizi sadece kapanış sayacına bağlı kalmasın.
+                // Ayarlanan dakikada bir Telegram'a ayrı mesaj olarak düşer; canlı raporu düzenlemez/silmez.
+                try {
+                    const blackbox = require('./8_blackbox.js');
+                    if (blackbox.istatistikDakikaRaporGerekli && blackbox.istatistikDakikaRaporGerekli()) {
+                        await h.telegramMesajGonder(blackbox.telegramIstatistikRaporMetni());
+                        kaliciHafiza.kaydet('blackbox-dakika-istatistik-raporu-gonderildi');
+                    }
+                } catch (err) {
+                    console.error(`⚠️ [BLACKBOX DAKİKA RAPOR HATASI] ${err.message}`);
+                }
+
                 if (now - sonOzetLog > 30000) {
                     sonOzetLog = now;
                     console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu: ${Object.keys(h.state.pusuListesi).length} | Pozisyon: ${h.state.aktifPozisyonlar.length} | ST Güncelleme: ${h.state.sonSniperGuncellemeZamani ? new Date(h.state.sonSniperGuncellemeZamani).toLocaleTimeString() : 'yok'}`);

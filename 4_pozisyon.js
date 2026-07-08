@@ -9,6 +9,7 @@ const blackbox = require('./8_blackbox.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
+let pusuRaporuBaslangicGonderildi = false;
 const RAPOR_ARALIGI = 300000;
 
 // Aynı pozisyonun aynı kapanışını ikinci kez işlemeyi engeller.
@@ -1276,7 +1277,10 @@ async function izSurmeyiGuncelle() {
 
 async function pusuRaporuGonder() {
     const now = Date.now();
-    if (now - sonRaporZamani < RAPOR_ARALIGI) return;
+    // v3.0.2 FIX: Pusu raporu Telegram'ı kirletmesin.
+    // Ayar aktifse bot açılışından sonraki ilk dolu pusu raporu gönderilir, sonra susar.
+    if (ayarlar.pusuRaporuSadeceBaslangicta && pusuRaporuBaslangicGonderildi) return;
+    if (!ayarlar.pusuRaporuSadeceBaslangicta && now - sonRaporZamani < RAPOR_ARALIGI) return;
 
     let raporListesi = [];
     if (pusuRaporu.length > 0) {
@@ -1308,6 +1312,7 @@ async function pusuRaporuGonder() {
         (shortList ? `📉 <b>SHORT</b>\n${shortList}` : '');
 
     await h.telegramMesajGonder(mesaj);
+    if (ayarlar.pusuRaporuSadeceBaslangicta) pusuRaporuBaslangicGonderildi = true;
 }
 
 module.exports = {

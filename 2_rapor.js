@@ -14,6 +14,9 @@ function canliRaporMetniOlustur() {
     const sl = s.sl || 0;
     const be = s.be || 0;
     const sonucToplam = tp + sl;
+    const toplamKapanan = tp + sl + be;
+    const longKapanan = Number(s.longTp || 0) + Number(s.longSl || 0) + Number(s.longBe || 0);
+    const shortKapanan = Number(s.shortTp || 0) + Number(s.shortSl || 0) + Number(s.shortBe || 0);
     const basariOrani = sonucToplam > 0 ? (tp / sonucToplam) * 100 : 0;
     const pusuDegerleri = Object.values(h.state.pusuListesi);
     const pusuSayisi = pusuDegerleri.length;
@@ -34,6 +37,7 @@ function canliRaporMetniOlustur() {
         `🧪 <b>Emir Modu:</b> ${mod}\n` +
         `📦 <b>Aktif Pozisyon:</b> ${h.state.aktifPozisyonlar.length} / ${ayarlar.maxPozisyonSayisi}\n` +
         `🔄 <b>Toplam Açılan Emir:</b> ${s.toplamAcilanEmir || 0}\n` +
+        `🔐 <b>Toplam Kapanan İşlem:</b> ${toplamKapanan} | 🟢 Long: ${longKapanan} | 🔴 Short: ${shortKapanan}\n` +
         `🎯 <b>Aktif Pusu:</b> ${pusuSayisi} | 🟢 Long: ${longPusu} | 🔴 Short: ${shortPusu}\n` +
         `🏅 <b>Pusu Kalitesi:</b> Ort: ${kaliteOlanlar.length ? kaliteOrt.toFixed(1) : 'YOK'} | A:${kaliteA} B:${kaliteB} C:${kaliteC} D:${kaliteD}\n\n` +
         `🎯 <b>BAŞARILI İŞLEMLER (TP):</b> ${tp}\n` +
@@ -41,6 +45,7 @@ function canliRaporMetniOlustur() {
         `❌ <b>BAŞARISIZ İŞLEMLER (SL):</b> ${sl}\n` +
         `   L 🟢 <b>Long:</b> ${s.longSl || 0} | 🔴 <b>Short:</b> ${s.shortSl || 0}\n\n` +
         `⚖️ <b>BAŞABAŞ (NÖTR) DURUMU:</b> ${be}\n` +
+        `   L 🟢 <b>Long:</b> ${s.longBe || 0} | 🔴 <b>Short:</b> ${s.shortBe || 0}\n` +
         `🏅 <b>KASA BAŞARI ORANI:</b> %${yuzde(basariOrani)}\n` +
         `--------------------------------\n` +
         `💸 <b>TOPLAM KOMİSYON:</b> ${s.toplamKomisyon.toFixed(4)} USDT\n` +

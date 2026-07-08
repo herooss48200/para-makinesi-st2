@@ -119,7 +119,10 @@ function strategySignatureOlustur(symbol, yon, btc, coin) {
   const hedef = yonTrend(y);
   const key = `YON=${y}|BTC=${btcBits}|COIN=${coinBits}|BTC_TF=${tfListeMetni(btcUyumlu)}|COIN_TF=${tfListeMetni(coinUyumlu)}|BB=${bb}`;
   const shortKey = `${y === 'SHORT' ? 'S' : 'L'}_B${btcBits}_C${coinBits}_${bb}`;
-  const label = `${y} | BTC[${tfListeMetni(btcUyumlu)}] ${btcUyumlu.length}/4 | ${symbol || 'COIN'}[${tfListeMetni(coinUyumlu)}] ${coinUyumlu.length}/4 | BB ${bb}`;
+  // v3.0.2 FIX: Bu label imza istatistiklerinde birden fazla coin'i aynı koşul altında toplar.
+  // Bu yüzden coin adını etikete yazmıyoruz; aksi halde ilk görülen coin (örn. DOGEUSDT)
+  // sonraki ADA/YFI gibi işlemlerin 'Aynı Tam Kombinasyon + BB' satırında yanlış görünür.
+  const label = `${y} | BTC[${tfListeMetni(btcUyumlu)}] ${btcUyumlu.length}/4 | Coin[${tfListeMetni(coinUyumlu)}] ${coinUyumlu.length}/4 | BB ${bb}`;
   return {
     yon: y,
     hedef,
@@ -604,7 +607,7 @@ function kayitYaz(pos, kayitTipi, sonuc = {}) {
 }
 
 
-function bosBucket() { return { toplam: 0, tp: 0, sl: 0, be: 0, net: 0 }; }
+function bosBucket() { return { toplam: 0, tp: 0, sl: 0, be: 0, net: 0, karToplam: 0, zararToplam: 0 }; }
 function ozetHazirla() {
   if (!h.state.blackboxOzet) {
     h.state.blackboxOzet = {
@@ -637,13 +640,25 @@ function ozetHazirla() {
   return h.state.blackboxOzet;
 }
 function bucketEkle(b, sonuc, net) {
-  b.toplam += 1;
+  b.toplam = Number(b.toplam || 0) + 1;
+  b.tp = Number(b.tp || 0);
+  b.sl = Number(b.sl || 0);
+  b.be = Number(b.be || 0);
+  b.net = Number(b.net || 0);
+  b.karToplam = Number(b.karToplam || 0);
+  b.zararToplam = Number(b.zararToplam || 0);
   if (sonuc === 'TP') b.tp += 1; else if (sonuc === 'BE') b.be += 1; else if (sonuc === 'SL') b.sl += 1;
-  b.net += Number(net || 0);
+  const n = Number(net || 0);
+  b.net += n;
+  if (n > 0) b.karToplam += n;
+  if (n < 0) b.zararToplam += Math.abs(n);
 }
 
 function statsBucketEkle(stats, key, etiket, sonuc, net) {
   if (!stats[key]) stats[key] = { ...bosBucket(), key, etiket };
+  // v3.0.2 FIX: Eski state içinde ilk coin adıyla oluşmuş etiketler kalabiliyordu.
+  // Her güncellemede güncel nötr etiketi yaz, istatistik anahtarını ve sayaçları değiştirme.
+  if (etiket) stats[key].etiket = etiket;
   bucketEkle(stats[key], sonuc, net);
   return stats[key];
 }
@@ -739,7 +754,7 @@ function ozetGuncelle(pos, sonuc) {
   o.sonGuncelleme = new Date().toISOString();
 }
 function oran(b) { const n = (b.tp || 0) + (b.sl || 0); return n > 0 ? ((b.tp / n) * 100).toFixed(1) : '0.0'; }
-function bucketMetni(ad, b) { return `${ad}: ${b.toplam || 0} | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Başarı %${oran(b)} | Net ${Number(b.net || 0).toFixed(2)}`; }
+function bucketMetni(ad, b) { return `${ad}: ${b.toplam || 0} | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Başarı %${oran(b)} | Net ${Number(b.net || 0).toFixed(2)} | PF ${profitFactor(b)}`; }
 
 function sonucSayisi(b) { return Number((b?.tp || 0) + (b?.sl || 0)); }
 function guvenMetni(b) {
@@ -777,7 +792,7 @@ function kararSatiri(b, i) {
 ` +
     `   🎯 İmza başarı oranı: %${basari} | Başarısızlık: %${basarisiz} | BE: %${beOran}
 ` +
-    `   📌 Örnek: ${toplam} işlem | TP:${tp} SL:${sl} BE:${be} | Net ${Number(b.net || 0).toFixed(2)} | Ort.Net ${ortNet}
+    `   📌 Örnek: ${toplam} işlem | TP:${tp} SL:${sl} BE:${be} | Net ${Number(b.net || 0).toFixed(2)} | Ort.Net ${ortNet} | PF ${profitFactor(b)}
 ` +
     `   🧠 Karar: ${imzaKararSeviyesi(b)} | Güven: ${guvenMetni(b)}`;
 }
@@ -809,7 +824,7 @@ function tersYonOneriSatiri(b, i) {
 ` +
     `   🎯 Bu imzanın başarı oranı: %${basari.toFixed(1)} | Başarısızlık oranı: %${basarisiz}
 ` +
-    `   📌 Örnek: ${islem} işlem | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Net ${net} | Güven: ${guven}
+    `   📌 Örnek: ${islem} işlem | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Net ${net} | PF ${profitFactor(b)} | Güven: ${guven}
 ` +
     `   🔁 AGROS ters yön test önerisi: Aynı imza tekrar gelirse ${y} yerine ${ters} yönü deney adayı olarak işaretle. Şimdilik emir motoruna müdahale yok.`;
 }
@@ -851,9 +866,12 @@ function matrixGorulenSayisi(stats) {
 }
 
 function profitFactor(b) {
-  // İşlem bazlı brüt kâr/zarar tutulmadığı için güvenli yaklaşım:
-  // net pozitif/negatif ayrımı kapanış özetinde yoksa PF yerine net gösterilir.
-  return 'N/A';
+  const kar = Number(b?.karToplam || 0);
+  const zarar = Number(b?.zararToplam || 0);
+  if (kar <= 0 && zarar <= 0) return 'N/A';
+  if (kar > 0 && zarar <= 0) return '∞';
+  if (kar <= 0 && zarar > 0) return '0.00';
+  return (kar / zarar).toFixed(2);
 }
 
 function matrixSatiri(b, i) {
@@ -917,7 +935,7 @@ function signature256MatrixMetni() {
 function strategyLabRadarMetni() {
   const o = ozetHazirla();
   const toplam = toplamKapanisSayisi();
-  const limit = Number(ayarlar.blackboxKararTopAday || 5);
+  const limit = Number(ayarlar.blackboxKararTopAday || 10);
   const min = Number(ayarlar.blackboxMinKombinasyonOrnek || 3);
   const exact = Object.values(o.exactComboStats || {}).filter(b => Number(b?.toplam || 0) >= min);
   const enBasarili = [...exact]
@@ -927,16 +945,16 @@ function strategyLabRadarMetni() {
     .sort((a, b) => Number(oran(a)) - Number(oran(b)) || Number(a.net || 0) - Number(b.net || 0))
     .slice(0, limit);
   let metin = `🧬 <b>AGROS STRATEGY LAB RADARI</b>\n` +
-    `Kapanan işlem: ${toplam} | Rapor: her ${Number(ayarlar.blackboxIstatistikRaporAraligiKapanis || 10)} kapanış\n` +
+    `Kapanan işlem: ${toplam} | Dakika raporu: ${Number(ayarlar.blackboxIstatistikRaporAraligiDakika || 10)} dk | Kapanış raporu: her ${Number(ayarlar.blackboxIstatistikRaporAraligiKapanis || 10)} kapanış\n` +
     `Amaç: Her imzanın başarı oranını, örnek sayısını ve ters yön test adaylarını Telegram'dan izlemek.\n` +
     `Not: Başarı oranı TP/(TP+SL) ile hesaplanır; BE ayrı gösterilir.\n`;
   if (enBasarili.length) {
-    metin += `\n🏆 <b>En Başarılı İmzalar</b>\n` + enBasarili.map((b, i) => kararSatiri(b, i)).join('\n');
+    metin += `\n🏆 <b>TOP 10 EN BAŞARILI TAM İMZA</b>\n` + enBasarili.map((b, i) => kararSatiri(b, i)).join('\n');
   } else {
-    metin += `\n🏆 <b>En Başarılı İmzalar</b>\nHenüz en az ${min} örnekli imza yok.`;
+    metin += `\n🏆 <b>TOP 10 EN BAŞARILI TAM İMZA</b>\nHenüz en az ${min} örnekli imza yok.`;
   }
   if (enBasarisiz.length) {
-    metin += `\n\n📉 <b>En Başarısız İmzalar</b>\n` + enBasarisiz.map((b, i) => kararSatiri(b, i)).join('\n');
+    metin += `\n\n☠️ <b>WORST 10 EN BAŞARISIZ TAM İMZA</b>\n` + enBasarisiz.map((b, i) => kararSatiri(b, i)).join('\n');
   }
   metin += yuzdeYuzBasarisizMetni(limit);
   metin += tersYonAdaylariMetni(limit);
@@ -986,14 +1004,14 @@ function comboOgrenmeMetni(pos) {
   const sonucSayisi = (exact.tp || 0) + (exact.sl || 0);
   const beOran = exact.toplam > 0 ? (((exact.be || 0) / exact.toplam) * 100).toFixed(1) : '0.0';
   return matrixText + `\n\n📚 <b>Aynı Tam Kombinasyon + BB</b>\n` +
-    `${exact.etiket || signatureEtiket(ac)}\n` +
+    `${signatureEtiket(ac)}\n` +
     `🎯 Bu tam imzanın başarı oranı: %${oran(exact)} | BE Oranı: %${beOran}\n` +
     `📌 Örnek: ${exact.toplam} | TP:${exact.tp || 0} SL:${exact.sl || 0} BE:${exact.be || 0}\n` +
     `💰 Net: ${Number(exact.net || 0).toFixed(2)} USDT` +
     (sonucSayisi < 10 ? `\nNot: Örnek sayısı düşük; veri toplandıkça güven artacak.` : '');
 }
 
-function enIyiKombinasyonMetni(limit = 5) {
+function enIyiKombinasyonMetni(limit = 10) {
   const o = ozetHazirla();
   const stats = Object.values(o.exactComboStats || {});
   const minOrnek = Number(ayarlar.blackboxMinKombinasyonOrnek || 3);
@@ -1006,7 +1024,7 @@ function enIyiKombinasyonMetni(limit = 5) {
 
 🏆 <b>En Karlı Tam Kombinasyonlar</b>
 ` + sirali.map((b, i) =>
-    `${i + 1}) ${b.etiket} | ${b.toplam} işlem | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Başarı %${oran(b)} | Net ${Number(b.net || 0).toFixed(2)}`
+    `${i + 1}) ${b.etiket} | ${b.toplam} işlem | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Başarı %${oran(b)} | Net ${Number(b.net || 0).toFixed(2)} | PF ${profitFactor(b)} | Güven ${guvenMetni(b)}`
   ).join('\n');
 }
 
@@ -1020,7 +1038,7 @@ function enBasariliTfMetni(stats, baslik, limit = 4) {
   return `
 
 ${baslik}
-` + arr.map((b, i) => `${i + 1}) ${b.etiket} | ${b.toplam} işlem | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Başarı %${oran(b)} | Net ${Number(b.net || 0).toFixed(2)}`).join('\n');
+` + arr.map((b, i) => `${i + 1}) ${b.etiket} | ${b.toplam} işlem | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Başarı %${oran(b)} | Net ${Number(b.net || 0).toFixed(2)} | PF ${profitFactor(b)} | Güven ${guvenMetni(b)}`).join('\n');
 }
 
 
@@ -1107,7 +1125,7 @@ function kararLaboratuvariMetni() {
   const min = Number(ayarlar.blackboxKararMinOrnek || 10);
   const basariEsik = Number(ayarlar.blackboxKararBasariEsigi || 65);
   const riskEsik = Number(ayarlar.blackboxRiskBasariEsigi || 35);
-  const limit = Number(ayarlar.blackboxKararTopAday || 5);
+  const limit = Number(ayarlar.blackboxKararTopAday || 10);
   const exact = Object.values(o.exactComboStats || {});
   const guclu = exact
     .filter(b => (b.toplam || 0) >= min && Number(oran(b)) >= basariEsik && Number(b.net || 0) > 0)
@@ -1185,7 +1203,47 @@ function istatistikRaporGerekli() {
   return true;
 }
 
-function enKotuKombinasyonMetni(limit = 5) {
+function istatistikDakikaRaporGerekli() {
+  if (ayarlar.blackboxIstatistikRaporuAktif === false) return false;
+  if (ayarlar.blackboxIstatistikDakikaRaporuAktif === false) return false;
+
+  const toplam = toplamKapanisSayisi();
+  const dakika = Number(ayarlar.blackboxIstatistikRaporAraligiDakika || 10);
+  if (!Number.isFinite(toplam)) return false;
+  if (!Number.isFinite(dakika) || dakika <= 0) return false;
+
+  const now = Date.now();
+  const aralikMs = dakika * 60 * 1000;
+  const son = Number(h.state.blackboxSonIstatistikDakikaRaporZamani || 0);
+
+  // v3.0.3 FIX:
+  // Dakika bazlı Strategy Lab raporu, kapanış sayısı minimumuna bağlı değildir.
+  // Ama bot açılır açılmaz da Telegram'ı kirletmesin; ilk zaman damgasını kurar,
+  // ilk gerçek raporu ayarlanan dakika aralığı dolunca gönderir.
+  if (!son) {
+    h.state.blackboxSonIstatistikDakikaRaporZamani = now;
+    h.state.blackboxSonIstatistikDakikaRaporKapanis = toplam;
+    return false;
+  }
+
+  if (now - son < aralikMs) return false;
+
+  // v3.0.4 CLEANUP:
+  // Genel canlı rapor 10 dakikada bir bilgi vermeye devam eder.
+  // Strategy Lab radarı ise aynı kapanış sayısı ve aynı istatistikle tekrar Telegram'a düşmez.
+  // Yeni kapanış yoksa kullanıcı aynı bilimsel raporu ikinci kez okumak zorunda kalmaz.
+  const sonKapanis = Number(h.state.blackboxSonIstatistikDakikaRaporKapanis ?? -1);
+  if (sonKapanis === toplam) {
+    h.state.blackboxSonIstatistikDakikaRaporZamani = now;
+    return false;
+  }
+
+  h.state.blackboxSonIstatistikDakikaRaporZamani = now;
+  h.state.blackboxSonIstatistikDakikaRaporKapanis = toplam;
+  return true;
+}
+
+function enKotuKombinasyonMetni(limit = 10) {
   const o = ozetHazirla();
   const stats = Object.values(o.exactComboStats || {});
   const minOrnek = Number(ayarlar.blackboxMinKombinasyonOrnek || 3);
@@ -1212,13 +1270,13 @@ function telegramIstatistikRaporMetni() {
   return strategyLabRadarMetni() + `\n\n━━━━━━━━━━━━━━━━━━\n` +
     `🧠 <b>BLACKBOX İSTATİSTİK RAPORU</b>\n` +
     `Kapanan BlackBox işlem: ${toplam}\n` +
-    `Rapor aralığı: Her ${Number(ayarlar.blackboxIstatistikRaporAraligiKapanis || 10)} kapanış\n` +
+    `Rapor aralığı: ${Number(ayarlar.blackboxIstatistikRaporAraligiDakika || 10)} dakika + her ${Number(ayarlar.blackboxIstatistikRaporAraligiKapanis || 10)} kapanış\n` +
     `--------------------------------\n` +
     `${bucketMetni('🟢 LONG', o.long)}\n` +
     `${bucketMetni('🔴 SHORT', o.short)}` +
     trendYonMetni() +
-    enIyiKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 5)) +
-    enKotuKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 5)) +
+    enIyiKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 10)) +
+    enKotuKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 10)) +
     enBasariliTfMetni(o.btcTfStats, '⏱️ <b>BTC TF → İşlem Yönü</b>', 4) +
     enBasariliTfMetni(o.coinTfStats, '🪙 <b>Coin TF → İşlem Yönü</b>', 4) +
     bbYonMetni(5) +
@@ -1244,7 +1302,7 @@ function telegramOzetMetni() {
       `${bucketMetni('BB ORTA BÖLGE', o.bbOrtaBolge)}\n` +
       `${bucketMetni('BB ALT/ÜST', o.bbAltUst)}` +
       (son ? `\n\n📌 <b>Son BlackBox</b>\n${son}` : '') +
-      enIyiKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 5)) +
+      enIyiKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 10)) +
       enBasariliTfMetni(o.btcTfStats, '⏱️ <b>En Başarılı BTC TF → İşlem Yönü</b>', 4) +
       enBasariliTfMetni(o.coinTfStats, '🪙 <b>En Başarılı Coin TF → İşlem Yönü</b>', 4) +
       bbYonMetni(5) +
@@ -1253,4 +1311,4 @@ function telegramOzetMetni() {
     `\n\n📡 <b>Aktif Pozisyon Açılış Fotoğrafları</b>\n${aktifPozisyonOzetMetni()}`;
 }
 
-module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni };
+module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni };
