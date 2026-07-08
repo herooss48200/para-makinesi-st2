@@ -3,3 +3,8 @@ node_modules/
 data/*.json
 npm-debug.log*
 .DS_Store
+
+# Runtime / Strategy Lab generated data
+data/*.csv
+data/*.jsonl
+data/sanal-state.json

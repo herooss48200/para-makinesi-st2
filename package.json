@@ -1,10 +1,6 @@
-{
+﻿{
   "name": "para-makinesi-binance",
-<<<<<<< HEAD
   "version": "3.0.4",
-=======
-  "version": "3.0.4",
->>>>>>> 7a0acee (v3.0.4 Strategy Lab Report Cleanup)
   "description": "Binance Futures üzerinde çalışan Telegram raporlamalı modüler Node.js işlem botu.",
   "main": "bot.js",
   "scripts": {
@@ -12,11 +8,8 @@
     "check": "node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 3_piyasa.js && node --check 4_pozisyon.js && node --check 5_kalici_hafiza.js && node --check ayarlar.js && node --check motor.js && node --check revizyon.js && node --check versiyon.js && node --check 6_pusu_kalite_motoru.js && node --check 8_blackbox.js"
   },
   "dependencies": {
-    "binance-api-node": "^0.12.9",
-    "dotenv": "^16.4.7"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "private": true
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "technicalindicators": "^3.1.0"
+  }
 }
