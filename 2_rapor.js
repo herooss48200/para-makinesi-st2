@@ -19,7 +19,7 @@ function pozisyonYon(p) {
 }
 
 function pozisyonSembol(p) {
-    return p.sembol || p.symbol || p.coin || 'BILINMIYOR';
+    return p.sym || p.sembol || p.symbol || p.coin || p.girisAnalizi?.symbol || p.blackboxAcilis?.symbol || 'BILINMIYOR';
 }
 
 function pozisyonGiris(p) {
@@ -33,6 +33,7 @@ function pozisyonFiyat(p) {
         p.sonFiyat ||
         p.anlikFiyat ||
         p.currentPrice ||
+        p.fiyat ||
         pozisyonGiris(p)
     );
 }
@@ -53,6 +54,7 @@ function pozisyonKarYuzde(p) {
 }
 
 function pozisyonKorunanKar(p) {
+    if (Number.isFinite(Number(p.korunanKarYuzdesi))) return Number(p.korunanKarYuzdesi);
     if (Number.isFinite(Number(p.korunanKarYuzde))) return Number(p.korunanKarYuzde);
     if (Number.isFinite(Number(p.korunanKar))) return Number(p.korunanKar);
 
@@ -93,7 +95,7 @@ function pozisyonSatiri(p) {
 function sonKapananSatiri(islem) {
     if (!islem) return '';
 
-    const sembol = islem.sembol || islem.symbol || 'BILINMIYOR';
+    const sembol = islem.sym || islem.sembol || islem.symbol || 'BILINMIYOR';
     const yon = String(islem.yon || islem.side || '').toUpperCase();
     const sonuc = islem.sonuc || islem.kapanisSebebi || islem.sebep || '-';
 
