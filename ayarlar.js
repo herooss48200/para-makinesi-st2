@@ -194,6 +194,19 @@ const ayarlar = {
     pairImportanceVeryHighOrnek: 50,
 
 
+    // v3.2.6 Triple DNA Lab:
+    // Feature ve Pair analizinden sonra, üçlü özellik kümelerinin gerçek avantaj/sinerji üretip üretmediğini ölçer.
+    // Trade Engine'e dokunmaz; Telegram raporu ve Argos Dev Console için JSON/CSV çıktı üretir.
+    tripleDnaLabAktif: true,
+    tripleDnaConsoleExportAktif: true,
+    tripleDnaMinOrnek: 3,
+    tripleDnaTopAday: 8,
+    tripleDnaSinerjiEsigi: 6,
+    tripleDnaMediumOrnek: 8,
+    tripleDnaHighOrnek: 20,
+    tripleDnaVeryHighOrnek: 40,
+
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 

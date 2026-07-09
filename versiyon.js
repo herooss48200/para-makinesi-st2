@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'AGROS-STRATEGY-LAB',
-    kod: 'AWS Stable v3.2.5-PAIR-IMPORTANCE-LAB',
-    botSurumu: '3.2.5-PAIR-IMPORTANCE-LAB',
+    kod: 'AWS Stable v3.2.6-TRIPLE-DNA-LAB',
+    botSurumu: '3.2.6-TRIPLE-DNA-LAB',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '09.07.2026',
     ortam: {
