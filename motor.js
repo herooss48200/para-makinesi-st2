@@ -20,6 +20,32 @@ function miktarKlip(sym, miktar) {
     return Number(duzeltilmis.toFixed(precision));
 }
 
+
+function miktarRedLoglaVePusuyuTemizle(symbol, yon, detay) {
+    const now = Date.now();
+    h.state.miktarRedLoglari = h.state.miktarRedLoglari || {};
+    const anahtar = `${symbol}_${yon}`;
+    const sonLog = h.state.miktarRedLoglari[anahtar] || 0;
+    const logAraligiMs = 15 * 60 * 1000;
+
+    if (now - sonLog > logAraligiMs) {
+        h.state.miktarRedLoglari[anahtar] = now;
+        console.log(
+            `🧮 [MİKTAR ATLAMA] ${symbol} ${yon} | ` +
+            `Ayrılan notional=${detay.toplamDolar.toFixed(4)} USDT, ` +
+            `gerekli notional≈${detay.gerekliNotional.toFixed(4)} USDT, ` +
+            `gerekli marjin≈${detay.gerekliMarjin.toFixed(4)} USDT | ` +
+            `ham=${detay.hamMiktar.toPrecision(8)}, klip=${detay.guvenliMiktar}, ` +
+            `minQty=${detay.minQty}, minNotional=${detay.minNotional}. ` +
+            `Pusu temizlendi; hata spamı engellendi.`
+        );
+    }
+
+    if (h.state.pusuListesi && h.state.pusuListesi[symbol]) {
+        delete h.state.pusuListesi[symbol];
+    }
+}
+
 function fiyatKlip(sym, fiyat) {
     const kural = h.state.basamaklar[sym];
     if (!kural) return Number(fiyat.toFixed(4));
@@ -217,9 +243,19 @@ const m = {
             const minQty = kural.minQty || 0;
             const minNotional = kural.minNotional || 5;
             const notional = guvenliMiktar * canliFiyat;
+            const gerekliNotional = Math.max(minNotional, minQty * canliFiyat);
+            const gerekliMarjin = ayarlar.mevcutKaldirac > 0 ? gerekliNotional / ayarlar.mevcutKaldirac : gerekliNotional;
 
             if (!guvenliMiktar || guvenliMiktar <= 0 || guvenliMiktar < minQty || notional < minNotional) {
-                console.error(`❌ [MİKTAR HATASI] ${symbol} miktar=${guvenliMiktar}, notional=${notional.toFixed(4)}, minQty=${minQty}, minNotional=${minNotional}`);
+                miktarRedLoglaVePusuyuTemizle(symbol, yon, {
+                    toplamDolar,
+                    gerekliNotional,
+                    gerekliMarjin,
+                    hamMiktar,
+                    guvenliMiktar,
+                    minQty,
+                    minNotional
+                });
                 return false;
             }
 
