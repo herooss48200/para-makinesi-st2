@@ -232,6 +232,15 @@ const ayarlar = {
     liveMonitorSapmaEsigi: 12,
 
 
+    // v3.3.0 Intelligence Console Foundation:
+    // Intelligence Layer modüllerini tek bir ortak snapshot altında toplar.
+    // Trade Engine'e dokunmaz; emir açmaz, engellemez, sadece rapor ve Console export üretir.
+    intelligenceConsoleAktif: true,
+    intelligenceConsoleExportAktif: true,
+    intelligenceConsoleMinOrnek: 3,
+    intelligenceConsoleTopAday: 12,
+
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 
