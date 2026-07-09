@@ -4,6 +4,7 @@ const kaliciHafiza = require('./5_kalici_hafiza.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
+const positionSizingAudit = require('./19_position_sizing_audit.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -22,24 +23,28 @@ function miktarKlip(sym, miktar) {
 
 
 function miktarRedLoglaVePusuyuTemizle(symbol, yon, detay) {
-    const now = Date.now();
-    h.state.miktarRedLoglari = h.state.miktarRedLoglari || {};
-    const anahtar = `${symbol}_${yon}`;
-    const sonLog = h.state.miktarRedLoglari[anahtar] || 0;
-    const logAraligiMs = 15 * 60 * 1000;
-
-    if (now - sonLog > logAraligiMs) {
-        h.state.miktarRedLoglari[anahtar] = now;
-        console.log(
-            `🧮 [MİKTAR ATLAMA] ${symbol} ${yon} | ` +
-            `Ayrılan notional=${detay.toplamDolar.toFixed(4)} USDT, ` +
-            `gerekli notional≈${detay.gerekliNotional.toFixed(4)} USDT, ` +
-            `gerekli marjin≈${detay.gerekliMarjin.toFixed(4)} USDT | ` +
-            `ham=${detay.hamMiktar.toPrecision(8)}, klip=${detay.guvenliMiktar}, ` +
-            `minQty=${detay.minQty}, minNotional=${detay.minNotional}. ` +
-            `Pusu temizlendi; hata spamı engellendi.`
-        );
-    }
+    positionSizingAudit.logla(h.state, {
+        symbol,
+        yon,
+        sebep: detay.sebep || 'MIKTAR_RED',
+        fiyat: detay.canliFiyat,
+        marjin: ayarlar.calisilmakIstenenUsdtMiktar,
+        kaldirac: ayarlar.mevcutKaldirac,
+        toplamDolar: detay.toplamDolar,
+        hamMiktar: detay.hamMiktar,
+        guvenliMiktar: detay.guvenliMiktar,
+        notional: detay.notional,
+        minQty: detay.minQty,
+        minNotional: detay.minNotional,
+        minQtyNotional: detay.minQtyNotional,
+        gerekliNotional: detay.gerekliNotional,
+        gerekliMarjin: detay.gerekliMarjin,
+        eksikMarjin: detay.eksikMarjin,
+        stepSize: detay.stepSize,
+        quantityPrecision: detay.quantityPrecision,
+        pricePrecision: detay.pricePrecision,
+        zaman: Date.now()
+    });
 
     if (h.state.pusuListesi && h.state.pusuListesi[symbol]) {
         delete h.state.pusuListesi[symbol];
@@ -243,19 +248,20 @@ const m = {
             const minQty = kural.minQty || 0;
             const minNotional = kural.minNotional || 5;
             const notional = guvenliMiktar * canliFiyat;
-            const gerekliNotional = Math.max(minNotional, minQty * canliFiyat);
-            const gerekliMarjin = ayarlar.mevcutKaldirac > 0 ? gerekliNotional / ayarlar.mevcutKaldirac : gerekliNotional;
+            const stepSize = kural.stepSize || Math.pow(10, -(kural.quantityPrecision ?? 2));
+            const audit = positionSizingAudit.auditHesapla({
+                symbol,
+                yon,
+                canliFiyat,
+                ayarlar,
+                kural: { ...kural, minQty, minNotional },
+                hamMiktar,
+                guvenliMiktar,
+                stepSize
+            });
 
             if (!guvenliMiktar || guvenliMiktar <= 0 || guvenliMiktar < minQty || notional < minNotional) {
-                miktarRedLoglaVePusuyuTemizle(symbol, yon, {
-                    toplamDolar,
-                    gerekliNotional,
-                    gerekliMarjin,
-                    hamMiktar,
-                    guvenliMiktar,
-                    minQty,
-                    minNotional
-                });
+                miktarRedLoglaVePusuyuTemizle(symbol, yon, audit);
                 return false;
             }
 
