@@ -166,10 +166,9 @@ function canliRaporMetniOlustur() {
     mesaj += `👑 <b>Net Kasa:</b> ${sayi(s.netKarZarar || 0, 4)} USDT\n`;
 
     try {
-        mesaj += learningValidation.portfoyKisaMetni();
-        learningValidation.writeConsoleModel();
+        mesaj += learningValidation.telegramOzetMetni();
     } catch (err) {
-        mesaj += `\n⚠️ <b>Learning Validation:</b> hesaplanamadı (${err.message})\n`;
+        mesaj += `\n\n🧠 <b>LEARNING VALIDATION</b>\n⚠️ Rapor hazırlanamadı: ${err.message}`;
     }
 
     mesaj += `\n🏆 <b>En Karlı 5</b>\n`;
