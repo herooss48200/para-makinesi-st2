@@ -15,6 +15,7 @@ const confidenceEngine = require('./12_confidence_engine.js');
 const liveIntelligenceMonitor = require('./13_live_intelligence_monitor.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const successClusterEngine = require('./16_success_cluster_engine.js');
+const clusterIntelligenceEngine = require('./17_cluster_intelligence_engine.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const CONSOLE_JSON = path.join(DATA_DIR, 'agros-intelligence-console.json');
@@ -140,14 +141,15 @@ function buildIntelligenceConsoleModel(options = {}) {
   const live = safeBuild('Live Intelligence Monitor', () => liveIntelligenceMonitor.buildLiveMonitorModel({ ...options, confidenceModel: confidence.model }));
   const exit = safeBuild('Exit Optimizer', () => exitOptimizer.buildExitOptimizerModel(options));
   const success = safeBuild('Success Cluster Engine', () => successClusterEngine.buildSuccessClusterModel({ ...options, featureModel: feature.model, pairModel: pair.model, tripleModel: triple.model, confidenceModel: confidence.model, exitModel: exit.model }));
-  const results = [feature, pair, triple, confidence, live, exit, success];
+  const cluster = safeBuild('Cluster Intelligence Engine', () => clusterIntelligenceEngine.buildClusterIntelligenceModel({ ...options, successClusterModel: success.model }));
+  const results = [feature, pair, triple, confidence, live, exit, success, cluster];
 
   const topSignals = collectTopSignals(feature.model, pair.model, triple.model, confidence.model, live.model);
   const riskSignals = collectRiskSignals(confidence.model, live.model);
   const global = confidence.model?.global || live.model?.global || {};
 
   return {
-    version: 'v3.3.0-INTELLIGENCE-CONSOLE-FOUNDATION',
+    version: 'v3.4.2-CLUSTER-INTELLIGENCE-CONSOLE',
     createdAt: new Date().toISOString(),
     aciklama: 'Feature, Pair, Triple, Confidence, Live Monitor ve Success Cluster ciktisini tek Intelligence Snapshot altinda toplar. Trade Engine degismez.',
     global,
@@ -160,10 +162,18 @@ function buildIntelligenceConsoleModel(options = {}) {
       exitKapanis: exit.model?.global?.toplamKapanis || 0,
       exitOrtPcr: exit.model?.global?.ortPcr || 0,
       successSignal: success.model?.successSignals?.length || 0,
-      successClusterScore: success.model?.successCluster?.ortSkor || 0
+      successClusterScore: success.model?.successCluster?.ortSkor || 0,
+      clusterKararAdayi: cluster.model?.ozet?.kararAdayi || 0,
+      clusterRiskAdayi: cluster.model?.ozet?.riskAdayi || 0
     },
     topSignals,
-    riskSignals
+    riskSignals,
+    clusterIntelligence: {
+      kararAdaylari: cluster.model?.kararAdaylari || [],
+      riskAdaylari: cluster.model?.riskAdaylari || [],
+      celiskiliKumeler: cluster.model?.celiskiliKumeler || [],
+      ozet: cluster.model?.ozet || {}
+    }
   };
 }
 
@@ -194,7 +204,7 @@ function telegramMetni(model = buildIntelligenceConsoleModel()) {
   const g = model.global || {};
   let metin = `\n\n🖥️ <b>INTELLIGENCE CONSOLE FOUNDATION v3.3.0</b>\n` +
     `Amaç: Feature + Pair + Triple + Confidence + Live Monitor + Success Cluster çıktılarını tek snapshot altında toplamak. Emir motoruna müdahale yok.\n` +
-    `📦 Modül: ${model.sayaclar.moduleOk}/${model.sayaclar.moduleTotal} OK | Global başarı %${pct(g.basari, 1)} | Net ${pct(g.net, 2)} | Top Signal ${model.sayaclar.topSignal} | Risk ${model.sayaclar.riskSignal} | Exit PCR %${pct(model.sayaclar.exitOrtPcr, 1)} | Success ${model.sayaclar.successSignal} | Cluster ${pct(model.sayaclar.successClusterScore, 1)}`;
+    `📦 Modül: ${model.sayaclar.moduleOk}/${model.sayaclar.moduleTotal} OK | Global başarı %${pct(g.basari, 1)} | Net ${pct(g.net, 2)} | Top Signal ${model.sayaclar.topSignal} | Risk ${model.sayaclar.riskSignal} | Exit PCR %${pct(model.sayaclar.exitOrtPcr, 1)} | Success ${model.sayaclar.successSignal} | Cluster ${pct(model.sayaclar.successClusterScore, 1)} | Karar ${model.sayaclar.clusterKararAdayi} | RiskÇekirdek ${model.sayaclar.clusterRiskAdayi}`;
 
   if (model.topSignals && model.topSignals.length) {
     metin += `\n\n🏆 <b>Birleşik En Güçlü Intelligence Sinyalleri</b>\n` + model.topSignals.slice(0, 6).map(signalSatiri).join('\n');
@@ -205,6 +215,13 @@ function telegramMetni(model = buildIntelligenceConsoleModel()) {
   if (model.riskSignals && model.riskSignals.length) {
     metin += `\n\n⚠️ <b>İzlenecek Risk / Sapma Sinyalleri</b>\n` + model.riskSignals.slice(0, 4).map(signalSatiri).join('\n');
   }
+
+  const ci = model.clusterIntelligence || {};
+  if (ci.kararAdaylari && ci.kararAdaylari.length) {
+    metin += `\n\n🧬 <b>Cluster Intelligence - Pozitif Karar Çekirdeği</b>\n` +
+      ci.kararAdaylari.slice(0, 3).map((r, i) => `${i + 1}) [${htmlSafe(r.type)}] ${htmlSafe(r.etiket)} | Edge ${pct(r.netEdge, 1)} | Support ${r.support}`).join('\n');
+  }
+
 
   return metin;
 }

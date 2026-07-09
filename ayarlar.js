@@ -257,6 +257,14 @@ const ayarlar = {
     successClusterTopAday: 10,
 
 
+
+    // v3.4.2 Cluster Intelligence: Kazanan/kaybeden kesişim kümelerini karşılaştırır; emir motoruna müdahale etmez.
+    clusterIntelligenceAktif: true,
+    clusterIntelligenceExportAktif: true,
+    clusterIntelligenceMinSupport: 3,
+    clusterIntelligenceEdgeEsik: 12,
+    clusterIntelligenceTopAday: 10,
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 
