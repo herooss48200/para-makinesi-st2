@@ -207,6 +207,18 @@ const ayarlar = {
     tripleDnaVeryHighOrnek: 40,
 
 
+    // v3.2.7 Confidence Engine:
+    // Feature + Pair + Triple DNA Lab sonuçlarını tek güven puanında birleştirir.
+    // Trade Engine'e dokunmaz; şimdilik sadece Telegram raporu ve Argos Dev Console için JSON/CSV çıktı üretir.
+    confidenceEngineAktif: true,
+    confidenceEngineConsoleExportAktif: true,
+    confidenceEngineMinOrnek: 3,
+    confidenceEngineTopAday: 10,
+    confidenceEngineGucluEsik: 58,
+    confidenceEngineRiskEsik: 42,
+    confidenceEngineHighOrnek: 25,
+
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 
