@@ -219,6 +219,19 @@ const ayarlar = {
     confidenceEngineHighOrnek: 25,
 
 
+    // v3.2.8 Live Intelligence Monitor:
+    // Confidence Engine skorlarının gerçek TP/SL/BE sonuçlarıyla kalibrasyonunu izler.
+    // Trade Engine'e dokunmaz; emir açmaz, engellemez, sadece Telegram ve Console çıktısı üretir.
+    liveIntelligenceMonitorAktif: true,
+    liveIntelligenceMonitorConsoleExportAktif: true,
+    liveMonitorMinOrnek: 3,
+    liveMonitorMinBucketSonuc: 5,
+    liveMonitorTopAday: 8,
+    liveMonitorGucluEsik: 70,
+    liveMonitorRiskEsik: 40,
+    liveMonitorSapmaEsigi: 12,
+
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 

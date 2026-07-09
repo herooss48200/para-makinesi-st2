@@ -5,7 +5,7 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 3_piyasa.js && node --check 4_pozisyon.js && node --check 5_kalici_hafiza.js && node --check ayarlar.js && node --check motor.js && node --check revizyon.js && node --check versiyon.js && node --check 6_pusu_kalite_motoru.js && node --check 8_blackbox.js && node --check 9_feature_importance_lab.js && node --check 10_pair_importance_lab.js && node --check 11_triple_dna_lab.js && node --check 12_confidence_engine.js"
+    "check": "node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 3_piyasa.js && node --check 4_pozisyon.js && node --check 5_kalici_hafiza.js && node --check ayarlar.js && node --check motor.js && node --check revizyon.js && node --check versiyon.js && node --check 6_pusu_kalite_motoru.js && node --check 8_blackbox.js && node --check 9_feature_importance_lab.js && node --check 10_pair_importance_lab.js && node --check 11_triple_dna_lab.js && node --check 12_confidence_engine.js && node --check 13_live_intelligence_monitor.js"
   },
   "dependencies": {
     "axios": "^1.13.2",
