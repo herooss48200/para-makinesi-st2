@@ -265,6 +265,15 @@ const ayarlar = {
     clusterIntelligenceEdgeEsik: 12,
     clusterIntelligenceTopAday: 10,
 
+
+
+    // v3.5.0 Similarity Learning Core: Geçmiş başarılı/riskli kümeleri yeni işlemler için benzerlik çekirdeğine çevirir; emir motoruna müdahale etmez.
+    similarityLearningAktif: true,
+    similarityLearningExportAktif: true,
+    similarityLearningMinSupport: 3,
+    similarityLearningTopAday: 10,
+    similarityLearningEdgeEsik: 25,
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 

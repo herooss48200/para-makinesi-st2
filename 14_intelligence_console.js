@@ -16,6 +16,7 @@ const liveIntelligenceMonitor = require('./13_live_intelligence_monitor.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const successClusterEngine = require('./16_success_cluster_engine.js');
 const clusterIntelligenceEngine = require('./17_cluster_intelligence_engine.js');
+const similarityLearningCore = require('./18_similarity_learning_core.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const CONSOLE_JSON = path.join(DATA_DIR, 'agros-intelligence-console.json');
@@ -142,16 +143,17 @@ function buildIntelligenceConsoleModel(options = {}) {
   const exit = safeBuild('Exit Optimizer', () => exitOptimizer.buildExitOptimizerModel(options));
   const success = safeBuild('Success Cluster Engine', () => successClusterEngine.buildSuccessClusterModel({ ...options, featureModel: feature.model, pairModel: pair.model, tripleModel: triple.model, confidenceModel: confidence.model, exitModel: exit.model }));
   const cluster = safeBuild('Cluster Intelligence Engine', () => clusterIntelligenceEngine.buildClusterIntelligenceModel({ ...options, successClusterModel: success.model }));
-  const results = [feature, pair, triple, confidence, live, exit, success, cluster];
+  const similarity = safeBuild('Similarity Learning Core', () => similarityLearningCore.buildSimilarityLearningModel({ ...options, clusterModel: cluster.model }));
+  const results = [feature, pair, triple, confidence, live, exit, success, cluster, similarity];
 
   const topSignals = collectTopSignals(feature.model, pair.model, triple.model, confidence.model, live.model);
   const riskSignals = collectRiskSignals(confidence.model, live.model);
   const global = confidence.model?.global || live.model?.global || {};
 
   return {
-    version: 'v3.4.2-CLUSTER-INTELLIGENCE-CONSOLE',
+    version: 'v3.5.0-SIMILARITY-LEARNING-CONSOLE',
     createdAt: new Date().toISOString(),
-    aciklama: 'Feature, Pair, Triple, Confidence, Live Monitor ve Success Cluster ciktisini tek Intelligence Snapshot altinda toplar. Trade Engine degismez.',
+    aciklama: 'Feature, Pair, Triple, Confidence, Live Monitor ve Success Cluster ve Similarity Learning ciktisini tek Intelligence Snapshot altinda toplar. Trade Engine degismez.',
     global,
     health: moduleHealth(results),
     sayaclar: {
@@ -164,7 +166,11 @@ function buildIntelligenceConsoleModel(options = {}) {
       successSignal: success.model?.successSignals?.length || 0,
       successClusterScore: success.model?.successCluster?.ortSkor || 0,
       clusterKararAdayi: cluster.model?.ozet?.kararAdayi || 0,
-      clusterRiskAdayi: cluster.model?.ozet?.riskAdayi || 0
+      clusterRiskAdayi: cluster.model?.ozet?.riskAdayi || 0,
+      similarityKarar: similarity.model?.recommendation?.karar || 'N/A',
+      similarityNetEdge: similarity.model?.recommendation?.netLearningEdge || 0,
+      similarityPozitif: similarity.model?.successSimilarity?.length || 0,
+      similarityRisk: similarity.model?.riskSimilarity?.length || 0
     },
     topSignals,
     riskSignals,
@@ -173,6 +179,12 @@ function buildIntelligenceConsoleModel(options = {}) {
       riskAdaylari: cluster.model?.riskAdaylari || [],
       celiskiliKumeler: cluster.model?.celiskiliKumeler || [],
       ozet: cluster.model?.ozet || {}
+    },
+    similarityLearning: {
+      recommendation: similarity.model?.recommendation || {},
+      successSimilarity: similarity.model?.successSimilarity || [],
+      riskSimilarity: similarity.model?.riskSimilarity || [],
+      conflictSimilarity: similarity.model?.conflictSimilarity || []
     }
   };
 }
@@ -202,9 +214,9 @@ function signalSatiri(r, i) {
 function telegramMetni(model = buildIntelligenceConsoleModel()) {
   if (ayarlar.intelligenceConsoleAktif === false) return '';
   const g = model.global || {};
-  let metin = `\n\n🖥️ <b>INTELLIGENCE CONSOLE FOUNDATION v3.3.0</b>\n` +
-    `Amaç: Feature + Pair + Triple + Confidence + Live Monitor + Success Cluster çıktılarını tek snapshot altında toplamak. Emir motoruna müdahale yok.\n` +
-    `📦 Modül: ${model.sayaclar.moduleOk}/${model.sayaclar.moduleTotal} OK | Global başarı %${pct(g.basari, 1)} | Net ${pct(g.net, 2)} | Top Signal ${model.sayaclar.topSignal} | Risk ${model.sayaclar.riskSignal} | Exit PCR %${pct(model.sayaclar.exitOrtPcr, 1)} | Success ${model.sayaclar.successSignal} | Cluster ${pct(model.sayaclar.successClusterScore, 1)} | Karar ${model.sayaclar.clusterKararAdayi} | RiskÇekirdek ${model.sayaclar.clusterRiskAdayi}`;
+  let metin = `\n\n🖥️ <b>INTELLIGENCE CONSOLE v3.5.0</b>\n` +
+    `Amaç: Feature + Pair + Triple + Confidence + Live Monitor + Success Cluster + Similarity Learning çıktılarını tek snapshot altında toplamak. Emir motoruna müdahale yok.\n` +
+    `📦 Modül: ${model.sayaclar.moduleOk}/${model.sayaclar.moduleTotal} OK | Global başarı %${pct(g.basari, 1)} | Net ${pct(g.net, 2)} | Top Signal ${model.sayaclar.topSignal} | Risk ${model.sayaclar.riskSignal} | Exit PCR %${pct(model.sayaclar.exitOrtPcr, 1)} | Success ${model.sayaclar.successSignal} | Cluster ${pct(model.sayaclar.successClusterScore, 1)} | Karar ${model.sayaclar.clusterKararAdayi} | RiskÇekirdek ${model.sayaclar.clusterRiskAdayi} | Similarity ${htmlSafe(model.sayaclar.similarityKarar)} (${pct(model.sayaclar.similarityNetEdge, 1)})`;
 
   if (model.topSignals && model.topSignals.length) {
     metin += `\n\n🏆 <b>Birleşik En Güçlü Intelligence Sinyalleri</b>\n` + model.topSignals.slice(0, 6).map(signalSatiri).join('\n');
@@ -222,6 +234,17 @@ function telegramMetni(model = buildIntelligenceConsoleModel()) {
       ci.kararAdaylari.slice(0, 3).map((r, i) => `${i + 1}) [${htmlSafe(r.type)}] ${htmlSafe(r.etiket)} | Edge ${pct(r.netEdge, 1)} | Support ${r.support}`).join('\n');
   }
 
+
+  const sl = model.similarityLearning || {};
+  if (sl.successSimilarity && sl.successSimilarity.length) {
+    metin += `\n\n🧠 <b>Similarity Learning - Başarılı Geçmiş Benzerliği</b>\n` +
+      sl.successSimilarity.slice(0, 3).map((r, i) => `${i + 1}) [${htmlSafe(r.type)}] ${htmlSafe(r.etiket)} | Skor ${pct(r.learningScore, 1)} | Kanıt ${pct(r.evidenceWeight, 1)} | Support ${r.support}`).join('\n');
+  }
+
+  if (sl.riskSimilarity && sl.riskSimilarity.length) {
+    metin += `\n\n⚠️ <b>Similarity Learning - Riskli Geçmiş Benzerliği</b>\n` +
+      sl.riskSimilarity.slice(0, 2).map((r, i) => `${i + 1}) [${htmlSafe(r.type)}] ${htmlSafe(r.etiket)} | Skor ${pct(r.learningScore, 1)} | Kanıt ${pct(r.evidenceWeight, 1)} | Support ${r.support}`).join('\n');
+  }
 
   return metin;
 }
