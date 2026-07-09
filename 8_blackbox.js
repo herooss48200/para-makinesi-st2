@@ -1264,32 +1264,65 @@ function trendYonMetni() {
     `${bucketMetni('Trendin tersinde', o.trendTersYon)}`;
 }
 
-function telegramIstatistikRaporMetni() {
-  const o = ozetHazirla();
-  const toplam = toplamKapanisSayisi();
-  return strategyLabRadarMetni() + `\n\n━━━━━━━━━━━━━━━━━━\n` +
-    `🧠 <b>BLACKBOX İSTATİSTİK RAPORU</b>\n` +
-    `Kapanan BlackBox işlem: ${toplam}\n` +
-    `Rapor aralığı: ${Number(ayarlar.blackboxIstatistikRaporAraligiDakika || 10)} dakika + her ${Number(ayarlar.blackboxIstatistikRaporAraligiKapanis || 10)} kapanış\n` +
-    `--------------------------------\n` +
-    `${bucketMetni('🟢 LONG', o.long)}\n` +
-    `${bucketMetni('🔴 SHORT', o.short)}` +
-    trendYonMetni() +
-    enIyiKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 10)) +
-    enKotuKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 10)) +
-    enBasariliTfMetni(o.btcTfStats, '⏱️ <b>BTC TF → İşlem Yönü</b>', 4) +
-    enBasariliTfMetni(o.coinTfStats, '🪙 <b>Coin TF → İşlem Yönü</b>', 4) +
-    bbYonMetni(5) +
-    kararLaboratuvariMetni();
+function sonBlackboxSatirlari(o) {
+  return (o.son5 || [])
+    .map(x => `${x.sonuc === 'TP' ? '✅' : x.sonuc === 'BE' ? '⚖️' : '❌'} ${x.symbol} ${x.yon} | ${x.imza || 'İmza:YOK'} | Uyum ${x.uyum} | BB ${x.bb} | ${Number(x.net || 0).toFixed(2)}`)
+    .join('\n');
 }
 
-function telegramOzetMetni() {
+function blackboxReportModelOlustur() {
   const o = ozetHazirla();
-  const islemVar = (o.long.toplam + o.short.toplam) > 0;
-  const son = (o.son5 || []).map(x => `${x.sonuc === 'TP' ? '✅' : x.sonuc === 'BE' ? '⚖️' : '❌'} ${x.symbol} ${x.yon} | ${x.imza || 'İmza:YOK'} | Uyum ${x.uyum} | BB ${x.bb} | ${Number(x.net || 0).toFixed(2)}`).join('\n');
+  const toplam = toplamKapanisSayisi();
+  const topK = Number(ayarlar.blackboxRaporTopKombinasyon || 10);
+  const son = sonBlackboxSatirlari(o);
+  const islemVar = (Number(o.long?.toplam || 0) + Number(o.short?.toplam || 0)) > 0;
+
+  return {
+    o,
+    toplam,
+    topK,
+    son,
+    islemVar,
+    bolumler: {
+      strategyLabRadar: strategyLabRadarMetni(),
+      anaYonOzet: `${bucketMetni('🟢 LONG', o.long)}\n${bucketMetni('🔴 SHORT', o.short)}`,
+      trendYon: trendYonMetni(),
+      enIyiKombinasyon: enIyiKombinasyonMetni(topK),
+      enKotuKombinasyon: enKotuKombinasyonMetni(topK),
+      btcTf: enBasariliTfMetni(o.btcTfStats, '⏱️ <b>BTC TF → İşlem Yönü</b>', 4),
+      coinTf: enBasariliTfMetni(o.coinTfStats, '🪙 <b>Coin TF → İşlem Yönü</b>', 4),
+      btcTfOzet: enBasariliTfMetni(o.btcTfStats, '⏱️ <b>En Başarılı BTC TF → İşlem Yönü</b>', 4),
+      coinTfOzet: enBasariliTfMetni(o.coinTfStats, '🪙 <b>En Başarılı Coin TF → İşlem Yönü</b>', 4),
+      bbYon: bbYonMetni(5),
+      kararLab: kararLaboratuvariMetni(),
+      aktifPozisyonlar: aktifPozisyonOzetMetni()
+    }
+  };
+}
+
+function renderIstatistikRaporu(model = blackboxReportModelOlustur()) {
+  const b = model.bolumler;
+  return b.strategyLabRadar + `\n\n━━━━━━━━━━━━━━━━━━\n` +
+    `🧠 <b>BLACKBOX İSTATİSTİK RAPORU</b>\n` +
+    `Kapanan BlackBox işlem: ${model.toplam}\n` +
+    `Rapor aralığı: ${Number(ayarlar.blackboxIstatistikRaporAraligiDakika || 10)} dakika + her ${Number(ayarlar.blackboxIstatistikRaporAraligiKapanis || 10)} kapanış\n` +
+    `--------------------------------\n` +
+    b.anaYonOzet +
+    b.trendYon +
+    b.enIyiKombinasyon +
+    b.enKotuKombinasyon +
+    b.btcTf +
+    b.coinTf +
+    b.bbYon +
+    b.kararLab;
+}
+
+function renderOzetRaporu(model = blackboxReportModelOlustur()) {
+  const o = model.o;
+  const b = model.bolumler;
   return `\n\n🧠 <b>BLACKBOX TREND ETKİSİ</b>\n` +
     `<i>Açılış anındaki BTC/Coin 5m-15m-1h-4h SuperTrend uyumuna göre kapanan işlemler.</i>\n` +
-    (islemVar ? (
+    (model.islemVar ? (
       `${bucketMetni('🟢 LONG', o.long)}\n` +
       `${bucketMetni('🔴 SHORT', o.short)}\n` +
       `${bucketMetni('BTC 4/4 işlem yönü', o.btcTamUyum)}\n` +
@@ -1301,14 +1334,22 @@ function telegramOzetMetni() {
       `${bucketMetni('BB TAM ORTA', o.bbOrta)}\n` +
       `${bucketMetni('BB ORTA BÖLGE', o.bbOrtaBolge)}\n` +
       `${bucketMetni('BB ALT/ÜST', o.bbAltUst)}` +
-      (son ? `\n\n📌 <b>Son BlackBox</b>\n${son}` : '') +
-      enIyiKombinasyonMetni(Number(ayarlar.blackboxRaporTopKombinasyon || 10)) +
-      enBasariliTfMetni(o.btcTfStats, '⏱️ <b>En Başarılı BTC TF → İşlem Yönü</b>', 4) +
-      enBasariliTfMetni(o.coinTfStats, '🪙 <b>En Başarılı Coin TF → İşlem Yönü</b>', 4) +
-      bbYonMetni(5) +
-      kararLaboratuvariMetni()
+      (model.son ? `\n\n📌 <b>Son BlackBox</b>\n${model.son}` : '') +
+      b.enIyiKombinasyon +
+      b.btcTfOzet +
+      b.coinTfOzet +
+      b.bbYon +
+      b.kararLab
     ) : 'Henüz kapanan BlackBox işlemi yok. İlk kapanıştan sonra başarı/net tabloları dolacak.') +
-    `\n\n📡 <b>Aktif Pozisyon Açılış Fotoğrafları</b>\n${aktifPozisyonOzetMetni()}`;
+    `\n\n📡 <b>Aktif Pozisyon Açılış Fotoğrafları</b>\n${b.aktifPozisyonlar}`;
 }
 
-module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni };
+function telegramIstatistikRaporMetni() {
+  return renderIstatistikRaporu(blackboxReportModelOlustur());
+}
+
+function telegramOzetMetni() {
+  return renderOzetRaporu(blackboxReportModelOlustur());
+}
+
+module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu };
