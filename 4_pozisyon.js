@@ -826,9 +826,7 @@ function pozisyonKorumaFiyatlariniOnar(pos, kaynak = 'kontrol') {
         : (ayarlar.sabitTpYuzdesi || 0.4);
     const tpOrani = tpYuzdesi / 100;
 
-    const slMantikli = pos.yon === 'LONG'
-        ? fiyatGecerliMi(pos.sl) && Number(pos.sl) < giris
-        : fiyatGecerliMi(pos.sl) && Number(pos.sl) > giris;
+    const slMantikli = fiyatGecerliMi(pos.sl);
     const tpMantikli = pos.yon === 'LONG'
         ? fiyatGecerliMi(pos.tp) && Number(pos.tp) > giris
         : fiyatGecerliMi(pos.tp) && Number(pos.tp) < giris;
