@@ -8,3 +8,8 @@ npm-debug.log*
 data/*.csv
 data/*.jsonl
 data/sanal-state.json
+
+# Local repair / backup files
+backups/
+*.backup-*
+fix-sl.js
