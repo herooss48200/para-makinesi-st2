@@ -249,6 +249,13 @@ const ayarlar = {
     exitOptimizerTelegramAktif: true,
     exitOptimizerTopAday: 8,
 
+    // v3.4.1 Success Cluster: En başarılı imzaların kesişen kümelerini raporlar; emir motoruna müdahale etmez.
+    successClusterAktif: true,
+    successClusterExportAktif: true,
+    successClusterMinOrnek: 3,
+    successClusterHighOrnek: 25,
+    successClusterTopAday: 10,
+
 
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,

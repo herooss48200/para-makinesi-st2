@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'AGROS-STRATEGY-LAB',
-    kod: 'AWS Stable v3.4.0-EXIT-OPTIMIZER-FOUNDATION',
-    botSurumu: '3.4.0-EXIT-OPTIMIZER-FOUNDATION',
+    kod: 'AWS Stable v3.4.1-SUCCESS-CLUSTER-FOUNDATION',
+    botSurumu: '3.4.1-SUCCESS-CLUSTER-FOUNDATION',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '09.07.2026',
     ortam: {
