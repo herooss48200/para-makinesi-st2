@@ -1,10 +1,10 @@
-﻿const versiyon = {
+const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'AGROS-STRATEGY-LAB',
-    kod: 'AWS Stable v3.0.4-STRATEGY-LAB-REPORT-CLEANUP',
-    botSurumu: '3.0.4-STRATEGY-LAB-REPORT-CLEANUP',
+    kod: 'AWS Stable v3.2.4-FEATURE-IMPORTANCE-LAB',
+    botSurumu: '3.2.4-FEATURE-IMPORTANCE-LAB',
     stratejiSurumu: '1.0.14',
-    yayinTarihi: '08.07.2026',
+    yayinTarihi: '09.07.2026',
     ortam: {
         emirModu: 'SANAL'
     }

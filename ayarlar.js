@@ -168,6 +168,18 @@ const ayarlar = {
     blackboxIstatistikDakikaRaporuAktif: true,
     blackboxIstatistikRaporAraligiDakika: 10,
 
+    // v3.2.4 Feature Importance Lab:
+    // Mevcut blackboxOzet verisini kullanarak tek tek özelliklerin kazanan/kaybeden DNA ayırt ediciliğini ölçer.
+    // Trade Engine'e dokunmaz; sadece Telegram raporu ve Argos Dev Console için JSON/CSV çıktı üretir.
+    featureImportanceLabAktif: true,
+    featureImportanceConsoleExportAktif: true,
+    featureImportanceMinOrnek: 5,
+    featureImportanceTopAday: 8,
+    featureImportanceAyirtEdicilikEsigi: 10,
+    featureImportanceMediumOrnek: 10,
+    featureImportanceHighOrnek: 25,
+    featureImportanceVeryHighOrnek: 50,
+
 
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
