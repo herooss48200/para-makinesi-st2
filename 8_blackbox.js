@@ -214,6 +214,49 @@ function signatureEtiket(snap) { return snap?.strategySignature?.label || detayl
 function signatureShort(snap) { return snap?.strategySignature?.shortKey || ''; }
 
 
+function pusuTipiBul(pos) {
+  const kalite = pos?.girisAnalizi?.pusuKalite || {};
+  const raw = kalite.senaryo || kalite.tip || pos?.girisAnalizi?.senaryo || pos?.pusuTipi || pos?.senaryo || 'YOK';
+  return String(raw || 'YOK').toUpperCase().replace(/[^A-Z0-9_.-]+/g, '_');
+}
+
+function fullSignatureKey(pos) {
+  const ac = pos?.blackboxAcilis || pos || null;
+  if (!ac) return 'FULL-SIGNATURE-YOK';
+  const sig = ac.strategySignature || {};
+  const yon = String(sig.yon || ac.yon || pos?.yon || 'YOK').toUpperCase();
+  const btcBits = sig.btcBits || uyumBitleri(ac?.btc?.superTrend, yon);
+  const coinBits = sig.coinBits || uyumBitleri(ac?.coin?.superTrend, yon);
+  const bb = sig.bb || ac?.coin?.bollinger?.bolge || 'YOK';
+  const pusu = pusuTipiBul(pos);
+  return `YON=${yon}|BTC=${btcBits}|COIN=${coinBits}|BB=${bb}|PUSU=${pusu}`;
+}
+
+function fullSignatureEtiket(pos) {
+  const ac = pos?.blackboxAcilis || pos || null;
+  if (!ac) return 'Full Signature yok';
+  const sig = ac.strategySignature || {};
+  const yon = String(sig.yon || ac.yon || pos?.yon || 'YOK').toUpperCase();
+  const btcBits = sig.btcBits || uyumBitleri(ac?.btc?.superTrend, yon);
+  const coinBits = sig.coinBits || uyumBitleri(ac?.coin?.superTrend, yon);
+  const bb = sig.bb || ac?.coin?.bollinger?.bolge || 'YOK';
+  const pusu = pusuTipiBul(pos);
+  return `${yon} | BTC ${bitTfMetni(btcBits, yon)} | Coin ${bitTfMetni(coinBits, yon)} | BB ${bb} | Pusu ${pusu}`;
+}
+
+function fullSignatureShort(pos) {
+  const ac = pos?.blackboxAcilis || pos || null;
+  if (!ac) return '';
+  const sig = ac.strategySignature || {};
+  const yon = String(sig.yon || ac.yon || pos?.yon || 'YOK').toUpperCase();
+  const btcBits = sig.btcBits || uyumBitleri(ac?.btc?.superTrend, yon);
+  const coinBits = sig.coinBits || uyumBitleri(ac?.coin?.superTrend, yon);
+  const bb = sig.bb || ac?.coin?.bollinger?.bolge || 'YOK';
+  const pusu = pusuTipiBul(pos);
+  return `${yon === 'SHORT' ? 'S' : 'L'}_B${btcBits}_C${coinBits}_${bb}_P${pusu}`;
+}
+
+
 function bitTrendEmoji(bit, yon) {
   const y = String(yon || '').toUpperCase();
   if (bit === '1') return y === 'SHORT' ? '🔴' : '🟢';
@@ -619,6 +662,7 @@ function ozetHazirla() {
       comboStats: {},
       exactComboStats: {},
       signatureMatrixStats: {},
+      fullSignatureStats: {},
       btcTfStats: {},
       coinTfStats: {},
       bbYonStats: {},
@@ -633,7 +677,7 @@ function ozetHazirla() {
   for (const k of ['long','short','btcTamUyum','coinTamUyum','toplamTamUyum','toplam7Uyum','toplam6Uyum','toplamZayifUyum','bbOrta','bbOrtaBolge','bbAltUst','trendAyniYon','trendTersYon']) {
     if (!h.state.blackboxOzet[k]) h.state.blackboxOzet[k] = bosBucket();
   }
-  for (const k of ['comboStats','exactComboStats','signatureMatrixStats','btcTfStats','coinTfStats','bbYonStats','pusuKaliteStats','pusuSenaryoStats','experimentStats','deneyBaslangiclari']) {
+  for (const k of ['comboStats','exactComboStats','signatureMatrixStats','fullSignatureStats','btcTfStats','coinTfStats','bbYonStats','pusuKaliteStats','pusuSenaryoStats','experimentStats','deneyBaslangiclari']) {
     if (!h.state.blackboxOzet[k] || typeof h.state.blackboxOzet[k] !== 'object') h.state.blackboxOzet[k] = {};
   }
   if (!Array.isArray(h.state.blackboxOzet.son5)) h.state.blackboxOzet.son5 = [];
@@ -726,6 +770,9 @@ function ozetGuncelle(pos, sonuc) {
   const matrixStats = o.signatureMatrixStats;
   statsBucketEkle(matrixStats, signatureMatrixKey(ac), signatureMatrixEtiket(ac), s, net);
 
+  const fullStats = o.fullSignatureStats;
+  statsBucketEkle(fullStats, fullSignatureKey(pos), fullSignatureEtiket(pos), s, net);
+
   const bbKey = `YON=${String(pos.yon || 'YOK').toUpperCase()}|BB=${bb || 'YOK'}`;
   statsBucketEkle(o.bbYonStats, bbKey, `${String(pos.yon || 'YOK').toUpperCase()} | BB ${bb || 'YOK'}`, s, net);
 
@@ -749,7 +796,7 @@ function ozetGuncelle(pos, sonuc) {
   if (!stats[key]) stats[key] = { ...bosBucket(), etiket: comboEtiket(ac, pos.yon), key };
   bucketEkle(stats[key], s, net);
 
-  o.son5.unshift({ symbol: pos.sym, yon: pos.yon, sonuc: s, net, uyum: ac?.uyum?.toplam?.metin || 'YOK', bb: bb || 'YOK', imza: signatureShort(ac) });
+  o.son5.unshift({ symbol: pos.sym, yon: pos.yon, sonuc: s, net, uyum: ac?.uyum?.toplam?.metin || 'YOK', bb: bb || 'YOK', imza: signatureShort(ac), fullImza: fullSignatureShort(pos), pusu: pusuTipiBul(pos) });
   o.son5 = o.son5.slice(0, 5);
   o.sonGuncelleme = new Date().toISOString();
 }
@@ -1257,6 +1304,38 @@ function enKotuKombinasyonMetni(limit = 10) {
   ).join('\n');
 }
 
+
+function fullSignatureLabMetni(limit = 6) {
+  const o = ozetHazirla();
+  const min = Number(ayarlar.blackboxFullSignatureMinOrnek || ayarlar.blackboxMinKombinasyonOrnek || 3);
+  const stats = Object.values(o.fullSignatureStats || {}).filter(b => Number(b?.toplam || 0) >= min);
+  if (!stats.length) {
+    return `
+
+🧬 <b>FULL SIGNATURE DNA LAB</b>
+BTC + Coin + BB + Yön + Pusu Tipi birlikte izleniyor. Henüz min ${min} örnekli Full Signature yok.`;
+  }
+  const best = [...stats]
+    .sort((a, b) => Number(oran(b)) - Number(oran(a)) || Number(b.net || 0) - Number(a.net || 0) || Number(b.toplam || 0) - Number(a.toplam || 0))
+    .slice(0, limit);
+  const worst = [...stats]
+    .sort((a, b) => Number(oran(a)) - Number(oran(b)) || Number(a.net || 0) - Number(b.net || 0) || Number(a.toplam || 0) - Number(b.toplam || 0))
+    .slice(0, limit);
+  return `
+
+🧬 <b>FULL SIGNATURE DNA LAB</b>
+` +
+    `Kapsam: BTC 5m/15m/1h/4h + Coin 5m/15m/1h/4h + BB + Yön + Pusu Tipi | Eşik: min ${min} işlem.
+` +
+    `
+🏆 <b>En Güçlü Full DNA</b>
+` + best.map((b, i) => kararSatiri(b, i)).join('\n') +
+    `
+
+☠️ <b>En Zayıf Full DNA</b>
+` + worst.map((b, i) => kararSatiri(b, i)).join('\n');
+}
+
 function trendYonMetni() {
   const o = ozetHazirla();
   return `\n\n🤝 <b>Trend Aynı/Ters Yön İstatistiği</b>\n` +
@@ -1266,7 +1345,7 @@ function trendYonMetni() {
 
 function sonBlackboxSatirlari(o) {
   return (o.son5 || [])
-    .map(x => `${x.sonuc === 'TP' ? '✅' : x.sonuc === 'BE' ? '⚖️' : '❌'} ${x.symbol} ${x.yon} | ${x.imza || 'İmza:YOK'} | Uyum ${x.uyum} | BB ${x.bb} | ${Number(x.net || 0).toFixed(2)}`)
+    .map(x => `${x.sonuc === 'TP' ? '✅' : x.sonuc === 'BE' ? '⚖️' : '❌'} ${x.symbol} ${x.yon} | ${x.fullImza || x.imza || 'İmza:YOK'} | Pusu ${x.pusu || 'YOK'} | Uyum ${x.uyum} | BB ${x.bb} | ${Number(x.net || 0).toFixed(2)}`)
     .join('\n');
 }
 
@@ -1294,6 +1373,7 @@ function blackboxReportModelOlustur() {
       btcTfOzet: enBasariliTfMetni(o.btcTfStats, '⏱️ <b>En Başarılı BTC TF → İşlem Yönü</b>', 4),
       coinTfOzet: enBasariliTfMetni(o.coinTfStats, '🪙 <b>En Başarılı Coin TF → İşlem Yönü</b>', 4),
       bbYon: bbYonMetni(5),
+      fullSignatureLab: fullSignatureLabMetni(Number(ayarlar.blackboxFullSignatureTopAday || 6)),
       kararLab: kararLaboratuvariMetni(),
       aktifPozisyonlar: aktifPozisyonOzetMetni()
     }
@@ -1314,6 +1394,7 @@ function renderIstatistikRaporu(model = blackboxReportModelOlustur()) {
     b.btcTf +
     b.coinTf +
     b.bbYon +
+    b.fullSignatureLab +
     b.kararLab;
 }
 
@@ -1339,6 +1420,7 @@ function renderOzetRaporu(model = blackboxReportModelOlustur()) {
       b.btcTfOzet +
       b.coinTfOzet +
       b.bbYon +
+      b.fullSignatureLab +
       b.kararLab
     ) : 'Henüz kapanan BlackBox işlemi yok. İlk kapanıştan sonra başarı/net tabloları dolacak.') +
     `\n\n📡 <b>Aktif Pozisyon Açılış Fotoğrafları</b>\n${b.aktifPozisyonlar}`;
@@ -1352,4 +1434,4 @@ function telegramOzetMetni() {
   return renderOzetRaporu(blackboxReportModelOlustur());
 }
 
-module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu };
+module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni };
