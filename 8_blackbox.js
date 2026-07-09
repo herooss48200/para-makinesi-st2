@@ -1529,6 +1529,107 @@ function intersectionLabMetni(limit = 6) {
 }
 
 
+function pfSayisal(b) {
+  const pf = profitFactor(b);
+  if (pf === '∞') return 9.99;
+  const n = Number(pf);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function evrimAnalizEkle(b, toplamTp, toplamSl, baselineBasari) {
+  const tp = Number(b?.tp || 0);
+  const sl = Number(b?.sl || 0);
+  const sonucN = tp + sl;
+  const basari = sonucN > 0 ? (tp / sonucN) * 100 : 0;
+  const basarisizlik = sonucN > 0 ? (sl / sonucN) * 100 : 0;
+  const tpPay = toplamTp > 0 ? (tp / toplamTp) * 100 : 0;
+  const slPay = toplamSl > 0 ? (sl / toplamSl) * 100 : 0;
+  const kazananFark = tpPay - slPay;
+  const kaybedenFark = slPay - tpPay;
+  const baselineFark = basari - baselineBasari;
+  const pf = pfSayisal(b);
+  const min = Number(ayarlar.blackboxEvolutionMinOrnek || ayarlar.blackboxIntersectionMinOrnek || ayarlar.blackboxMinKombinasyonOrnek || 3);
+  let ayirtPuan = 50;
+  ayirtPuan += clampSayi(baselineFark, -35, 35) * 0.55;
+  ayirtPuan += clampSayi(kazananFark, -25, 25) * 0.75;
+  if (pf >= 3) ayirtPuan += 8;
+  else if (pf >= 2) ayirtPuan += 5;
+  else if (pf >= 1.5) ayirtPuan += 3;
+  else if (pf > 0 && pf < 1) ayirtPuan -= 6;
+  const n = Number(b?.toplam || 0);
+  if (n >= min * 5) ayirtPuan += 8;
+  else if (n >= min * 3) ayirtPuan += 5;
+  else if (n >= min) ayirtPuan += 2;
+  if (Number(b?.net || 0) < 0) ayirtPuan -= 8;
+  return {
+    ...b,
+    basari,
+    basarisizlik,
+    tpPay,
+    slPay,
+    kazananFark,
+    kaybedenFark,
+    baselineFark,
+    ayirtPuan: Math.round(clampSayi(ayirtPuan, 0, 100))
+  };
+}
+
+function evrimSatiri(b, i, mode = 'winner') {
+  const toplam = Number(b?.toplam || 0);
+  const fark = mode === 'loser' ? Number(b?.kaybedenFark || 0) : Number(b?.kazananFark || 0);
+  const anaOran = mode === 'loser' ? Number(b?.slPay || 0) : Number(b?.tpPay || 0);
+  const karsiOran = mode === 'loser' ? Number(b?.tpPay || 0) : Number(b?.slPay || 0);
+  const baslik = mode === 'loser' ? 'SL DNA payı' : 'TP DNA payı';
+  const karsi = mode === 'loser' ? 'TP payı' : 'SL payı';
+  const ters = mode === 'loser' ? `\n   🔁 Ters yön Watch Mode: Bu kaybeden DNA tekrar görülürse ${tersYon(bucketYon(b))} yönü test adayı. Otomatik emir yok.` : '';
+  return `${i + 1}) ${b.etiket}\n` +
+    `   🧬 ${baslik}: %${anaOran.toFixed(1)} | ${karsi}: %${karsiOran.toFixed(1)} | Ayırt edici fark: ${fark >= 0 ? '+' : ''}${fark.toFixed(1)}\n` +
+    `   🎯 Başarı: %${Number(b.basari || 0).toFixed(1)} | Başarısızlık: %${Number(b.basarisizlik || 0).toFixed(1)} | Genel başarıya fark: ${Number(b.baselineFark || 0) >= 0 ? '+' : ''}${Number(b.baselineFark || 0).toFixed(1)}\n` +
+    `   📌 Örnek: ${toplam} | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | Net ${Number(b.net || 0).toFixed(2)} | PF ${profitFactor(b)}\n` +
+    `   🧪 DNA Ayırt Gücü: ${b.ayirtPuan}/100 | Güven: ${guvenMetni(b)}` + ters;
+}
+
+function evolutionLabMetni(limit = 6) {
+  const o = ozetHazirla();
+  const min = Number(ayarlar.blackboxEvolutionMinOrnek || ayarlar.blackboxIntersectionMinOrnek || ayarlar.blackboxMinKombinasyonOrnek || 3);
+  const toplamTp = Number(o.long?.tp || 0) + Number(o.short?.tp || 0);
+  const toplamSl = Number(o.long?.sl || 0) + Number(o.short?.sl || 0);
+  const sonucN = toplamTp + toplamSl;
+  const baselineBasari = sonucN > 0 ? (toplamTp / sonucN) * 100 : 0;
+  if (sonucN <= 0) {
+    return `\n\n🧬 <b>EVOLUTION / COMMON DNA LAB</b>\nTP ve SL DNA karşılaştırması için henüz kapanmış TP/SL sonucu yok. BE ayrı tutulur.`;
+  }
+  const { singles, intersections } = intersectionHaritasiOlustur();
+  const kaynaklar = [...Object.values(singles || {}), ...Object.values(intersections || {})]
+    .filter(b => Number(b?.toplam || 0) >= min && (Number(b?.tp || 0) + Number(b?.sl || 0)) > 0)
+    .map(b => evrimAnalizEkle(b, toplamTp, toplamSl, baselineBasari));
+  if (!kaynaklar.length) {
+    return `\n\n🧬 <b>EVOLUTION / COMMON DNA LAB</b>\nKazanan ve kaybeden DNA ayrımı için min ${min} örnekli özellik/kesişim henüz yok. Genel başarı: %${baselineBasari.toFixed(1)}.`;
+  }
+  const kazanan = [...kaynaklar]
+    .filter(b => Number(b.kazananFark || 0) > 0 && Number(b.basari || 0) >= baselineBasari && Number(b.net || 0) >= 0)
+    .sort((a, b) => Number(b.kazananFark || 0) - Number(a.kazananFark || 0) || Number(b.ayirtPuan || 0) - Number(a.ayirtPuan || 0) || Number(b.net || 0) - Number(a.net || 0))
+    .slice(0, limit);
+  const kaybeden = [...kaynaklar]
+    .filter(b => Number(b.kaybedenFark || 0) > 0 && (Number(b.basari || 0) <= baselineBasari || Number(b.net || 0) < 0))
+    .sort((a, b) => Number(b.kaybedenFark || 0) - Number(a.kaybedenFark || 0) || Number(a.net || 0) - Number(b.net || 0) || Number(b.toplam || 0) - Number(a.toplam || 0))
+    .slice(0, limit);
+  const guclenen = [...kaynaklar]
+    .filter(b => Number(b.parcaSayisi || 1) >= 2 && Number(b.baselineFark || 0) > 0 && Number(b.kazananFark || 0) > 0)
+    .sort((a, b) => Number(b.baselineFark || 0) - Number(a.baselineFark || 0) || Number(b.ayirtPuan || 0) - Number(a.ayirtPuan || 0))
+    .slice(0, Math.min(4, limit));
+  let metin = `\n\n🧬 <b>EVOLUTION / COMMON DNA LAB</b>\n` +
+    `Amaç: TP DNA ile SL DNA arasındaki ayırt edici farkı bulmak. BE ayrı tutulur. Genel başarı: %${baselineBasari.toFixed(1)} | TP:${toplamTp} SL:${toplamSl} | Eşik: min ${min} işlem.\n` +
+    `Not: Bu bölüm filtre açmaz; Watch Mode adaylarını bilimsel olarak işaretler.`;
+  if (kazanan.length) metin += `\n\n🟢 <b>Kazanan DNA'yı Ayıran Genler</b>\n` + kazanan.map((b, i) => evrimSatiri(b, i, 'winner')).join('\n');
+  else metin += `\n\n🟢 <b>Kazanan DNA</b>\nGenel başarıdan anlamlı ayrışan kazanan gen henüz yok.`;
+  if (guclenen.length) metin += `\n\n📈 <b>Birleşince Evrimleşen DNA</b>\n` + guclenen.map((b, i) => evrimSatiri(b, i, 'winner')).join('\n');
+  if (kaybeden.length) metin += `\n\n🔴 <b>Kaybeden DNA / Ters Yön Zenginlik Adayları</b>\n` + kaybeden.map((b, i) => evrimSatiri(b, i, 'loser')).join('\n');
+  else metin += `\n\n🔴 <b>Kaybeden DNA</b>\nSL tarafında belirgin ayrışan DNA henüz yok.`;
+  return metin;
+}
+
+
 function trendYonMetni() {
   const o = ozetHazirla();
   return `\n\n🤝 <b>Trend Aynı/Ters Yön İstatistiği</b>\n` +
@@ -1568,6 +1669,7 @@ function blackboxReportModelOlustur() {
       bbYon: bbYonMetni(5),
       fullSignatureLab: fullSignatureLabMetni(Number(ayarlar.blackboxFullSignatureTopAday || 6)),
       intersectionLab: intersectionLabMetni(Number(ayarlar.blackboxIntersectionTopAday || 6)),
+      evolutionLab: evolutionLabMetni(Number(ayarlar.blackboxEvolutionTopAday || 6)),
       kararLab: kararLaboratuvariMetni(),
       aktifPozisyonlar: aktifPozisyonOzetMetni()
     }
@@ -1590,6 +1692,7 @@ function renderIstatistikRaporu(model = blackboxReportModelOlustur()) {
     b.bbYon +
     b.fullSignatureLab +
     b.intersectionLab +
+    b.evolutionLab +
     b.kararLab;
 }
 
@@ -1617,6 +1720,7 @@ function renderOzetRaporu(model = blackboxReportModelOlustur()) {
       b.bbYon +
       b.fullSignatureLab +
       b.intersectionLab +
+      b.evolutionLab +
       b.kararLab
     ) : 'Henüz kapanan BlackBox işlemi yok. İlk kapanıştan sonra başarı/net tabloları dolacak.') +
     `\n\n📡 <b>Aktif Pozisyon Açılış Fotoğrafları</b>\n${b.aktifPozisyonlar}`;
@@ -1630,4 +1734,4 @@ function telegramOzetMetni() {
   return renderOzetRaporu(blackboxReportModelOlustur());
 }
 
-module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur };
+module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur, evolutionLabMetni };
