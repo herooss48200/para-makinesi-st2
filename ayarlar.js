@@ -274,6 +274,13 @@ const ayarlar = {
     similarityLearningTopAday: 10,
     similarityLearningEdgeEsik: 25,
 
+    // v3.5.3 Learning Validation Engine
+    learningValidationAktif: true,
+    learningValidationExportAktif: true,
+    learningValidationMinSupport: 3,
+    learningValidationMaxKayit: 5000,
+
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 

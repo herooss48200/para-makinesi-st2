@@ -1,6 +1,7 @@
 require('dotenv').config();
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
+const learningValidation = require('./20_learning_validation.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 
@@ -163,6 +164,13 @@ function canliRaporMetniOlustur() {
     mesaj += `🏅 <b>Başarı:</b> %${yuzde(basariOrani)}\n`;
     mesaj += `💸 <b>Komisyon:</b> ${sayi(s.toplamKomisyon || 0, 4)} USDT\n`;
     mesaj += `👑 <b>Net Kasa:</b> ${sayi(s.netKarZarar || 0, 4)} USDT\n`;
+
+    try {
+        mesaj += learningValidation.portfoyKisaMetni();
+        learningValidation.writeConsoleModel();
+    } catch (err) {
+        mesaj += `\n⚠️ <b>Learning Validation:</b> hesaplanamadı (${err.message})\n`;
+    }
 
     mesaj += `\n🏆 <b>En Karlı 5</b>\n`;
     mesaj += enKarli.length
