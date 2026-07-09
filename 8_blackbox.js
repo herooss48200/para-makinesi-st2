@@ -1336,6 +1336,199 @@ BTC + Coin + BB + Yön + Pusu Tipi birlikte izleniyor. Henüz min ${min} örnekl
 ` + worst.map((b, i) => kararSatiri(b, i)).join('\n');
 }
 
+
+function clampSayi(n, min, max) {
+  const v = Number(n || 0);
+  if (!Number.isFinite(v)) return min;
+  return Math.max(min, Math.min(max, v));
+}
+
+function yuzdeSayi(b) {
+  return Number(oran(b));
+}
+
+function keyMapOlustur(key = '') {
+  const out = {};
+  String(key || '').split('|').forEach(part => {
+    const i = part.indexOf('=');
+    if (i > 0) out[part.slice(0, i)] = part.slice(i + 1);
+  });
+  return out;
+}
+
+function tersHamTrend(t) {
+  const v = String(t || '').toUpperCase();
+  if (v === 'UP') return 'DOWN';
+  if (v === 'DOWN') return 'UP';
+  return 'YOK';
+}
+
+function bitHamTrend(bit, yon) {
+  const hedef = yonTrend(yon);
+  if (bit === '1') return hedef;
+  if (bit === '0') return tersHamTrend(hedef);
+  return 'YOK';
+}
+
+function hamTrendEmoji(t) {
+  const v = String(t || '').toUpperCase();
+  if (v === 'UP') return '🟢';
+  if (v === 'DOWN') return '🔴';
+  return '⚪';
+}
+
+function intersectionOzellikleri(b) {
+  const m = keyMapOlustur(b?.key || '');
+  const yon = String(m.YON || bucketYon(b) || 'YOK').toUpperCase();
+  const btcBits = String(m.BTC || '').padEnd(TFS.length, 'Y').slice(0, TFS.length);
+  const coinBits = String(m.COIN || '').padEnd(TFS.length, 'Y').slice(0, TFS.length);
+  const bb = String(m.BB || 'YOK').toUpperCase();
+  const pusu = String(m.PUSU || 'YOK').toUpperCase();
+  const yonFeature = { key: `YON=${yon}`, label: `Yön ${yon}`, type: 'YON' };
+  const features = [];
+  for (let i = 0; i < TFS.length; i++) {
+    const tf = TFS[i];
+    const btcTrend = bitHamTrend(btcBits[i], yon);
+    const coinTrend = bitHamTrend(coinBits[i], yon);
+    features.push({ key: `BTC_${tf}=${btcTrend}`, label: `BTC ${tf} ${hamTrendEmoji(btcTrend)} ${btcTrend}`, type: 'BTC_TF' });
+    features.push({ key: `COIN_${tf}=${coinTrend}`, label: `Coin ${tf} ${hamTrendEmoji(coinTrend)} ${coinTrend}`, type: 'COIN_TF' });
+  }
+  features.push({ key: `BB=${bb}`, label: `BB ${bb}`, type: 'BB' });
+  features.push({ key: `PUSU=${pusu}`, label: `Pusu ${pusu}`, type: 'PUSU' });
+  return { yon, yonFeature, features };
+}
+
+function intersectionBucketEkle(map, key, etiket, kaynak, parcaSayisi, ozellikler) {
+  if (!map[key]) map[key] = { ...bosBucket(), key, etiket, parcaSayisi, ozellikler: ozellikler || [] };
+  const b = map[key];
+  b.toplam += Number(kaynak?.toplam || 0);
+  b.tp += Number(kaynak?.tp || 0);
+  b.sl += Number(kaynak?.sl || 0);
+  b.be += Number(kaynak?.be || 0);
+  b.net += Number(kaynak?.net || 0);
+  b.karToplam += Number(kaynak?.karToplam || 0);
+  b.zararToplam += Number(kaynak?.zararToplam || 0);
+  return b;
+}
+
+function kombinasyonlar(arr, size) {
+  const out = [];
+  function rec(start, secilen) {
+    if (secilen.length === size) { out.push([...secilen]); return; }
+    for (let i = start; i < arr.length; i++) {
+      secilen.push(arr[i]);
+      rec(i + 1, secilen);
+      secilen.pop();
+    }
+  }
+  rec(0, []);
+  return out;
+}
+
+function intersectionHaritasiOlustur() {
+  const o = ozetHazirla();
+  const full = Object.values(o.fullSignatureStats || {}).filter(b => Number(b?.toplam || 0) > 0 && b?.key);
+  const singles = {};
+  const intersections = {};
+  for (const bucket of full) {
+    const parsed = intersectionOzellikleri(bucket);
+    const singleCombos = parsed.features.map(f => [f]);
+    const pairCombos = kombinasyonlar(parsed.features, 2);
+    const tripleCombos = kombinasyonlar(parsed.features, 3);
+    for (const combo of [...singleCombos, ...pairCombos, ...tripleCombos]) {
+      const oz = [parsed.yonFeature, ...combo];
+      const key = oz.map(x => x.key).join('|');
+      const etiket = oz.map(x => x.label).join(' + ');
+      const hedef = combo.length === 1 ? singles : intersections;
+      intersectionBucketEkle(hedef, key, etiket, bucket, combo.length, oz);
+    }
+  }
+  return { singles, intersections };
+}
+
+function intersectionAnalizEkle(b, singles) {
+  const oz = (b.ozellikler || []).filter(x => x.type !== 'YON');
+  const yon = (b.ozellikler || []).find(x => x.type === 'YON');
+  const tekiller = oz.map(f => singles[[yon?.key, f.key].filter(Boolean).join('|')]).filter(Boolean);
+  const tekilOranlar = tekiller.map(x => yuzdeSayi(x));
+  const tekilOrt = tekilOranlar.length ? tekilOranlar.reduce((a, v) => a + v, 0) / tekilOranlar.length : 0;
+  const tekilMax = tekilOranlar.length ? Math.max(...tekilOranlar) : 0;
+  const basari = yuzdeSayi(b);
+  const ortIyilesme = basari - tekilOrt;
+  const maxIyilesme = basari - tekilMax;
+  const pf = Number(profitFactor(b));
+  const min = Number(ayarlar.blackboxIntersectionMinOrnek || ayarlar.blackboxMinKombinasyonOrnek || 3);
+  let score = basari;
+  score += clampSayi(ortIyilesme, -20, 20) * 0.50;
+  score += clampSayi(maxIyilesme, -20, 20) * 0.35;
+  if (Number.isFinite(pf)) {
+    if (pf >= 3) score += 8;
+    else if (pf >= 2) score += 5;
+    else if (pf >= 1.5) score += 3;
+    else if (pf < 1) score -= 5;
+  }
+  const n = Number(b.toplam || 0);
+  if (n >= min * 5) score += 8;
+  else if (n >= min * 3) score += 5;
+  else if (n >= min) score += 2;
+  if (Number(b.net || 0) < 0) score -= 10;
+  return { ...b, tekilOrt, tekilMax, ortIyilesme, maxIyilesme, intersectionScore: Math.round(clampSayi(score, 0, 100)) };
+}
+
+function intersectionSatiri(b, i, mode = 'best') {
+  const toplam = Number(b?.toplam || 0);
+  const basari = Number(oran(b)).toFixed(1);
+  const tekilOrt = Number(b?.tekilOrt || 0).toFixed(1);
+  const tekilMax = Number(b?.tekilMax || 0).toFixed(1);
+  const ortFark = Number(b?.ortIyilesme || 0).toFixed(1);
+  const maxFark = Number(b?.maxIyilesme || 0).toFixed(1);
+  const beOran = toplam > 0 ? ((Number(b?.be || 0) / toplam) * 100).toFixed(1) : '0.0';
+  const ters = tersYon(bucketYon(b));
+  const tersSatir = mode === 'reverse'
+    ? `\n   🔁 Watch Mode önerisi: Aynı ham DNA tekrar gelirse ters yön (${ters}) test adayı. Emir motoruna müdahale yok.`
+    : '';
+  return `${i + 1}) ${b.etiket}\n` +
+    `   🎯 Kesişim başarı: %${basari} | Tekil Ort: %${tekilOrt} | En güçlü tekil: %${tekilMax}\n` +
+    `   🧬 Kesişim etkisi: Ortalamaya göre ${ortFark >= 0 ? '+' : ''}${ortFark} | En güçlü tekile göre ${maxFark >= 0 ? '+' : ''}${maxFark}\n` +
+    `   📌 Örnek: ${toplam} | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0} | BE:%${beOran} | Net ${Number(b.net || 0).toFixed(2)} | PF ${profitFactor(b)}\n` +
+    `   🧪 Intersection Puanı: ${b.intersectionScore}/100 | Güven: ${guvenMetni(b)}` + tersSatir;
+}
+
+function intersectionLabMetni(limit = 6) {
+  const min = Number(ayarlar.blackboxIntersectionMinOrnek || ayarlar.blackboxMinKombinasyonOrnek || 3);
+  const gucluEsik = Number(ayarlar.blackboxIntersectionBasariEsigi || ayarlar.blackboxKararBasariEsigi || 65);
+  const riskEsik = Number(ayarlar.blackboxIntersectionRiskEsigi || ayarlar.blackboxRiskBasariEsigi || 35);
+  const { singles, intersections } = intersectionHaritasiOlustur();
+  const arr = Object.values(intersections || {})
+    .filter(b => Number(b?.toplam || 0) >= min)
+    .map(b => intersectionAnalizEkle(b, singles));
+  if (!arr.length) {
+    return `\n\n🧬 <b>INTERSECTION DNA LAB</b>\nFull Signature DNA parçalanıyor; BTC/Coin TF + BB + Pusu kesişimleri izleniyor. Henüz min ${min} örnekli kesişim yok.`;
+  }
+  const kazanan = [...arr]
+    .filter(b => Number(oran(b)) >= gucluEsik && Number(b.net || 0) > 0)
+    .sort((a, b) => Number(oran(b)) - Number(oran(a)) || Number(b.intersectionScore || 0) - Number(a.intersectionScore || 0) || Number(b.net || 0) - Number(a.net || 0) || Number(b.toplam || 0) - Number(a.toplam || 0))
+    .slice(0, limit);
+  const kaybeden = [...arr]
+    .filter(b => Number(oran(b)) <= riskEsik || Number(b.net || 0) < 0)
+    .sort((a, b) => Number(oran(a)) - Number(oran(b)) || Number(a.net || 0) - Number(b.net || 0) || Number(b.toplam || 0) - Number(a.toplam || 0))
+    .slice(0, limit);
+  const yukselen = [...arr]
+    .filter(b => Number(b.ortIyilesme || 0) > 0 && Number(b.maxIyilesme || 0) > -5 && Number(b.net || 0) > 0)
+    .sort((a, b) => Number(b.ortIyilesme || 0) - Number(a.ortIyilesme || 0) || Number(b.intersectionScore || 0) - Number(a.intersectionScore || 0))
+    .slice(0, Math.min(4, limit));
+  let metin = `\n\n🧬 <b>INTERSECTION DNA LAB</b>\n` +
+    `Amaç: Tekil özellikleri değil, birlikte güçlenen ortak DNA kümelerini bulmak. Eşik: min ${min} işlem.\n` +
+    `Puanlama: Kesişim başarısı + tekillere göre iyileşme + PF + örnek/güven. Emir motoruna müdahale yok.`;
+  if (kazanan.length) metin += `\n\n🏆 <b>Kazanan Ortak DNA Kümeleri</b>\n` + kazanan.map((b, i) => intersectionSatiri(b, i, 'best')).join('\n');
+  else metin += `\n\n🏆 <b>Kazanan Ortak DNA Kümeleri</b>\nHenüz başarı ≥ %${gucluEsik} ve net pozitif kesişim yok.`;
+  if (yukselen.length) metin += `\n\n📈 <b>Birleşince Güçlenen DNA</b>\n` + yukselen.map((b, i) => intersectionSatiri(b, i, 'best')).join('\n');
+  if (kaybeden.length) metin += `\n\n☠️ <b>Kaybeden Ortak DNA / Ters Yön Watch Adayları</b>\n` + kaybeden.map((b, i) => intersectionSatiri(b, i, 'reverse')).join('\n');
+  else metin += `\n\n☠️ <b>Kaybeden Ortak DNA</b>\nHenüz risk eşiğini geçen başarısız kesişim yok. Risk eşiği: başarı ≤ %${riskEsik} veya net negatif.`;
+  return metin;
+}
+
+
 function trendYonMetni() {
   const o = ozetHazirla();
   return `\n\n🤝 <b>Trend Aynı/Ters Yön İstatistiği</b>\n` +
@@ -1374,6 +1567,7 @@ function blackboxReportModelOlustur() {
       coinTfOzet: enBasariliTfMetni(o.coinTfStats, '🪙 <b>En Başarılı Coin TF → İşlem Yönü</b>', 4),
       bbYon: bbYonMetni(5),
       fullSignatureLab: fullSignatureLabMetni(Number(ayarlar.blackboxFullSignatureTopAday || 6)),
+      intersectionLab: intersectionLabMetni(Number(ayarlar.blackboxIntersectionTopAday || 6)),
       kararLab: kararLaboratuvariMetni(),
       aktifPozisyonlar: aktifPozisyonOzetMetni()
     }
@@ -1395,6 +1589,7 @@ function renderIstatistikRaporu(model = blackboxReportModelOlustur()) {
     b.coinTf +
     b.bbYon +
     b.fullSignatureLab +
+    b.intersectionLab +
     b.kararLab;
 }
 
@@ -1421,6 +1616,7 @@ function renderOzetRaporu(model = blackboxReportModelOlustur()) {
       b.coinTfOzet +
       b.bbYon +
       b.fullSignatureLab +
+      b.intersectionLab +
       b.kararLab
     ) : 'Henüz kapanan BlackBox işlemi yok. İlk kapanıştan sonra başarı/net tabloları dolacak.') +
     `\n\n📡 <b>Aktif Pozisyon Açılış Fotoğrafları</b>\n${b.aktifPozisyonlar}`;
@@ -1434,4 +1630,4 @@ function telegramOzetMetni() {
   return renderOzetRaporu(blackboxReportModelOlustur());
 }
 
-module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni };
+module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur };
