@@ -181,6 +181,19 @@ const ayarlar = {
     featureImportanceVeryHighOrnek: 50,
 
 
+    // v3.2.5 Pair Importance Lab:
+    // Tek tek feature başarısından sonra, iki özelliğin birlikte geldiğinde sinerji üretip üretmediğini ölçer.
+    // Trade Engine'e dokunmaz; Telegram raporu ve Argos Dev Console için JSON/CSV çıktı üretir.
+    pairImportanceLabAktif: true,
+    pairImportanceConsoleExportAktif: true,
+    pairImportanceMinOrnek: 4,
+    pairImportanceTopAday: 8,
+    pairImportanceSinerjiEsigi: 8,
+    pairImportanceMediumOrnek: 10,
+    pairImportanceHighOrnek: 25,
+    pairImportanceVeryHighOrnek: 50,
+
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 
