@@ -22,6 +22,36 @@ function miktarKlip(sym, miktar) {
 }
 
 
+
+function miktarKapasiteEngeliVar(audit) {
+    if (!audit) return false;
+    const ayrilanNotional = Number(audit.toplamDolar || 0);
+    const gerekliNotional = Number(audit.gerekliNotional || 0);
+    const guvenliMiktar = Number(audit.guvenliMiktar || 0);
+    const minQty = Number(audit.minQty || 0);
+    const notional = Number(audit.notional || 0);
+    const minNotional = Number(audit.minNotional || 0);
+
+    return gerekliNotional > 0 && ayrilanNotional > 0 && ayrilanNotional < gerekliNotional &&
+        (guvenliMiktar <= 0 || guvenliMiktar < minQty || notional < minNotional);
+}
+
+function miktarKapasiteEngeliniIsaretle(symbol, yon, audit) {
+    h.state.sembolKapasiteEngeli = h.state.sembolKapasiteEngeli || {};
+    const key = `${symbol}_${yon}`;
+    h.state.sembolKapasiteEngeli[key] = {
+        symbol,
+        yon,
+        sebep: audit?.sebep || 'KAPASITE_YETERSIZ',
+        fiyat: audit?.fiyat || 0,
+        ayrilanNotional: audit?.toplamDolar || 0,
+        gerekliNotional: audit?.gerekliNotional || 0,
+        gerekliMarjin: audit?.gerekliMarjin || 0,
+        eksikMarjin: audit?.eksikMarjin || 0,
+        zaman: Date.now()
+    };
+}
+
 function miktarRedLoglaVePusuyuTemizle(symbol, yon, detay) {
     positionSizingAudit.logla(h.state, {
         symbol,
@@ -261,6 +291,9 @@ const m = {
             });
 
             if (!guvenliMiktar || guvenliMiktar <= 0 || guvenliMiktar < minQty || notional < minNotional) {
+                if (miktarKapasiteEngeliVar(audit)) {
+                    miktarKapasiteEngeliniIsaretle(symbol, yon, audit);
+                }
                 miktarRedLoglaVePusuyuTemizle(symbol, yon, audit);
                 return false;
             }

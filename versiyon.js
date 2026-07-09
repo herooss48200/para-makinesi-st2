@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'AGROS-STRATEGY-LAB',
-    kod: 'AWS Stable v3.5.3-LEARNING-VALIDATION-TELEGRAM',
-    botSurumu: '3.5.3-LEARNING-VALIDATION-TELEGRAM',
+    kod: 'AWS Stable v3.5.3-fix.1-TELEGRAM-BTC-GUARD',
+    botSurumu: '3.5.3-fix.1-TELEGRAM-BTC-GUARD',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '09.07.2026',
     ortam: {
