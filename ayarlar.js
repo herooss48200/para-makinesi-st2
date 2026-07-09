@@ -241,6 +241,15 @@ const ayarlar = {
     intelligenceConsoleTopAday: 12,
 
 
+    // v3.4.0 Exit Optimizer Foundation:
+    // MFE/MAE, kaçırılan kâr ve Profit Capture Ratio ölçer.
+    // Trade Engine'e dokunmaz; emir açmaz, kapatmaz, stop değiştirmez.
+    exitOptimizerAktif: true,
+    exitOptimizerExportAktif: true,
+    exitOptimizerTelegramAktif: true,
+    exitOptimizerTopAday: 8,
+
+
     // SuperTrend/trend filtresinin gerçekten katkısını ölçer; emir engellemez, sadece loglar.
     superTrendEtkiAnaliziAktif: true,
 

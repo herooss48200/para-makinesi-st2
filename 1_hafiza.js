@@ -60,7 +60,8 @@ const state = {
         short: { acilan: 0, kalite: { A: 0, B: 0, C: 0, D: 0, YOK: 0 }, tp: 0, sl: 0, be: 0, netKarZarar: 0, toplamKomisyon: 0 },
         son10Islem: []
     },
-    sanalEmirSayaci: 1
+    sanalEmirSayaci: 1,
+    executionOzet: null
 };
 
 const TELEGRAM_CHAT_IDS = (process.env.TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);

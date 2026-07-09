@@ -3,6 +3,7 @@ const m = require('./motor.js');
 const ayarlar = require('./ayarlar.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
+const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
@@ -947,6 +948,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     pusuKaliteMotoru.islemKapanisKaydet(pos, kapanisAnalizPaketi);
     analizMerkezi.kapanisKaydet(pos, kapanisAnalizPaketi);
+    exitOptimizer.kapanisKaydet(pos, kapanisAnalizPaketi);
     blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
 
     const telegramSonuclari = await h.telegramMesajGonder(
@@ -966,6 +968,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | Sonuç: ${kaliteSonuc}\n` : '') +
         `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
         blackbox.kapanisAnalizMetni(pos, kapanisAnalizPaketi, kapanisZamani) +
+        exitOptimizer.kapanisMetni(pos, kapanisAnalizPaketi) +
         blackbox.telegramSnapshotMetni(pos.blackboxAcilis, 'AÇILIŞ FOTOĞRAFI') +
         blackbox.telegramSnapshotMetni(pos.blackboxKapanis, 'KAPANIŞ FOTOĞRAFI') +
         blackbox.gecisMetni(pos.blackboxAcilis, pos.blackboxKapanis)
@@ -1181,6 +1184,7 @@ async function izSurmeyiGuncelle() {
 
         const sanalPozisyon = ayarlar.sanalEmirModu || pos.sanal;
         analizMerkezi.journeyGuncelle(pos, canliFiyat);
+        exitOptimizer.tickGuncelle(pos, canliFiyat);
         const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
 
         if (sanalPozisyon) {
@@ -1188,6 +1192,7 @@ async function izSurmeyiGuncelle() {
             const guncellendi = trailingHesapla(pos, canliFiyat);
             if (guncellendi) {
                 pos.sl = m.fiyatKlip(pos.sym, pos.sl);
+                exitOptimizer.stopKaydet(pos, oncekiSl, pos.sl, canliFiyat, { kaynak: 'SANAL' });
                 console.log(`🧪 [SANAL STOP GÜNCELLENDİ] ${pos.sym} ${pos.yon} | ${oncekiSl.toFixed(pPrecision)} → ${pos.sl.toFixed(pPrecision)}`);
                 if (stopBildirimGerekli(pos, oncekiSl, pos.sl, canliFiyat)) {
                     await stopGuncellemeMesajiGonder(pos, oncekiSl, pos.sl, canliFiyat, true);
@@ -1260,6 +1265,7 @@ async function izSurmeyiGuncelle() {
                     workingType: 'MARK_PRICE'
                 });
                 pos.sl = yeniSl;
+                exitOptimizer.stopKaydet(pos, oncekiSl, yeniSl, canliFiyat, { kaynak: 'BORSA' });
 
                 if (stopBildirimGerekli(pos, oncekiSl, yeniSl, canliFiyat)) {
                     await stopGuncellemeMesajiGonder(pos, oncekiSl, yeniSl, canliFiyat, false);

@@ -13,6 +13,7 @@ const pairImportanceLab = require('./10_pair_importance_lab.js');
 const tripleDnaLab = require('./11_triple_dna_lab.js');
 const confidenceEngine = require('./12_confidence_engine.js');
 const liveIntelligenceMonitor = require('./13_live_intelligence_monitor.js');
+const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const CONSOLE_JSON = path.join(DATA_DIR, 'agros-intelligence-console.json');
@@ -136,7 +137,8 @@ function buildIntelligenceConsoleModel(options = {}) {
   const triple = safeBuild('Triple DNA', () => tripleDnaLab.buildTripleDnaModel(options));
   const confidence = safeBuild('Confidence Engine', () => confidenceEngine.buildConfidenceModel(options));
   const live = safeBuild('Live Intelligence Monitor', () => liveIntelligenceMonitor.buildLiveMonitorModel({ ...options, confidenceModel: confidence.model }));
-  const results = [feature, pair, triple, confidence, live];
+  const exit = safeBuild('Exit Optimizer', () => exitOptimizer.buildExitOptimizerModel(options));
+  const results = [feature, pair, triple, confidence, live, exit];
 
   const topSignals = collectTopSignals(feature.model, pair.model, triple.model, confidence.model, live.model);
   const riskSignals = collectRiskSignals(confidence.model, live.model);
@@ -152,7 +154,9 @@ function buildIntelligenceConsoleModel(options = {}) {
       moduleOk: results.filter(r => r.ok).length,
       moduleTotal: results.length,
       topSignal: topSignals.length,
-      riskSignal: riskSignals.length
+      riskSignal: riskSignals.length,
+      exitKapanis: exit.model?.global?.toplamKapanis || 0,
+      exitOrtPcr: exit.model?.global?.ortPcr || 0
     },
     topSignals,
     riskSignals
@@ -186,7 +190,7 @@ function telegramMetni(model = buildIntelligenceConsoleModel()) {
   const g = model.global || {};
   let metin = `\n\n🖥️ <b>INTELLIGENCE CONSOLE FOUNDATION v3.3.0</b>\n` +
     `Amaç: Feature + Pair + Triple + Confidence + Live Monitor çıktılarını tek snapshot altında toplamak. Emir motoruna müdahale yok.\n` +
-    `📦 Modül: ${model.sayaclar.moduleOk}/${model.sayaclar.moduleTotal} OK | Global başarı %${pct(g.basari, 1)} | Net ${pct(g.net, 2)} | Top Signal ${model.sayaclar.topSignal} | Risk ${model.sayaclar.riskSignal}`;
+    `📦 Modül: ${model.sayaclar.moduleOk}/${model.sayaclar.moduleTotal} OK | Global başarı %${pct(g.basari, 1)} | Net ${pct(g.net, 2)} | Top Signal ${model.sayaclar.topSignal} | Risk ${model.sayaclar.riskSignal} | Exit PCR %${pct(model.sayaclar.exitOrtPcr, 1)}`;
 
   if (model.topSignals && model.topSignals.length) {
     metin += `\n\n🏆 <b>Birleşik En Güçlü Intelligence Sinyalleri</b>\n` + model.topSignals.slice(0, 6).map(signalSatiri).join('\n');

@@ -8,6 +8,7 @@ const tripleDnaLab = require('./11_triple_dna_lab.js');
 const confidenceEngine = require('./12_confidence_engine.js');
 const liveIntelligenceMonitor = require('./13_live_intelligence_monitor.js');
 const intelligenceConsole = require('./14_intelligence_console.js');
+const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'blackbox-snapshots.jsonl');
@@ -1682,6 +1683,7 @@ function blackboxReportModelOlustur() {
       confidenceEngine: confidenceEngine.telegramMetniVeExport(),
       liveIntelligenceMonitor: liveIntelligenceMonitor.telegramMetniVeExport(),
       intelligenceConsole: intelligenceConsole.telegramMetniVeExport(),
+      exitOptimizer: exitOptimizer.telegramMetniVeExport(),
       kararLab: kararLaboratuvariMetni(),
       aktifPozisyonlar: aktifPozisyonOzetMetni()
     }
@@ -1711,6 +1713,7 @@ function renderIstatistikRaporu(model = blackboxReportModelOlustur()) {
     b.confidenceEngine +
     b.liveIntelligenceMonitor +
     b.intelligenceConsole +
+    b.exitOptimizer +
     b.kararLab;
 }
 
@@ -1745,6 +1748,7 @@ function renderOzetRaporu(model = blackboxReportModelOlustur()) {
       b.confidenceEngine +
       b.liveIntelligenceMonitor +
       b.intelligenceConsole +
+      b.exitOptimizer +
       b.kararLab
     ) : 'Henüz kapanan BlackBox işlemi yok. İlk kapanıştan sonra başarı/net tabloları dolacak.') +
     `\n\n📡 <b>Aktif Pozisyon Açılış Fotoğrafları</b>\n${b.aktifPozisyonlar}`;
@@ -1758,4 +1762,4 @@ function telegramOzetMetni() {
   return renderOzetRaporu(blackboxReportModelOlustur());
 }
 
-module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur, evolutionLabMetni, featureImportanceLab, pairImportanceLab, tripleDnaLab, confidenceEngine, liveIntelligenceMonitor, intelligenceConsole };
+module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur, evolutionLabMetni, featureImportanceLab, pairImportanceLab, tripleDnaLab, confidenceEngine, liveIntelligenceMonitor, intelligenceConsole, exitOptimizer };

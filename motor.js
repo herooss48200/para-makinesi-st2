@@ -3,6 +3,7 @@ const h = require('./1_hafiza.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
+const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -151,6 +152,7 @@ const m = {
             return null;
         });
 
+        exitOptimizer.pozisyonBaslat(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
         blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });

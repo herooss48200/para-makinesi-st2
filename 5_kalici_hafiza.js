@@ -46,6 +46,7 @@ function kaydedilecekState() {
         basariOzeti: h.state.basariOzeti,
         analizOzeti: h.state.analizOzeti,
         blackboxOzet: h.state.blackboxOzet,
+        executionOzet: h.state.executionOzet,
         aktifPozisyonlar: h.state.aktifPozisyonlar || []
     };
 }
@@ -86,6 +87,10 @@ function yukle() {
 
         if (veri.blackboxOzet && typeof veri.blackboxOzet === 'object') {
             h.state.blackboxOzet = { ...(h.state.blackboxOzet || {}), ...veri.blackboxOzet };
+        }
+
+        if (veri.executionOzet && typeof veri.executionOzet === 'object') {
+            h.state.executionOzet = { ...(h.state.executionOzet || {}), ...veri.executionOzet };
         }
 
         if (h.state.gunlukLimitTarihi !== bugunAnahtari()) {
