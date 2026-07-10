@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'EXIT-INTELLIGENCE-EVOLUTION',
-    kod: 'AWS Stable v3.6.2-RESTART-GAP-PROTECTION',
-    botSurumu: '3.6.2-RESTART-GAP-PROTECTION',
+    kod: 'AWS Stable v3.6.5-EXIT-EVOLUTION-DNA-SCOREBOARD',
+    botSurumu: '3.6.5-EXIT-EVOLUTION-DNA-SCOREBOARD',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '10.07.2026',
     ortam: {

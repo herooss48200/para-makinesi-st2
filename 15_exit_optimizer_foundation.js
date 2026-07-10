@@ -105,11 +105,13 @@ function executionEnsure(pos) {
     maeYuzde: 0,
     stopHistory: [],
     kademeHistory: [],
+    pricePath: [],
     tickSayisi: 0,
     maxKademe: num(pos.tpKademe, 0)
   };
   if (!Array.isArray(pos.execution.stopHistory)) pos.execution.stopHistory = [];
   if (!Array.isArray(pos.execution.kademeHistory)) pos.execution.kademeHistory = [];
+  if (!Array.isArray(pos.execution.pricePath)) pos.execution.pricePath = [];
   if (!pos.execution.tradeId) pos.execution.tradeId = id;
   return pos.execution;
 }
@@ -140,6 +142,21 @@ function tickGuncelle(pos, canliFiyat) {
   ex.sonGuncelleme = Date.now();
 
   const k = karYuzde(pos, fiyat);
+
+  // Exit Evolution için hafif fiyat yolu kaydı. Canlı işlem kararına müdahale etmez.
+  // Normal örnekler ayarlanabilir aralıkla, yeni MFE/MAE uçları ise anında saklanır.
+  const sampleMs = Math.max(5000, num(ayarlar.exitReplayPathSampleSeconds, 30) * 1000);
+  const lastPath = ex.pricePath[ex.pricePath.length - 1];
+  const newExtreme = k > num(ex.mfeYuzde) || k < num(ex.maeYuzde);
+  if (!lastPath || ex.sonGuncelleme - num(lastPath.ts) >= sampleMs || newExtreme) {
+    ex.pricePath.push({ ts: ex.sonGuncelleme, price: round(fiyat, 12), pnlPct: round(k, 4) });
+    const maxPoints = Math.max(120, num(ayarlar.exitReplayMaxPathPoints, 600));
+    if (ex.pricePath.length > maxPoints) {
+      // İlk örneği koru; en eski ara örnekleri seyrelterek hafızayı sınırla.
+      ex.pricePath = [ex.pricePath[0], ...ex.pricePath.slice(-(maxPoints - 1))];
+    }
+  }
+
   if (k >= num(ex.mfeYuzde)) {
     ex.mfeYuzde = round(k, 4);
     ex.maxKarFiyat = fiyat;

@@ -1004,6 +1004,20 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     } catch (err) {
         console.error(`⚠️ [BLACKBOX İSTATİSTİK RAPOR HATASI] ${err.message}`);
     }
+
+    // v3.6.5: Her ayarlanan kapanış sayısında DNA bazlı Exit Evolution skor tablosu gönder.
+    try {
+        if (!restartGapIslemi && exitReplay.periyodikRaporGerekli()) {
+            const exitRaporSonuclari = await h.telegramMesajGonder(exitReplay.periyodikRaporMetni());
+            const exitRaporOk = Array.isArray(exitRaporSonuclari) && exitRaporSonuclari.some(x => x?.sonuc?.ok);
+            if (exitRaporOk) {
+                exitReplay.periyodikRaporGonderildiIsaretle();
+                kaliciHafiza.kaydet('exit-evolution-periyodik-raporu-gonderildi');
+            }
+        }
+    } catch (err) {
+        console.error(`⚠️ [EXIT EVOLUTION TELEGRAM RAPOR HATASI] ${err.message}`);
+    }
 }
 
 function sanalKapanisKontrol(pos, canliFiyat) {

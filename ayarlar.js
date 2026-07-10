@@ -256,8 +256,12 @@ const ayarlar = {
     exitReplayTelegramAktif: true,
     exitReplayExportAktif: true,
     exitReplayMinOrnek: 3,
-    exitReplayFixedTpLevels: [0.4, 0.8, 1.2, 2.0, 3.0, 5.0],
-    exitReplayMfeCaptureLevels: [0.50, 0.65, 0.80, 0.90],
+    exitReplayFixedTpLevels: [0.40, 0.60, 0.80, 1.00, 1.50],
+    exitReplayMfeCaptureLevels: [0.50, 0.60, 0.70, 0.80, 0.90],
+    exitReplayTimeMinutes: [5, 10, 15, 20, 30, 45, 60, 90, 120],
+    exitReplayPathSampleSeconds: 30,
+    exitReplayMaxPathPoints: 600,
+    exitReplayTelegramRaporKapanis: 10,
 
     // v3.6.2: Restart sırasında aktif kalan pozisyonları öğrenme istatistiklerinden ayır.
     restartGapProtectionAktif: true,
