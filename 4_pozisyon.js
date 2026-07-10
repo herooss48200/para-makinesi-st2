@@ -4,6 +4,7 @@ const ayarlar = require('./ayarlar.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
+const exitReplay = require('./22_exit_replay_engine.js');
 const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
@@ -949,6 +950,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     pusuKaliteMotoru.islemKapanisKaydet(pos, kapanisAnalizPaketi);
     analizMerkezi.kapanisKaydet(pos, kapanisAnalizPaketi);
     exitOptimizer.kapanisKaydet(pos, kapanisAnalizPaketi);
+    const exitReplayRecord = exitReplay.replayTrade(pos, kapanisAnalizPaketi);
     blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
 
     const telegramSonuclari = await h.telegramMesajGonder(
@@ -969,6 +971,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
         blackbox.kapanisAnalizMetni(pos, kapanisAnalizPaketi, kapanisZamani) +
         exitOptimizer.kapanisMetni(pos, kapanisAnalizPaketi) +
+        exitReplay.kapanisMetni(exitReplayRecord) +
         blackbox.telegramSnapshotMetni(pos.blackboxAcilis, 'AÇILIŞ FOTOĞRAFI') +
         blackbox.telegramSnapshotMetni(pos.blackboxKapanis, 'KAPANIŞ FOTOĞRAFI') +
         blackbox.gecisMetni(pos.blackboxAcilis, pos.blackboxKapanis)

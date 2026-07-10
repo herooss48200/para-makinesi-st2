@@ -145,7 +145,7 @@ function canliRaporMetniOlustur() {
     const enRiskli = [...sirali].reverse().slice(0, 5);
 
     const sonKapananlar = Array.isArray(analizOzeti.son10Islem)
-        ? analizOzeti.son10Islem.slice(-5).reverse()
+        ? analizOzeti.son10Islem.slice(0, 5)
         : [];
 
     const saat = new Date().toLocaleTimeString('tr-TR', { hour12: false });

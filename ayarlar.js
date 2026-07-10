@@ -249,6 +249,16 @@ const ayarlar = {
     exitOptimizerTelegramAktif: true,
     exitOptimizerTopAday: 8,
 
+    // v3.6.1 Exit Replay Engine Foundation:
+    // Kapanan işlemleri farklı çıkış davranışlarıyla sanal olarak yeniden oynatır.
+    // Trade Engine'e dokunmaz; emir açmaz, kapatmaz veya stop değiştirmez.
+    exitReplayAktif: true,
+    exitReplayTelegramAktif: true,
+    exitReplayExportAktif: true,
+    exitReplayMinOrnek: 3,
+    exitReplayFixedTpLevels: [0.4, 0.8, 1.2, 2.0, 3.0, 5.0],
+    exitReplayMfeCaptureLevels: [0.50, 0.65, 0.80, 0.90],
+
     // v3.4.1 Success Cluster: En başarılı imzaların kesişen kümelerini raporlar; emir motoruna müdahale etmez.
     successClusterAktif: true,
     successClusterExportAktif: true,

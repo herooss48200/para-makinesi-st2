@@ -47,6 +47,8 @@ function kaydedilecekState() {
         analizOzeti: h.state.analizOzeti,
         blackboxOzet: h.state.blackboxOzet,
         executionOzet: h.state.executionOzet,
+        accountingAudit: h.state.accountingAudit,
+        exitReplayOzet: h.state.exitReplayOzet,
         aktifPozisyonlar: h.state.aktifPozisyonlar || []
     };
 }
@@ -93,12 +95,17 @@ function yukle() {
             h.state.executionOzet = { ...(h.state.executionOzet || {}), ...veri.executionOzet };
         }
 
+        if (veri.exitReplayOzet && typeof veri.exitReplayOzet === 'object') {
+            h.state.exitReplayOzet = { ...(h.state.exitReplayOzet || {}), ...veri.exitReplayOzet };
+        }
+
         if (h.state.gunlukLimitTarihi !== bugunAnahtari()) {
             h.state.gunlukLimitTarihi = bugunAnahtari();
             h.state.gunlukAcilanEmirSayisi = 0;
         }
 
         listeleriYenidenKur();
+
         console.log(`💾 [KALICI HAFIZA] ${h.state.aktifPozisyonlar.length} sanal pozisyon geri yüklendi. Günlük emir: ${h.state.gunlukAcilanEmirSayisi}/${ayarlar.gunlukMaxYeniEmir || '∞'}`);
     } catch (err) {
         console.error(`❌ [KALICI HAFIZA] Yüklenemedi: ${err.message}`);
