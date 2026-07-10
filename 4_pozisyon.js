@@ -5,6 +5,7 @@ const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const exitReplay = require('./22_exit_replay_engine.js');
+const restartGap = require('./23_restart_gap_protection.js');
 const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
@@ -912,18 +913,24 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     // Senin gördüğün "Max Kâr pozitif / Net -1.50 / Sonuç BE" çelişkisi buradan doğuyordu.
     // BE yalnızca kapanış fiyatı/net PNL gerçekten başabaş bandındaysa yazılır; büyük zarar SL'dir.
 
-    if (kaliteSonuc === 'TP') {
-        h.state.basariOzeti.tp++;
-        if (pos.yon === 'LONG') h.state.basariOzeti.longTp++;
-        else h.state.basariOzeti.shortTp++;
-    } else if (kaliteSonuc === 'BE') {
-        h.state.basariOzeti.be++;
-        if (pos.yon === 'LONG') h.state.basariOzeti.longBe++;
-        else h.state.basariOzeti.shortBe++;
-    } else {
-        h.state.basariOzeti.sl++;
-        if (pos.yon === 'LONG') h.state.basariOzeti.longSl++;
-        else h.state.basariOzeti.shortSl++;
+    const restartGapIslemi = restartGap.isQuarantined(pos);
+
+    // Muhasebe PNL/komisyon her durumda korunur; restart-gap pozisyonları
+    // bilimsel başarı sayaçlarına ve öğrenme motorlarına alınmaz.
+    if (!restartGapIslemi) {
+        if (kaliteSonuc === 'TP') {
+            h.state.basariOzeti.tp++;
+            if (pos.yon === 'LONG') h.state.basariOzeti.longTp++;
+            else h.state.basariOzeti.shortTp++;
+        } else if (kaliteSonuc === 'BE') {
+            h.state.basariOzeti.be++;
+            if (pos.yon === 'LONG') h.state.basariOzeti.longBe++;
+            else h.state.basariOzeti.shortBe++;
+        } else {
+            h.state.basariOzeti.sl++;
+            if (pos.yon === 'LONG') h.state.basariOzeti.longSl++;
+            else h.state.basariOzeti.shortSl++;
+        }
     }
 
     const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
@@ -942,16 +949,22 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         komisyon: Number(toplamKomisyon.toFixed(6))
     };
 
-    pos.blackboxKapanis = await blackbox.snapshotAl(pos.sym, pos.yon, 'KAPANIS').catch(err => {
-        console.log(`⚠️ [BLACKBOX] Kapanış snapshot alınamadı: ${pos.sym} ${pos.yon} | ${err.message}`);
-        return null;
-    });
+    let exitReplayRecord = null;
+    if (!restartGapIslemi) {
+        pos.blackboxKapanis = await blackbox.snapshotAl(pos.sym, pos.yon, 'KAPANIS').catch(err => {
+            console.log(`⚠️ [BLACKBOX] Kapanış snapshot alınamadı: ${pos.sym} ${pos.yon} | ${err.message}`);
+            return null;
+        });
 
-    pusuKaliteMotoru.islemKapanisKaydet(pos, kapanisAnalizPaketi);
-    analizMerkezi.kapanisKaydet(pos, kapanisAnalizPaketi);
-    exitOptimizer.kapanisKaydet(pos, kapanisAnalizPaketi);
-    const exitReplayRecord = exitReplay.replayTrade(pos, kapanisAnalizPaketi);
-    blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
+        pusuKaliteMotoru.islemKapanisKaydet(pos, kapanisAnalizPaketi);
+        analizMerkezi.kapanisKaydet(pos, kapanisAnalizPaketi);
+        exitOptimizer.kapanisKaydet(pos, kapanisAnalizPaketi);
+        exitReplayRecord = exitReplay.replayTrade(pos, kapanisAnalizPaketi);
+        blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
+    } else {
+        restartGap.closeRecord(pos, kapanisAnalizPaketi);
+        console.log(`🛡️ [RESTART GAP KAPANIŞ] ${pos.sym} ${pos.yon} | Muhasebe dahil, öğrenme hariç | Net: ${netKarZarar.toFixed(4)}`);
+    }
 
     const telegramSonuclari = await h.telegramMesajGonder(
         `${emoji} <b>${baslik}</b>\n` +
@@ -969,12 +982,13 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT\n` +
         (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | Sonuç: ${kaliteSonuc}\n` : '') +
         `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
-        blackbox.kapanisAnalizMetni(pos, kapanisAnalizPaketi, kapanisZamani) +
+        restartGap.telegramMetni(pos) +
+        (restartGapIslemi ? '' : blackbox.kapanisAnalizMetni(pos, kapanisAnalizPaketi, kapanisZamani) +
         exitOptimizer.kapanisMetni(pos, kapanisAnalizPaketi) +
         exitReplay.kapanisMetni(exitReplayRecord) +
         blackbox.telegramSnapshotMetni(pos.blackboxAcilis, 'AÇILIŞ FOTOĞRAFI') +
         blackbox.telegramSnapshotMetni(pos.blackboxKapanis, 'KAPANIŞ FOTOĞRAFI') +
-        blackbox.gecisMetni(pos.blackboxAcilis, pos.blackboxKapanis)
+        blackbox.gecisMetni(pos.blackboxAcilis, pos.blackboxKapanis))
     );
 
     const telegramOk = Array.isArray(telegramSonuclari) && telegramSonuclari.some(x => x?.sonuc?.ok);
@@ -983,7 +997,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     // v2.5.1: Her N kapanışta bir ayrı BlackBox istatistik raporu gönder.
     // Canlı rapor içinde özet var; bu rapor ise Telegram'da kaçırılmayacak ayrı analiz mesajıdır.
     try {
-        if (blackbox.istatistikRaporGerekli && blackbox.istatistikRaporGerekli()) {
+        if (!restartGapIslemi && blackbox.istatistikRaporGerekli && blackbox.istatistikRaporGerekli()) {
             await h.telegramMesajGonder(blackbox.telegramIstatistikRaporMetni());
             kaliciHafiza.kaydet('blackbox-istatistik-raporu-gonderildi');
         }

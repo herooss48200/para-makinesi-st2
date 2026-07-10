@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
+const restartGap = require('./23_restart_gap_protection.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'sanal-state.json');
@@ -49,6 +50,7 @@ function kaydedilecekState() {
         executionOzet: h.state.executionOzet,
         accountingAudit: h.state.accountingAudit,
         exitReplayOzet: h.state.exitReplayOzet,
+        restartGapOzet: h.state.restartGapOzet,
         aktifPozisyonlar: h.state.aktifPozisyonlar || []
     };
 }
@@ -99,14 +101,22 @@ function yukle() {
             h.state.exitReplayOzet = { ...(h.state.exitReplayOzet || {}), ...veri.exitReplayOzet };
         }
 
+        if (veri.restartGapOzet && typeof veri.restartGapOzet === 'object') {
+            h.state.restartGapOzet = { ...(h.state.restartGapOzet || {}), ...veri.restartGapOzet };
+        }
+
         if (h.state.gunlukLimitTarihi !== bugunAnahtari()) {
             h.state.gunlukLimitTarihi = bugunAnahtari();
             h.state.gunlukAcilanEmirSayisi = 0;
         }
 
         listeleriYenidenKur();
+        const karantinaSayisi = restartGap.markLoadedPositions(h.state.aktifPozisyonlar);
 
         console.log(`💾 [KALICI HAFIZA] ${h.state.aktifPozisyonlar.length} sanal pozisyon geri yüklendi. Günlük emir: ${h.state.gunlukAcilanEmirSayisi}/${ayarlar.gunlukMaxYeniEmir || '∞'}`);
+        if (karantinaSayisi > 0) {
+            console.log(`🛡️ [RESTART GAP] ${karantinaSayisi} aktif pozisyon öğrenme karantinasına alındı; muhasebe korunacak.`);
+        }
     } catch (err) {
         console.error(`❌ [KALICI HAFIZA] Yüklenemedi: ${err.message}`);
     }

@@ -61,7 +61,8 @@ const state = {
         son10Islem: []
     },
     sanalEmirSayaci: 1,
-    executionOzet: null
+    executionOzet: null,
+    restartGapOzet: null
 };
 
 const TELEGRAM_CHAT_IDS = (process.env.TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);

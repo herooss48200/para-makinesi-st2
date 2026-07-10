@@ -259,6 +259,9 @@ const ayarlar = {
     exitReplayFixedTpLevels: [0.4, 0.8, 1.2, 2.0, 3.0, 5.0],
     exitReplayMfeCaptureLevels: [0.50, 0.65, 0.80, 0.90],
 
+    // v3.6.2: Restart sırasında aktif kalan pozisyonları öğrenme istatistiklerinden ayır.
+    restartGapProtectionAktif: true,
+
     // v3.4.1 Success Cluster: En başarılı imzaların kesişen kümelerini raporlar; emir motoruna müdahale etmez.
     successClusterAktif: true,
     successClusterExportAktif: true,
