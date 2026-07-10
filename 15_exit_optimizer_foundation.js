@@ -149,7 +149,15 @@ function tickGuncelle(pos, canliFiyat) {
   const lastPath = ex.pricePath[ex.pricePath.length - 1];
   const newExtreme = k > num(ex.mfeYuzde) || k < num(ex.maeYuzde);
   if (!lastPath || ex.sonGuncelleme - num(lastPath.ts) >= sampleMs || newExtreme) {
-    ex.pricePath.push({ ts: ex.sonGuncelleme, price: round(fiyat, 12), pnlPct: round(k, 4) });
+    const trendNow = h.state.trendSuperTrendCanli?.[pos.sym] || h.state.trendSuperTrend?.[pos.sym] || h.state.sniperSuperTrend?.[pos.sym] || null;
+    const expectedTrend = pos?.yon === 'LONG' ? 'UP' : 'DOWN';
+    ex.pricePath.push({
+      ts: ex.sonGuncelleme,
+      price: round(fiyat, 12),
+      pnlPct: round(k, 4),
+      stTrend: trendNow,
+      stAligned: trendNow ? trendNow === expectedTrend : null
+    });
     const maxPoints = Math.max(120, num(ayarlar.exitReplayMaxPathPoints, 600));
     if (ex.pricePath.length > maxPoints) {
       // İlk örneği koru; en eski ara örnekleri seyrelterek hafızayı sınırla.

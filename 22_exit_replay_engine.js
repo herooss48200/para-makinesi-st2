@@ -14,8 +14,9 @@ const ayarlar = require('./ayarlar.js');
 const dnaProfitPotential = require('./25_dna_profit_potential_engine.js');
 const timeBehaviorEngine = require('./26_time_behavior_engine.js');
 const dnaBehaviorProfile = require('./27_dna_behavior_profile.js');
+const trendBehaviorEngine = require('./28_trend_behavior_engine.js');
 
-const VERSION = 'v3.6.8-DNA-BEHAVIOR-PROFILE';
+const VERSION = 'v3.6.9-TREND-BEHAVIOR';
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const CSV = path.join(DATA_DIR, 'exit-replay-results.csv');
@@ -51,10 +52,10 @@ function positionValue(pos, sonuc) {
 function normalizePath(pos, closeTs, actualGrossPct) {
   const startTs = num(pos?.acilisZamani || pos?.zaman || pos?.execution?.baslangicZamani, closeTs);
   const raw = Array.isArray(pos?.execution?.pricePath) ? pos.execution.pricePath : [];
-  const pathRows = raw.map(x => ({ ts: num(x?.ts), price: num(x?.price), pnlPct: num(x?.pnlPct) }))
+  const pathRows = raw.map(x => ({ ts: num(x?.ts), price: num(x?.price), pnlPct: num(x?.pnlPct), stTrend: x?.stTrend || null, stAligned: typeof x?.stAligned === 'boolean' ? x.stAligned : null }))
     .filter(x => x.ts > 0 && Number.isFinite(x.pnlPct)).sort((a, b) => a.ts - b.ts);
-  if (!pathRows.length || pathRows[0].ts > startTs) pathRows.unshift({ ts: startTs, price: num(pos?.girisFiyati), pnlPct: 0 });
-  if (!pathRows.length || pathRows[pathRows.length - 1].ts < closeTs) pathRows.push({ ts: closeTs, price: 0, pnlPct: actualGrossPct });
+  if (!pathRows.length || pathRows[0].ts > startTs) pathRows.unshift({ ts: startTs, price: num(pos?.girisFiyati), pnlPct: 0, stTrend: pos?.girisAnalizi?.superTrendYonu || pos?.girisAnalizi?.stTrend || null, stAligned: null });
+  if (!pathRows.length || pathRows[pathRows.length - 1].ts < closeTs) pathRows.push({ ts: closeTs, price: 0, pnlPct: actualGrossPct, stTrend: null, stAligned: null });
   return pathRows;
 }
 function normalizeInput(pos, sonuc = {}) {
@@ -122,7 +123,7 @@ function ozetEnsure() {
   h.state.exitReplayOzet = h.state.exitReplayOzet || { version: VERSION, totalTrades: 0, lastUpdate: null, byAlgorithm: {}, bySignature: {}, timeBehavior: {}, last10: [], actualTotalNetUsdt: 0, oracleBestTotalNetUsdt: 0, oraclePotentialDeltaUsdt: 0 };
   for (const key of ['actualTotalNetUsdt','oracleBestTotalNetUsdt','oraclePotentialDeltaUsdt']) oNumEnsure(h.state.exitReplayOzet, key);
   h.state.exitReplayOzet.version = VERSION;
-  for (const key of ['byAlgorithm','bySignature','timeBehavior']) if (!h.state.exitReplayOzet[key] || typeof h.state.exitReplayOzet[key] !== 'object') h.state.exitReplayOzet[key] = {};
+  for (const key of ['byAlgorithm','bySignature','timeBehavior','trendBehavior']) if (!h.state.exitReplayOzet[key] || typeof h.state.exitReplayOzet[key] !== 'object') h.state.exitReplayOzet[key] = {};
   h.state.exitReplayOzet.dnaProfitPotential = dnaProfitPotential.ensureStore(h.state.exitReplayOzet.dnaProfitPotential);
   h.state.exitReplayOzet.dnaTimeBehavior = timeBehaviorEngine.ensureStore(h.state.exitReplayOzet.dnaTimeBehavior);
   if (!Array.isArray(h.state.exitReplayOzet.last10)) h.state.exitReplayOzet.last10 = [];
@@ -173,6 +174,8 @@ function replayTrade(pos, sonuc = {}) {
     timeBehaviorAdd(o,input); // eski özet uyumluluğu
     dnaProfitPotential.addTrade(o.dnaProfitPotential, input, ayarlar.dnaProfitTargetLevels);
     timeBehaviorEngine.addTrade(o.dnaTimeBehavior, input, ayarlar.exitReplayTimeMinutes);
+    o.trendBehavior = o.trendBehavior || { version: trendBehaviorEngine.VERSION, totalTrades: 0, byDna: {} };
+    trendBehaviorEngine.addTrade(o.trendBehavior, input);
     const ranked = results.filter(r => r.algorithmId !== 'ACTUAL' && r.isExecutable).sort((a,b) => b.netUsdt-a.netUsdt);
     const best = ranked[0] || actual;
     o.actualTotalNetUsdt += input.actualNetUsdt;
@@ -201,7 +204,8 @@ function buildModel() {
   const profitPotential=dnaProfitPotential.buildModel(o.dnaProfitPotential,{ minSample:num(ayarlar.dnaProfitMinOrnek,10), safeReachRate:num(ayarlar.dnaProfitSafeReachRate,70), strongReachRate:num(ayarlar.dnaProfitStrongReachRate,80) });
   const dnaTimeBehavior=timeBehaviorEngine.buildModel(o.dnaTimeBehavior,{ minSample:num(ayarlar.timeBehaviorMinOrnek,10) });
   const dnaBehavior=dnaBehaviorProfile.buildModel(profitPotential,dnaTimeBehavior,{ minSample:Math.max(num(ayarlar.dnaProfitMinOrnek,10),num(ayarlar.timeBehaviorMinOrnek,10)) });
-  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. DNA Profit Potential kâr kapasitesini, Time Behavior zaman içindeki olgunlaşma ve geri-verme davranışını öğrenir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaBehavior,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
+  const dnaTrendBehavior=trendBehaviorEngine.buildModel(o.trendBehavior||{}, { minSample:num(ayarlar.trendBehaviorMinOrnek,10) });
+  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. DNA Profit Potential kâr kapasitesini, Time Behavior zaman içindeki olgunlaşma ve geri-verme davranışını öğrenir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaBehavior,dnaTrendBehavior,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','DYNAMIC_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
 }
 function sign(v, digits = 4) {
   const n = num(v);
@@ -231,10 +235,11 @@ function kapanisMetni(record) {
   const currentModel = buildModel();
   const potential = currentModel.profitPotential?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
   const behavior = currentModel.dnaBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
+  const trendBehavior = currentModel.dnaTrendBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
   const signature = record.input.signatureShort || record.input.signatureLabel || 'İMZA YOK';
   const actualWon = !best || num(actual?.netUsdt) >= num(best.netUsdt) - 0.000001;
 
-  let text = `\n\n━━━━━━━━━━━━━━━━━━\n🧬 <b>EXIT EVOLUTION LAB v3.6.8</b>\n`;
+  let text = `\n\n━━━━━━━━━━━━━━━━━━\n🧬 <b>EXIT EVOLUTION LAB v3.6.9</b>\n`;
   text += `🔬 DNA: <b>${htmlSafe(signature)}</b>\n`;
   text += `✅ Gerçek Çıkış: <b>${sign(actual?.netUsdt)} USDT</b>\n`;
   if (best) {
@@ -250,6 +255,18 @@ function kapanisMetni(record) {
     text += `📊 Net: ${sign(dnaBest.netUsdt, 2)} USDT | WR: %${num(dnaBest.winRate).toFixed(1)} | PF: ${num(dnaBest.profitFactor).toFixed(2)}\n`;
     if (profile.ranking?.[1]) text += `🥈 İkinci: ${htmlSafe(profile.ranking[1].label)} | Fark ${sign(profile.ranking[1].deltaUsdt, 2)} USDT\n`;
   }
+  if (trendBehavior) {
+    text += `\n📈 <b>DNA TREND DAVRANIŞI</b>\n`;
+    text += `🧬 Karakter: <b>${htmlSafe(trendBehavior.character)}</b> | Örnek: ${trendBehavior.samples}\n`;
+    if (trendBehavior.ready) {
+      text += `🔗 Trend Uyum Oranı: %${num(trendBehavior.alignmentRate).toFixed(1)} | Kırılma: %${num(trendBehavior.breakRate).toFixed(1)}\n`;
+      text += `🏔️ Kırılma Sonrası Yeni Zirve: %${num(trendBehavior.newHighAfterBreakRate).toFixed(1)}`;
+      if (trendBehavior.averageBreakMinute !== null) text += ` | Ort. Kırılma: ${num(trendBehavior.averageBreakMinute).toFixed(1)} dk`;
+      text += `\n`;
+    } else {
+      text += `⏳ Trend yolu verisi birikiyor (${trendBehavior.samples}/${trendBehavior.minimumSample}).\n`;
+    }
+  }
   text += `\n🧭 Fiyat Yolu: ${record.input.pathCoverage} örnek | Süre ${(record.input.durationMs / 60000).toFixed(1)} dk\n`;
   text += `ℹ️ Yalnızca öğrenir; gerçek Trade Engine kararını değiştirmez.`;
   return text;
@@ -257,7 +274,7 @@ function kapanisMetni(record) {
 function telegramOzetMetni() {
   const m = buildModel();
   const top = m.algorithmRanking.filter(x => x.key !== 'ACTUAL').slice(0, 5);
-  let text = `\n\n🧬 <b>EXIT EVOLUTION LAB v3.6.8</b>\n📦 Replay edilen kapanış: ${m.totalTrades}`;
+  let text = `\n\n🧬 <b>EXIT EVOLUTION LAB v3.6.9</b>\n📦 Replay edilen kapanış: ${m.totalTrades}`;
   if (!top.length) return text + '\nHenüz replay sonucu yok.';
   return text + '\n\n🏆 <b>Genel Exit Sıralaması</b>\n' + top.map((x, i) => `${i + 1}) ${htmlSafe(x.label)} | Örnek ${x.samples} | Fark ${sign(x.deltaUsdt, 2)} USDT | Beat %${x.beatRate.toFixed(1)}`).join('\n');
 }
@@ -287,7 +304,7 @@ function periyodikRaporMetni() {
   const opportunities = m.missedOpportunityDna.filter(x => x.samples >= num(ayarlar.exitReplayMinOrnek, 3)).slice(0, 5);
   const recentDelta = recentBest - recentActual;
 
-  let text = `🧠 <b>EXIT EVOLUTION SKOR TABLOSU v3.6.7</b>\n`;
+  let text = `🧠 <b>EXIT EVOLUTION SKOR TABLOSU v3.6.9</b>\n`;
   text += `📦 Toplam Replay: ${m.totalTrades} | Son Pencere: ${recent.length}\n`;
   text += `\n📈 <b>GERÇEK SİSTEM KARŞILAŞTIRMASI</b>\n`;
   text += `Gerçek Net: <b>${sign(m.systemComparison.actualNetUsdt, 2)} USDT</b>\n`;
@@ -314,6 +331,11 @@ function periyodikRaporMetni() {
   if (timeLeaders.length) {
     text += `\n\n⏱️ <b>DNA TIME BEHAVIOR</b>\n`;
     text += timeLeaders.map((x,i) => `${i+1}) ${htmlSafe(x.key)} | ${htmlSafe(x.character)}\n   Tepe ${num(x.averagePeakMinute).toFixed(1)} dk | İlk + ${num(x.averageFirstPositiveMinute).toFixed(1)} dk${x.fatigueStart ? ` | Yorgunluk ~${x.fatigueStart.minute} dk` : ''}`).join('\n');
+  }
+  const trendLeaders = m.dnaTrendBehavior?.dna?.filter(x => x.ready).slice(0, 5) || [];
+  if (trendLeaders.length) {
+    text += `\n\n📈 <b>DNA TREND BEHAVIOR</b>\n`;
+    text += trendLeaders.map((x, i) => `${i + 1}) ${htmlSafe(x.key)} | ${htmlSafe(x.character)}\n   Kırılma %${x.breakRate} | Yeni zirve %${x.newHighAfterBreakRate}${x.averageBreakMinute !== null ? ` | Kırılma ~${x.averageBreakMinute} dk` : ''}`).join('\n');
   }
   text += `\n\nℹ️ Öğrenme raporudur; canlı stop/TP kararını değiştirmez.`;
   return text;

@@ -11,7 +11,7 @@ const timeBehaviorEngine = require('./26_time_behavior_engine.js');
 const dnaBehaviorProfile = require('./27_dna_behavior_profile.js');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v3.6.8-DNA-BEHAVIOR-PROFILE';
+const VERSION = 'v3.6.9-TREND-BEHAVIOR';
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
 const JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');

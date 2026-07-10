@@ -372,7 +372,11 @@ const ayarlar = {
     // emir kararı ise her ana döngüde canlı fiyatla tekrar hesaplanır.
     pusuVeriTazelemeMs: null,
     superTrendTazelemeMs: null,
-    durumLogAraligiMs: 5000
+    durumLogAraligiMs: 5000,
+
+    trendBehaviorAktif: true,
+    trendBehaviorMinOrnek: 10,
+
 };
 
 module.exports = ayarlar;
