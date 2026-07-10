@@ -382,6 +382,12 @@ const ayarlar = {
     volatilityBehaviorAktif: true,
     volatilityBehaviorMinOrnek: 10,
 
+    // v3.8.0 Kademe Behavior: gerçekleşmiş kademeHistory yolundan DNA'nın
+    // maksimum kademe, geçiş süresi, kademe sonrası sonuç ve geri dönüş karakterini öğrenir.
+    // Trade Engine'e müdahale etmez; yalnızca öğrenme ve raporlama katmanıdır.
+    ladderBehaviorAktif: true,
+    ladderBehaviorMinOrnek: 10,
+
 };
 
 module.exports = ayarlar;
