@@ -1,13 +1,15 @@
 /**
- * AGROS v3.6.5.1 - Exit Replay History Migration
+ * AGROS v3.6.6 - Exit Replay History Migration
  *
- * Eski exit-replay-results.jsonl kayıtlarını v3.6.5 DNA Scoreboard özetine taşır.
+ * Eski exit-replay-results.jsonl kayıtlarını v3.6.6 DNA Profit Potential + DNA Scoreboard özetine taşır.
  * Trade engine'e dokunmaz. Çalıştırmadan önce state/model yedeği alır.
  */
 const fs = require('fs');
 const path = require('path');
+const dnaProfitPotential = require('./25_dna_profit_potential_engine.js');
+const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v3.6.5.2-EXIT-ORACLE-SEPARATION';
+const VERSION = 'v3.6.6-DNA-PROFIT-POTENTIAL';
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
 const JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
@@ -36,6 +38,7 @@ function emptySummary() {
     oracleBestTotalNetUsdt: 0,
     oraclePotentialDeltaUsdt: 0,
     lastTelegramReportTradeCount: 0,
+    dnaProfitPotential: dnaProfitPotential.emptyStore(),
     migration: null
   };
 }
@@ -84,6 +87,7 @@ function rebuild(records) {
     const bestNet = num(best?.netUsdt, actualNet);
     o.oracleBestTotalNetUsdt += bestNet;
     o.oraclePotentialDeltaUsdt += Math.max(0, bestNet - actualNet);
+    dnaProfitPotential.addTrade(o.dnaProfitPotential, input, ayarlar.dnaProfitTargetLevels);
     o.last10.unshift({ tradeId: input.tradeId || row.id, symbol: input.symbol || '', side: input.side || '', signature, actualNetUsdt: actualNet, best, pathPoints: num(input.pathCoverage), zaman: raw.zaman || null });
     o.last10 = o.last10.slice(0, 10);
   }
@@ -108,7 +112,8 @@ function buildModel(o) {
     return { key: s.key, label: s.label, samples: s.samples, confidence: s.samples >= 3 ? 'GELISEN' : 'YETERSIZ_ORNEK', bestExit: ranking[0] || null, ranking, oracleBestBenchmark: oracle[0] || null, oracleRanking: oracle };
   }).sort((a, b) => b.samples - a.samples);
   const systemComparison = { actualNetUsdt: round(o.actualTotalNetUsdt, 4), executableBestNetUsdt: round(o.oracleBestTotalNetUsdt, 4), executablePotentialDeltaUsdt: round(o.oraclePotentialDeltaUsdt, 4), improvementPct: o.actualTotalNetUsdt !== 0 ? round((o.oraclePotentialDeltaUsdt / Math.abs(o.actualTotalNetUsdt)) * 100, 1) : 0 };
-  return { version: VERSION, createdAt: new Date().toISOString(), dataPolicy: 'Uygulanabilir exit modelleri ile geleceği bilen oracle benchmarkları ayrı sıralanır.', totalTrades: o.totalTrades, systemComparison, algorithmRanking, oracleRanking, dna, missedOpportunityDna: dna.filter(x => x.bestExit).sort((a, b) => num(b.bestExit.deltaUsdt) - num(a.bestExit.deltaUsdt)).slice(0, 10), timeBehavior: [], last10: o.last10, migration: o.migration, pendingModels: ['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
+  const profitPotential = dnaProfitPotential.buildModel(o.dnaProfitPotential, { minSample: num(ayarlar.dnaProfitMinOrnek, 10), safeReachRate: num(ayarlar.dnaProfitSafeReachRate, 70), strongReachRate: num(ayarlar.dnaProfitStrongReachRate, 80) });
+  return { version: VERSION, createdAt: new Date().toISOString(), dataPolicy: 'Uygulanabilir exit modelleri ile geleceği bilen oracle benchmarkları ayrı sıralanır. DNA Profit Potential kapanmış işlem MFE/MAE verisinden öğrenir.', totalTrades: o.totalTrades, systemComparison, algorithmRanking, oracleRanking, dna, profitPotential, missedOpportunityDna: dna.filter(x => x.bestExit).sort((a, b) => num(b.bestExit.deltaUsdt) - num(a.bestExit.deltaUsdt)).slice(0, 10), timeBehavior: [], last10: o.last10, migration: o.migration, pendingModels: ['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
 }
 function main() {
   if (!fs.existsSync(JSONL)) throw new Error(`Kaynak bulunamadı: ${JSONL}`);
