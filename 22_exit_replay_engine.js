@@ -12,7 +12,7 @@ const path = require('path');
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v3.6.5-EXIT-EVOLUTION-DNA-SCOREBOARD';
+const VERSION = 'v3.6.5.2-EXIT-ORACLE-SEPARATION';
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const CSV = path.join(DATA_DIR, 'exit-replay-results.csv');
@@ -125,8 +125,10 @@ function ozetEnsure() {
 }
 function oNumEnsure(obj, key) { if (!Number.isFinite(Number(obj[key]))) obj[key] = 0; }
 function bucketAdd(map, key, label, result) {
-  if (!map[key]) map[key] = { key, label, samples: 0, netUsdt: 0, actualNetUsdt: 0, deltaUsdt: 0, winsVsActual: 0, lossesVsActual: 0, profitableTrades: 0, losingTrades: 0, grossProfitUsdt: 0, grossLossUsdt: 0 };
+  if (!map[key]) map[key] = { key, label, algorithmClass: result.algorithmClass || '', isExecutable: result.isExecutable !== false, samples: 0, netUsdt: 0, actualNetUsdt: 0, deltaUsdt: 0, winsVsActual: 0, lossesVsActual: 0, profitableTrades: 0, losingTrades: 0, grossProfitUsdt: 0, grossLossUsdt: 0 };
   const b = map[key];
+  if (!b.algorithmClass && result.algorithmClass) b.algorithmClass = result.algorithmClass;
+  if (result.isExecutable === false) b.isExecutable = false;
   for (const k of ['samples','netUsdt','actualNetUsdt','deltaUsdt','winsVsActual','lossesVsActual','profitableTrades','losingTrades','grossProfitUsdt','grossLossUsdt']) oNumEnsure(b, k);
   const net = num(result.netUsdt);
   b.samples++; b.netUsdt += net; b.actualNetUsdt += num(result.actualNetUsdt); b.deltaUsdt += num(result.deltaVsActualUsdt);
@@ -177,14 +179,19 @@ function bucketModel(b) {
   const n=num(b?.samples), compared=num(b?.winsVsActual)+num(b?.lossesVsActual), decided=num(b?.profitableTrades)+num(b?.losingTrades), loss=num(b?.grossLossUsdt);
   return { ...b, netUsdt:round(b?.netUsdt,4),actualNetUsdt:round(b?.actualNetUsdt,4),deltaUsdt:round(b?.deltaUsdt,4),avgNetUsdt:n?round(num(b.netUsdt)/n,4):0,avgDeltaUsdt:n?round(num(b.deltaUsdt)/n,4):0,beatRate:compared?round((num(b.winsVsActual)/compared)*100,1):0,winRate:decided?round((num(b.profitableTrades)/decided)*100,1):0,profitFactor:loss>0?round(num(b?.grossProfitUsdt)/loss,2):(num(b?.grossProfitUsdt)>0?999:0) };
 }
+function isOracleModel(x) {
+  return x?.isExecutable === false || x?.algorithmClass === 'ORACLE_BENCHMARK' || String(x?.key || '').startsWith('MFE_CAPTURE_');
+}
 function buildModel() {
   const o=ozetEnsure(), min=num(ayarlar.exitReplayMinOrnek,3);
-  const algorithmRanking=Object.values(o.byAlgorithm).map(bucketModel).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples);
-  const dna=Object.values(o.bySignature).map(s=>{ const ranked=Object.values(s.algorithms||{}).map(bucketModel).filter(x=>x.key!=='ACTUAL').sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples); return { key:s.key,label:s.label,samples:s.samples,confidence:s.samples>=min?'GELISEN':'YETERSIZ_ORNEK',bestExit:ranked[0]||null,ranking:ranked }; }).sort((a,b)=>b.samples-a.samples);
+  const allAlgorithms=Object.values(o.byAlgorithm).map(bucketModel);
+  const algorithmRanking=allAlgorithms.filter(x=>x.key!=='ACTUAL' && !isOracleModel(x)).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples);
+  const oracleRanking=allAlgorithms.filter(isOracleModel).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples);
+  const dna=Object.values(o.bySignature).map(s=>{ const all=Object.values(s.algorithms||{}).map(bucketModel).filter(x=>x.key!=='ACTUAL'); const ranked=all.filter(x=>!isOracleModel(x)).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples); const oracle=all.filter(isOracleModel).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples); return { key:s.key,label:s.label,samples:s.samples,confidence:s.samples>=min?'GELISEN':'YETERSIZ_ORNEK',bestExit:ranked[0]||null,ranking:ranked,oracleBestBenchmark:oracle[0]||null,oracleRanking:oracle }; }).sort((a,b)=>b.samples-a.samples);
   const timeBehavior=Object.values(o.timeBehavior).map(s=>({ key:s.key,label:s.label,checkpoints:Object.values(s.checkpoints||{}).map(b=>({ minute:b.minute,samples:b.samples,avgNetPct:round(b.netPctSum/b.samples,4),avgMfePct:round(b.mfeSum/b.samples,4),avgMaePct:round(b.maeSum/b.samples,4),avgGivebackPct:round(b.givebackSum/b.samples,4) })).sort((a,b)=>a.minute-b.minute) }));
   const systemComparison={ actualNetUsdt:round(o.actualTotalNetUsdt,4), oracleBestNetUsdt:round(o.oracleBestTotalNetUsdt,4), potentialDeltaUsdt:round(o.oraclePotentialDeltaUsdt,4), improvementPct:num(o.actualTotalNetUsdt)!==0?round((o.oraclePotentialDeltaUsdt/Math.abs(o.actualTotalNetUsdt))*100,1):0 };
   const missedOpportunityDna=dna.filter(x=>x.bestExit).sort((a,b)=>num(b.bestExit.deltaUsdt)-num(a.bestExit.deltaUsdt)).slice(0,10);
-  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Replay yalnızca işlem sırasında kaydedilen fiyat yolu ve doğrulanmış MFE/MAE verisini kullanır.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,dna,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
+  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile geleceği bilen oracle benchmarkları kesin olarak ayrı sıralanır.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
 }
 function sign(v, digits = 4) {
   const n = num(v);
