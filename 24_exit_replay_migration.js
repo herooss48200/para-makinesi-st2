@@ -8,9 +8,10 @@ const fs = require('fs');
 const path = require('path');
 const dnaProfitPotential = require('./25_dna_profit_potential_engine.js');
 const timeBehaviorEngine = require('./26_time_behavior_engine.js');
+const dnaBehaviorProfile = require('./27_dna_behavior_profile.js');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v3.6.7-TIME-BEHAVIOR';
+const VERSION = 'v3.6.8-DNA-BEHAVIOR-PROFILE';
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
 const JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
@@ -117,7 +118,8 @@ function buildModel(o) {
   const systemComparison = { actualNetUsdt: round(o.actualTotalNetUsdt, 4), executableBestNetUsdt: round(o.oracleBestTotalNetUsdt, 4), executablePotentialDeltaUsdt: round(o.oraclePotentialDeltaUsdt, 4), improvementPct: o.actualTotalNetUsdt !== 0 ? round((o.oraclePotentialDeltaUsdt / Math.abs(o.actualTotalNetUsdt)) * 100, 1) : 0 };
   const profitPotential = dnaProfitPotential.buildModel(o.dnaProfitPotential, { minSample: num(ayarlar.dnaProfitMinOrnek, 10), safeReachRate: num(ayarlar.dnaProfitSafeReachRate, 70), strongReachRate: num(ayarlar.dnaProfitStrongReachRate, 80) });
   const dnaTimeBehavior = timeBehaviorEngine.buildModel(o.dnaTimeBehavior, { minSample: num(ayarlar.timeBehaviorMinOrnek, 10) });
-  return { version: VERSION, createdAt: new Date().toISOString(), dataPolicy: 'DNA Profit Potential kâr kapasitesini, Time Behavior zaman içindeki olgunlaşma ve geri-verme davranışını öğrenir; Trade Engine değişmez.', totalTrades: o.totalTrades, systemComparison, algorithmRanking, oracleRanking, dna, profitPotential, dnaTimeBehavior, missedOpportunityDna: dna.filter(x => x.bestExit).sort((a, b) => num(b.bestExit.deltaUsdt) - num(a.bestExit.deltaUsdt)).slice(0, 10), timeBehavior: [], last10: o.last10, migration: o.migration, pendingModels: ['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
+  const dnaBehavior = dnaBehaviorProfile.buildModel(profitPotential, dnaTimeBehavior, { minSample: Math.max(num(ayarlar.dnaProfitMinOrnek,10), num(ayarlar.timeBehaviorMinOrnek,10)) });
+  return { version: VERSION, createdAt: new Date().toISOString(), dataPolicy: 'DNA Profit Potential kâr kapasitesini, Time Behavior zaman içindeki olgunlaşma ve geri-verme davranışını öğrenir; Trade Engine değişmez.', totalTrades: o.totalTrades, systemComparison, algorithmRanking, oracleRanking, dna, profitPotential, dnaTimeBehavior, dnaBehavior, missedOpportunityDna: dna.filter(x => x.bestExit).sort((a, b) => num(b.bestExit.deltaUsdt) - num(a.bestExit.deltaUsdt)).slice(0, 10), timeBehavior: [], last10: o.last10, migration: o.migration, pendingModels: ['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
 }
 function main() {
   if (!fs.existsSync(JSONL)) throw new Error(`Kaynak bulunamadı: ${JSONL}`);

@@ -1,8 +1,8 @@
-const versiyon = {
+﻿const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'EXIT-INTELLIGENCE-EVOLUTION',
-    kod: 'AWS Stable v3.6.7-TIME-BEHAVIOR',
-    botSurumu: '3.6.7-TIME-BEHAVIOR',
+    kod: 'AWS Stable v3.6.8-DNA-BEHAVIOR-PROFILE',
+    botSurumu: '3.6.8-DNA-BEHAVIOR-PROFILE',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '10.07.2026',
     ortam: {

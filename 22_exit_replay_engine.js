@@ -13,8 +13,9 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const dnaProfitPotential = require('./25_dna_profit_potential_engine.js');
 const timeBehaviorEngine = require('./26_time_behavior_engine.js');
+const dnaBehaviorProfile = require('./27_dna_behavior_profile.js');
 
-const VERSION = 'v3.6.7-TIME-BEHAVIOR';
+const VERSION = 'v3.6.8-DNA-BEHAVIOR-PROFILE';
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const CSV = path.join(DATA_DIR, 'exit-replay-results.csv');
@@ -199,7 +200,8 @@ function buildModel() {
   const missedOpportunityDna=dna.filter(x=>x.bestExit).sort((a,b)=>num(b.bestExit.deltaUsdt)-num(a.bestExit.deltaUsdt)).slice(0,10);
   const profitPotential=dnaProfitPotential.buildModel(o.dnaProfitPotential,{ minSample:num(ayarlar.dnaProfitMinOrnek,10), safeReachRate:num(ayarlar.dnaProfitSafeReachRate,70), strongReachRate:num(ayarlar.dnaProfitStrongReachRate,80) });
   const dnaTimeBehavior=timeBehaviorEngine.buildModel(o.dnaTimeBehavior,{ minSample:num(ayarlar.timeBehaviorMinOrnek,10) });
-  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. DNA Profit Potential kâr kapasitesini, Time Behavior zaman içindeki olgunlaşma ve geri-verme davranışını öğrenir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
+  const dnaBehavior=dnaBehaviorProfile.buildModel(profitPotential,dnaTimeBehavior,{ minSample:Math.max(num(ayarlar.dnaProfitMinOrnek,10),num(ayarlar.timeBehaviorMinOrnek,10)) });
+  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. DNA Profit Potential kâr kapasitesini, Time Behavior zaman içindeki olgunlaşma ve geri-verme davranışını öğrenir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaBehavior,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','TREND_EXIT','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
 }
 function sign(v, digits = 4) {
   const n = num(v);
@@ -226,11 +228,13 @@ function kapanisMetni(record) {
   const best = replayResults[0];
   const profile = dnaProfileForRecord(record);
   const dnaBest = profile?.bestExit || null;
-  const potential = buildModel().profitPotential?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
+  const currentModel = buildModel();
+  const potential = currentModel.profitPotential?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
+  const behavior = currentModel.dnaBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
   const signature = record.input.signatureShort || record.input.signatureLabel || 'İMZA YOK';
   const actualWon = !best || num(actual?.netUsdt) >= num(best.netUsdt) - 0.000001;
 
-  let text = `\n\n━━━━━━━━━━━━━━━━━━\n🧬 <b>EXIT EVOLUTION LAB v3.6.7</b>\n`;
+  let text = `\n\n━━━━━━━━━━━━━━━━━━\n🧬 <b>EXIT EVOLUTION LAB v3.6.8</b>\n`;
   text += `🔬 DNA: <b>${htmlSafe(signature)}</b>\n`;
   text += `✅ Gerçek Çıkış: <b>${sign(actual?.netUsdt)} USDT</b>\n`;
   if (best) {
@@ -253,7 +257,7 @@ function kapanisMetni(record) {
 function telegramOzetMetni() {
   const m = buildModel();
   const top = m.algorithmRanking.filter(x => x.key !== 'ACTUAL').slice(0, 5);
-  let text = `\n\n🧬 <b>EXIT EVOLUTION LAB v3.6.7</b>\n📦 Replay edilen kapanış: ${m.totalTrades}`;
+  let text = `\n\n🧬 <b>EXIT EVOLUTION LAB v3.6.8</b>\n📦 Replay edilen kapanış: ${m.totalTrades}`;
   if (!top.length) return text + '\nHenüz replay sonucu yok.';
   return text + '\n\n🏆 <b>Genel Exit Sıralaması</b>\n' + top.map((x, i) => `${i + 1}) ${htmlSafe(x.label)} | Örnek ${x.samples} | Fark ${sign(x.deltaUsdt, 2)} USDT | Beat %${x.beatRate.toFixed(1)}`).join('\n');
 }
