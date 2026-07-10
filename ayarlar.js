@@ -271,6 +271,8 @@ const ayarlar = {
     dnaProfitSafeReachRate: 70,
     dnaProfitStrongReachRate: 80,
     dnaProfitTargetLevels: [0.20, 0.30, 0.40, 0.50, 0.60, 0.80, 1.00, 1.20, 1.50, 1.80, 2.00, 2.50, 3.00, 4.00, 5.00],
+    timeBehaviorAktif: true,
+    timeBehaviorMinOrnek: 10,
 
     // v3.6.2: Restart sırasında aktif kalan pozisyonları öğrenme istatistiklerinden ayır.
     restartGapProtectionAktif: true,
