@@ -377,6 +377,11 @@ const ayarlar = {
     trendBehaviorAktif: true,
     trendBehaviorMinOrnek: 10,
 
+    // v3.7.0 Volatility Behavior: kaydedilmiş PnL/fiyat yolundan gerçekleşen oynaklık karakterini öğrenir.
+    // Trade Engine'e müdahale etmez; ATR/OHLC yoksa sahte gösterge üretmez.
+    volatilityBehaviorAktif: true,
+    volatilityBehaviorMinOrnek: 10,
+
 };
 
 module.exports = ayarlar;
