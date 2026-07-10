@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'EXIT-INTELLIGENCE-EVOLUTION',
-    kod: 'AWS Stable v3.8.0-LADDER-BEHAVIOR',
-    botSurumu: '3.8.0-LADDER-BEHAVIOR',
+    kod: 'AWS Stable v3.10.0-EXIT-CONSENSUS',
+    botSurumu: '3.10.0-EXIT-CONSENSUS',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '10.07.2026',
     ortam: {

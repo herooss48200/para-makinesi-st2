@@ -387,6 +387,9 @@ const ayarlar = {
     // Trade Engine'e müdahale etmez; yalnızca öğrenme ve raporlama katmanıdır.
     ladderBehaviorAktif: true,
     ladderBehaviorMinOrnek: 10,
+    // v3.9-v3.10: Birleşik Behavior Intelligence ve Exit Consensus yalnızca öğrenme/öneri katmanıdır.
+    behaviorIntelligenceMinOrnek: 10,
+    exitConsensusMinOrnek: 10,
 
 };
 

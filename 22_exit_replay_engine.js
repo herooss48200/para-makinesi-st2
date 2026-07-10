@@ -17,8 +17,10 @@ const dnaBehaviorProfile = require('./27_dna_behavior_profile.js');
 const trendBehaviorEngine = require('./28_trend_behavior_engine.js');
 const volatilityBehaviorEngine = require('./29_volatility_behavior_engine.js');
 const ladderBehaviorEngine = require('./30_ladder_behavior_engine.js');
+const behaviorIntelligenceEngine = require('./31_behavior_intelligence_engine.js');
+const exitConsensusEngine = require('./32_exit_consensus_engine.js');
 
-const VERSION = 'v3.8.0-LADDER-BEHAVIOR';
+const VERSION = 'v3.10.0-EXIT-CONSENSUS';
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const CSV = path.join(DATA_DIR, 'exit-replay-results.csv');
@@ -218,8 +220,11 @@ function buildModel() {
   const dnaTrendBehavior=trendBehaviorEngine.buildModel(o.trendBehavior||{}, { minSample:num(ayarlar.trendBehaviorMinOrnek,10) });
   const dnaVolatilityBehavior=volatilityBehaviorEngine.buildModel(o.dnaVolatilityBehavior||{}, { minSample:num(ayarlar.volatilityBehaviorMinOrnek,10) });
   const dnaLadderBehavior=ladderBehaviorEngine.buildModel(o.dnaLadderBehavior||{}, { minSample:num(ayarlar.ladderBehaviorMinOrnek,10) });
-  const dnaBehavior=dnaBehaviorProfile.buildModel(profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:Math.max(num(ayarlar.dnaProfitMinOrnek,10),num(ayarlar.timeBehaviorMinOrnek,10),num(ayarlar.trendBehaviorMinOrnek,10),num(ayarlar.volatilityBehaviorMinOrnek,10),num(ayarlar.ladderBehaviorMinOrnek,10)) });
-  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. Profit, Time, Trend, Volatility ve Kademe davranışları gerçekleşmiş yol verisinden öğrenilir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
+  const behaviorMin=Math.max(num(ayarlar.dnaProfitMinOrnek,10),num(ayarlar.timeBehaviorMinOrnek,10),num(ayarlar.trendBehaviorMinOrnek,10),num(ayarlar.volatilityBehaviorMinOrnek,10),num(ayarlar.ladderBehaviorMinOrnek,10));
+  const dnaBehavior=dnaBehaviorProfile.buildModel(profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:behaviorMin });
+  const behaviorIntelligence=behaviorIntelligenceEngine.buildModel(dnaBehavior,{ minSample:num(ayarlar.behaviorIntelligenceMinOrnek,behaviorMin) });
+  const exitConsensus=exitConsensusEngine.buildModel(dna,behaviorIntelligence,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:num(ayarlar.exitConsensusMinOrnek,behaviorMin) });
+  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. Behavior Intelligence ve Exit Consensus yalnızca öğrenme/öneri üretir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,behaviorIntelligence,exitConsensus,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
 }
 function sign(v, digits = 4) {
   const n = num(v);
@@ -252,10 +257,12 @@ function kapanisMetni(record) {
   const trendBehavior = currentModel.dnaTrendBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
   const volatilityBehavior = currentModel.dnaVolatilityBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
   const ladderBehavior = currentModel.dnaLadderBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
+  const behaviorIntelligence = currentModel.behaviorIntelligence?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
+  const exitConsensus = currentModel.exitConsensus?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
   const signature = record.input.signatureShort || record.input.signatureLabel || 'İMZA YOK';
   const actualWon = !best || num(actual?.netUsdt) >= num(best.netUsdt) - 0.000001;
 
-  let text = `\n\n━━━━━━━━━━━━━━━━━━\n🧬 <b>EXIT EVOLUTION LAB v3.8.0</b>\n`;
+  let text = `\n\n━━━━━━━━━━━━━━━━━━\n🧬 <b>EXIT EVOLUTION LAB v3.10.0</b>\n`;
   text += `🔬 DNA: <b>${htmlSafe(signature)}</b>\n`;
   text += `✅ Gerçek Çıkış: <b>${sign(actual?.netUsdt)} USDT</b>\n`;
   if (best) {
@@ -291,6 +298,46 @@ function kapanisMetni(record) {
     text += `📝 ${htmlSafe(behavior.summary || '')}
 `;
   }
+
+  if (behaviorIntelligence) {
+    text += `
+🧠 <b>DNA BEHAVIOR INTELLIGENCE</b>
+`;
+    text += `🧬 Genel Karakter: <b>${htmlSafe(behaviorIntelligence.generalCharacter)}</b>
+`;
+    text += `🤝 Motor Mutabakatı: ${behaviorIntelligence.motorAgreementCount}/${behaviorIntelligence.motorCount} | Çelişki: %${num(behaviorIntelligence.conflictPct).toFixed(1)}
+`;
+    if (behaviorIntelligence.ready) {
+      text += `✅ Güçlü: ${htmlSafe((behaviorIntelligence.strengths || []).slice(0, 3).join(', ') || 'BELIRSIZ')}
+`;
+      text += `⚠️ Zayıf: ${htmlSafe((behaviorIntelligence.weaknesses || []).slice(0, 3).join(', ') || 'BELIRSIZ')}
+`;
+      text += `🛡️ Ana Koruma: <b>${htmlSafe(behaviorIntelligence.primaryProtection)}</b> | Risk: ${htmlSafe(behaviorIntelligence.risk)}
+`;
+    } else {
+      text += `⏳ Birleşik davranış verisi birikiyor (${behaviorIntelligence.samples}/${behaviorIntelligence.minimumSample}).
+`;
+    }
+  }
+  if (exitConsensus) {
+    text += `
+🎯 <b>EXIT CONSENSUS ENGINE</b>
+`;
+    text += `🧭 Görüş: <b>${htmlSafe(exitConsensus.recommendation)}</b>
+`;
+    text += `🤝 Mutabakat: %${num(exitConsensus.agreementPct).toFixed(1)} | Uzman: ${exitConsensus.voteCount} | Güven: ${htmlSafe(exitConsensus.confidence)}
+`;
+    if (exitConsensus.ready) {
+      if (exitConsensus.bestReplay) text += `🏆 Replay Lideri: ${htmlSafe(exitConsensus.bestReplay.label)} | Beat %${num(exitConsensus.bestReplay.beatRate).toFixed(1)}
+`;
+      if (exitConsensus.safestProfitStage) text += `🪜 Güvenli Kademe: ${exitConsensus.safestProfitStage.stage} | Geri Dönüş %${num(exitConsensus.safestProfitStage.returnBelowRate).toFixed(1)}
+`;
+    } else {
+      text += `⏳ Exit mutabakatı için veri birikiyor (${exitConsensus.samples}/${exitConsensus.minimumSample}).
+`;
+    }
+  }
+
   if (volatilityBehavior) {
     text += `
 🌊 <b>DNA VOLATILITY DAVRANIŞI</b>
@@ -349,7 +396,7 @@ function kapanisMetni(record) {
 function telegramOzetMetni() {
   const m = buildModel();
   const top = m.algorithmRanking.filter(x => x.key !== 'ACTUAL').slice(0, 5);
-  let text = `\n\n🧬 <b>EXIT EVOLUTION LAB v3.8.0</b>\n📦 Replay edilen kapanış: ${m.totalTrades}`;
+  let text = `\n\n🧬 <b>EXIT EVOLUTION LAB v3.10.0</b>\n📦 Replay edilen kapanış: ${m.totalTrades}`;
   if (!top.length) return text + '\nHenüz replay sonucu yok.';
   return text + '\n\n🏆 <b>Genel Exit Sıralaması</b>\n' + top.map((x, i) => `${i + 1}) ${htmlSafe(x.label)} | Örnek ${x.samples} | Fark ${sign(x.deltaUsdt, 2)} USDT | Beat %${x.beatRate.toFixed(1)}`).join('\n');
 }
