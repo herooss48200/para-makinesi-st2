@@ -9,6 +9,7 @@
 
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
+const dnaProfitRanking = require('./33_dna_profit_ranking_engine.js');
 
 function num(v, d = 0) {
   const n = Number(v);
@@ -179,6 +180,10 @@ function buildLearningValidationModel() {
   const son = sonIslemOzet();
   const floating = aktifFloatingOzet();
   const dna = enIyiEnRiskliDna();
+  const dnaRanking = dnaProfitRanking.rank(
+    h.state.blackboxOzet?.signatureMatrixStats || {},
+    { minSample: Math.max(1, num(ayarlar.dnaProfitRankingMinOrnek || ayarlar.blackbox256MatrixMinOrnek || 3)) }
+  );
 
   const long = analiz.long || {};
   const short = analiz.short || {};
@@ -222,6 +227,7 @@ function buildLearningValidationModel() {
       net: num(short.netKarZarar)
     },
     dna,
+    dnaRanking,
     learningScore: {
       toplamDna: dna.toplamDna,
       yeterliDna: dna.yeterliDna,
@@ -247,6 +253,8 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
   m += `🔴 Short: Win ${pct(model.short.winRate, 1)} | Exp ${signed(model.short.expectancy, 3)} | Net ${signed(model.short.net, 2)}\n`;
   m += `🧬 Güçlü DNA: ${bucketSatiri(model.dna.guclu)}\n`;
   m += `⚠️ Riskli DNA: ${bucketSatiri(model.dna.riskli)}\n`;
+  m += dnaProfitRanking.telegramText(model.dnaRanking, { limit: 2 });
+  m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;
 }

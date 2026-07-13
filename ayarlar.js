@@ -149,6 +149,7 @@ const ayarlar = {
     blackbox256MatrixAktif: true,
     blackbox256MatrixMinOrnek: 3,
     blackbox256MatrixTopAday: 10,
+    dnaProfitRankingMinOrnek: 10,
     // v2.5.6: Radar her imza için başarı/başarısızlık oranını ve ters yön test adaylığını açık yazar. Sadece Telegram uyarısıdır; emir motoruna dokunmaz.
     blackboxTersYonMinOrnek: 10,
     blackboxTersYonBasariEsigi: 35,
