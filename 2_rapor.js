@@ -1,7 +1,6 @@
 require('dotenv').config();
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
-const learningValidation = require('./20_learning_validation.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 
@@ -176,11 +175,6 @@ function canliRaporMetniOlustur() {
     mesaj += `💸 <b>Komisyon:</b> ${sayi(s.toplamKomisyon || 0, 4)} USDT\n`;
     mesaj += `👑 <b>Net Kasa:</b> ${sayi(s.netKarZarar || 0, 4)} USDT\n`;
 
-    try {
-        mesaj += learningValidation.telegramOzetMetni();
-    } catch (err) {
-        mesaj += `\n\n🧠 <b>LEARNING VALIDATION</b>\n⚠️ Rapor hazırlanamadı: ${err.message}`;
-    }
 
     mesaj += `\n🏆 <b>En Karlı 5</b>\n`;
     mesaj += enKarli.length
@@ -198,7 +192,7 @@ function canliRaporMetniOlustur() {
     }
 
     mesaj += `\n━━━━━━━━━━━━━━━━━━\n`;
-    mesaj += `<i>Strategy Lab ve BlackBox ayrı rapor olarak gönderilir.</i>`;
+    mesaj += `<i>Öğrenme, Strategy Lab, BlackBox ve Heat Map analizleri ayrı raporlanır.</i>`;
 
     return kisalt(mesaj);
 }
