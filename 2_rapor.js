@@ -116,7 +116,18 @@ function kisalt(metin, limit = TELEGRAM_GUVENLI_LIMIT) {
     const text = String(metin || '');
     if (text.length <= limit) return text;
 
-    return text.slice(0, limit - 90) +
+    // HTML etiketlerinin ortasında kesilen mesaj Telegram tarafından reddedilir.
+    // Uzun canlı raporu önce düz metne çevirip sonra güvenli sınırda kesiyoruz.
+    const duzMetin = text
+        .replace(/<\/?pre>/g, '')
+        .replace(/<\/?b>/g, '')
+        .replace(/<\/?i>/g, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+
+    return duzMetin.slice(0, limit - 90) +
         `\n\n⚠️ Rapor güvenlik nedeniyle kısaltıldı.`;
 }
 

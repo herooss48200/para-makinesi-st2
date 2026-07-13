@@ -236,22 +236,36 @@ async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
             console.log(`⚠️ Canlı rapor düzenlenemedi, yeni rapor mesajı atılıyor: ${duzenleme?.description || 'bilinmeyen hata'}`);
         }
 
-        if (kayitliMesajId && ayarlar.canliRaporEskiMesajiSil) {
-            await telegramMesajSil(chat_id, kayitliMesajId).catch(() => {});
-        }
-
-        const gonderim = await yerelTelegramIstegiAt('sendMessage', {
+        // Önce yeni canlı raporu gönder. Telegram geçici hata verirse eski panel ekranda kalsın.
+        let gonderim = await yerelTelegramIstegiAt('sendMessage', {
             chat_id,
             text: mesaj,
             parse_mode: 'HTML',
             disable_web_page_preview: true
         });
 
+        // HTML parse sorunu yaşanırsa canlı panel tamamen kaybolmasın; düz metni bir kez dene.
+        if (!gonderim?.ok) {
+            const aciklama = gonderim?.description || gonderim?.raw || 'bilinmeyen hata';
+            console.log(`⚠️ Canlı rapor HTML ile gönderilemedi: ${chat_id} | ${aciklama} | Düz metin deneniyor.`);
+            gonderim = await yerelTelegramIstegiAt('sendMessage', {
+                chat_id,
+                text: telegramHtmlTemizle(mesaj),
+                disable_web_page_preview: true
+            });
+        }
+
         if (gonderim?.ok && gonderim.result?.message_id) {
-            state.canliRaporMesajlari[chat_id] = gonderim.result.message_id;
+            const yeniMesajId = gonderim.result.message_id;
+            state.canliRaporMesajlari[chat_id] = yeniMesajId;
             state.canliRaporSonGonderimZamani[chat_id] = now;
+
+            // Yeni panel doğrulandıktan sonra eski paneli temizle.
+            if (kayitliMesajId && kayitliMesajId !== yeniMesajId && ayarlar.canliRaporEskiMesajiSil) {
+                await telegramMesajSil(chat_id, kayitliMesajId).catch(() => {});
+            }
         } else {
-            console.log(`⚠️ Canlı rapor gönderilemedi: ${chat_id} | ${gonderim?.description || 'bilinmeyen hata'}`);
+            console.log(`⚠️ Canlı rapor gönderilemedi; eski panel korunuyor: ${chat_id} | ${gonderim?.description || gonderim?.raw || 'bilinmeyen hata'}`);
         }
     }
 
