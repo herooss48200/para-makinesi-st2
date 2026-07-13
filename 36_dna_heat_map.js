@@ -12,7 +12,7 @@
  * - Yalnızca analiz modellerini görselleştirir.
  */
 
-const VERSION = 'ER-A4-DNA-HEAT-MAP-v1';
+const VERSION = 'ER-A4.1-DNA-HEAT-MAP-COVERAGE-v1';
 const HEX = '0123456789ABCDEF';
 
 function num(value, fallback = 0) {
@@ -89,21 +89,52 @@ function matrixSummary(matrix) {
   return summary;
 }
 
+function rawRow(bucket = {}, key = '') {
+  const tp = Math.max(0, num(bucket?.tp));
+  const sl = Math.max(0, num(bucket?.sl));
+  const be = Math.max(0, num(bucket?.be));
+  const total = Math.max(tp + sl + be, num(bucket?.toplam));
+  return {
+    key: String(bucket?.key || key || 'DNA_YOK'),
+    label: String(bucket?.etiket || bucket?.label || bucket?.key || key || 'DNA_YOK'),
+    total,
+    tp,
+    sl,
+    be,
+    net: num(bucket?.net),
+    source: 'RAW_SIGNATURE_STATS'
+  };
+}
+
+function placeRow(matrices, row, minSample, unmapped) {
+  const parsed = parseDnaKey(row?.key || row?.label);
+  if (!parsed) {
+    unmapped.push(String(row?.key || row?.label || 'DNA_YOK'));
+    return;
+  }
+  const cell = matrices[parsed.direction][parsed.btcIndex][parsed.coinIndex];
+  cell.row = row;
+  cell.category = category(row, minSample);
+  cell.symbol = symbolFor(cell.category);
+}
+
 function build(confidenceModel = {}, options = {}) {
   const minSample = Math.max(1, num(options.minSample, confidenceModel.minSample || 10));
   const matrices = { LONG: emptyMatrix(), SHORT: emptyMatrix() };
   const unmapped = [];
+  const rawStats = options.rawStats || {};
 
+  // Önce ham signatureMatrixStats yerleştirilir. Böylece minimum örneğin altındaki
+  // gözlemler haritada '?' olarak görünür; yalnızca güvenilir sıralama listesine
+  // bağlı kalınmaz.
+  for (const [key, bucket] of Object.entries(rawStats)) {
+    const row = rawRow(bucket, key);
+    if (row.total > 0) placeRow(matrices, row, minSample, unmapped);
+  }
+
+  // Confidence v2 satırları aynı hücreleri zengin metriklerle günceller.
   for (const row of confidenceModel.all || []) {
-    const parsed = parseDnaKey(row?.key || row?.label);
-    if (!parsed) {
-      unmapped.push(String(row?.key || row?.label || 'DNA_YOK'));
-      continue;
-    }
-    const cell = matrices[parsed.direction][parsed.btcIndex][parsed.coinIndex];
-    cell.row = row;
-    cell.category = category(row, minSample);
-    cell.symbol = symbolFor(cell.category);
+    placeRow(matrices, row, minSample, unmapped);
   }
 
   const summaries = {
@@ -121,7 +152,14 @@ function build(confidenceModel = {}, options = {}) {
     summaries,
     unmapped,
     totalCells: 512,
-    note: 'LONG ve SHORT ayrı 256 DNA haritasıdır. Harita hiçbir işlemi otomatik filtrelemez.'
+    observedDna: summaries.LONG.observed + summaries.SHORT.observed,
+    readyDna: summaries.LONG.ready + summaries.SHORT.ready,
+    lowSampleDna: summaries.LONG.lowSample + summaries.SHORT.lowSample,
+    integrity: {
+      longTotal: Object.values(summaries.LONG).length ? summaries.LONG.positive + summaries.LONG.negative + summaries.LONG.neutral + summaries.LONG.lowSample + summaries.LONG.empty : 0,
+      shortTotal: Object.values(summaries.SHORT).length ? summaries.SHORT.positive + summaries.SHORT.negative + summaries.SHORT.neutral + summaries.SHORT.lowSample + summaries.SHORT.empty : 0
+    },
+    note: 'Ham signatureMatrixStats düşük örnekleri ? olarak gösterir; Confidence v2 yeterli örnekli hücreleri zenginleştirir. Otomatik filtre yok.'
   };
 }
 
@@ -145,6 +183,7 @@ function telegramText(model, options = {}) {
   let text = `\n\n🗺️ <b>DNA HEAT MAP</b>\n`;
   text += `Satır BTC(0-F) | Sütun Coin(0-F) | Min örnek ${model.minSample}\n`;
   text += `Lejant: + pozitif | - negatif | ~ nötr | ? az örnek | . veri yok\n`;
+  text += `Gözlenen DNA: ${model.observedDna}/512 | Hazır: ${model.readyDna} | Az örnek: ${model.lowSampleDna}\n`;
   text += directionBlock(model, 'LONG');
   text += `\n${directionBlock(model, 'SHORT')}`;
   text += `\nℹ️ Sadece analiz görünümüdür; otomatik filtre yok.`;
@@ -156,6 +195,7 @@ module.exports = {
   parseDnaKey,
   category,
   build,
+  rawRow,
   matrixLines,
   telegramText
 };

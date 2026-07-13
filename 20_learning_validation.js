@@ -203,7 +203,8 @@ function buildLearningValidationModel() {
     netScale: num(ayarlar.confidenceEngineV2NetScale, 10)
   });
   const dnaHeatMapModel = dnaHeatMap.build(confidenceV2, {
-    minSample: Math.max(1, num(ayarlar.dnaHeatMapMinOrnek || ayarlar.confidenceEngineV2MinOrnek || 10))
+    minSample: Math.max(1, num(ayarlar.dnaHeatMapMinOrnek || ayarlar.confidenceEngineV2MinOrnek || 10)),
+    rawStats: dnaStats
   });
 
   const long = analiz.long || {};
