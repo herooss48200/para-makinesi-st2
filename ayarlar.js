@@ -407,6 +407,11 @@ const ayarlar = {
     confidenceEngineV2ExpectancyScale: 0.20,
     confidenceEngineV2NetScale: 10,
 
+    // Expectancy Revolution A4: LONG/SHORT için ayrı 16x16 DNA Heat Map.
+    // Yalnızca analiz ve Telegram görünümüdür; işlem filtrelemez.
+    dnaHeatMapAktif: true,
+    dnaHeatMapMinOrnek: 10,
+
 };
 
 module.exports = ayarlar;
