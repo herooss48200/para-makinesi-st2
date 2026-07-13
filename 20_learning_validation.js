@@ -11,6 +11,7 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const dnaProfitRanking = require('./33_dna_profit_ranking_engine.js');
 const dnaFilterSimulator = require('./34_dna_filter_simulator.js');
+const confidenceEngineV2 = require('./35_confidence_engine_v2.js');
 
 function num(v, d = 0) {
   const n = Number(v);
@@ -193,6 +194,13 @@ function buildLearningValidationModel() {
     maxPf: num(ayarlar.dnaFilterSimulatorMaksPf, 0.95),
     maxExpectancy: num(ayarlar.dnaFilterSimulatorMaksExpectancy, 0)
   });
+  const confidenceV2 = confidenceEngineV2.build(dnaRanking, dnaFilterSimulation, {
+    minSample: Math.max(1, num(ayarlar.confidenceEngineV2MinOrnek || ayarlar.dnaProfitRankingMinOrnek || 10)),
+    targetSample: Math.max(1, num(ayarlar.confidenceEngineV2HedefOrnek || 50)),
+    limit: Math.max(1, num(ayarlar.confidenceEngineV2TopAday || 10)),
+    expectancyScale: num(ayarlar.confidenceEngineV2ExpectancyScale, 0.20),
+    netScale: num(ayarlar.confidenceEngineV2NetScale, 10)
+  });
 
   const long = analiz.long || {};
   const short = analiz.short || {};
@@ -238,6 +246,7 @@ function buildLearningValidationModel() {
     dna,
     dnaRanking,
     dnaFilterSimulation,
+    confidenceV2,
     learningScore: {
       toplamDna: dna.toplamDna,
       yeterliDna: dna.yeterliDna,
@@ -265,6 +274,7 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
   m += `⚠️ Riskli DNA: ${bucketSatiri(model.dna.riskli)}\n`;
   m += dnaProfitRanking.telegramText(model.dnaRanking, { limit: 2 });
   m += dnaFilterSimulator.telegramText(model.dnaFilterSimulation, { limit: 2 });
+  if (ayarlar.confidenceEngineV2Aktif !== false) m += confidenceEngineV2.telegramText(model.confidenceV2, { limit: 2 });
   m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;

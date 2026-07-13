@@ -398,6 +398,15 @@ const ayarlar = {
     behaviorIntelligenceMinOrnek: 10,
     exitConsensusMinOrnek: 10,
 
+    // Expectancy Revolution A3: Açıklanabilir Meta Score + Confidence v2.
+    // Yalnızca analiz/rapor katmanıdır; emir veya filtre uygulamaz.
+    confidenceEngineV2Aktif: true,
+    confidenceEngineV2MinOrnek: 10,
+    confidenceEngineV2HedefOrnek: 50,
+    confidenceEngineV2TopAday: 10,
+    confidenceEngineV2ExpectancyScale: 0.20,
+    confidenceEngineV2NetScale: 10,
+
 };
 
 module.exports = ayarlar;
