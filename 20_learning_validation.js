@@ -10,6 +10,7 @@
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const dnaProfitRanking = require('./33_dna_profit_ranking_engine.js');
+const dnaFilterSimulator = require('./34_dna_filter_simulator.js');
 
 function num(v, d = 0) {
   const n = Number(v);
@@ -180,10 +181,18 @@ function buildLearningValidationModel() {
   const son = sonIslemOzet();
   const floating = aktifFloatingOzet();
   const dna = enIyiEnRiskliDna();
+  const dnaStats = h.state.blackboxOzet?.signatureMatrixStats || {};
   const dnaRanking = dnaProfitRanking.rank(
-    h.state.blackboxOzet?.signatureMatrixStats || {},
+    dnaStats,
     { minSample: Math.max(1, num(ayarlar.dnaProfitRankingMinOrnek || ayarlar.blackbox256MatrixMinOrnek || 3)) }
   );
+  const dnaFilterSimulation = dnaFilterSimulator.simulate(dnaStats, {
+    minSample: Math.max(1, num(ayarlar.dnaFilterSimulatorMinOrnek || ayarlar.dnaProfitRankingMinOrnek || 10)),
+    maxCandidates: Math.max(1, num(ayarlar.dnaFilterSimulatorMaksAday || 10)),
+    maxCumulative: Math.max(1, num(ayarlar.dnaFilterSimulatorKumulatifAday || 5)),
+    maxPf: num(ayarlar.dnaFilterSimulatorMaksPf, 0.95),
+    maxExpectancy: num(ayarlar.dnaFilterSimulatorMaksExpectancy, 0)
+  });
 
   const long = analiz.long || {};
   const short = analiz.short || {};
@@ -228,6 +237,7 @@ function buildLearningValidationModel() {
     },
     dna,
     dnaRanking,
+    dnaFilterSimulation,
     learningScore: {
       toplamDna: dna.toplamDna,
       yeterliDna: dna.yeterliDna,
@@ -254,6 +264,7 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
   m += `🧬 Güçlü DNA: ${bucketSatiri(model.dna.guclu)}\n`;
   m += `⚠️ Riskli DNA: ${bucketSatiri(model.dna.riskli)}\n`;
   m += dnaProfitRanking.telegramText(model.dnaRanking, { limit: 2 });
+  m += dnaFilterSimulator.telegramText(model.dnaFilterSimulation, { limit: 2 });
   m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;

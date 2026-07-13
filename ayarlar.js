@@ -150,6 +150,12 @@ const ayarlar = {
     blackbox256MatrixMinOrnek: 3,
     blackbox256MatrixTopAday: 10,
     dnaProfitRankingMinOrnek: 10,
+    // Expectancy Revolution A2: yalnızca geçmiş veride filtre etkisini simüle eder; Trade Engine'e filtre uygulamaz.
+    dnaFilterSimulatorMinOrnek: 10,
+    dnaFilterSimulatorMaksAday: 10,
+    dnaFilterSimulatorKumulatifAday: 5,
+    dnaFilterSimulatorMaksPf: 0.95,
+    dnaFilterSimulatorMaksExpectancy: 0,
     // v2.5.6: Radar her imza için başarı/başarısızlık oranını ve ters yön test adaylığını açık yazar. Sadece Telegram uyarısıdır; emir motoruna dokunmaz.
     blackboxTersYonMinOrnek: 10,
     blackboxTersYonBasariEsigi: 35,
