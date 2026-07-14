@@ -412,6 +412,13 @@ const ayarlar = {
     dnaHeatMapAktif: true,
     dnaHeatMapMinOrnek: 10,
 
+    // Expectancy Revolution A5: Aynı BTC/Coin DNA koşulunda LONG ve SHORT yönlerini
+    // expectancy, PF, net ve örnek güveniyle karşılaştırır. Yalnızca analizdir.
+    directionIntelligenceAktif: true,
+    directionIntelligenceMinOrnek: 10,
+    directionIntelligenceHedefOrnek: 50,
+    directionIntelligenceGucluEdge: 20,
+
 };
 
 module.exports = ayarlar;

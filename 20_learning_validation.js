@@ -13,6 +13,7 @@ const dnaProfitRanking = require('./33_dna_profit_ranking_engine.js');
 const dnaFilterSimulator = require('./34_dna_filter_simulator.js');
 const confidenceEngineV2 = require('./35_confidence_engine_v2.js');
 const dnaHeatMap = require('./36_dna_heat_map.js');
+const directionIntelligence = require('./37_direction_intelligence_lab.js');
 
 function num(v, d = 0) {
   const n = Number(v);
@@ -206,6 +207,11 @@ function buildLearningValidationModel() {
     minSample: Math.max(1, num(ayarlar.dnaHeatMapMinOrnek || ayarlar.confidenceEngineV2MinOrnek || 10)),
     rawStats: dnaStats
   });
+  const directionIntelligenceModel = directionIntelligence.build(dnaStats, {
+    minSample: Math.max(1, num(ayarlar.directionIntelligenceMinOrnek || 10)),
+    targetSample: Math.max(1, num(ayarlar.directionIntelligenceHedefOrnek || 50)),
+    strongEdge: num(ayarlar.directionIntelligenceGucluEdge, 20)
+  });
 
   const long = analiz.long || {};
   const short = analiz.short || {};
@@ -253,6 +259,7 @@ function buildLearningValidationModel() {
     dnaFilterSimulation,
     confidenceV2,
     dnaHeatMap: dnaHeatMapModel,
+    directionIntelligence: directionIntelligenceModel,
     learningScore: {
       toplamDna: dna.toplamDna,
       yeterliDna: dna.yeterliDna,
@@ -282,6 +289,7 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
   m += dnaFilterSimulator.telegramText(model.dnaFilterSimulation, { limit: 2 });
   if (ayarlar.confidenceEngineV2Aktif !== false) m += confidenceEngineV2.telegramText(model.confidenceV2, { limit: 2 });
   if (ayarlar.dnaHeatMapAktif !== false) m += dnaHeatMap.telegramText(model.dnaHeatMap);
+  if (ayarlar.directionIntelligenceAktif !== false) m += directionIntelligence.telegramText(model.directionIntelligence, { limit: 3 });
   m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;
