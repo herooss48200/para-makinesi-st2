@@ -1,8 +1,10 @@
 require('dotenv').config();
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
+const learningValidation = require('./20_learning_validation.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
+let sonLearningValidationKapanan = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -197,6 +199,35 @@ function canliRaporMetniOlustur() {
     return kisalt(mesaj);
 }
 
+function kapananIslemSayisi() {
+    const s = h.state.basariOzeti || {};
+    return Number(s.tp || 0) + Number(s.sl || 0) + Number(s.be || 0);
+}
+
+async function learningValidationRaporuGonderGerekirse(oneCikar = false) {
+    if (!oneCikar) return;
+
+    const kapanan = kapananIslemSayisi();
+    const ilkCalisma = sonLearningValidationKapanan === null;
+    const yeniKapanisVar = !ilkCalisma && kapanan !== sonLearningValidationKapanan;
+
+    // Başlangıçta mevcut öğrenme durumunu bir kez göster.
+    // Sonrasında yalnızca TP/SL/BE sayacı değiştiğinde yeni dashboard gönder.
+    // Stop güncellemeleri ve Restart Gap muhasebe kapanışları rapor spam'i üretmez.
+    if (!ilkCalisma && !yeniKapanisVar) return;
+
+    sonLearningValidationKapanan = kapanan;
+
+    try {
+        const model = learningValidation.buildLearningValidationModel();
+        const mesaj = learningValidation.telegramOzetMetni(model);
+        await h.telegramMesajGonder(mesaj);
+        console.log(`🧠 [AGROS INTELLIGENCE] Telegram raporu gönderildi | Kapanan: ${kapanan}`);
+    } catch (err) {
+        console.error('❌ [AGROS INTELLIGENCE RAPOR HATASI]:', err.message);
+    }
+}
+
 async function raporGonder(oneCikar = false) {
     try {
         const mesaj = canliRaporMetniOlustur();
@@ -206,9 +237,11 @@ async function raporGonder(oneCikar = false) {
         } else if (oneCikar) {
             await h.telegramMesajGonder(mesaj);
         }
+
+        await learningValidationRaporuGonderGerekirse(oneCikar);
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse };
