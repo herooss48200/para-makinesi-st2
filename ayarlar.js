@@ -419,6 +419,11 @@ const ayarlar = {
     directionIntelligenceHedefOrnek: 50,
     directionIntelligenceGucluEdge: 20,
 
+    // AGROS v3.7 A6 - DNA Evolution Engine (yalnızca analiz)
+    dnaEvolutionAktif: true,
+    dnaEvolutionMinOrnek: 10,
+    dnaEvolutionTopAday: 3,
+
 };
 
 module.exports = ayarlar;
