@@ -430,6 +430,23 @@ const ayarlar = {
     agrosConsensusMinOrnek: 10,
     agrosConsensusTopAday: 3,
 
+    // A8.1 - Consensus Live Validation (yalnızca ileriye dönük analiz)
+    consensusValidationAktif: true,
+    consensusValidationSnapshotSaat: 6,
+    consensusValidationMaksTahmin: 5000,
+    consensusValidationMaksSonuc: 10000,
+
+
+    // A8.2 - A5/A6/A8/A8.1 sonuçlarını tek kısa Telegram dashboard'unda birleştirir.
+    // Eski motorlar çalışmaya devam eder; yalnızca ayrı uzun raporlar yerine tek görünüm sunulur.
+    intelligenceDashboardAktif: true,
+    intelligenceDashboardTopAday: 3,
+
+    // A9 - Her zekâ motorunun ileriye dönük doğruluk ve net katkısını karşılaştırır.
+    // Yalnızca analizdir; işlem motoruna veya filtrelere uygulanmaz.
+    performanceValidationAktif: true,
+    performanceValidationMinKarar: 10,
+
 };
 
 module.exports = ayarlar;

@@ -16,6 +16,9 @@ const dnaHeatMap = require('./36_dna_heat_map.js');
 const directionIntelligence = require('./37_direction_intelligence_lab.js');
 const dnaEvolution = require('./38_dna_evolution_engine.js');
 const agrosConsensus = require('./39_agros_consensus_engine.js');
+const consensusValidation = require('./40_consensus_validation_engine.js');
+const intelligenceDashboard = require('./41_agros_intelligence_dashboard.js');
+const performanceValidation = require('./42_performance_validation_dashboard.js');
 
 function num(v, d = 0) {
   const n = Number(v);
@@ -226,6 +229,25 @@ function buildLearningValidationModel() {
     minSample: Math.max(1, num(ayarlar.agrosConsensusMinOrnek || 10))
   });
 
+  const consensusValidationModel = consensusValidation.build(agrosConsensusModel, {
+    minSnapshotHours: Math.max(1, num(ayarlar.consensusValidationSnapshotSaat || 6)),
+    maxPredictions: Math.max(100, num(ayarlar.consensusValidationMaksTahmin || 5000)),
+    maxResolutions: Math.max(100, num(ayarlar.consensusValidationMaksSonuc || 10000))
+  });
+
+  const performanceValidationModel = performanceValidation.build(consensusValidationModel, {
+    minCalls: Math.max(1, num(ayarlar.performanceValidationMinKarar || 10))
+  });
+
+  const intelligenceDashboardModel = intelligenceDashboard.build({
+    direction: directionIntelligenceModel,
+    evolution: dnaEvolutionModel,
+    consensus: agrosConsensusModel,
+    validation: consensusValidationModel
+  }, {
+    limit: Math.max(1, num(ayarlar.intelligenceDashboardTopAday || 3))
+  });
+
   const long = analiz.long || {};
   const short = analiz.short || {};
   const longSonuc = num(long.tp) + num(long.sl);
@@ -275,6 +297,9 @@ function buildLearningValidationModel() {
     directionIntelligence: directionIntelligenceModel,
     dnaEvolution: dnaEvolutionModel,
     agrosConsensus: agrosConsensusModel,
+    consensusValidation: consensusValidationModel,
+    intelligenceDashboard: intelligenceDashboardModel,
+    performanceValidation: performanceValidationModel,
     learningScore: {
       toplamDna: dna.toplamDna,
       yeterliDna: dna.yeterliDna,
@@ -304,9 +329,17 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
   m += dnaFilterSimulator.telegramText(model.dnaFilterSimulation, { limit: 2 });
   if (ayarlar.confidenceEngineV2Aktif !== false) m += confidenceEngineV2.telegramText(model.confidenceV2, { limit: 2 });
   if (ayarlar.dnaHeatMapAktif !== false) m += dnaHeatMap.telegramText(model.dnaHeatMap);
-  if (ayarlar.directionIntelligenceAktif !== false) m += directionIntelligence.telegramText(model.directionIntelligence, { limit: 3 });
-  if (ayarlar.dnaEvolutionAktif !== false) m += dnaEvolution.telegramText(model.dnaEvolution, { limit: Math.max(1, num(ayarlar.dnaEvolutionTopAday || 3)) });
-  if (ayarlar.agrosConsensusAktif !== false) m += agrosConsensus.telegramText(model.agrosConsensus, { limit: Math.max(1, num(ayarlar.agrosConsensusTopAday || 3)) });
+  if (ayarlar.intelligenceDashboardAktif !== false) {
+    m += intelligenceDashboard.telegramText(model.intelligenceDashboard, {
+      limit: Math.max(1, num(ayarlar.intelligenceDashboardTopAday || 3))
+    });
+    if (ayarlar.performanceValidationAktif !== false) m += performanceValidation.telegramText(model.performanceValidation);
+  } else {
+    if (ayarlar.directionIntelligenceAktif !== false) m += directionIntelligence.telegramText(model.directionIntelligence, { limit: 3 });
+    if (ayarlar.dnaEvolutionAktif !== false) m += dnaEvolution.telegramText(model.dnaEvolution, { limit: Math.max(1, num(ayarlar.dnaEvolutionTopAday || 3)) });
+    if (ayarlar.agrosConsensusAktif !== false) m += agrosConsensus.telegramText(model.agrosConsensus, { limit: Math.max(1, num(ayarlar.agrosConsensusTopAday || 3)) });
+    if (ayarlar.consensusValidationAktif !== false) m += consensusValidation.telegramText(model.consensusValidation);
+  }
   m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;
