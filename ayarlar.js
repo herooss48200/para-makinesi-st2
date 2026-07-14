@@ -424,6 +424,12 @@ const ayarlar = {
     dnaEvolutionMinOrnek: 10,
     dnaEvolutionTopAday: 3,
 
+    // AGROS A8 - mevcut analiz motorlarını tek açıklanabilir kararda birleştirir.
+    // Yalnızca rapor/karar desteğidir; emir veya otomatik filtre uygulamaz.
+    agrosConsensusAktif: true,
+    agrosConsensusMinOrnek: 10,
+    agrosConsensusTopAday: 3,
+
 };
 
 module.exports = ayarlar;

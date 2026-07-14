@@ -15,6 +15,7 @@ const confidenceEngineV2 = require('./35_confidence_engine_v2.js');
 const dnaHeatMap = require('./36_dna_heat_map.js');
 const directionIntelligence = require('./37_direction_intelligence_lab.js');
 const dnaEvolution = require('./38_dna_evolution_engine.js');
+const agrosConsensus = require('./39_agros_consensus_engine.js');
 
 function num(v, d = 0) {
   const n = Number(v);
@@ -216,6 +217,14 @@ function buildLearningValidationModel() {
   const dnaEvolutionModel = dnaEvolution.build({
     minSample: Math.max(1, num(ayarlar.dnaEvolutionMinOrnek || 10))
   });
+  const agrosConsensusModel = agrosConsensus.build({
+    confidence: confidenceV2,
+    heatMap: dnaHeatMapModel,
+    direction: directionIntelligenceModel,
+    evolution: dnaEvolutionModel
+  }, {
+    minSample: Math.max(1, num(ayarlar.agrosConsensusMinOrnek || 10))
+  });
 
   const long = analiz.long || {};
   const short = analiz.short || {};
@@ -265,6 +274,7 @@ function buildLearningValidationModel() {
     dnaHeatMap: dnaHeatMapModel,
     directionIntelligence: directionIntelligenceModel,
     dnaEvolution: dnaEvolutionModel,
+    agrosConsensus: agrosConsensusModel,
     learningScore: {
       toplamDna: dna.toplamDna,
       yeterliDna: dna.yeterliDna,
@@ -296,6 +306,7 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
   if (ayarlar.dnaHeatMapAktif !== false) m += dnaHeatMap.telegramText(model.dnaHeatMap);
   if (ayarlar.directionIntelligenceAktif !== false) m += directionIntelligence.telegramText(model.directionIntelligence, { limit: 3 });
   if (ayarlar.dnaEvolutionAktif !== false) m += dnaEvolution.telegramText(model.dnaEvolution, { limit: Math.max(1, num(ayarlar.dnaEvolutionTopAday || 3)) });
+  if (ayarlar.agrosConsensusAktif !== false) m += agrosConsensus.telegramText(model.agrosConsensus, { limit: Math.max(1, num(ayarlar.agrosConsensusTopAday || 3)) });
   m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;
