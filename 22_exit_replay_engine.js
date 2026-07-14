@@ -19,6 +19,8 @@ const volatilityBehaviorEngine = require('./29_volatility_behavior_engine.js');
 const ladderBehaviorEngine = require('./30_ladder_behavior_engine.js');
 const behaviorIntelligenceEngine = require('./31_behavior_intelligence_engine.js');
 const exitConsensusEngine = require('./32_exit_consensus_engine.js');
+const dnaExitSelector = require('./43_dna_exit_selector.js');
+const advancedExitModels = require('./44_exit_evolution_models.js');
 
 const VERSION = 'v3.10.0-EXIT-CONSENSUS';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -56,7 +58,7 @@ function positionValue(pos, sonuc) {
 function normalizePath(pos, closeTs, actualGrossPct) {
   const startTs = num(pos?.acilisZamani || pos?.zaman || pos?.execution?.baslangicZamani, closeTs);
   const raw = Array.isArray(pos?.execution?.pricePath) ? pos.execution.pricePath : [];
-  const pathRows = raw.map(x => ({ ts: num(x?.ts), price: num(x?.price), pnlPct: num(x?.pnlPct), stTrend: x?.stTrend || null, stAligned: typeof x?.stAligned === 'boolean' ? x.stAligned : null }))
+  const pathRows = raw.map(x => ({ ts: num(x?.ts), price: num(x?.price), pnlPct: num(x?.pnlPct), atrPct: Number.isFinite(Number(x?.atrPct)) ? Number(x.atrPct) : null, stTrend: x?.stTrend || null, stAligned: typeof x?.stAligned === 'boolean' ? x.stAligned : null }))
     .filter(x => x.ts > 0 && Number.isFinite(x.pnlPct)).sort((a, b) => a.ts - b.ts);
   if (!pathRows.length || pathRows[0].ts > startTs) pathRows.unshift({ ts: startTs, price: num(pos?.girisFiyati), pnlPct: 0, stTrend: pos?.girisAnalizi?.superTrendYonu || pos?.girisAnalizi?.stTrend || null, stAligned: null });
   if (!pathRows.length || pathRows[pathRows.length - 1].ts < closeTs) pathRows.push({ ts: closeTs, price: 0, pnlPct: actualGrossPct, stTrend: null, stAligned: null });
@@ -127,7 +129,7 @@ function algorithms() {
     id: `MFE_PROTECT_${Math.round(ratio * 100)}`, label: `MFE Koruma %${Math.round(ratio * 100)}`, className: 'MFE_PROTECTION', isExecutable: true,
     run(input) { const hit = mfeProtectionExit(input, ratio); return scenarioResult(input, this, hit ? hit.grossPct : input.actualGrossPct, { reached: !!hit, exitSource: hit ? 'RECORDED_DRAWDOWN_TRIGGER' : 'ACTUAL_FALLBACK', confidenceNote: hit ? 'Kaydedilmiş fiyat yolunda tepe kâr geri çekilme tetikledi.' : 'Koruma tetiklenmedi; gerçek kapanış korundu.' }); }
   });
-  return list;
+  return [...list, ...advancedExitModels.algorithms()];
 }
 function ozetEnsure() {
   h.state.exitReplayOzet = h.state.exitReplayOzet || { version: VERSION, totalTrades: 0, lastUpdate: null, byAlgorithm: {}, bySignature: {}, timeBehavior: {}, last10: [], actualTotalNetUsdt: 0, oracleBestTotalNetUsdt: 0, oraclePotentialDeltaUsdt: 0 };
@@ -196,7 +198,9 @@ function replayTrade(pos, sonuc = {}) {
     o.oracleBestTotalNetUsdt += num(best.netUsdt, input.actualNetUsdt);
     o.oraclePotentialDeltaUsdt += Math.max(0, num(best.netUsdt) - input.actualNetUsdt);
     o.last10.unshift({ tradeId:input.tradeId,symbol:input.symbol,side:input.side,signature:input.signatureShort,actualNetUsdt:input.actualNetUsdt,best,pathPoints:input.pathCoverage,zaman }); o.last10=o.last10.slice(0,Math.max(10,num(ayarlar.exitReplayTelegramRaporKapanis,10)));
-    fs.writeFileSync(MODEL_JSON, JSON.stringify(buildModel(),null,2)); return record;
+    fs.writeFileSync(MODEL_JSON, JSON.stringify(buildModel(),null,2));
+    dnaExitSelector.validateReplay(pos, record);
+    return record;
   } catch (err) { console.error(`⚠️ [EXIT EVOLUTION] Replay yazılamadı: ${err.message}`); return null; }
 }
 function bucketModel(b) {
@@ -224,7 +228,7 @@ function buildModel() {
   const dnaBehavior=dnaBehaviorProfile.buildModel(profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:behaviorMin });
   const behaviorIntelligence=behaviorIntelligenceEngine.buildModel(dnaBehavior,{ minSample:num(ayarlar.behaviorIntelligenceMinOrnek,behaviorMin) });
   const exitConsensus=exitConsensusEngine.buildModel(dna,behaviorIntelligence,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:num(ayarlar.exitConsensusMinOrnek,behaviorMin) });
-  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. Behavior Intelligence ve Exit Consensus yalnızca öğrenme/öneri üretir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,behaviorIntelligence,exitConsensus,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING','DYNAMIC_EXIT','HYBRID_EXIT','ALTERNATIVE_LADDER'] };
+  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. Behavior Intelligence ve Exit Consensus yalnızca öğrenme/öneri üretir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,behaviorIntelligence,exitConsensus,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING_REQUIRES_ATR_PATH_DATA'] };
 }
 function sign(v, digits = 4) {
   const n = num(v);
@@ -391,6 +395,7 @@ function kapanisMetni(record) {
   }
   text += `\n🧭 Fiyat Yolu: ${record.input.pathCoverage} örnek | Süre ${(record.input.durationMs / 60000).toFixed(1)} dk\n`;
   text += `ℹ️ Yalnızca öğrenir; gerçek Trade Engine kararını değiştirmez.`;
+  text += dnaExitSelector.closingText(record);
   return text;
 }
 function telegramOzetMetni() {

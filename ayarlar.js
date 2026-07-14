@@ -269,6 +269,12 @@ const ayarlar = {
     exitReplayPathSampleSeconds: 30,
     exitReplayMaxPathPoints: 600,
     exitReplayTelegramRaporKapanis: 10,
+    exitReplayTrendMinMinute: 3,
+    exitReplayAtrMultipliers: [1.5, 2.0, 2.5],
+    exitReplayAlternativeLadders: [
+      { id: 'FAST', label: 'Alternatif Kademe Hızlı', triggers: [0.30, 0.60, 1.00, 2.00], floors: [0.00, 0.20, 0.50, 1.20] },
+      { id: 'WIDE', label: 'Alternatif Kademe Geniş', triggers: [0.50, 1.20, 2.50, 4.00], floors: [0.00, 0.40, 1.20, 2.50] }
+    ],
 
     // v3.6.6 DNA Profit Potential Engine:
     // Her DNA için MFE/MAE dağılımı, hedef erişim oranı, net EV ve güvenli çıkış bölgesi üretir.
@@ -446,6 +452,16 @@ const ayarlar = {
     // Yalnızca analizdir; işlem motoruna veya filtrelere uygulanmaz.
     performanceValidationAktif: true,
     performanceValidationMinKarar: 10,
+
+    // v3.11.0 DNA Exit Selector - SHADOW MODE
+    // Replay/Consensus sonucundan DNA bazlı exit planı seçer; gerçek SL/TP/kademe davranışını değiştirmez.
+    dnaExitSelectorAktif: true,
+    dnaExitSelectorTelegramAktif: true,
+    dnaExitSelectorMinOrnek: 20,
+    dnaExitSelectorMinBeatRate: 60,
+    dnaExitSelectorMinDeltaUsdt: 1.00,
+    dnaExitSelectorMinProfitFactor: 1.10,
+    dnaExitSelectorMinConsensus: 60,
 
 };
 

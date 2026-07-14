@@ -133,6 +133,21 @@ function pozisyonBaslat(pos) {
   return ex;
 }
 
+function atrYuzdeHesapla(sym, canliFiyat, period = 14) {
+  const candles = h.state.sniperMumlar?.[sym];
+  if (!Array.isArray(candles) || candles.length < period + 1) return null;
+  const rows = candles.slice(-(period + 1));
+  let sum = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const high = num(rows[i]?.high), low = num(rows[i]?.low), prevClose = num(rows[i - 1]?.close);
+    if (!(high > 0 && low > 0 && prevClose > 0)) return null;
+    sum += Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+  }
+  const atr = sum / period;
+  const price = num(canliFiyat);
+  return price > 0 ? round((atr / price) * 100, 4) : null;
+}
+
 function tickGuncelle(pos, canliFiyat) {
   const ex = executionEnsure(pos);
   if (!ex) return null;
@@ -155,6 +170,7 @@ function tickGuncelle(pos, canliFiyat) {
       ts: ex.sonGuncelleme,
       price: round(fiyat, 12),
       pnlPct: round(k, 4),
+      atrPct: atrYuzdeHesapla(pos.sym, fiyat),
       stTrend: trendNow,
       stAligned: trendNow ? trendNow === expectedTrend : null
     });

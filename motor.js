@@ -5,6 +5,7 @@ const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const positionSizingAudit = require('./19_position_sizing_audit.js');
+const dnaExitSelector = require('./43_dna_exit_selector.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -214,6 +215,7 @@ const m = {
         });
 
         exitOptimizer.pozisyonBaslat(yeniPozisyon);
+        dnaExitSelector.attachToPosition(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
         blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
@@ -400,7 +402,8 @@ const m = {
                 `📦 Miktar: ${guvenliMiktar}\n` +
                 `🛡️ Borsaya İletilen SL: ${sl.toFixed(pPrecision)}\n` +
                 `🎯 Borsaya İletilen Final TP: ${tp.toFixed(pPrecision)}` +
-                blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
+                dnaExitSelector.openingText(yeniPozisyon.exitPlanShadow) +
+              blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
                 (girisAnalizi?.superTrendEtki ? `\n📈 ST Etki: ${girisAnalizi.superTrendEtki.puan}/20 | Yaş: ${girisAnalizi.superTrendEtki.yasMum} | Mesafe: %${Number(girisAnalizi.superTrendEtki.mesafeYuzde || 0).toFixed(2)} | ${girisAnalizi.superTrendEtki.durum}` : '')
             );
 
