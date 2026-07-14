@@ -204,9 +204,7 @@ function kapananIslemSayisi() {
     return Number(s.tp || 0) + Number(s.sl || 0) + Number(s.be || 0);
 }
 
-async function learningValidationRaporuGonderGerekirse(oneCikar = false) {
-    if (!oneCikar) return;
-
+async function learningValidationRaporuGonderGerekirse() {
     const kapanan = kapananIslemSayisi();
     const ilkCalisma = sonLearningValidationKapanan === null;
     const yeniKapanisVar = !ilkCalisma && kapanan !== sonLearningValidationKapanan;
@@ -238,7 +236,7 @@ async function raporGonder(oneCikar = false) {
             await h.telegramMesajGonder(mesaj);
         }
 
-        await learningValidationRaporuGonderGerekirse(oneCikar);
+        await learningValidationRaporuGonderGerekirse();
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     }
