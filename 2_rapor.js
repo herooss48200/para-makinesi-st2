@@ -2,9 +2,11 @@ require('dotenv').config();
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const learningValidation = require('./20_learning_validation.js');
+const exitEvolutionDashboard = require('./45_exit_evolution_dashboard.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
+let sonExitEvolutionReplaySayisi = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -226,6 +228,25 @@ async function learningValidationRaporuGonderGerekirse() {
     }
 }
 
+
+async function exitEvolutionDashboardGonderGerekirse() {
+    if (ayarlar.exitEvolutionDashboardAktif === false) return;
+    try {
+        const model = exitEvolutionDashboard.buildDashboardModel();
+        const replaySayisi = Number(model.totalTrades || 0);
+        const ilkCalisma = sonExitEvolutionReplaySayisi === null;
+        const yeniReplayVar = !ilkCalisma && replaySayisi !== sonExitEvolutionReplaySayisi;
+        if (!ilkCalisma && !yeniReplayVar) return;
+        sonExitEvolutionReplaySayisi = replaySayisi;
+        const mesaj = exitEvolutionDashboard.telegramMetni(model);
+        if (!mesaj) return;
+        await h.telegramMesajGonder(mesaj);
+        console.log(`🧬 [EXIT EVOLUTION DASHBOARD] Telegram raporu gönderildi | Replay: ${replaySayisi}`);
+    } catch (err) {
+        console.error('❌ [EXIT EVOLUTION DASHBOARD HATASI]:', err.message);
+    }
+}
+
 async function raporGonder(oneCikar = false) {
     try {
         const mesaj = canliRaporMetniOlustur();
@@ -237,9 +258,10 @@ async function raporGonder(oneCikar = false) {
         }
 
         await learningValidationRaporuGonderGerekirse();
+        await exitEvolutionDashboardGonderGerekirse();
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse };

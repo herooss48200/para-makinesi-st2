@@ -463,6 +463,12 @@ const ayarlar = {
     dnaExitSelectorMinProfitFactor: 1.10,
     dnaExitSelectorMinConsensus: 60,
 
+
+    // v3.11.2 Exit Evolution Telegram Dashboard:
+    exitEvolutionDashboardAktif: true,
+    exitEvolutionDashboardTopModel: 5,
+    exitEvolutionDashboardTopDna: 5,
+    exitEvolutionDashboardMinDnaOrnek: 10,
 };
 
 module.exports = ayarlar;
