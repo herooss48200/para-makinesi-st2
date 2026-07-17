@@ -94,8 +94,15 @@ function inferPerformanceRegime(trades = [], window = 60, edgeThreshold = 0.025)
   };
 }
 
+function emptyExitModel() {
+  return { version: dynamicExit.VERSION, generatedAt: null, currentRegime: { key: 'MIXED|VOL_MEDIUM', regime: 'MIXED', regimeFamily: 'MIXED', volatility: 'MEDIUM', window: 0, distribution: {} }, dna: [] };
+}
+
 function exitIndex() {
-  const model = dynamicExit.readModel() || dynamicExit.build(null, { persist: true });
+  // Kritik RAM koruması: lig hesaplanırken büyük exit-replay geçmişini otomatik olarak
+  // yeniden kurma. Dinamik model kapanış aralığında 22_exit_replay_engine tarafından
+  // kontrollü güncellenir. Model henüz yoksa güvenli ACTUAL fallback kullanılır.
+  const model = dynamicExit.readModel() || emptyExitModel();
   return { model, map: new Map((model?.dna || []).map(row => [String(row.key || ''), row])) };
 }
 

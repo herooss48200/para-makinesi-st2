@@ -201,7 +201,15 @@ function replayTrade(pos, sonuc = {}) {
     o.last10.unshift({ tradeId:input.tradeId,symbol:input.symbol,side:input.side,signature:input.signatureShort,actualNetUsdt:input.actualNetUsdt,best,pathPoints:input.pathCoverage,zaman }); o.last10=o.last10.slice(0,Math.max(10,num(ayarlar.exitReplayTelegramRaporKapanis,10)));
     fs.writeFileSync(MODEL_JSON, JSON.stringify(buildModel(),null,2));
     dnaExitSelector.validateReplay(pos, record);
-    try { dynamicExit.updateFromReplay(); } catch (err) { console.error(`[DYNAMIC EXIT] Model güncelleme hatası: ${err.message}`); }
+    try {
+      const every = Math.max(1, num(ayarlar.dynamicExitModelGuncellemeKapanisAraligi, 25));
+      const totalReplay = num(o.totalTrades);
+      if (totalReplay > 0 && totalReplay % every === 0) {
+        console.log(`🧬 [DYNAMIC EXIT] Kontrollü model güncellemesi başlıyor | Replay ${totalReplay} | Aralık ${every}`);
+        dynamicExit.updateFromReplay();
+        console.log(`✅ [DYNAMIC EXIT] Model güncellendi | Replay ${totalReplay}`);
+      }
+    } catch (err) { console.error(`[DYNAMIC EXIT] Model güncelleme hatası: ${err.message}`); }
     return record;
   } catch (err) { console.error(`⚠️ [EXIT EVOLUTION] Replay yazılamadı: ${err.message}`); return null; }
 }

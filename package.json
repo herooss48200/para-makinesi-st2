@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.0.0",
-  "description": "AGROS Adaptive Trading League: dynamic league, regime-aware exit, shadow learning and full history.",
+  "version": "4.0.1",
+  "description": "AGROS Adaptive Trading League RAM-SAFE: verified orchestration, throttled dynamic exit rebuild and full history.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

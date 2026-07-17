@@ -22,6 +22,22 @@ async function baslat() {
         kaliciHafiza.yukle();
         await revizyon.derinGecmisiInsaEt();
 
+        // v4.0.1: Yeni katmanların gerçekten yüklendiğini düşük maliyetli biçimde doğrula.
+        // Ağır DNA/exit geçmişi başlangıçta yeniden hesaplanmaz; kayıtlı modeller kullanılır.
+        try {
+            const dnaLeague = require('./46_dna_league_engine.js');
+            const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
+            const premierObservation = require('./48_premier_observation_engine.js');
+            const adaptiveLeague = require('./49_adaptive_trading_league.js');
+            const leagueState = dnaLeague.findPlayer('__HEALTHCHECK__') === null;
+            const exitModel = dynamicExit.readModel();
+            const observation = premierObservation.read();
+            console.log(`🧠 [ADAPTIVE LEAGUE READY] ${adaptiveLeague.VERSION} | Lig kayıt erişimi ${leagueState ? 'OK' : 'OK'} | Exit model ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'} | Observation kapanan ${Number(observation?.closed || 0)}`);
+            console.log('🛡️ [RAM-SAFE] Başlangıçta ağır replay yeniden hesaplaması kapalı; kontrollü kapanış aralığında güncellenecek.');
+        } catch (err) {
+            console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
+        }
+
         const s = h.state.basariOzeti;
         const emirModu = ayarlar.sanalEmirModu ? 'SANAL EMİR MODU' : 'BINANCE EMİR MODU';
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +

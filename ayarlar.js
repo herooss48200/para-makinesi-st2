@@ -472,6 +472,8 @@ const ayarlar = {
     dynamicExitMinBeatRate: 55,
     dynamicExitMinRecentAvg: -0.01,
     dynamicExitCurrentRegimeWindow: 30,
+    // v4.0.1 RAM-SAFE: büyük replay geçmişini her kapanışta yeniden kurma.
+    dynamicExitModelGuncellemeKapanisAraligi: 25,
     dynamicExitHighVolStepPct: 0.12,
     dynamicExitLowVolStepPct: 0.045,
     dynamicExitHighVolRangePct: 1.50,
