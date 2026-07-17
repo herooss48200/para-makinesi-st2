@@ -246,20 +246,35 @@ function buildPlayers(models = {}, options = {}) {
   }).sort((a, b) => b.leagueScore - a.leagueScore || b.expectancy - a.expectancy || b.total - a.total);
 }
 
+function historicalProfitGate(player, minSamples) {
+  const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor, net: player.net };
+  return num(m.total) >= minSamples && num(m.expectancy) > 0 && num(m.profitFactor) > 1 && num(m.net) > 0;
+}
+
+function recentFivePositive(player) {
+  const r = player.recent5 || {};
+  // Kusursuzluk veya %100 kazanma aranmaz. Son beş işlemin toplam ekonomik sonucu pozitiftir.
+  return num(r.total) >= 5 && num(r.expectancy) > 0 && num(r.profitFactor) > 1 && num(r.net) > 0;
+}
+
 function qualify(player, league, options = {}) {
-  const premierMin = Math.max(1, num(options.premierMinSample, ayarlar.dnaLeaguePremierMinOrnek || 10));
-  const championshipMin = Math.max(1, num(options.championshipMinSample, ayarlar.dnaLeagueChampionshipMinOrnek || 10));
+  const premierMin = Math.max(1, num(options.premierMinSample, ayarlar.dnaLeaguePremierMinOrnek || 5));
+  const championshipMin = Math.max(1, num(options.championshipMinSample, ayarlar.dnaLeagueChampionshipMinOrnek || 5));
+  const premierMinConfidence = num(options.premierMinConfidence, ayarlar.dnaLeaguePremierMinGuven || 50);
+  const historicalPositive = historicalProfitGate(player, premierMin);
+
   if (league === 'PREMIER') {
-    // PROFIT-FIRST: Mevcut kademe sistemiyle kanıtlanmış kâr, Premier'e giriş kapısıdır.
-    // Güven, momentum, heat/rejim ve exit kanıtı artık kârlı DNA'yı dışarı atmaz;
-    // yalnızca Premier içindeki sıralamayı etkiler.
-    const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor, net: player.net };
-    return num(m.total) >= premierMin && num(m.expectancy) > 0 && num(m.profitFactor) > 1 && num(m.net) > 0;
+    // Premier = tam boyutlu seçkin lig. Geçmiş kanıt + son 5 toplam pozitif form gerekir.
+    // 5/5 kazanma şartı yoktur; 3 kazanç 2 zarar da toplam Net/Exp/PF pozitifse yeterlidir.
+    return historicalPositive && recentFivePositive(player) && num(player.confidence) >= premierMinConfidence && player.death !== 'OLUM_RISKI';
   }
   if (league === 'CHAMPIONSHIP') {
-    const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor };
-    return num(m.total) >= championshipMin && num(m.profitFactor) >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
-      num(m.expectancy) >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05) && player.death !== 'OLUM_RISKI';
+    const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor, net: player.net };
+    const nearPositive = num(m.total) >= championshipMin &&
+      num(m.profitFactor) >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
+      num(m.expectancy) >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05);
+    // Geçmişi kârlı olup güncel formu Premier kapısını geçemeyen DNA burada x0.25 ile yaşamaya devam eder.
+    return player.death !== 'OLUM_RISKI' && (historicalPositive || nearPositive);
   }
   return true;
 }
@@ -282,7 +297,7 @@ function audit(players = [], leagues = {}) {
   const profitableOutsidePremier = profitable.filter(p => !premierKeys.has(p.key));
   const nearProfit = players.filter(p => { const m=p.pairMetrics||p; return num(m.total)>=minSample && !profitable.some(x=>x.key===p.key) && num(m.expectancy)>=-0.05 && num(m.profitFactor)>=0.85; });
   return {
-    rule: `DNA + doğrulanmış en iyi Exit için N>=${minSample} + Exp>0 + PF>1 + Net>0`,
+    rule: `Premier: tarihsel N>=${minSample}, Exp>0, PF>1, Net>0 + son 5 toplam Exp/PF/Net pozitif + güven>=${num(ayarlar.dnaLeaguePremierMinGuven, 50)}; Championship: kârlı geçmiş fakat güncel Premier kapısı geçilemedi veya yakın-pozitif aday`,
     totalPlayers: players.length,
     profitableCount: profitable.length,
     premierCount: (leagues.premier || []).length,
@@ -384,9 +399,28 @@ function build(models = {}, options = {}) {
   const loaded = models.trades ? { trades: models.trades } : dnaEvolution.loadTrades();
   const regime = inferPerformanceRegime(loaded.trades || [], num(options.regimeWindow, ayarlar.dnaLeagueRejimPenceresi || 60), num(options.regimeEdgeThreshold, ayarlar.dnaLeagueRejimEdgeEsik || 0.025));
   const players = buildPlayers({ ...models, evolution: evolutionModel, trades: loaded.trades || [], regime }, options);
-  const proposal = proposedLeagues(players, options);
   const previous = readJson(LEAGUE_FILE, null);
-  const recoveryRequired = !previous?.leagues || num(previous?.totalDna) === 0 || Object.values(previous?.leagueSizes || {}).reduce((a,b)=>a+num(b),0) === 0;
+  const previousLeagueCount = Object.values(previous?.leagueSizes || {}).reduce((a, b) => a + num(b), 0);
+
+  // Rapor çağrısında ağır ranking modeli henüz hazır değilse dolu ligi boş veriyle yeniden kurma.
+  // Kalıcı lig üyelerini koru ve kurtarma sayacını gerçek kayıtlı DNA sayısından üret.
+  if (!players.length && previous?.leagues && previousLeagueCount > 0) {
+    const analyzedDna = Math.max(num(previous.totalDna), previousLeagueCount);
+    return {
+      ...previous,
+      generatedAt: new Date().toISOString(),
+      recovery: {
+        ...(previous.recovery || {}),
+        required: false,
+        restoredFromLearning: true,
+        analyzedDna,
+        source: 'PERSISTED_LEAGUE_STATE'
+      }
+    };
+  }
+
+  const proposal = proposedLeagues(players, options);
+  const recoveryRequired = !previous?.leagues || num(previous?.totalDna) === 0 || previousLeagueCount === 0;
   const transferDue = shouldTransfer(previous, evolutionModel.totalTrades, options.forceTransfer === true || recoveryRequired);
 
   let leagues = normalizeUniqueLeagues(proposal);
