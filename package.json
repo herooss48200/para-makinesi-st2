@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.2.1",
-  "description": "AGROS Profit-First Premier test with active virtual Dynamic DNA Exit and locked real-order bridge.",
+  "version": "4.2.3",
+  "description": "AGROS Telegram-visible dynamic Premier + Championship test ledger with active Dynamic Exit; real orders remain locked and Premier-only.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

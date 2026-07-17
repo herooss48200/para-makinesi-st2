@@ -13,7 +13,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.2.0-REAL-ORDER-READINESS-BRIDGE';
+const VERSION = 'v4.2.2-DYNAMIC-LEAGUE-VIRTUAL-GATE';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
@@ -48,12 +48,24 @@ function evaluate(pos, { realMode = false } = {}) {
 
   if (ayarlar.dnaLeagueAktif === false) reasons.push('DNA_LIGI_KAPALI');
   if (!key) reasons.push('DNA_IMZASI_YOK');
-  if (!profile || profile.league !== 'PREMIER') reasons.push(`LIG_${profile?.league || 'UNRANKED'}`);
-  if (!(num(profile?.total) >= Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10)))) reasons.push('ORNEK_YETERSIZ');
-  if (!(num(profile?.expectancy) > 0)) reasons.push('EXPECTANCY_POZITIF_DEGIL');
-  if (!(num(profile?.profitFactor) > 1)) reasons.push('PF_1_USTU_DEGIL');
-  if (!(num(profile?.net) > 0)) reasons.push('NET_POZITIF_DEGIL');
-  if (realMode && (!Number.isFinite(age) || age > maxAge)) reasons.push('LIG_MODELI_ESKI_VEYA_YOK');
+
+  const currentLeague = profile?.league || 'UNRANKED';
+  const virtualLeagueAllowed =
+    (currentLeague === 'PREMIER' && ayarlar.sanalTestPremierAktif !== false) ||
+    (currentLeague === 'CHAMPIONSHIP' && ayarlar.sanalTestChampionshipAktif === true);
+
+  if (realMode) {
+    // Gerçek emir güvenliği değişmez: sadece o an Premier olan, kanıtlı kârlı DNA geçebilir.
+    if (currentLeague !== 'PREMIER') reasons.push(`LIG_${currentLeague}`);
+    if (!(num(profile?.total) >= Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10)))) reasons.push('ORNEK_YETERSIZ');
+    if (!(num(profile?.expectancy) > 0)) reasons.push('EXPECTANCY_POZITIF_DEGIL');
+    if (!(num(profile?.profitFactor) > 1)) reasons.push('PF_1_USTU_DEGIL');
+    if (!(num(profile?.net) > 0)) reasons.push('NET_POZITIF_DEGIL');
+    if (!Number.isFinite(age) || age > maxAge) reasons.push('LIG_MODELI_ESKI_VEYA_YOK');
+  } else if (!virtualLeagueAllowed) {
+    // Sanal test havuzu sabit sayı kullanmaz; güncel lig dosyasındaki tüm Premier ve Championship üyeleri dinamiktir.
+    reasons.push(`SANAL_TEST_LIGI_${currentLeague}`);
+  }
 
   if (realMode) {
     if (ayarlar.gercekEmirPremierKapisiAktif !== true) reasons.push('GERCEK_PREMIER_KAPISI_KAPALI');
@@ -69,7 +81,8 @@ function evaluate(pos, { realMode = false } = {}) {
     key: key || 'SIGNATURE_YOK',
     allowed: reasons.length === 0,
     reasons,
-    league: profile?.league || 'UNRANKED',
+    league: currentLeague,
+    virtualPool: !realMode && virtualLeagueAllowed ? currentLeague : null,
     leagueModelAgeMinutes: Number.isFinite(age) ? Number(age.toFixed(2)) : null,
     metrics: {
       total: num(profile?.total), expectancy: num(profile?.expectancy),
@@ -99,6 +112,6 @@ function telegramText(d) {
     `🏆 Lig: ${d.league} | N${m.total || 0} | Exp ${num(m.expectancy).toFixed(4)} | PF ${num(m.profitFactor).toFixed(2)} | Net ${num(m.net).toFixed(4)}\n` +
     `🌦️ Rejim: ${d.regime?.key || 'YOK'}\n` +
     `🚪 Exit: ${d.exit?.label || 'Mevcut Kademe Sistemi'} | ${d.exit?.scope || 'FALLBACK'}\n` +
-    (!d.allowed ? `📌 Sebep: ${d.reasons.join(', ')}` : '🔒 Bilgi yoksa işlem yok; Premier dışı emir gönderilmez.');
+    (!d.allowed ? `📌 Sebep: ${d.reasons.join(', ')}` : (d.mode === 'VIRTUAL' ? `🧪 Sanal test havuzu: ${d.virtualPool || d.league}` : '🔒 Gerçek emir yalnızca Premier ve açık yetki ile çalışır.'));
 }
 module.exports = { VERSION, AUDIT_JSONL, evaluate, telegramText, realAuthorization };

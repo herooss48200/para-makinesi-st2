@@ -184,6 +184,11 @@ function canliRaporMetniOlustur() {
     mesaj += `💸 <b>Komisyon:</b> ${sayi(s.toplamKomisyon || 0, 4)} USDT\n`;
     mesaj += `👑 <b>Net Kasa:</b> ${sayi(s.netKarZarar || 0, 4)} USDT\n`;
 
+    const leagueTestOzeti = premierObservation.compactTelegram(aktifler);
+    if (leagueTestOzeti) {
+        mesaj += `\n━━━━━━━━━━━━━━━━━━\n${leagueTestOzeti}\n`;
+    }
+
 
     mesaj += `\n🏆 <b>En Karlı 5</b>\n`;
     mesaj += enKarli.length

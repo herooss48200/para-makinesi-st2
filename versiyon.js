@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ADAPTIVE-TRADING-LEAGUE',
-    kod: 'AWS Candidate v4.2.1-SANAL-DYNAMIC-EXIT-ACTIVE',
-    botSurumu: '4.2.1-SANAL-DYNAMIC-EXIT-ACTIVE',
+    kod: 'AWS Candidate v4.2.3-TELEGRAM-LEAGUE-TEST-VISIBLE',
+    botSurumu: '4.2.3-TELEGRAM-LEAGUE-TEST-VISIBLE',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '17.07.2026',
     ortam: {

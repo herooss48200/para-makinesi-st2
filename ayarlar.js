@@ -496,9 +496,12 @@ const ayarlar = {
     dnaLeaguePremierMinGuven: 50,
     dnaLeaguePremierMinSon20Exp: 0,
     dnaLeaguePremierExitKanitiZorunlu: false,
-    // v4.1: SANAL modda yalnızca mevcut kademe sistemiyle kârlı Premier DNA yeni işlem açar.
+    // v4.2.2: SANAL test havuzu dinamiktir; o anki Premier + Championship üyeleri işlem açabilir.
+    // Gerçek emir kapısı yalnızca Premier olarak fail-closed kalır. Sabit DNA sayısı yoktur.
     premierSanalEmirFiltresiAktif: true,
-    premierTestExperimentId: 'PROFIT-FIRST-2026-07-17',
+    sanalTestPremierAktif: true,
+    sanalTestChampionshipAktif: true,
+    premierTestExperimentId: 'DYNAMIC-LEAGUE-EXIT-2026-07-17',
     premierObservationAktif: true,
     premierObservationTelegramAktif: true,
     premierObservationRaporHerKapanis: 5,

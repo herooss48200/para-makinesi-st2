@@ -265,7 +265,7 @@ const m = {
 
         await h.telegramMesajGonder(
             `🧪 <b>[SANAL POZİSYON AÇILDI]</b>\n` +
-            (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>PREMIER ONAYLI İŞLEM</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
+            (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>${yeniPozisyon.premierObservation.leagueAtOpen} LİG İŞLEMİ</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
             `🔀 ${symbol} (${yon})\n` +
             `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
             `📦 Miktar: ${guvenliMiktar}\n` +
