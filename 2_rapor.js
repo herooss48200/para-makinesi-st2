@@ -333,14 +333,14 @@ async function dnaLeagueRaporuGonderGerekirse(model = null) {
 async function premierObservationRaporuGonderGerekirse() {
     if (ayarlar.premierObservationAktif === false || ayarlar.premierObservationTelegramAktif === false) return;
     try {
-        const model = premierObservation.model(h.state.aktifPozisyonlar || []);
+        const model = premierObservation.summaryModel(h.state.aktifPozisyonlar || []);
         const kapanan = Number(model.closed || 0);
         const ilk = sonPremierObservationKapanan === null;
         const aralik = Math.max(1, Number(ayarlar.premierObservationRaporHerKapanis || 5));
         const yeniPencere = !ilk && kapanan !== sonPremierObservationKapanan && kapanan % aralik === 0;
         if (!ilk && !yeniPencere) return;
         sonPremierObservationKapanan = kapanan;
-        const mesaj = premierObservation.telegram(h.state.aktifPozisyonlar || []);
+        const mesaj = premierObservation.telegramFromModel(model);
         if (mesaj) await h.telegramMesajGonder(mesaj);
         console.log(`💎 [PREMIER OBSERVATION] Telegram raporu | Aktif ${model.active?.length || 0} | Kapanan ${kapanan} | Net ${Number(model.net||0).toFixed(4)}`);
     } catch (err) {

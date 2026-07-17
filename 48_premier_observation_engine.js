@@ -5,7 +5,7 @@ const ayarlar = require('./ayarlar.js');
 const league = require('./46_dna_league_engine.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.3.0-STRICT-THREE-LAYER-OBSERVATION';
+const VERSION = 'v4.3.9-MEMORY-SAFE-PREMIER-OBSERVATION';
 const EXPERIMENT_ID = String(ayarlar.premierTestExperimentId || 'DYNAMIC-LEAGUE-EXIT-2026-07-17');
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'adaptive-league-observation.json');
@@ -176,19 +176,45 @@ function activeRows(active = [], kind = 'LEAGUE_TEST') {
     }).filter(Boolean);
 }
 function buildModel(st, active, kind) {
+    // Ayrıntılı model yalnız konsol/inceleme çağrılarında kullanılır. Büyük lig modeli ve
+    // sıralı DNA dizileri Telegram rapor yolunda üretilmez.
     let leagueModel = null; try { leagueModel = league.build ? league.build() : null; } catch (_) {}
-    return { ...st, premier: metrics(st.premier), championship: metrics(st.championship), shadow: metrics(st.shadow), leagueSizes: leagueModel?.leagueSizes || {}, active: activeRows(active, kind), topDna: Object.values(st.byDna || {}).map(metrics).sort((a,b)=>b.net-a.net||b.opened-a.opened), topActiveDna: Object.values(st.byDna || {}).map(metrics).sort((a,b)=>b.opened-a.opened||b.net-a.net), topExit: Object.values(st.byExit || {}).map(metrics).sort((a,b)=>b.net-a.net) };
+    const dnaRows = Object.values(st.byDna || {});
+    const exitRows = Object.values(st.byExit || {});
+    return {
+        ...st,
+        premier: metrics(st.premier), championship: metrics(st.championship), shadow: metrics(st.shadow),
+        leagueSizes: leagueModel?.leagueSizes || {}, active: activeRows(active, kind),
+        topDna: dnaRows.map(metrics).sort((a,b)=>b.net-a.net||b.opened-a.opened),
+        topActiveDna: dnaRows.map(metrics).sort((a,b)=>b.opened-a.opened||b.net-a.net),
+        topExit: exitRows.map(metrics).sort((a,b)=>b.net-a.net)
+    };
+}
+function buildSummaryModel(st, active, kind) {
+    // Telegram için gereken alanlar tek geçişte hazırlanır. league.build(), Object.values,
+    // map ve sort yoktur; böylece büyük DNA/exit kayıtları kopyalanmaz.
+    return {
+        version: st.version,
+        kind: st.kind,
+        experimentId: st.experimentId,
+        startedAt: st.startedAt,
+        opened: n(st.opened), closed: n(st.closed), blocked: n(st.blocked),
+        premier: metrics(st.premier), championship: metrics(st.championship), shadow: metrics(st.shadow),
+        active: activeRows(active, kind), updatedAt: st.updatedAt
+    };
 }
 function model(active = []) { return buildModel(read(), active, 'LEAGUE_TEST'); }
 function realModel(active = []) { return buildModel(readReal(), active, 'REAL_TRADING'); }
+function summaryModel(active = []) { return buildSummaryModel(read(), active, 'LEAGUE_TEST'); }
+function realSummaryModel(active = []) { return buildSummaryModel(readReal(), active, 'REAL_TRADING'); }
 function combined(m) {
     const p = m.premier, c = m.championship;
     return metrics({ opened: n(p.opened)+n(c.opened), closed: n(p.closed)+n(c.closed), tp:n(p.tp)+n(c.tp), sl:n(p.sl)+n(c.sl), be:n(p.be)+n(c.be), net:n(p.net)+n(c.net), grossProfit:n(p.grossProfit)+n(c.grossProfit), grossLoss:n(p.grossLoss)+n(c.grossLoss), commission:n(p.commission)+n(c.commission) });
 }
 function line(label, b) { return `${label} | Açılan ${b.opened} | Aktif ${Math.max(0,b.opened-b.closed)} | Kapalı ${b.closed} | Başarı %${b.winRate.toFixed(2)} | Net ${b.net.toFixed(4)} | PF ${b.profitFactor>=999?'∞':b.profitFactor.toFixed(2)} | Exp ${b.expectancy>=0?'+':''}${b.expectancy.toFixed(4)}`; }
-function compactTelegram(active = []) {
+function compactTelegramFromModel(m) {
     if (ayarlar.premierObservationTelegramAktif === false) return '';
-    const m = model(active), all = combined(m);
+    const all = combined(m);
     let t = '🧪 <b>ÜST KATMAN SANAL TESTİ</b>\n';
     t += line('🏆 Premier', m.premier) + '\n';
     t += line('🥈 Championship', m.championship) + '\n';
@@ -196,8 +222,9 @@ function compactTelegram(active = []) {
     if (!all.opened) t += '⏳ İlk uygun Premier/Championship DNA işlemi bekleniyor.';
     return t;
 }
+function compactTelegram(active = []) { return compactTelegramFromModel(summaryModel(active)); }
 function realCompactTelegram(active = []) {
-    const m = realModel(active), all = combined(m);
+    const m = realSummaryModel(active), all = combined(m);
     let t = '🔴 <b>GERÇEK EMİR PERFORMANSI</b>\n';
     t += `📦 Aktif Binance Pozisyonu ${m.active.length}\n`;
     t += line('🏆 Premier', m.premier) + '\n';
@@ -206,8 +233,8 @@ function realCompactTelegram(active = []) {
     t += all.opened ? '✅ Bu kasa yalnızca Binance’e gerçekten iletilen emirlerden oluşur.' : '⏳ Henüz Binance’e iletilmiş gerçek emir yok.';
     return t;
 }
-function telegram(active = []) {
-    const m = model(active), all = combined(m);
+function telegramFromModel(m) {
+    const all = combined(m);
     let t = '\n\n💎 <b>DYNAMIC LEAGUE + EXIT TEST KASASI</b>\n';
     t += `🧪 Deney: ${m.experimentId} | Başlangıç: ${m.startedAt}\n`;
     t += line('🏆 Premier', m.premier) + '\n' + line('🥈 Championship', m.championship) + '\n';
@@ -215,4 +242,5 @@ function telegram(active = []) {
     t += '🔒 Bu kasa sanal üst katman testidir; öğrenme ve gerçek emir kasasına karışmaz.';
     return t;
 }
-module.exports = { VERSION, EXPERIMENT_ID, STATE_FILE, TRADES_FILE, REAL_STATE_FILE, REAL_TRADES_FILE, read, readReal, blocked, snapshot, close, model, realModel, compactTelegram, realCompactTelegram, telegram };
+function telegram(active = []) { return telegramFromModel(summaryModel(active)); }
+module.exports = { VERSION, EXPERIMENT_ID, STATE_FILE, TRADES_FILE, REAL_STATE_FILE, REAL_TRADES_FILE, read, readReal, blocked, snapshot, close, model, realModel, summaryModel, realSummaryModel, __testBuildSummaryModel: buildSummaryModel, compactTelegramFromModel, telegramFromModel, compactTelegram, realCompactTelegram, telegram };
