@@ -20,7 +20,8 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.4.1-LEAGUE-RECOVERY-REPAIR';
+const VERSION = 'v4.4.3-LEAGUE-STATE-RECLASSIFICATION';
+const CLASSIFICATION_POLICY_VERSION = 2;
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -176,12 +177,20 @@ function scorePlayer(row, confidence, evolution, regime, exit) {
 }
 
 function buildPlayers(models = {}, options = {}) {
-  const tradeGroups = new Map();
+  // Kapanışlar tam BB/TF anahtarıyla, ranking ise temel YON/BTC/COIN anahtarıyla gelebilir.
+  // İki indeks birlikte tutulur; böylece son 5 form hiçbir zaman anahtar biçimi yüzünden kaybolmaz.
+  const exactTradeGroups = new Map();
+  const baseTradeGroups = new Map();
   for (const trade of models.trades || []) {
     const key = normalizeSignatureKey(trade.key);
     if (!key) continue;
-    if (!tradeGroups.has(key)) tradeGroups.set(key, []);
-    tradeGroups.get(key).push(trade);
+    if (!exactTradeGroups.has(key)) exactTradeGroups.set(key, []);
+    exactTradeGroups.get(key).push(trade);
+    const base = baseSignatureKey(key);
+    if (base) {
+      if (!baseTradeGroups.has(base)) baseTradeGroups.set(base, []);
+      baseTradeGroups.get(base).push(trade);
+    }
   }
   const ranking = models.ranking || {};
   const confidenceMap = metricIndex(models.confidence || {});
@@ -195,7 +204,9 @@ function buildPlayers(models = {}, options = {}) {
     const exit = exitEvidence(String(row.key), exits);
     const leagueScore = scorePlayer(row, confidence, evolution, regime, exit);
     const recent20 = evolution?.windows?.[20] || {};
-    const recent5 = dnaEvolution.windowMetrics(tradeGroups.get(normalizeSignatureKey(String(row.key))) || [], 5);
+    const normalizedRowKey = normalizeSignatureKey(String(row.key));
+    const rowTrades = exactTradeGroups.get(normalizedRowKey) || baseTradeGroups.get(baseSignatureKey(normalizedRowKey)) || [];
+    const recent5 = dnaEvolution.windowMetrics(rowTrades, 5);
     const pairMetrics = exit.ready ? {
       source: 'DNA_BEST_VALIDATED_EXIT',
       algorithmId: exit.algorithmId,
@@ -388,6 +399,10 @@ function appendTransfers(events = []) {
   fs.appendFileSync(TRANSFER_FILE, events.map(x => JSON.stringify(x)).join('\n') + '\n');
 }
 
+function classificationPolicyMigrationRequired(previous) {
+  return num(previous?.classificationPolicyVersion, 0) !== CLASSIFICATION_POLICY_VERSION;
+}
+
 function shouldTransfer(previous, totalTrades, force = false) {
   if (force || !previous) return true;
   const interval = Math.max(1, num(ayarlar.dnaLeagueTransferKapanisAraligi, 25));
@@ -421,7 +436,10 @@ function build(models = {}, options = {}) {
 
   const proposal = proposedLeagues(players, options);
   const recoveryRequired = !previous?.leagues || num(previous?.totalDna) === 0 || previousLeagueCount === 0;
-  const transferDue = shouldTransfer(previous, evolutionModel.totalTrades, options.forceTransfer === true || recoveryRequired);
+  // Eski 42/0 gibi lig state'leri yeni kural yazıldıktan sonra transfer aralığı dolana kadar korunuyordu.
+  // Politika sürümü değiştiğinde bir defalık zorunlu yeniden sınıflandırma yapılır.
+  const policyMigrationRequired = classificationPolicyMigrationRequired(previous);
+  const transferDue = shouldTransfer(previous, evolutionModel.totalTrades, options.forceTransfer === true || recoveryRequired || policyMigrationRequired);
 
   let leagues = normalizeUniqueLeagues(proposal);
   let events = [];
@@ -441,6 +459,7 @@ function build(models = {}, options = {}) {
 
   const model = {
     version: VERSION,
+    classificationPolicyVersion: CLASSIFICATION_POLICY_VERSION,
     generatedAt: new Date().toISOString(),
     mode: 'ADAPTIVE_OBSERVATION_NO_REAL_ORDER_FILTER',
     totalTrades: evolutionModel.totalTrades,
@@ -448,7 +467,7 @@ function build(models = {}, options = {}) {
     lastTransferTradeCount,
     nextTransferAt: lastTransferTradeCount + Math.max(1, num(ayarlar.dnaLeagueTransferKapanisAraligi, 25)),
     transferDue,
-    recovery: { required: recoveryRequired, restoredFromLearning: recoveryRequired, analyzedDna: players.length },
+    recovery: { required: recoveryRequired, restoredFromLearning: recoveryRequired, analyzedDna: players.length, policyMigrationApplied: policyMigrationRequired },
     regime,
     leagueSizes: {
       premier: leagues.premier.length,
@@ -645,7 +664,7 @@ function telegramText(model, options = {}) {
   return text;
 }
 
-module.exports = { normalizeSignatureKey, baseSignatureKey, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
+module.exports = { normalizeSignatureKey, baseSignatureKey, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
   VERSION,
   LEAGUE_FILE,
   TRANSFER_FILE,

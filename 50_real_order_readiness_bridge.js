@@ -14,7 +14,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.4.0-ADAPTIVE-LEAGUE-RECOVERY';
+const VERSION = 'v4.4.3-LEAGUE-STATE-RECLASSIFICATION';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
