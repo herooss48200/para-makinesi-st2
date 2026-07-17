@@ -178,11 +178,16 @@ function canliRaporMetniOlustur() {
     mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}\n`;
     mesaj += `🟢 Long: ${longAktif} | 🔴 Short: ${shortAktif}\n`;
     mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}\n`;
-    mesaj += `🔄 <b>Toplam Açılan:</b> ${s.toplamAcilanEmir || 0}\n`;
-    mesaj += `✅ TP: ${tp} | ❌ SL: ${sl} | ⚖️ BE: ${be} | Kapanan: ${toplamKapanan}\n`;
-    mesaj += `🏅 <b>Başarı:</b> %${yuzde(basariOrani)}\n`;
-    mesaj += `💸 <b>Komisyon:</b> ${sayi(s.toplamKomisyon || 0, 4)} USDT\n`;
-    mesaj += `👑 <b>Net Kasa:</b> ${sayi(s.netKarZarar || 0, 4)} USDT\n`;
+    if (ayarlar.canliRaporEskiMuhasebeGoster === true) {
+        mesaj += `🔄 <b>Toplam Açılan:</b> ${s.toplamAcilanEmir || 0}\n`;
+        mesaj += `✅ TP: ${tp} | ❌ SL: ${sl} | ⚖️ BE: ${be} | Kapanan: ${toplamKapanan}\n`;
+        mesaj += `🏅 <b>Başarı:</b> %${yuzde(basariOrani)}\n`;
+        mesaj += `💸 <b>Komisyon:</b> ${sayi(s.toplamKomisyon || 0, 4)} USDT\n`;
+        mesaj += `👑 <b>Net Kasa:</b> ${sayi(s.netKarZarar || 0, 4)} USDT\n`;
+    } else {
+        mesaj += `🧬 <b>Yeni Lig + Exit Testi:</b> aktif\n`;
+        mesaj += `🗃️ Eski başarı/muhasebe sayaçları bu ekranda gizli; öğrenme verisi korunuyor.\n`;
+    }
 
     const leagueTestOzeti = premierObservation.compactTelegram(aktifler);
     if (leagueTestOzeti) {

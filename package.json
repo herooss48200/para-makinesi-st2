@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.2.8",
-  "description": "AGROS runtime-locked dual layer: every valid DNA learns virtually with its current winning exit; only profitable Championship/Premier may convert to real orders.",
+  "version": "4.2.9",
+  "description": "AGROS dual-layer sizing guard and clean live startup: Binance minimum checks stay fail-closed while legacy accounting is hidden from the live opening screen.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

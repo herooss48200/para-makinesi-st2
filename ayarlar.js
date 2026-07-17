@@ -517,6 +517,8 @@ const ayarlar = {
     gercekEmirChampionshipKapisiAktif: true,
     gercekEmirPremierBoyutCarpani: 1.00,
     gercekEmirChampionshipBoyutCarpani: 0.25,
+    // Canlı portföy ekranında eski 2246+ işlem muhasebesini gösterme; veri dosyada korunur.
+    canliRaporEskiMuhasebeGoster: false,
     // Üç günlük doğrulama tamamlanmadan true yapılmaz.
     gercekEmirYetkilendirmeAktif: false,
     // Gerçek moda geçerken değiştirilir ve AWS ortamında AGROS_REAL_ORDER_ARM ile aynı değer verilir.

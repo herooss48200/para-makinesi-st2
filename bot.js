@@ -39,7 +39,6 @@ async function baslat() {
             console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
         }
 
-        const s = h.state.basariOzeti;
         const emirModu = ayarlar.sanalEmirModu ? 'SANAL EMİR MODU' : 'BINANCE EMİR MODU';
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
             `🧪 Emir Modu: ${emirModu}\n` +
@@ -47,7 +46,11 @@ async function baslat() {
             `📊 Strateji: ${ayarlar.trendPeriyodu || ayarlar.superTrendPeriyodu || 'YOK'} trend + ${ayarlar.pusuPeriyodu} pusu + ${ayarlar.sniperPeriyodu} sniper\n` +
             `📡 İzlenen Sembol: ${h.state.semboller.length}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
-            `💰 Cüzdan Net PNL: ${s.netKarZarar.toFixed(2)} USDT\n\n` +
+            `🧬 Sanal öğrenme: TÜM GEÇERLİ DNA\n` +
+            `🥈 Championship gerçek boyut: x${Number(ayarlar.gercekEmirChampionshipBoyutCarpani || 0.25).toFixed(2)}\n` +
+            `🏆 Premier gerçek boyut: x${Number(ayarlar.gercekEmirPremierBoyutCarpani || 1).toFixed(2)}\n` +
+            `🛡️ Binance minimumu karşılanmazsa emir güvenle atlanır.\n` +
+            `🗃️ Eski muhasebe/başarı sayıları korunuyor; açılış ekranında gizlendi.\n\n` +
             `<i>Sistem kapanmış mumları izliyor, pusu kuruyor ve sniper tetik bekliyor...</i>`;
 
         await h.telegramMesajGonder(baslangicMesaji);
