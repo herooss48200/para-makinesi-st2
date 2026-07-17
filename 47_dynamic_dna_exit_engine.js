@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v4.3.6-RELATIVE-BEST-ELITE-EXIT';
+const VERSION = 'v4.3.7-MEMORY-SAFE-REPLAY';
 const DATA_DIR = path.join(__dirname, 'data');
 const REPLAY_JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const MODEL_JSON = path.join(DATA_DIR, 'dynamic-dna-exit-model.json');
@@ -22,7 +22,33 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,num(v)));}
 function ensureDir(){if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR,{recursive:true});}
 function readJson(file,fallback=null){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch(_){return fallback;}}
 function atomicWrite(file,value){ensureDir();const tmp=`${file}.tmp`;fs.writeFileSync(tmp,JSON.stringify(value,null,2));fs.renameSync(tmp,file);}
-function readLines(file){try{return fs.readFileSync(file,'utf8').split(/\r?\n/).filter(Boolean).map(x=>JSON.parse(x));}catch(_){return[];}}
+function forEachJsonlSync(file,onRow){
+  if(!fs.existsSync(file))return {rows:0,invalid:0};
+  const fd=fs.openSync(file,'r');
+  const buffer=Buffer.allocUnsafe(256*1024);
+  let carry='',rows=0,invalid=0;
+  try{
+    while(true){
+      const bytes=fs.readSync(fd,buffer,0,buffer.length,null);
+      if(!bytes)break;
+      const text=carry+buffer.toString('utf8',0,bytes);
+      const lines=text.split(/\r?\n/);carry=lines.pop()||'';
+      for(const line of lines){
+        if(!line.trim())continue;
+        try{onRow(JSON.parse(line));rows++;}catch(_){invalid++;}
+      }
+    }
+    if(carry.trim()){try{onRow(JSON.parse(carry));rows++;}catch(_){invalid++;}}
+  }finally{fs.closeSync(fd);}
+  return {rows,invalid};
+}
+function compactResult(r={}){
+  return {
+    algorithmId:r.algorithmId,algorithmLabel:r.algorithmLabel,algorithmClass:r.algorithmClass,
+    exitSource:r.exitSource,confidenceNote:r.confidenceNote,dataAvailable:r.dataAvailable,
+    netUsdt:num(r.netUsdt),deltaVsActualUsdt:num(r.deltaVsActualUsdt)
+  };
+}
 function normalizeDnaKey(key=''){
   const raw=String(key||'').trim().toUpperCase(); if(!raw)return'';
   const short=raw.match(/^([LS])_B([01Y]{4})_C([01Y]{4})(?:_(.+))?$/);
@@ -72,7 +98,9 @@ function groupRecords(rows=[]){
   return [...byTrade.values()].filter(x=>x.input&&Array.isArray(x.results)&&x.results.length);
 }
 function loadReplayRecords(){
-  const rows=readLines(REPLAY_JSONL); if(!rows.length)return[];
+  const rows=[];
+  forEachJsonlSync(REPLAY_JSONL,row=>rows.push(row));
+  if(!rows.length)return[];
   if(rows[0]?.input&&Array.isArray(rows[0]?.results))return rows;
   return groupRecords(rows);
 }
@@ -115,18 +143,46 @@ function profilesFromBuckets(buckets,min){
     d.allBest=allAlgorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,5))&&!x.weakening&&num(x.windows?.[5]?.netUsdt)>0&&num(x.windows?.[5]?.profitFactor)>1&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;d.allAlgorithms=allAlgorithms;return d;
   });
 }
-function build(records=null,options={}){
-  const data=records||loadReplayRecords(); const detailBuckets=new Map(); const baseBuckets=new Map(); const recentRegimes=[];
-  for(const rec of data){const input=rec.input||{};const rawDna=input.signatureShort||input.signatureKey||'SIGNATURE_YOK';const dna=normalizeDnaKey(rawDna)||rawDna;const base=baseDnaKey(rawDna);const regime=classifyInput(input);recentRegimes.push(regime);
-    for(const result of rec.results||[]){if(!result?.algorithmId)continue;
-      const add=(map,keyDna)=>{if(!keyDna)return;const key=`${keyDna}|||${regime.key}|||${result.algorithmId}`;const b=map.get(key)||{dna:keyDna,regimeKey:regime.key,regimeFamily:regime.regimeFamily,regime:regime.regime,volatility:regime.volatility,algorithmId:result.algorithmId,algorithmLabel:result.algorithmLabel||result.algorithmId,rows:[]};b.rows.push(result);map.set(key,b);};
-      add(detailBuckets,dna); add(baseBuckets,base);
-    }}
+function createBuildState(){return {detailBuckets:new Map(),baseBuckets:new Map(),recentRegimes:[],totalTrades:0};}
+function addRecordToState(state,rec){
+  if(!rec?.input||!Array.isArray(rec.results)||!rec.results.length)return;
+  const input=rec.input||{};const rawDna=input.signatureShort||input.signatureKey||'SIGNATURE_YOK';
+  const dna=normalizeDnaKey(rawDna)||rawDna;const base=baseDnaKey(rawDna);const regime=classifyInput(input);
+  state.totalTrades++;state.recentRegimes.push(regime);
+  const regimeWindow=Math.max(10,num(ayarlar.dynamicExitCurrentRegimeWindow,30));
+  if(state.recentRegimes.length>regimeWindow)state.recentRegimes.shift();
+  for(const source of rec.results){if(!source?.algorithmId)continue;const result=compactResult(source);
+    const add=(map,keyDna)=>{if(!keyDna)return;const key=`${keyDna}|||${regime.key}|||${result.algorithmId}`;const b=map.get(key)||{dna:keyDna,regimeKey:regime.key,regimeFamily:regime.regimeFamily,regime:regime.regime,volatility:regime.volatility,algorithmId:result.algorithmId,algorithmLabel:result.algorithmLabel||result.algorithmId,rows:[]};b.rows.push(result);map.set(key,b);};
+    add(state.detailBuckets,dna);add(state.baseBuckets,base);
+  }
+}
+function finalizeBuild(state,options={}){
   const min=Math.max(3,num(options.minSamples,ayarlar.dynamicExitMinOrnek||12));
-  const dna=profilesFromBuckets(detailBuckets,min); const dnaBase=profilesFromBuckets(baseBuckets,min);
-  const recent=recentRegimes.slice(-Math.max(10,num(ayarlar.dynamicExitCurrentRegimeWindow,30)));const counts={};for(const r of recent)counts[r.key]=(counts[r.key]||0)+1;const currentKey=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'MIXED|VOL_MEDIUM';const [regimePart,volPart]=currentKey.split('|');
-  const model={version:VERSION,generatedAt:new Date().toISOString(),mode:'DYNAMIC_PER_TRANSFER_AND_FROZEN_PER_POSITION',totalTrades:data.length,totalDna:dna.length,totalBaseDna:dnaBase.length,currentRegime:{key:currentKey,regime:regimePart,regimeFamily:regimePart.startsWith('TREND')?'TREND':regimePart,volatility:String(volPart||'VOL_MEDIUM').replace('VOL_',''),window:recent.length,distribution:counts},dna,dnaBase,policy:{singlePermanentExit:false,reevaluateAtLeagueTransfer:true,freezeOnlyOpenedPosition:true,selectionOrder:['DNA_EXACT_REGIME_VOLATILITY','DNA_REGIME_FAMILY','DNA_ALL_REGIMES','BASE_DNA_FALLBACK','ACTUAL_FALLBACK']}};
+  const dna=profilesFromBuckets(state.detailBuckets,min);const dnaBase=profilesFromBuckets(state.baseBuckets,min);
+  const counts={};for(const r of state.recentRegimes)counts[r.key]=(counts[r.key]||0)+1;
+  const currentKey=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'MIXED|VOL_MEDIUM';const [regimePart,volPart]=currentKey.split('|');
+  const model={version:VERSION,generatedAt:new Date().toISOString(),mode:'DYNAMIC_PER_TRANSFER_AND_FROZEN_PER_POSITION',totalTrades:state.totalTrades,totalDna:dna.length,totalBaseDna:dnaBase.length,currentRegime:{key:currentKey,regime:regimePart,regimeFamily:regimePart.startsWith('TREND')?'TREND':regimePart,volatility:String(volPart||'VOL_MEDIUM').replace('VOL_',''),window:state.recentRegimes.length,distribution:counts},dna,dnaBase,policy:{singlePermanentExit:false,reevaluateAtLeagueTransfer:true,freezeOnlyOpenedPosition:true,selectionOrder:['DNA_EXACT_REGIME_VOLATILITY','DNA_REGIME_FAMILY','DNA_ALL_REGIMES','BASE_DNA_FALLBACK','ACTUAL_FALLBACK'],memorySafeReplay:true}};
   if(options.persist!==false&&ayarlar.dynamicExitEngineAktif!==false)atomicWrite(MODEL_JSON,model);return model;
+}
+function build(records=null,options={}){
+  const state=createBuildState();
+  for(const rec of records||loadReplayRecords())addRecordToState(state,rec);
+  return finalizeBuild(state,options);
+}
+function buildFromReplayFile(options={}){
+  const state=createBuildState();
+  let pending=new Map();
+  forEachJsonlSync(REPLAY_JSONL,row=>{
+    if(row?.input&&Array.isArray(row.results)){addRecordToState(state,row);return;}
+    const id=String(row?.tradeId||'');if(!id)return;
+    const rec=pending.get(id)||{input:null,results:[]};
+    if(row.input)rec.input=row.input;if(row.result)rec.results.push(row.result);
+    pending.set(id,rec);
+    if(rec.input&&rec.results.length&&row.final===true){addRecordToState(state,rec);pending.delete(id);}
+  });
+  for(const rec of pending.values())addRecordToState(state,rec);
+  pending.clear();pending=null;
+  return finalizeBuild(state,options);
 }
 function readModel(){return readJson(MODEL_JSON,null);}
 function positionRegime(pos,model){
@@ -138,7 +194,7 @@ function candidateOk(x,min){return x&&x.algorithmId!=='ACTUAL'&&num(x.samples)>=
 function relativeCandidateOk(x,min){return Boolean(x&&x.algorithmId!=='ACTUAL'&&num(x.samples)>=min);}
 function bestRelative(list=[],min){return list.filter(x=>relativeCandidateOk(x,min)).sort(liveSort)[0]||null;}
 function selectForPosition(pos,model=null){
-  const m=model||readModel()||build(null,{persist:true});const rawDnaKey=signature(pos);const dnaKey=normalizeDnaKey(rawDnaKey);const baseKey=baseDnaKey(rawDnaKey);const d=(m?.dna||[]).find(x=>x.key===dnaKey)||(m?.dnaBase||[]).find(x=>x.key===baseKey);const usedBase=Boolean(d&&d.key===baseKey&&dnaKey!==baseKey);const regime=positionRegime(pos,m);const min=Math.max(3,num(ayarlar.dynamicExitMinOrnek,12));
+  const m=model||readModel()||buildFromReplayFile({persist:true});const rawDnaKey=signature(pos);const dnaKey=normalizeDnaKey(rawDnaKey);const baseKey=baseDnaKey(rawDnaKey);const d=(m?.dna||[]).find(x=>x.key===dnaKey)||(m?.dnaBase||[]).find(x=>x.key===baseKey);const usedBase=Boolean(d&&d.key===baseKey&&dnaKey!==baseKey);const regime=positionRegime(pos,m);const min=Math.max(3,num(ayarlar.dynamicExitMinOrnek,12));
   let selected=null,scope='NONE',matchedRegime=null,selectionQuality='NONE';
   if(d){
     const exact=d.regimes?.[regime.key];
@@ -157,7 +213,7 @@ function selectForPosition(pos,model=null){
   const plan={version:VERSION,mode:'SHADOW_ONLY',signature:dnaKey||rawDnaKey||'SIGNATURE_YOK',baseSignature:baseKey||null,currentRegime:regime,matchedRegime,selectionScope:scope,selectionQuality,selectedAlgorithmId:ready?selected.algorithmId:'ACTUAL',selectedAlgorithmLabel:ready?selected.algorithmLabel:'Mevcut Kademe Sistemi',ready,samples:ready?selected.samples:0,beatRate:ready?selected.beatRate:0,profitFactor:ready?selected.profitFactor:0,netUsdt:ready?selected.netUsdt:0,recent5:ready?selected.windows?.[5]:null,recent20:ready?selected.windows?.[20]:null,strengthening:ready?selected.strengthening:false,weakening:ready?selected.weakening:false,reason:ready?(selectionQuality==='RELATIVE_BEST'?`${regime.key} için pozitif exit yok; göreceli en iyi atandı: ${selected.algorithmLabel}`:`${regime.key} için ${scope}: ${selected.algorithmLabel}`):`${dnaKey?'Bu DNA için en az 5 örnekli dinamik exit henüz yok; mevcut kademe kullanılır.':'DNA imzası yok.'}`,createdAt:new Date().toISOString(),executionPolicy:'FREEZE_PER_OPEN_POSITION_ROTATE_FOR_NEW_POSITIONS_EVERY_5_CLOSES'};
   ensureDir();fs.appendFileSync(HISTORY_JSONL,JSON.stringify({...plan,symbol:pos?.sym||'',side:pos?.yon||''})+'\n');return plan;
 }
-function updateFromReplay(){return build(null,{persist:true});}
+function updateFromReplay(){return buildFromReplayFile({persist:true});}
 function telegramSummary(model=null,limit=5){const m=model||readModel();if(!m)return'';let t=`\n\n🧬 <b>DİNAMİK DNA EXIT MOTORU</b>\n🌦️ Güncel rejim: <b>${m.currentRegime.key}</b> | Pencere ${m.currentRegime.window}\n🔁 Kural: Aynı DNA, farklı rejimde farklı exit seçebilir.\n`;const leaders=[];for(const d of m.dna||[]){const r=d.regimes?.[m.currentRegime.key];if(r?.best)leaders.push({dna:d.key,b:r.best});}leaders.sort((a,b)=>b.b.score-a.b.score);t+=leaders.slice(0,limit).map((x,i)=>`${i+1}. ${x.dna} → ${x.b.algorithmLabel} | N${x.b.samples} | PF ${num(x.b.profitFactor).toFixed(2)} | Beat %${num(x.b.beatRate).toFixed(1)}`).join('\n')||'Bu rejimde yeterli kanıtlı exit henüz yok.';t+='\n🛡️ Shadow mod: gerçek çıkış sistemi değişmedi.';return t;}
 
-module.exports={VERSION,MODEL_JSON,normalizeDnaKey,baseDnaKey,classifyInput,build,readModel,selectForPosition,updateFromReplay,telegramSummary};
+module.exports={VERSION,MODEL_JSON,normalizeDnaKey,baseDnaKey,classifyInput,build,buildFromReplayFile,readModel,selectForPosition,updateFromReplay,telegramSummary};
