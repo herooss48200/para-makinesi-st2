@@ -5,7 +5,7 @@ const ayarlar = require('./ayarlar.js');
 const league = require('./46_dna_league_engine.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.3.9-MEMORY-SAFE-PREMIER-OBSERVATION';
+const VERSION = 'v4.4.1-LEAGUE-RECOVERY-REPAIR';
 const EXPERIMENT_ID = String(ayarlar.premierTestExperimentId || 'DYNAMIC-LEAGUE-EXIT-2026-07-17');
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'adaptive-league-observation.json');

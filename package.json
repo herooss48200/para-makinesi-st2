@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.4.0",
+  "version": "4.4.1",
   "description": "AGROS v4.4.0 Adaptive League Recovery with dynamic worst-10 shadow learning and protected virtual accounting.",
   "main": "bot.js",
   "scripts": {

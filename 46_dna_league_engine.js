@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.4.0-ADAPTIVE-LEAGUE-RECOVERY';
+const VERSION = 'v4.4.1-LEAGUE-RECOVERY-REPAIR';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -161,7 +161,6 @@ function exitEvidence(key, exits) {
 
 function scorePlayer(row, confidence, evolution, regime, exit) {
   const recent20 = evolution?.windows?.[20] || {};
-    const recent5 = dnaEvolution.windowMetrics(tradeGroups.get(normalizeSignatureKey(String(row.key))) || [], 5);
   const direction = directionFromKey(row.key);
   const regimeAlignment = regime.activeDirection === 'NEUTRAL' ? 0 : direction === regime.activeDirection ? 8 : -8;
   const momentum = clamp(num(evolution?.momentum?.score), -100, 100) * 0.12;

@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ADAPTIVE-TRADING-LEAGUE',
-    kod: 'AWS Candidate v4.3.9-MEMORY-SAFE-PREMIER-OBSERVATION',
-    botSurumu: '4.3.9-MEMORY-SAFE-PREMIER-OBSERVATION',
+    kod: 'AWS Candidate v4.4.1-LEAGUE-RECOVERY-REPAIR',
+    botSurumu: '4.4.1-LEAGUE-RECOVERY-REPAIR',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '17.07.2026',
     ortam: {
