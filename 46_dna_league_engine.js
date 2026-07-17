@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.2.5-LEAGUE-DIAGNOSTIC';
+const VERSION = 'v4.3.3-DYNAMIC-EXIT-ASSIGNMENT';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -132,11 +132,11 @@ function exitIndex() {
   // yeniden kurma. Dinamik model kapanış aralığında 22_exit_replay_engine tarafından
   // kontrollü güncellenir. Model henüz yoksa güvenli ACTUAL fallback kullanılır.
   const model = dynamicExit.readModel() || emptyExitModel();
-  return { model, map: new Map((model?.dna || []).map(row => [String(row.key || ''), row])) };
+  return { model, map: new Map((model?.dnaBase || model?.dna || []).map(row => [normalizeSignatureKey(String(row.key || '')), row])) };
 }
 
 function exitEvidence(key, exits) {
-  const row = exits.map.get(key);
+  const row = exits.map.get(normalizeSignatureKey(key)) || exits.map.get(baseSignatureKey(key));
   const regimeKey = exits.model?.currentRegime?.key;
   const regime = row?.regimes?.[regimeKey];
   const best = regime?.best || row?.allBest;

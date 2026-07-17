@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v3.13.0-DYNAMIC-DNA-EXIT-SHADOW';
+const VERSION = 'v4.3.3-DYNAMIC-EXIT-ASSIGNMENT';
 const DATA_DIR = path.join(__dirname, 'data');
 const REPLAY_JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const MODEL_JSON = path.join(DATA_DIR, 'dynamic-dna-exit-model.json');
@@ -23,7 +23,22 @@ function ensureDir(){if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR,{recursiv
 function readJson(file,fallback=null){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch(_){return fallback;}}
 function atomicWrite(file,value){ensureDir();const tmp=`${file}.tmp`;fs.writeFileSync(tmp,JSON.stringify(value,null,2));fs.renameSync(tmp,file);}
 function readLines(file){try{return fs.readFileSync(file,'utf8').split(/\r?\n/).filter(Boolean).map(x=>JSON.parse(x));}catch(_){return[];}}
-function signature(pos){const s=pos?.blackboxAcilis?.strategySignature||{};return s.shortKey||pos?.execution?.signatureShort||'';}
+function normalizeDnaKey(key=''){
+  const raw=String(key||'').trim().toUpperCase(); if(!raw)return'';
+  const short=raw.match(/^([LS])_B([01Y]{4})_C([01Y]{4})(?:_(.+))?$/);
+  if(short)return `YON=${short[1]==='S'?'SHORT':'LONG'}|BTC=${short[2]}|COIN=${short[3]}${short[4]?`|DETAIL=${short[4]}`:''}`;
+  const yon=raw.match(/(?:^|\|)YON=(LONG|SHORT)(?:\||$)/)?.[1];
+  const btc=raw.match(/(?:^|\|)BTC=([01Y]{4})(?:\||$)/)?.[1];
+  const coin=raw.match(/(?:^|\|)COIN=([01Y]{4})(?:\||$)/)?.[1];
+  if(yon&&btc&&coin)return `YON=${yon}|BTC=${btc}|COIN=${coin}`;
+  return raw.replace(/\s+/g,'');
+}
+function baseDnaKey(key=''){
+  const normalized=normalizeDnaKey(key); const yon=normalized.match(/^YON=(LONG|SHORT)\|/)?.[1];
+  const btc=normalized.match(/BTC=([01Y]{4})/)?.[1]; const coin=normalized.match(/COIN=([01Y]{4})/)?.[1];
+  return yon&&btc&&coin?`YON=${yon}|BTC=${btc}|COIN=${coin}`:'';
+}
+function signature(pos){const s=pos?.blackboxAcilis?.strategySignature||{};return s.shortKey||pos?.execution?.signatureShort||s.key||pos?.execution?.signatureKey||'';}
 
 function pathStats(input={}){
   const rows=(input.pathRows||[]).filter(x=>x&&Number.isFinite(Number(x.pnlPct))).sort((a,b)=>num(a.ts)-num(b.ts));
@@ -82,20 +97,27 @@ function algoProfile(rows=[]){
   const stability=(w10.samples>=5&&w20.samples>=10&&w10.avgNetUsdt>=-0.01&&w20.avgNetUsdt>=-0.01)?8:0;
   return {...all,windows:{10:w10,20:w20,50:w50},score:round(clamp(50+base+recentScore+stability,0,100),2),strengthening:w10.samples>=5&&w20.samples>=10&&w10.avgNetUsdt>w20.avgNetUsdt&&w10.beatRate>=w20.beatRate-5};
 }
-function build(records=null,options={}){
-  const data=records||loadReplayRecords(); const buckets=new Map(); const recentRegimes=[];
-  for(const rec of data){const input=rec.input||{};const dna=input.signatureShort||input.signatureKey||'SIGNATURE_YOK';const regime=classifyInput(input);recentRegimes.push(regime);
-    for(const result of rec.results||[]){if(!result?.algorithmId)continue;const key=`${dna}|||${regime.key}|||${result.algorithmId}`;const b=buckets.get(key)||{dna,regimeKey:regime.key,regimeFamily:regime.regimeFamily,regime:regime.regime,volatility:regime.volatility,algorithmId:result.algorithmId,algorithmLabel:result.algorithmLabel||result.algorithmId,rows:[]};b.rows.push(result);buckets.set(key,b);}}
+function profilesFromBuckets(buckets,min){
   const profiles=[...buckets.values()].map(b=>({...b,...algoProfile(b.rows)}));
   const dnaMap=new Map();
   for(const p of profiles){const d=dnaMap.get(p.dna)||{key:p.dna,regimes:{},allAlgorithms:{}};d.regimes[p.regimeKey]=d.regimes[p.regimeKey]||{key:p.regimeKey,family:p.regimeFamily,regime:p.regime,volatility:p.volatility,algorithms:[]};d.regimes[p.regimeKey].algorithms.push(p);d.allAlgorithms[p.algorithmId]=d.allAlgorithms[p.algorithmId]||{algorithmId:p.algorithmId,algorithmLabel:p.algorithmLabel,rows:[]};d.allAlgorithms[p.algorithmId].rows.push(...p.rows);dnaMap.set(p.dna,d);}
-  const min=Math.max(3,num(options.minSamples,ayarlar.dynamicExitMinOrnek||12));
-  const dna=[...dnaMap.values()].map(d=>{
+  return [...dnaMap.values()].map(d=>{
     for(const r of Object.values(d.regimes)){r.algorithms=r.algorithms.map(x=>{const {rows,...rest}=x;return rest;}).sort((a,b)=>b.score-a.score||b.netUsdt-a.netUsdt);r.best=r.algorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=min&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;}
     const allAlgorithms=Object.values(d.allAlgorithms).map(a=>({algorithmId:a.algorithmId,algorithmLabel:a.algorithmLabel,...algoProfile(a.rows)})).sort((a,b)=>b.score-a.score||b.netUsdt-a.netUsdt);
-    d.allBest=allAlgorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,20))&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;d.allAlgorithms=allAlgorithms;return d;});
+    d.allBest=allAlgorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,20))&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;d.allAlgorithms=allAlgorithms;return d;
+  });
+}
+function build(records=null,options={}){
+  const data=records||loadReplayRecords(); const detailBuckets=new Map(); const baseBuckets=new Map(); const recentRegimes=[];
+  for(const rec of data){const input=rec.input||{};const rawDna=input.signatureShort||input.signatureKey||'SIGNATURE_YOK';const dna=normalizeDnaKey(rawDna)||rawDna;const base=baseDnaKey(rawDna);const regime=classifyInput(input);recentRegimes.push(regime);
+    for(const result of rec.results||[]){if(!result?.algorithmId)continue;
+      const add=(map,keyDna)=>{if(!keyDna)return;const key=`${keyDna}|||${regime.key}|||${result.algorithmId}`;const b=map.get(key)||{dna:keyDna,regimeKey:regime.key,regimeFamily:regime.regimeFamily,regime:regime.regime,volatility:regime.volatility,algorithmId:result.algorithmId,algorithmLabel:result.algorithmLabel||result.algorithmId,rows:[]};b.rows.push(result);map.set(key,b);};
+      add(detailBuckets,dna); add(baseBuckets,base);
+    }}
+  const min=Math.max(3,num(options.minSamples,ayarlar.dynamicExitMinOrnek||12));
+  const dna=profilesFromBuckets(detailBuckets,min); const dnaBase=profilesFromBuckets(baseBuckets,min);
   const recent=recentRegimes.slice(-Math.max(10,num(ayarlar.dynamicExitCurrentRegimeWindow,30)));const counts={};for(const r of recent)counts[r.key]=(counts[r.key]||0)+1;const currentKey=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'MIXED|VOL_MEDIUM';const [regimePart,volPart]=currentKey.split('|');
-  const model={version:VERSION,generatedAt:new Date().toISOString(),mode:'SHADOW_ONLY_DYNAMIC_REGIME',totalTrades:data.length,totalDna:dna.length,currentRegime:{key:currentKey,regime:regimePart,regimeFamily:regimePart.startsWith('TREND')?'TREND':regimePart,volatility:String(volPart||'VOL_MEDIUM').replace('VOL_',''),window:recent.length,distribution:counts},dna,policy:{singlePermanentExit:false,tradeEngineEffect:false,selectionOrder:['DNA_EXACT_REGIME_VOLATILITY','DNA_REGIME_FAMILY','DNA_ALL_REGIMES','ACTUAL_FALLBACK']}};
+  const model={version:VERSION,generatedAt:new Date().toISOString(),mode:'DYNAMIC_PER_TRANSFER_AND_FROZEN_PER_POSITION',totalTrades:data.length,totalDna:dna.length,totalBaseDna:dnaBase.length,currentRegime:{key:currentKey,regime:regimePart,regimeFamily:regimePart.startsWith('TREND')?'TREND':regimePart,volatility:String(volPart||'VOL_MEDIUM').replace('VOL_',''),window:recent.length,distribution:counts},dna,dnaBase,policy:{singlePermanentExit:false,reevaluateAtLeagueTransfer:true,freezeOnlyOpenedPosition:true,selectionOrder:['DNA_EXACT_REGIME_VOLATILITY','DNA_REGIME_FAMILY','DNA_ALL_REGIMES','BASE_DNA_FALLBACK','ACTUAL_FALLBACK']}};
   if(options.persist!==false&&ayarlar.dynamicExitEngineAktif!==false)atomicWrite(MODEL_JSON,model);return model;
 }
 function readModel(){return readJson(MODEL_JSON,null);}
@@ -106,16 +128,16 @@ function positionRegime(pos,model){
 }
 function candidateOk(x,min){return x&&x.algorithmId!=='ACTUAL'&&num(x.samples)>=min&&num(x.netUsdt)>0&&num(x.profitFactor)>1&&num(x.beatRate)>=num(ayarlar.dynamicExitMinBeatRate,55)&&num(x.windows?.[20]?.avgNetUsdt)>=num(ayarlar.dynamicExitMinRecentAvg,-0.01);}
 function selectForPosition(pos,model=null){
-  const m=model||readModel()||build(null,{persist:true});const dnaKey=signature(pos);const d=(m?.dna||[]).find(x=>x.key===dnaKey);const regime=positionRegime(pos,m);const min=Math.max(3,num(ayarlar.dynamicExitMinOrnek,12));
+  const m=model||readModel()||build(null,{persist:true});const rawDnaKey=signature(pos);const dnaKey=normalizeDnaKey(rawDnaKey);const baseKey=baseDnaKey(rawDnaKey);const d=(m?.dna||[]).find(x=>x.key===dnaKey)||(m?.dnaBase||[]).find(x=>x.key===baseKey);const usedBase=Boolean(d&&d.key===baseKey&&dnaKey!==baseKey);const regime=positionRegime(pos,m);const min=Math.max(3,num(ayarlar.dynamicExitMinOrnek,12));
   let selected=null,scope='NONE',matchedRegime=null;
-  if(d){const exact=d.regimes?.[regime.key];selected=exact?.best;if(candidateOk(selected,min)){scope='EXACT_REGIME_VOLATILITY';matchedRegime=exact.key;}else selected=null;
-    if(!selected){const family=Object.values(d.regimes||{}).filter(r=>r.family===regime.regimeFamily).flatMap(r=>r.algorithms||[]).filter(x=>candidateOk(x,min)).sort((a,b)=>b.score-a.score||b.netUsdt-a.netUsdt)[0];if(family){selected=family;scope='REGIME_FAMILY';matchedRegime=family.regimeKey;}}
-    if(!selected&&candidateOk(d.allBest,Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,20)))){selected=d.allBest;scope='DNA_ALL_REGIMES';matchedRegime='ALL';}}
+  if(d){const exact=d.regimes?.[regime.key];selected=exact?.best;if(candidateOk(selected,min)){scope=usedBase?'BASE_DNA_EXACT_REGIME_VOLATILITY':'EXACT_REGIME_VOLATILITY';matchedRegime=exact.key;}else selected=null;
+    if(!selected){const family=Object.values(d.regimes||{}).filter(r=>r.family===regime.regimeFamily).flatMap(r=>r.algorithms||[]).filter(x=>candidateOk(x,min)).sort((a,b)=>b.score-a.score||b.netUsdt-a.netUsdt)[0];if(family){selected=family;scope=usedBase?'BASE_DNA_REGIME_FAMILY':'REGIME_FAMILY';matchedRegime=family.regimeKey;}}
+    if(!selected&&candidateOk(d.allBest,Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,20)))){selected=d.allBest;scope=usedBase?'BASE_DNA_ALL_REGIMES':'DNA_ALL_REGIMES';matchedRegime='ALL';}}
   const ready=Boolean(selected);
-  const plan={version:VERSION,mode:'SHADOW_ONLY',signature:dnaKey||'SIGNATURE_YOK',currentRegime:regime,matchedRegime,selectionScope:scope,selectedAlgorithmId:ready?selected.algorithmId:'ACTUAL',selectedAlgorithmLabel:ready?selected.algorithmLabel:'Mevcut Kademe Sistemi',ready,samples:ready?selected.samples:0,beatRate:ready?selected.beatRate:0,profitFactor:ready?selected.profitFactor:0,netUsdt:ready?selected.netUsdt:0,recent20:ready?selected.windows?.[20]:null,strengthening:ready?selected.strengthening:false,reason:ready?`${regime.key} için ${scope}: ${selected.algorithmLabel}`:`${dnaKey?'Bu DNA/rejim için güvenilir dinamik exit yok.':'DNA imzası yok.'}`,createdAt:new Date().toISOString(),executionPolicy:'NO_TRADE_ENGINE_EFFECT'};
+  const plan={version:VERSION,mode:'SHADOW_ONLY',signature:dnaKey||rawDnaKey||'SIGNATURE_YOK',baseSignature:baseKey||null,currentRegime:regime,matchedRegime,selectionScope:scope,selectedAlgorithmId:ready?selected.algorithmId:'ACTUAL',selectedAlgorithmLabel:ready?selected.algorithmLabel:'Mevcut Kademe Sistemi',ready,samples:ready?selected.samples:0,beatRate:ready?selected.beatRate:0,profitFactor:ready?selected.profitFactor:0,netUsdt:ready?selected.netUsdt:0,recent20:ready?selected.windows?.[20]:null,strengthening:ready?selected.strengthening:false,reason:ready?`${regime.key} için ${scope}: ${selected.algorithmLabel}`:`${dnaKey?'Bu DNA/rejim için güvenilir dinamik exit yok.':'DNA imzası yok.'}`,createdAt:new Date().toISOString(),executionPolicy:'NO_TRADE_ENGINE_EFFECT'};
   ensureDir();fs.appendFileSync(HISTORY_JSONL,JSON.stringify({...plan,symbol:pos?.sym||'',side:pos?.yon||''})+'\n');return plan;
 }
 function updateFromReplay(){return build(null,{persist:true});}
 function telegramSummary(model=null,limit=5){const m=model||readModel();if(!m)return'';let t=`\n\n🧬 <b>DİNAMİK DNA EXIT MOTORU</b>\n🌦️ Güncel rejim: <b>${m.currentRegime.key}</b> | Pencere ${m.currentRegime.window}\n🔁 Kural: Aynı DNA, farklı rejimde farklı exit seçebilir.\n`;const leaders=[];for(const d of m.dna||[]){const r=d.regimes?.[m.currentRegime.key];if(r?.best)leaders.push({dna:d.key,b:r.best});}leaders.sort((a,b)=>b.b.score-a.b.score);t+=leaders.slice(0,limit).map((x,i)=>`${i+1}. ${x.dna} → ${x.b.algorithmLabel} | N${x.b.samples} | PF ${num(x.b.profitFactor).toFixed(2)} | Beat %${num(x.b.beatRate).toFixed(1)}`).join('\n')||'Bu rejimde yeterli kanıtlı exit henüz yok.';t+='\n🛡️ Shadow mod: gerçek çıkış sistemi değişmedi.';return t;}
 
-module.exports={VERSION,MODEL_JSON,classifyInput,build,readModel,selectForPosition,updateFromReplay,telegramSummary};
+module.exports={VERSION,MODEL_JSON,normalizeDnaKey,baseDnaKey,classifyInput,build,readModel,selectForPosition,updateFromReplay,telegramSummary};

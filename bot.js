@@ -30,10 +30,15 @@ async function baslat() {
             const premierObservation = require('./48_premier_observation_engine.js');
             const adaptiveLeague = require('./49_adaptive_trading_league.js');
             const leagueState = dnaLeague.findPlayer('__HEALTHCHECK__') === null;
-            const exitModel = dynamicExit.readModel();
+            let exitModel = dynamicExit.readModel();
+            if (exitModel && (!Array.isArray(exitModel.dnaBase) || exitModel.version !== dynamicExit.VERSION)) {
+                console.log(`🧬 [EXIT MODEL MIGRATION] Eski anahtar modeli algılandı (${exitModel.version || 'BILINMIYOR'}). DNA aile eşleştirmesi bir kez yenileniyor...`);
+                exitModel = dynamicExit.updateFromReplay();
+                console.log(`✅ [EXIT MODEL MIGRATION] ${Number(exitModel?.totalBaseDna || 0)} temel DNA exit profili hazır.`);
+            }
             const observation = premierObservation.read();
             console.log(`🧠 [ADAPTIVE LEAGUE READY] ${adaptiveLeague.VERSION} | Lig kayıt erişimi ${leagueState ? 'OK' : 'OK'} | Exit model ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'} | Observation kapanan ${Number(observation?.closed || 0)}`);
-            console.log('🛡️ [RAM-SAFE] Başlangıçta ağır replay yeniden hesaplaması kapalı; kontrollü kapanış aralığında güncellenecek.');
+            console.log('🛡️ [RAM-SAFE] Ağır replay yalnız model eskiyse bir kez, sonrasında kontrollü 25 kapanış aralığında güncellenir.');
             console.log('🧬 [DUAL-LAYER RUNTIME ACTIVE] SANAL=ALL_VALID_DNA | GERÇEK=CHAMPIONSHIP_x0.25+PREMIER_x1.00 | PROFIT-FIRST_ONLY_REAL');
         } catch (err) {
             console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
