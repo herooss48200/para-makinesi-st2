@@ -225,7 +225,7 @@ const m = {
         }
         const karar = hazirKimlik?.realOrderReadiness || realOrderBridge.evaluate(yeniPozisyon, { realMode: false });
         if (ayarlar.premierSanalEmirFiltresiAktif === true && !karar.allowed) {
-            premierObservation.blocked(karar.key, karar.reasons.join('|'));
+            premierObservation.blocked(karar.key, karar.reasons.join('|'), { symbol, side: yon });
             console.log(`🚫 [PROFIT-FIRST ORTAK KAPI] ${symbol} ${yon} açılmadı | ${karar.key} | ${karar.reasons.join(', ')}`);
             return false;
         }
@@ -267,6 +267,9 @@ const m = {
             `🧪 <b>[SANAL POZİSYON AÇILDI]</b>\n` +
             (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>${yeniPozisyon.premierObservation.leagueAtOpen} LİG İŞLEMİ</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
             `🔀 ${symbol} (${yon})\n` +
+            `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
+            `🏆 Lig: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} | Eşleşme: ${yeniPozisyon.realOrderReadiness?.leagueMatchType || 'NONE'}\n` +
+            `🎯 Atanan Exit: ${yeniPozisyon.realOrderReadiness?.exit?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.realOrderReadiness?.exit?.ready ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
             `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
             `📦 Miktar: ${guvenliMiktar}\n` +
             `🛡️ Sanal SL: ${sl.toFixed(pPrecision)}\n` +
@@ -339,7 +342,7 @@ const m = {
             }
 
             if (!ortakKarar.allowed) {
-                premierObservation.blocked(ortakKarar.key, ortakKarar.reasons.join('|'));
+                premierObservation.blocked(ortakKarar.key, ortakKarar.reasons.join('|'), { symbol, side: yon });
                 console.log(`🚫 [GERÇEK EMİR FAIL-CLOSED] ${symbol} ${yon} | ${ortakKarar.reasons.join(', ')}`);
                 await h.telegramMesajGonder(realOrderBridge.telegramText(ortakKarar));
                 return false;

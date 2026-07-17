@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.2.3",
+  "version": "4.2.4",
   "description": "AGROS Telegram-visible dynamic Premier + Championship test ledger with active Dynamic Exit; real orders remain locked and Premier-only.",
   "main": "bot.js",
   "scripts": {

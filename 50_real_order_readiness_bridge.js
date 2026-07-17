@@ -13,7 +13,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.2.3-DNA-EXIT-PAIR-READINESS';
+const VERSION = 'v4.2.4-LEAGUE-ENTRY-RELIABILITY';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
@@ -22,8 +22,9 @@ function ensureDir() { if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { re
 function append(row) { try { ensureDir(); fs.appendFileSync(AUDIT_JSONL, JSON.stringify(row) + '\n'); } catch (_) {} }
 function signature(pos) {
   const sig = pos?.blackboxAcilis?.strategySignature || {};
-  return sig.key || (sig.btcBits && sig.coinBits && pos?.yon
+  const raw = sig.key || (sig.btcBits && sig.coinBits && pos?.yon
     ? `YON=${String(pos.yon).toUpperCase()}|BTC=${sig.btcBits}|COIN=${sig.coinBits}` : '');
+  return dnaLeague.normalizeSignatureKey(raw);
 }
 function modelAgeMinutes() {
   try {
@@ -83,6 +84,7 @@ function evaluate(pos, { realMode = false } = {}) {
     allowed: reasons.length === 0,
     reasons,
     league: currentLeague,
+    leagueMatchType: profile?.matchType || (profile ? 'EXACT' : 'NONE'),
     virtualPool: !realMode && virtualLeagueAllowed ? currentLeague : null,
     leagueModelAgeMinutes: Number.isFinite(age) ? Number(age.toFixed(2)) : null,
     metrics: {
@@ -102,6 +104,7 @@ function evaluate(pos, { realMode = false } = {}) {
     authorization: realMode ? { enabled: auth.enabled, expectedConfigured: auth.expectedConfigured, envConfigured: auth.envConfigured, valid: auth.valid } : undefined
   };
   pos.realOrderReadiness = decision;
+  console.log(`${decision.allowed ? '✅' : '🚫'} [LİG KARAR TEŞHİSİ] ${decision.symbol} ${decision.side} | ${decision.key} | Lig ${decision.league} | Eşleşme ${decision.leagueMatchType} | Exit ${decision.exit.label} | ${decision.allowed ? 'İZİN' : decision.reasons.join(', ')}`);
   append(decision);
   return decision;
 }

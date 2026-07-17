@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.2.3-fix.1-SINGLE-DNA-SINGLE-LEAGUE';
+const VERSION = 'v4.2.4-LEAGUE-ENTRY-RELIABILITY';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -57,6 +57,35 @@ function atomicWriteJson(file, value) {
 
 function directionFromKey(key = '') {
   return String(key).match(/(?:^|\|)YON=(LONG|SHORT)(?:\||$)/i)?.[1]?.toUpperCase() || 'UNKNOWN';
+}
+
+
+function normalizeSignatureKey(key = '') {
+  const raw = String(key || '').trim().toUpperCase();
+  if (!raw) return '';
+  const parts = Object.create(null);
+  for (const token of raw.split('|')) {
+    const i = token.indexOf('=');
+    if (i <= 0) continue;
+    parts[token.slice(0, i).trim()] = token.slice(i + 1).trim();
+  }
+  const yon = parts.YON || directionFromKey(raw);
+  const btc = parts.BTC || raw.match(/BTC=([01]{4})/)?.[1] || '';
+  const coin = parts.COIN || raw.match(/COIN=([01]{4})/)?.[1] || '';
+  if (!yon || yon === 'UNKNOWN' || !btc || !coin) return raw.replace(/\s+/g, '');
+  const ordered = [`YON=${yon}`, `BTC=${btc}`, `COIN=${coin}`];
+  if (parts.BTC_TF !== undefined) ordered.push(`BTC_TF=${parts.BTC_TF || '-'}`);
+  if (parts.COIN_TF !== undefined) ordered.push(`COIN_TF=${parts.COIN_TF || '-'}`);
+  if (parts.BB !== undefined) ordered.push(`BB=${parts.BB || 'YOK'}`);
+  return ordered.join('|');
+}
+
+function baseSignatureKey(key = '') {
+  const normalized = normalizeSignatureKey(key);
+  const yon = directionFromKey(normalized);
+  const btc = normalized.match(/BTC=([01]{4})/)?.[1] || '';
+  const coin = normalized.match(/COIN=([01]{4})/)?.[1] || '';
+  return yon !== 'UNKNOWN' && btc && coin ? `YON=${yon}|BTC=${btc}|COIN=${coin}` : '';
 }
 
 function shortKey(key = '') {
@@ -173,7 +202,7 @@ function buildPlayers(models = {}, options = {}) {
       total: num(row.total), expectancy: round(row.expectancy, 6), profitFactor: round(row.profitFactor, 3), net: round(row.net, 6), beatRate: 0
     };
     return {
-      key: String(row.key),
+      key: normalizeSignatureKey(row.key),
       label: row.label || shortKey(row.key),
       direction: directionFromKey(row.key),
       total: num(row.total),
@@ -398,16 +427,25 @@ function build(models = {}, options = {}) {
 function findPlayer(key, model = null) {
   const current = model || readJson(LEAGUE_FILE, null);
   if (!current?.leagues || !key) return null;
+  const wanted = normalizeSignatureKey(key);
   for (const [league, rows] of Object.entries(current.leagues)) {
-    const player = (rows || []).find(x => x.key === key);
-    if (player) return { ...player, league: league.toUpperCase() };
+    const player = (rows || []).find(x => normalizeSignatureKey(x.key) === wanted);
+    if (player) return { ...player, key: normalizeSignatureKey(player.key), league: league.toUpperCase(), matchType: 'EXACT_NORMALIZED' };
   }
-  return null;
+  // Güvenli geriye uyumluluk: eski model yalnızca temel YON/BTC/COIN anahtarı taşıyorsa
+  // ve tek bir aday varsa eşleştir. Birden fazla BB/TF varyantında fail-closed kalır.
+  const base = baseSignatureKey(wanted);
+  if (!base) return null;
+  const matches = [];
+  for (const [league, rows] of Object.entries(current.leagues)) {
+    for (const player of rows || []) if (baseSignatureKey(player.key) === base) matches.push({ ...player, league: league.toUpperCase() });
+  }
+  return matches.length === 1 ? { ...matches[0], key: normalizeSignatureKey(matches[0].key), matchType: 'UNIQUE_BASE_FALLBACK' } : null;
 }
 
 function signature(pos) {
   const sig = pos?.blackboxAcilis?.strategySignature || {};
-  return sig.key || (sig.btcBits && sig.coinBits && pos?.yon ? `YON=${String(pos.yon).toUpperCase()}|BTC=${sig.btcBits}|COIN=${sig.coinBits}` : '');
+  return normalizeSignatureKey(sig.key || (sig.btcBits && sig.coinBits && pos?.yon ? `YON=${String(pos.yon).toUpperCase()}|BTC=${sig.btcBits}|COIN=${sig.coinBits}` : ''));
 }
 
 function attachToPosition(pos) {
@@ -467,7 +505,7 @@ function telegramText(model, options = {}) {
   return text;
 }
 
-module.exports = {
+module.exports = { normalizeSignatureKey, baseSignatureKey,
   VERSION,
   LEAGUE_FILE,
   TRANSFER_FILE,
