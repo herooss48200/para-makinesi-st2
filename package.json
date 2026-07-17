@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.3.3",
-  "description": "AGROS dynamic exit assignment: exits are re-evaluated every league transfer window, matched across DNA key formats, and frozen only for opened positions.",
+  "version": "4.3.6",
+  "description": "AGROS relative-best Elite Exit: every 5 closes prefer confirmed positive exits; otherwise assign the best available 5-sample exit per DNA, and freeze it per opened position.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

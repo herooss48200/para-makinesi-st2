@@ -467,13 +467,13 @@ const ayarlar = {
 
     // v3.13.0 - Dinamik DNA Exit (shadow)
     dynamicExitEngineAktif: true,
-    dynamicExitMinOrnek: 12,
-    dynamicExitFallbackMinOrnek: 20,
+    dynamicExitMinOrnek: 5,
+    dynamicExitFallbackMinOrnek: 5,
     dynamicExitMinBeatRate: 55,
-    dynamicExitMinRecentAvg: -0.01,
+    dynamicExitMinRecentAvg: 0,
     dynamicExitCurrentRegimeWindow: 30,
     // v4.0.1 RAM-SAFE: büyük replay geçmişini her kapanışta yeniden kurma.
-    dynamicExitModelGuncellemeKapanisAraligi: 25,
+    dynamicExitModelGuncellemeKapanisAraligi: 5,
     dynamicExitHighVolStepPct: 0.12,
     dynamicExitLowVolStepPct: 0.045,
     dynamicExitHighVolRangePct: 1.50,
@@ -493,8 +493,8 @@ const ayarlar = {
     // v3.14: geriye uyumluluk için korunur; Premier seçiminde artık kapasite uygulanmaz.
     dnaLeaguePremierKapasite: 0,
     dnaLeagueChampionshipKapasite: 50,
-    dnaLeaguePremierMinOrnek: 10,
-    dnaLeagueChampionshipMinOrnek: 10,
+    dnaLeaguePremierMinOrnek: 5,
+    dnaLeagueChampionshipMinOrnek: 5,
     dnaLeagueHistoricalMinOrnek: 20,
     dnaLeaguePremierMinGuven: 50,
     dnaLeaguePremierMinSon20Exp: 0,
@@ -530,7 +530,7 @@ const ayarlar = {
     dnaLeagueTransferKapanisAraligi: 25,
     dnaLeagueRejimPenceresi: 60,
     dnaLeagueRejimEdgeEsik: 0.025,
-    dnaLeagueExitMinOrnek: 20,
+    dnaLeagueExitMinOrnek: 5,
     dnaLeagueExitMinBeatRate: 55,
 
     // v4.0 Adaptive Trading League - nihai üç günlük gözlem katmanı.

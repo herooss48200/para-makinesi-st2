@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v4.3.3-DYNAMIC-EXIT-ASSIGNMENT';
+const VERSION = 'v4.3.6-RELATIVE-BEST-ELITE-EXIT';
 const DATA_DIR = path.join(__dirname, 'data');
 const REPLAY_JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const MODEL_JSON = path.join(DATA_DIR, 'dynamic-dna-exit-model.json');
@@ -90,21 +90,29 @@ function metrics(results=[]){
   return {samples:valid.length,rawSamples:results.length,netUsdt:round(net,4),avgNetUsdt:valid.length?round(net/valid.length,5):0,profitFactor:grossLoss?round(grossWin/grossLoss,3):(grossWin>0?999:0),beatRate:valid.length?round(beat/valid.length*100,1):0};
 }
 function windowMetrics(results=[],size){return metrics(results.slice(-size));}
+function previousWindowMetrics(results=[],size){return metrics(results.slice(-(size*2),-size));}
 function algoProfile(rows=[]){
-  const all=metrics(rows),w10=windowMetrics(rows,10),w20=windowMetrics(rows,20),w50=windowMetrics(rows,50);
-  const recentScore=clamp(w10.avgNetUsdt*140,-20,20)+clamp(w20.avgNetUsdt*100,-20,20)+clamp((w20.beatRate-50)*0.35,-15,15);
-  const base=clamp(all.avgNetUsdt*90,-20,20)+clamp((all.profitFactor-1)*15,-15,25)+clamp((all.beatRate-50)*0.25,-12,12);
-  const stability=(w10.samples>=5&&w20.samples>=10&&w10.avgNetUsdt>=-0.01&&w20.avgNetUsdt>=-0.01)?8:0;
-  return {...all,windows:{10:w10,20:w20,50:w50},score:round(clamp(50+base+recentScore+stability,0,100),2),strengthening:w10.samples>=5&&w20.samples>=10&&w10.avgNetUsdt>w20.avgNetUsdt&&w10.beatRate>=w20.beatRate-5};
+  const all=metrics(rows),w5=windowMetrics(rows,5),prev5=previousWindowMetrics(rows,5),w10=windowMetrics(rows,10),w20=windowMetrics(rows,20),w50=windowMetrics(rows,50);
+  const recentScore=clamp(w5.avgNetUsdt*220,-28,28)+clamp((w5.beatRate-50)*0.50,-18,18)+clamp(w10.avgNetUsdt*100,-12,12);
+  const base=clamp(all.avgNetUsdt*70,-16,16)+clamp((all.profitFactor-1)*12,-12,20)+clamp((all.beatRate-50)*0.18,-10,10);
+  const strengthening=w5.samples>=5&&w5.netUsdt>0&&w5.profitFactor>1&&w5.beatRate>=50&&(prev5.samples<5||w5.avgNetUsdt>prev5.avgNetUsdt||w5.beatRate>prev5.beatRate);
+  const weakening=w5.samples>=5&&(w5.netUsdt<0||w5.profitFactor<1||w5.beatRate<40||(prev5.samples>=5&&w5.avgNetUsdt<prev5.avgNetUsdt&&w5.beatRate<prev5.beatRate));
+  const liveBonus=strengthening?12:weakening?-18:0;
+  return {...all,windows:{5:w5,previous5:prev5,10:w10,20:w20,50:w50},score:round(clamp(50+base+recentScore+liveBonus,0,100),2),strengthening,weakening};
+}
+function liveSort(a,b){
+  if(Boolean(a.weakening)!==Boolean(b.weakening))return a.weakening?1:-1;
+  if(Boolean(a.strengthening)!==Boolean(b.strengthening))return a.strengthening?-1:1;
+  return num(b.windows?.[5]?.avgNetUsdt)-num(a.windows?.[5]?.avgNetUsdt)||num(b.windows?.[5]?.beatRate)-num(a.windows?.[5]?.beatRate)||b.score-a.score||b.netUsdt-a.netUsdt;
 }
 function profilesFromBuckets(buckets,min){
   const profiles=[...buckets.values()].map(b=>({...b,...algoProfile(b.rows)}));
   const dnaMap=new Map();
   for(const p of profiles){const d=dnaMap.get(p.dna)||{key:p.dna,regimes:{},allAlgorithms:{}};d.regimes[p.regimeKey]=d.regimes[p.regimeKey]||{key:p.regimeKey,family:p.regimeFamily,regime:p.regime,volatility:p.volatility,algorithms:[]};d.regimes[p.regimeKey].algorithms.push(p);d.allAlgorithms[p.algorithmId]=d.allAlgorithms[p.algorithmId]||{algorithmId:p.algorithmId,algorithmLabel:p.algorithmLabel,rows:[]};d.allAlgorithms[p.algorithmId].rows.push(...p.rows);dnaMap.set(p.dna,d);}
   return [...dnaMap.values()].map(d=>{
-    for(const r of Object.values(d.regimes)){r.algorithms=r.algorithms.map(x=>{const {rows,...rest}=x;return rest;}).sort((a,b)=>b.score-a.score||b.netUsdt-a.netUsdt);r.best=r.algorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=min&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;}
-    const allAlgorithms=Object.values(d.allAlgorithms).map(a=>({algorithmId:a.algorithmId,algorithmLabel:a.algorithmLabel,...algoProfile(a.rows)})).sort((a,b)=>b.score-a.score||b.netUsdt-a.netUsdt);
-    d.allBest=allAlgorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,20))&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;d.allAlgorithms=allAlgorithms;return d;
+    for(const r of Object.values(d.regimes)){r.algorithms=r.algorithms.map(x=>{const {rows,...rest}=x;return rest;}).sort(liveSort);r.best=r.algorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=min&&!x.weakening&&num(x.windows?.[5]?.netUsdt)>0&&num(x.windows?.[5]?.profitFactor)>1&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;}
+    const allAlgorithms=Object.values(d.allAlgorithms).map(a=>({algorithmId:a.algorithmId,algorithmLabel:a.algorithmLabel,...algoProfile(a.rows)})).sort(liveSort);
+    d.allBest=allAlgorithms.find(x=>x.algorithmId!=='ACTUAL'&&x.samples>=Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,5))&&!x.weakening&&num(x.windows?.[5]?.netUsdt)>0&&num(x.windows?.[5]?.profitFactor)>1&&x.netUsdt>0&&x.profitFactor>1&&x.beatRate>=num(ayarlar.dynamicExitMinBeatRate,55))||null;d.allAlgorithms=allAlgorithms;return d;
   });
 }
 function build(records=null,options={}){
@@ -126,15 +134,27 @@ function positionRegime(pos,model){
   if(explicit?.key)return explicit;
   return model?.currentRegime||{key:'MIXED|VOL_MEDIUM',regime:'MIXED',regimeFamily:'MIXED',volatility:'MEDIUM'};
 }
-function candidateOk(x,min){return x&&x.algorithmId!=='ACTUAL'&&num(x.samples)>=min&&num(x.netUsdt)>0&&num(x.profitFactor)>1&&num(x.beatRate)>=num(ayarlar.dynamicExitMinBeatRate,55)&&num(x.windows?.[20]?.avgNetUsdt)>=num(ayarlar.dynamicExitMinRecentAvg,-0.01);}
+function candidateOk(x,min){return x&&x.algorithmId!=='ACTUAL'&&num(x.samples)>=min&&!x.weakening&&num(x.netUsdt)>0&&num(x.profitFactor)>1&&num(x.beatRate)>=num(ayarlar.dynamicExitMinBeatRate,55)&&num(x.windows?.[5]?.netUsdt)>0&&num(x.windows?.[5]?.profitFactor)>1&&num(x.windows?.[5]?.avgNetUsdt)>=num(ayarlar.dynamicExitMinRecentAvg,0);}
+function relativeCandidateOk(x,min){return Boolean(x&&x.algorithmId!=='ACTUAL'&&num(x.samples)>=min);}
+function bestRelative(list=[],min){return list.filter(x=>relativeCandidateOk(x,min)).sort(liveSort)[0]||null;}
 function selectForPosition(pos,model=null){
   const m=model||readModel()||build(null,{persist:true});const rawDnaKey=signature(pos);const dnaKey=normalizeDnaKey(rawDnaKey);const baseKey=baseDnaKey(rawDnaKey);const d=(m?.dna||[]).find(x=>x.key===dnaKey)||(m?.dnaBase||[]).find(x=>x.key===baseKey);const usedBase=Boolean(d&&d.key===baseKey&&dnaKey!==baseKey);const regime=positionRegime(pos,m);const min=Math.max(3,num(ayarlar.dynamicExitMinOrnek,12));
-  let selected=null,scope='NONE',matchedRegime=null;
-  if(d){const exact=d.regimes?.[regime.key];selected=exact?.best;if(candidateOk(selected,min)){scope=usedBase?'BASE_DNA_EXACT_REGIME_VOLATILITY':'EXACT_REGIME_VOLATILITY';matchedRegime=exact.key;}else selected=null;
-    if(!selected){const family=Object.values(d.regimes||{}).filter(r=>r.family===regime.regimeFamily).flatMap(r=>r.algorithms||[]).filter(x=>candidateOk(x,min)).sort((a,b)=>b.score-a.score||b.netUsdt-a.netUsdt)[0];if(family){selected=family;scope=usedBase?'BASE_DNA_REGIME_FAMILY':'REGIME_FAMILY';matchedRegime=family.regimeKey;}}
-    if(!selected&&candidateOk(d.allBest,Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,20)))){selected=d.allBest;scope=usedBase?'BASE_DNA_ALL_REGIMES':'DNA_ALL_REGIMES';matchedRegime='ALL';}}
+  let selected=null,scope='NONE',matchedRegime=null,selectionQuality='NONE';
+  if(d){
+    const exact=d.regimes?.[regime.key];
+    selected=exact?.best;
+    if(candidateOk(selected,min)){scope=usedBase?'BASE_DNA_EXACT_REGIME_VOLATILITY':'EXACT_REGIME_VOLATILITY';matchedRegime=exact.key;selectionQuality='POSITIVE_CONFIRMED';}else selected=null;
+    if(!selected){const family=Object.values(d.regimes||{}).filter(r=>r.family===regime.regimeFamily).flatMap(r=>r.algorithms||[]).filter(x=>candidateOk(x,min)).sort(liveSort)[0];if(family){selected=family;scope=usedBase?'BASE_DNA_REGIME_FAMILY':'REGIME_FAMILY';matchedRegime=family.regimeKey;selectionQuality='POSITIVE_CONFIRMED';}}
+    if(!selected&&candidateOk(d.allBest,Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,5)))){selected=d.allBest;scope=usedBase?'BASE_DNA_ALL_REGIMES':'DNA_ALL_REGIMES';matchedRegime='ALL';selectionQuality='POSITIVE_CONFIRMED';}
+
+    // Pozitif/PF>1 exit yoksa DNA'yı exitsiz bırakma: en az 5 örnekli adaylar
+    // arasından canlı sıralamada göreceli olarak en iyi sonucu veren modeli ata.
+    if(!selected&&exact){const relative=bestRelative(exact.algorithms||[],min);if(relative){selected=relative;scope=usedBase?'BASE_DNA_EXACT_REGIME_RELATIVE_BEST':'EXACT_REGIME_RELATIVE_BEST';matchedRegime=exact.key;selectionQuality='RELATIVE_BEST';}}
+    if(!selected){const familyRelative=bestRelative(Object.values(d.regimes||{}).filter(r=>r.family===regime.regimeFamily).flatMap(r=>r.algorithms||[]),min);if(familyRelative){selected=familyRelative;scope=usedBase?'BASE_DNA_FAMILY_RELATIVE_BEST':'FAMILY_RELATIVE_BEST';matchedRegime=familyRelative.regimeKey;selectionQuality='RELATIVE_BEST';}}
+    if(!selected){const allRelative=bestRelative(d.allAlgorithms||[],Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,5)));if(allRelative){selected=allRelative;scope=usedBase?'BASE_DNA_ALL_RELATIVE_BEST':'DNA_ALL_RELATIVE_BEST';matchedRegime='ALL';selectionQuality='RELATIVE_BEST';}}
+  }
   const ready=Boolean(selected);
-  const plan={version:VERSION,mode:'SHADOW_ONLY',signature:dnaKey||rawDnaKey||'SIGNATURE_YOK',baseSignature:baseKey||null,currentRegime:regime,matchedRegime,selectionScope:scope,selectedAlgorithmId:ready?selected.algorithmId:'ACTUAL',selectedAlgorithmLabel:ready?selected.algorithmLabel:'Mevcut Kademe Sistemi',ready,samples:ready?selected.samples:0,beatRate:ready?selected.beatRate:0,profitFactor:ready?selected.profitFactor:0,netUsdt:ready?selected.netUsdt:0,recent20:ready?selected.windows?.[20]:null,strengthening:ready?selected.strengthening:false,reason:ready?`${regime.key} için ${scope}: ${selected.algorithmLabel}`:`${dnaKey?'Bu DNA/rejim için güvenilir dinamik exit yok.':'DNA imzası yok.'}`,createdAt:new Date().toISOString(),executionPolicy:'NO_TRADE_ENGINE_EFFECT'};
+  const plan={version:VERSION,mode:'SHADOW_ONLY',signature:dnaKey||rawDnaKey||'SIGNATURE_YOK',baseSignature:baseKey||null,currentRegime:regime,matchedRegime,selectionScope:scope,selectionQuality,selectedAlgorithmId:ready?selected.algorithmId:'ACTUAL',selectedAlgorithmLabel:ready?selected.algorithmLabel:'Mevcut Kademe Sistemi',ready,samples:ready?selected.samples:0,beatRate:ready?selected.beatRate:0,profitFactor:ready?selected.profitFactor:0,netUsdt:ready?selected.netUsdt:0,recent5:ready?selected.windows?.[5]:null,recent20:ready?selected.windows?.[20]:null,strengthening:ready?selected.strengthening:false,weakening:ready?selected.weakening:false,reason:ready?(selectionQuality==='RELATIVE_BEST'?`${regime.key} için pozitif exit yok; göreceli en iyi atandı: ${selected.algorithmLabel}`:`${regime.key} için ${scope}: ${selected.algorithmLabel}`):`${dnaKey?'Bu DNA için en az 5 örnekli dinamik exit henüz yok; mevcut kademe kullanılır.':'DNA imzası yok.'}`,createdAt:new Date().toISOString(),executionPolicy:'FREEZE_PER_OPEN_POSITION_ROTATE_FOR_NEW_POSITIONS_EVERY_5_CLOSES'};
   ensureDir();fs.appendFileSync(HISTORY_JSONL,JSON.stringify({...plan,symbol:pos?.sym||'',side:pos?.yon||''})+'\n');return plan;
 }
 function updateFromReplay(){return build(null,{persist:true});}
