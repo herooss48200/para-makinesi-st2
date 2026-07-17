@@ -220,9 +220,7 @@ const m = {
 
         exitOptimizer.pozisyonBaslat(yeniPozisyon);
         if (hazirKimlik) {
-            yeniPozisyon.dnaLeagueProfile = hazirKimlik.dnaLeagueProfile;
-            yeniPozisyon.exitPlanShadow = hazirKimlik.exitPlanShadow;
-            yeniPozisyon.realOrderReadiness = hazirKimlik.realOrderReadiness;
+            realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik);
         }
         const karar = hazirKimlik?.realOrderReadiness || realOrderBridge.evaluate(yeniPozisyon, { realMode: false });
         yeniPozisyon.leagueShadowOnly = Boolean(karar.virtualShadowOnly);
@@ -434,9 +432,7 @@ const m = {
                 girisAnalizi
             };
             yeniPozisyon.blackboxAcilis = hazirKimlik.blackboxAcilis;
-            yeniPozisyon.dnaLeagueProfile = hazirKimlik.dnaLeagueProfile;
-            yeniPozisyon.exitPlanShadow = hazirKimlik.exitPlanShadow;
-            yeniPozisyon.realOrderReadiness = hazirKimlik.realOrderReadiness;
+            realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik);
             premierObservation.snapshot(yeniPozisyon);
             exitMethodScoreboard.open(yeniPozisyon);
 

@@ -1,6 +1,6 @@
 /** AGROS v4.0 - ADAPTIVE TRADING LEAGUE ORCHESTRATOR */
 const fs=require('fs');const path=require('path');const ayarlar=require('./ayarlar.js');const memorySafeIo=require('./53_memory_safe_io.js');const league=require('./46_dna_league_engine.js');const dynamicExit=require('./47_dynamic_dna_exit_engine.js');const observation=require('./48_premier_observation_engine.js');
-const VERSION='v4.4.3-LEAGUE-STATE-RECLASSIFICATION';const DATA=path.join(__dirname,'data');const STORY=path.join(DATA,'dna-story.json');const DASH=path.join(DATA,'adaptive-trading-league-dashboard.json');const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+const VERSION='v4.4.4-FROZEN-EXIT-POSITION-BINDING';const DATA=path.join(__dirname,'data');const STORY=path.join(DATA,'dna-story.json');const DASH=path.join(DATA,'adaptive-trading-league-dashboard.json');const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
 function readJson(f,d){return memorySafeIo.readJsonBounded(f,d,{maxBytes:32*1024*1024,archiveOversize:f===STORY,onArchived:(archive,size)=>({version:VERSION,generatedAt:new Date().toISOString(),dna:{},archivedOversizeStory:{file:archive,sizeBytes:size}})})}function write(f,x){memorySafeIo.writeJsonAtomic(f,x)}
 function readJsonl(f,limit=5000){return memorySafeIo.readJsonlTailSync(f,limit,{maxScanBytes:16*1024*1024})}
 function emptyExitModel(){return{version:dynamicExit.VERSION,generatedAt:null,currentRegime:{key:'MIXED|VOL_MEDIUM',regime:'MIXED',regimeFamily:'MIXED',volatility:'MEDIUM',window:0,distribution:{}},dna:[]}}

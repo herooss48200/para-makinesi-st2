@@ -14,7 +14,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.4.3-LEAGUE-STATE-RECLASSIFICATION';
+const VERSION = 'v4.4.4-FROZEN-EXIT-POSITION-BINDING';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
@@ -142,6 +142,23 @@ function evaluate(pos, { realMode = false } = {}) {
   append(decision);
   return decision;
 }
+function copyDecisionToPosition(target, source) {
+  if (!target || !source) return target;
+  if (source.dnaLeagueProfile) target.dnaLeagueProfile = source.dnaLeagueProfile;
+  if (source.exitPlanShadow) target.exitPlanShadow = source.exitPlanShadow;
+  if (source.realOrderReadiness) target.realOrderReadiness = source.realOrderReadiness;
+  if (source.executionExitAssignment) {
+    target.executionExitAssignment = {
+      ...source.executionExitAssignment,
+      immutable: true
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(source, 'exitPlanActiveForVirtual')) {
+    target.exitPlanActiveForVirtual = Boolean(source.exitPlanActiveForVirtual);
+  }
+  return target;
+}
+
 function telegramText(d) {
   if (!d) return '';
   const m = d.metrics || {};
@@ -155,4 +172,4 @@ function telegramText(d) {
     `🔎 Exit Sebebi: ${d.exit?.reason || 'YOK'}\n` +
     (!d.allowed ? `📌 Sebep: ${d.reasons.join(', ')}` : (d.mode === 'VIRTUAL' ? `🧪 Alt öğrenme katmanı: tüm geçerli DNA'lar açık | Lig yalnız etiket` : `🔒 Gerçek katman: ${d.realTier} | Boyut x${num(d.sizeMultiplier, 1).toFixed(2)} | Güncel kazanan exit`));
 }
-module.exports = { VERSION, AUDIT_JSONL, evaluate, telegramText, realAuthorization };
+module.exports = { VERSION, AUDIT_JSONL, evaluate, copyDecisionToPosition, telegramText, realAuthorization };
