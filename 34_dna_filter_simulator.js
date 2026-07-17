@@ -12,7 +12,7 @@
  * - Yalnızca BlackBox signatureMatrixStats verilerini okur.
  */
 
-const VERSION = 'ER-A2-DNA-FILTER-SIMULATOR-v1';
+const VERSION = 'ER-A2-DNA-FILTER-SIMULATOR-v1.1-TOP10-ALIGNMENT';
 
 function num(value, fallback = 0) {
   const n = Number(value);
@@ -113,7 +113,7 @@ function candidateScore(row) {
 function simulate(stats = {}, options = {}) {
   const minSample = Math.max(1, num(options.minSample, 10));
   const maxCandidates = Math.max(1, num(options.maxCandidates, 10));
-  const maxCumulative = Math.max(1, num(options.maxCumulative, 5));
+  const maxCumulative = Math.max(1, num(options.maxCumulative, 10));
   const maxPf = Math.max(0, num(options.maxPf, 0.95));
   const maxExpectancy = num(options.maxExpectancy, 0);
 
@@ -153,7 +153,7 @@ function simulate(stats = {}, options = {}) {
     candidates,
     single,
     cumulative,
-    disclaimer: 'Simülasyon geçmiş veriye dayanır; Trade Engine üzerinde otomatik filtre uygulanmaz.'
+    disclaimer: 'Bu bölüm geçmiş veri simülasyonudur; aktif Dinamik En Kötü 10 gölge kuralı ayrı çalışır.'
   };
 }
 
@@ -180,7 +180,7 @@ function telegramText(model, options = {}) {
 
   const c = model.cumulative;
   text += `\n🧮 İlk ${c.removedDna} aday çıkarılırsa: Net ${signed(c.kept.net, 2)} (${signed(c.netDelta, 2)}) | Exp ${signed(c.kept.expectancy, 4)} (${signed(c.expectancyDelta, 4)}) | PF ${c.kept.profitFactor.toFixed(2)} | İşlem -%${c.tradeReductionPct.toFixed(1)}`;
-  text += `\n⚠️ Sadece geçmiş veri simülasyonudur; otomatik filtre uygulanmadı.`;
+  text += `\n⚠️ Bu bölüm geçmiş veri simülasyonudur; aktif Dinamik En Kötü 10 gölge kuralı ayrı çalışır.`;
   return text;
 }
 

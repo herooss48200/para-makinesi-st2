@@ -198,7 +198,7 @@ function buildLearningValidationModel() {
   const dnaFilterSimulation = dnaFilterSimulator.simulate(dnaStats, {
     minSample: Math.max(1, num(ayarlar.dnaFilterSimulatorMinOrnek || ayarlar.dnaProfitRankingMinOrnek || 10)),
     maxCandidates: Math.max(1, num(ayarlar.dnaFilterSimulatorMaksAday || 10)),
-    maxCumulative: Math.max(1, num(ayarlar.dnaFilterSimulatorKumulatifAday || 5)),
+    maxCumulative: Math.max(1, num(ayarlar.dnaFilterSimulatorKumulatifAday || 10)),
     maxPf: num(ayarlar.dnaFilterSimulatorMaksPf, 0.95),
     maxExpectancy: num(ayarlar.dnaFilterSimulatorMaksExpectancy, 0)
   });
