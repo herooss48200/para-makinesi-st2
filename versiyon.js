@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'DNA-LEAGUE-LIVE-TRANSITION',
-    kod: 'AWS Stable v3.12.0-DNA-LEAGUE',
-    botSurumu: '3.12.0-DNA-LEAGUE',
+    kodAdi: 'ADAPTIVE-TRADING-LEAGUE',
+    kod: 'AWS Candidate v4.0.0-ADAPTIVE-TRADING-LEAGUE',
+    botSurumu: '4.0.0-ADAPTIVE-TRADING-LEAGUE',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '17.07.2026',
     ortam: {

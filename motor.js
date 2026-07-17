@@ -7,6 +7,7 @@ const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const positionSizingAudit = require('./19_position_sizing_audit.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dnaLeague = require('./46_dna_league_engine.js');
+const premierObservation = require('./48_premier_observation_engine.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -218,6 +219,7 @@ const m = {
         exitOptimizer.pozisyonBaslat(yeniPozisyon);
         dnaExitSelector.attachToPosition(yeniPozisyon);
         dnaLeague.attachToPosition(yeniPozisyon);
+        premierObservation.snapshot(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
         blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
@@ -253,6 +255,7 @@ const m = {
 
         await h.telegramMesajGonder(
             `🧪 <b>[SANAL POZİSYON AÇILDI]</b>\n` +
+            (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>PREMIER ONAYLI İŞLEM</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
             `🔀 ${symbol} (${yon})\n` +
             `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
             `📦 Miktar: ${guvenliMiktar}\n` +

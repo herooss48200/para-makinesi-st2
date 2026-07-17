@@ -464,18 +464,36 @@ const ayarlar = {
     dnaExitSelectorMinConsensus: 60,
 
 
+
+    // v3.13.0 - Dinamik DNA Exit (shadow)
+    dynamicExitEngineAktif: true,
+    dynamicExitMinOrnek: 12,
+    dynamicExitFallbackMinOrnek: 20,
+    dynamicExitMinBeatRate: 55,
+    dynamicExitMinRecentAvg: -0.01,
+    dynamicExitCurrentRegimeWindow: 30,
+    dynamicExitHighVolStepPct: 0.12,
+    dynamicExitLowVolStepPct: 0.045,
+    dynamicExitHighVolRangePct: 1.50,
+    dynamicExitLowVolRangePct: 0.65,
     // v3.12.0 DNA League Engine - otomatik Premier/Championship/Gelişim/Tarihsel ligleri.
     // İlk sürüm karar ve metadata katmanıdır; gerçek emir filtresi ayrıca açılacaktır.
     dnaLeagueAktif: true,
     dnaLeagueTelegramAktif: true,
     dnaLeagueTelegramTopAday: 3,
-    dnaLeaguePremierKapasite: 25,
+    // v3.14: geriye uyumluluk için korunur; Premier seçiminde artık kapasite uygulanmaz.
+    dnaLeaguePremierKapasite: 0,
     dnaLeagueChampionshipKapasite: 50,
     dnaLeaguePremierMinOrnek: 20,
     dnaLeagueChampionshipMinOrnek: 10,
     dnaLeagueHistoricalMinOrnek: 20,
     dnaLeaguePremierMinGuven: 50,
-    dnaLeaguePremierMinSon20Exp: -0.02,
+    dnaLeaguePremierMinSon20Exp: 0,
+    dnaLeaguePremierExitKanitiZorunlu: true,
+    premierObservationAktif: true,
+    premierObservationTelegramAktif: true,
+    premierObservationRaporHerKapanis: 5,
+    premierObservationTelegramTopAktif: 8,
     dnaLeagueChampionshipMinPf: 0.85,
     dnaLeagueChampionshipMinExp: -0.05,
     dnaLeagueTransferKapanisAraligi: 25,
@@ -483,6 +501,11 @@ const ayarlar = {
     dnaLeagueRejimEdgeEsik: 0.025,
     dnaLeagueExitMinOrnek: 20,
     dnaLeagueExitMinBeatRate: 55,
+
+    // v4.0 Adaptive Trading League - nihai üç günlük gözlem katmanı.
+    adaptiveTradingLeagueAktif: true,
+    adaptiveTradingLeagueTelegramAktif: true,
+    adaptiveTradingLeagueRaporHerKapanis: 10,
 
     // v3.11.2 Exit Evolution Telegram Dashboard:
     exitEvolutionDashboardAktif: true,

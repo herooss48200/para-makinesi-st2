@@ -9,6 +9,7 @@ const restartGap = require('./23_restart_gap_protection.js');
 const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
+const premierObservation = require('./48_premier_observation_engine.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -912,6 +913,12 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     // Sadece pos.breakevenAktif=true diye sonuç BE sayılamaz.
     // Senin gördüğün "Max Kâr pozitif / Net -1.50 / Sonuç BE" çelişkisi buradan doğuyordu.
     // BE yalnızca kapanış fiyatı/net PNL gerçekten başabaş bandındaysa yazılır; büyük zarar SL'dir.
+
+    // Premier gözlem sonucu, açılışta dondurulan lig kimliğiyle ayrı kasaya yazılır.
+    premierObservation.close(pos, {
+        net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
+        reason: duzeltilmisSebep, exitPrice: kapanisFiyati
+    });
 
     const restartGapIslemi = restartGap.isQuarantined(pos);
 

@@ -348,7 +348,7 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
     if (ayarlar.agrosConsensusAktif !== false) m += agrosConsensus.telegramText(model.agrosConsensus, { limit: Math.max(1, num(ayarlar.agrosConsensusTopAday || 3)) });
     if (ayarlar.consensusValidationAktif !== false) m += consensusValidation.telegramText(model.consensusValidation);
   }
-  if (ayarlar.dnaLeagueAktif !== false) m += dnaLeague.telegramText(model.dnaLeague, { limit: Math.max(1, num(ayarlar.dnaLeagueTelegramTopAday || 3)) });
+  // DNA League raporu Telegram güvenilirliği için 2_rapor.js tarafından ayrı mesaj olarak gönderilir.
   m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;

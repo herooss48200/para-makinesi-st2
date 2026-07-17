@@ -21,6 +21,7 @@ const behaviorIntelligenceEngine = require('./31_behavior_intelligence_engine.js
 const exitConsensusEngine = require('./32_exit_consensus_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const advancedExitModels = require('./44_exit_evolution_models.js');
+const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
 const VERSION = 'v3.10.0-EXIT-CONSENSUS';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -200,6 +201,7 @@ function replayTrade(pos, sonuc = {}) {
     o.last10.unshift({ tradeId:input.tradeId,symbol:input.symbol,side:input.side,signature:input.signatureShort,actualNetUsdt:input.actualNetUsdt,best,pathPoints:input.pathCoverage,zaman }); o.last10=o.last10.slice(0,Math.max(10,num(ayarlar.exitReplayTelegramRaporKapanis,10)));
     fs.writeFileSync(MODEL_JSON, JSON.stringify(buildModel(),null,2));
     dnaExitSelector.validateReplay(pos, record);
+    try { dynamicExit.updateFromReplay(); } catch (err) { console.error(`[DYNAMIC EXIT] Model güncelleme hatası: ${err.message}`); }
     return record;
   } catch (err) { console.error(`⚠️ [EXIT EVOLUTION] Replay yazılamadı: ${err.message}`); return null; }
 }

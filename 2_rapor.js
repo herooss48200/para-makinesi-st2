@@ -3,10 +3,15 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const learningValidation = require('./20_learning_validation.js');
 const exitEvolutionDashboard = require('./45_exit_evolution_dashboard.js');
+const dnaLeague = require('./46_dna_league_engine.js');
+const premierObservation = require('./48_premier_observation_engine.js');
+const adaptiveTradingLeague = require('./49_adaptive_trading_league.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
 let sonExitEvolutionReplaySayisi = null;
+let sonDnaLeagueTransferKapanisi = null;
+let sonPremierObservationKapanan = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -223,11 +228,82 @@ async function learningValidationRaporuGonderGerekirse() {
         const mesaj = learningValidation.telegramOzetMetni(model);
         await h.telegramMesajGonder(mesaj);
         console.log(`🧠 [AGROS INTELLIGENCE] Telegram raporu gönderildi | Kapanan: ${kapanan}`);
+        await dnaLeagueRaporuGonderGerekirse(model.dnaLeague);
     } catch (err) {
         console.error('❌ [AGROS INTELLIGENCE RAPOR HATASI]:', err.message);
     }
 }
 
+
+async function dnaLeagueRaporuGonderGerekirse(model = null) {
+    if (ayarlar.dnaLeagueAktif === false || ayarlar.dnaLeagueTelegramAktif === false) return;
+
+    try {
+        const leagueModel = model || dnaLeague.build();
+        if (!leagueModel) return;
+
+        const transferKapanisi = Number(leagueModel.lastTransferTradeCount || 0);
+        const ilkCalisma = sonDnaLeagueTransferKapanisi === null;
+        const yeniTransferDonemi = !ilkCalisma && transferKapanisi !== sonDnaLeagueTransferKapanisi;
+        const transferVar = Array.isArray(leagueModel.transfers) && leagueModel.transfers.length > 0;
+
+        // Başlangıçta bir kez, sonrasında yalnızca transfer penceresi değiştiğinde gönder.
+        if (!ilkCalisma && !yeniTransferDonemi && !transferVar) return;
+
+        sonDnaLeagueTransferKapanisi = transferKapanisi;
+        const mesaj = dnaLeague.telegramText(leagueModel, {
+            limit: Math.max(1, Number(ayarlar.dnaLeagueTelegramTopAday || 3))
+        });
+        if (!mesaj) return;
+
+        const sonuclar = await h.telegramMesajGonder(mesaj);
+        const basarili = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ok);
+        if (basarili) {
+            console.log(`🏆 [DNA LEAGUE] Telegram raporu gönderildi | Premier: ${leagueModel.leagueSizes?.premier || 0} | Transfer kapanışı: ${transferKapanisi}`);
+        } else {
+            console.error(`❌ [DNA LEAGUE TELEGRAM HATASI] Mesaj Telegram tarafından onaylanmadı | Transfer kapanışı: ${transferKapanisi}`);
+        }
+    } catch (err) {
+        console.error('❌ [DNA LEAGUE RAPOR HATASI]:', err.message);
+    }
+}
+
+
+
+async function premierObservationRaporuGonderGerekirse() {
+    if (ayarlar.premierObservationAktif === false || ayarlar.premierObservationTelegramAktif === false) return;
+    try {
+        const model = premierObservation.model(h.state.aktifPozisyonlar || []);
+        const kapanan = Number(model.closed || 0);
+        const ilk = sonPremierObservationKapanan === null;
+        const aralik = Math.max(1, Number(ayarlar.premierObservationRaporHerKapanis || 5));
+        const yeniPencere = !ilk && kapanan !== sonPremierObservationKapanan && kapanan % aralik === 0;
+        if (!ilk && !yeniPencere) return;
+        sonPremierObservationKapanan = kapanan;
+        const mesaj = premierObservation.telegram(h.state.aktifPozisyonlar || []);
+        if (mesaj) await h.telegramMesajGonder(mesaj);
+        console.log(`💎 [PREMIER OBSERVATION] Telegram raporu | Aktif ${model.active?.length || 0} | Kapanan ${kapanan} | Net ${Number(model.net||0).toFixed(4)}`);
+    } catch (err) {
+        console.error('❌ [PREMIER OBSERVATION RAPOR HATASI]:', err.message);
+    }
+}
+
+async function adaptiveTradingLeagueRaporuGonderGerekirse() {
+    if (ayarlar.adaptiveTradingLeagueAktif === false || ayarlar.adaptiveTradingLeagueTelegramAktif === false) return;
+    try {
+        const kapanan = kapananIslemSayisi();
+        const aralik = Math.max(1, Number(ayarlar.adaptiveTradingLeagueRaporHerKapanis || 10));
+        if (global.__agrosV4LastClosed !== undefined && kapanan === global.__agrosV4LastClosed) return;
+        const ilk = global.__agrosV4LastClosed === undefined;
+        global.__agrosV4LastClosed = kapanan;
+        if (!ilk && kapanan % aralik !== 0) return;
+        const mesaj = adaptiveTradingLeague.telegram(h.state.aktifPozisyonlar || []);
+        if (mesaj) await h.telegramMesajGonder(mesaj);
+        console.log(`🧠 [ADAPTIVE TRADING LEAGUE] Telegram raporu | Kapanan ${kapanan}`);
+    } catch (err) {
+        console.error('❌ [ADAPTIVE TRADING LEAGUE RAPOR HATASI]:', err.message);
+    }
+}
 
 async function exitEvolutionDashboardGonderGerekirse() {
     if (ayarlar.exitEvolutionDashboardAktif === false) return;
@@ -259,9 +335,11 @@ async function raporGonder(oneCikar = false) {
 
         await learningValidationRaporuGonderGerekirse();
         await exitEvolutionDashboardGonderGerekirse();
+        await premierObservationRaporuGonderGerekirse();
+        await adaptiveTradingLeagueRaporuGonderGerekirse();
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse };

@@ -18,8 +18,9 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
+const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v3.12.0-DNA-LEAGUE-ENGINE';
+const VERSION = 'v4.0.0-ADAPTIVE-TRADING-LEAGUE';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -94,30 +95,29 @@ function inferPerformanceRegime(trades = [], window = 60, edgeThreshold = 0.025)
 }
 
 function exitIndex() {
-  const model = dnaExitSelector.readModel();
-  return new Map((model?.dna || []).map(row => [String(row.key || ''), row]));
+  const model = dynamicExit.readModel() || dynamicExit.build(null, { persist: true });
+  return { model, map: new Map((model?.dna || []).map(row => [String(row.key || ''), row])) };
 }
 
 function exitEvidence(key, exits) {
-  const row = exits.get(key);
-  const best = row?.bestExit;
-  const minSamples = Math.max(1, num(ayarlar.dnaLeagueExitMinOrnek, ayarlar.dnaExitSelectorMinOrnek || 20));
-  const ready = Boolean(
-    row && best && best.key && best.key !== 'ACTUAL' &&
-    num(row.samples) >= minSamples &&
-    num(best.samples) >= minSamples &&
-    num(best.beatRate) >= num(ayarlar.dnaLeagueExitMinBeatRate, 55) &&
-    num(best.deltaUsdt) > 0 &&
-    num(best.profitFactor) > 1
-  );
+  const row = exits.map.get(key);
+  const regimeKey = exits.model?.currentRegime?.key;
+  const regime = row?.regimes?.[regimeKey];
+  const best = regime?.best || row?.allBest;
+  const minSamples = Math.max(1, num(ayarlar.dnaLeagueExitMinOrnek, ayarlar.dynamicExitMinOrnek || 12));
+  const ready = Boolean(best && best.algorithmId !== 'ACTUAL' && num(best.samples) >= minSamples && num(best.beatRate) >= num(ayarlar.dnaLeagueExitMinBeatRate, 55) && num(best.netUsdt) > 0 && num(best.profitFactor) > 1);
   return {
     ready,
-    algorithmId: ready ? best.key : 'ACTUAL',
-    algorithmLabel: ready ? best.label : 'Mevcut Kademe Sistemi',
-    samples: num(row?.samples),
+    dynamic: true,
+    regimeKey: regimeKey || 'BILINMIYOR',
+    selectionScope: regime?.best ? 'EXACT_CURRENT_REGIME' : (row?.allBest ? 'DNA_ALL_REGIMES_FALLBACK' : 'NONE'),
+    algorithmId: ready ? best.algorithmId : 'ACTUAL',
+    algorithmLabel: ready ? best.algorithmLabel : 'Mevcut Kademe Sistemi',
+    samples: num(best?.samples),
     beatRate: round(best?.beatRate, 1),
-    deltaUsdt: round(best?.deltaUsdt, 4),
-    profitFactor: round(best?.profitFactor, 2)
+    deltaUsdt: round(best?.netUsdt, 4),
+    profitFactor: round(best?.profitFactor, 2),
+    strengthening: Boolean(best?.strengthening)
   };
 }
 
@@ -185,7 +185,8 @@ function qualify(player, league, options = {}) {
     return player.total >= premierMin && player.expectancy > 0 && player.profitFactor > 1 &&
       player.confidence >= num(ayarlar.dnaLeaguePremierMinGuven, 50) &&
       player.recent20.expectancy >= num(ayarlar.dnaLeaguePremierMinSon20Exp, -0.02) &&
-      !['COKUYOR'].includes(player.momentum.status) && player.death === 'YOK';
+      !['COKUYOR'].includes(player.momentum.status) && player.death === 'YOK' &&
+      (ayarlar.dnaLeaguePremierExitKanitiZorunlu === false || player.exit.ready === true);
   }
   if (league === 'CHAMPIONSHIP') {
     return player.total >= championshipMin && player.profitFactor >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
@@ -195,9 +196,9 @@ function qualify(player, league, options = {}) {
 }
 
 function proposedLeagues(players, options = {}) {
-  const premierSize = Math.max(1, num(options.premierSize, ayarlar.dnaLeaguePremierKapasite || 25));
+  // v3.14: Premier artık kapasite/sayı ligi değildir. Kalite şartlarını sağlayan tüm DNA'lar girer.
   const championshipSize = Math.max(1, num(options.championshipSize, ayarlar.dnaLeagueChampionshipKapasite || 50));
-  const premier = players.filter(x => qualify(x, 'PREMIER', options)).slice(0, premierSize);
+  const premier = players.filter(x => qualify(x, 'PREMIER', options));
   const premierKeys = new Set(premier.map(x => x.key));
   const championship = players.filter(x => !premierKeys.has(x.key) && qualify(x, 'CHAMPIONSHIP', options)).slice(0, championshipSize);
   const upperKeys = new Set([...premierKeys, ...championship.map(x => x.key)]);
@@ -274,7 +275,7 @@ function build(models = {}, options = {}) {
   const model = {
     version: VERSION,
     generatedAt: new Date().toISOString(),
-    mode: 'DECISION_LAYER_NO_EXECUTION_FILTER',
+    mode: 'ADAPTIVE_OBSERVATION_NO_REAL_ORDER_FILTER',
     totalTrades: evolutionModel.totalTrades,
     totalDna: players.length,
     lastTransferTradeCount,
@@ -340,13 +341,13 @@ function attachToPosition(pos) {
     regimeAligned: profile.regimeAligned,
     exit: profile.exit,
     attachedAt: new Date().toISOString(),
-    executionPolicy: 'METADATA_ONLY'
+    executionPolicy: ayarlar.premierObservationAktif === false ? 'METADATA_ONLY' : 'PREMIER_OBSERVATION'
   } : {
     version: VERSION,
     key: key || 'SIGNATURE_YOK',
     league: 'UNRANKED',
     attachedAt: new Date().toISOString(),
-    executionPolicy: 'METADATA_ONLY'
+    executionPolicy: ayarlar.premierObservationAktif === false ? 'METADATA_ONLY' : 'PREMIER_OBSERVATION'
   };
   return pos.dnaLeagueProfile;
 }
@@ -370,7 +371,8 @@ function telegramText(model, options = {}) {
     const relegated = model.transfers.filter(x => x.from === 'PREMIER').length;
     text += `\n🔁 Bu dönem: ${promoted} Premier terfi | ${relegated} Premier düşüş`;
   }
-  text += `\n🛡️ Lig şu anda karar/etiket katmanıdır; emir filtresi kapalıdır.`;
+  text += `\n🧪 Gözlem modu: tüm DNA'lar öğrenmeye devam eder; Premier işlemleri ayrı başarı kasasında izlenir.`;
+  text += `\n🎯 Premier sayı sınırı yoktur; kâr ve güven şartını sağlayanların tamamı lige girer.`;
   return text;
 }
 

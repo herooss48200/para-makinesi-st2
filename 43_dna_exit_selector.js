@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
+const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
 const VERSION = 'v3.11.0-DNA-EXIT-SELECTOR-SHADOW';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -48,50 +49,19 @@ function fallbackPlan(key, reason, samples = 0) {
 }
 function selectForPosition(pos, model = null) {
   if (ayarlar.dnaExitSelectorAktif === false) return null;
+  if (ayarlar.dynamicExitEngineAktif !== false) {
+    try { return dynamicExit.selectForPosition(pos); }
+    catch (err) { return fallbackPlan(signature(pos), `Dinamik exit fallback: ${err.message}`); }
+  }
   const key = signature(pos);
   if (!key) return fallbackPlan('', 'DNA imzası bulunamadı.');
   const m = model || readModel();
   if (!m) return fallbackPlan(key, 'Exit Replay modeli henüz oluşmadı.');
-
-  const minSamples = Math.max(1, num(ayarlar.dnaExitSelectorMinOrnek, 20));
-  const minBeatRate = Math.max(0, num(ayarlar.dnaExitSelectorMinBeatRate, 60));
-  const minDelta = Math.max(0, num(ayarlar.dnaExitSelectorMinDeltaUsdt, 1));
-  const minPf = Math.max(0, num(ayarlar.dnaExitSelectorMinProfitFactor, 1.10));
-  const minAgreement = Math.max(0, num(ayarlar.dnaExitSelectorMinConsensus, 60));
-
   const dna = (m.dna || []).find(x => x.key === key);
-  const consensus = (m.exitConsensus?.dna || []).find(x => x.key === key);
-  if (!dna) return fallbackPlan(key, 'Bu DNA için replay profili yok.');
-  if (num(dna.samples) < minSamples) return fallbackPlan(key, `Örnek yetersiz (${dna.samples}/${minSamples}).`, dna.samples);
-
-  const best = dna.bestExit;
-  if (!best || !best.key || best.key === 'ACTUAL') return fallbackPlan(key, 'Uygulanabilir alternatif exit lideri yok.', dna.samples);
-  if (num(best.samples) < minSamples) return fallbackPlan(key, `Lider exit örneği yetersiz (${best.samples}/${minSamples}).`, dna.samples);
-  if (num(best.beatRate) < minBeatRate) return fallbackPlan(key, `Gerçeği geçme oranı düşük (%${num(best.beatRate).toFixed(1)} < %${minBeatRate}).`, dna.samples);
-  if (num(best.deltaUsdt) < minDelta) return fallbackPlan(key, `Toplam üstünlük zayıf (${num(best.deltaUsdt).toFixed(2)} < ${minDelta.toFixed(2)} USDT).`, dna.samples);
-  if (num(best.profitFactor) < minPf) return fallbackPlan(key, `Profit Factor yetersiz (${num(best.profitFactor).toFixed(2)} < ${minPf.toFixed(2)}).`, dna.samples);
-  if (consensus?.ready && num(consensus.agreementPct) < minAgreement) return fallbackPlan(key, `Exit Consensus düşük (%${num(consensus.agreementPct).toFixed(1)} < %${minAgreement}).`, dna.samples);
-
-  return {
-    version: VERSION,
-    mode: 'SHADOW_ONLY',
-    signature: key,
-    selectedAlgorithmId: best.key,
-    selectedAlgorithmLabel: best.label,
-    decision: 'DNA_EXIT_CANDIDATE',
-    ready: true,
-    samples: dna.samples,
-    beatRate: round(best.beatRate, 1),
-    totalDeltaUsdt: round(best.deltaUsdt, 4),
-    avgDeltaUsdt: round(best.avgDeltaUsdt, 4),
-    profitFactor: round(best.profitFactor, 2),
-    consensusAgreementPct: consensus?.ready ? round(consensus.agreementPct, 1) : null,
-    consensusRecommendation: consensus?.recommendation || 'VERI_YOK',
-    reason: `${best.label}; ${dna.samples} örnek, gerçeği geçme %${num(best.beatRate).toFixed(1)}, avantaj ${num(best.deltaUsdt).toFixed(2)} USDT.`,
-    createdAt: new Date().toISOString(),
-    executionPolicy: 'NO_TRADE_ENGINE_EFFECT'
-  };
+  if (!dna?.bestExit) return fallbackPlan(key, 'Bu DNA için replay profili yok.');
+  return fallbackPlan(key, 'Dinamik exit motoru kapalı; güvenli kademe fallback.', num(dna.samples));
 }
+
 function attachToPosition(pos) {
   if (!pos || ayarlar.dnaExitSelectorAktif === false) return null;
   const plan = selectForPosition(pos);
