@@ -224,11 +224,10 @@ const m = {
             yeniPozisyon.realOrderReadiness = hazirKimlik.realOrderReadiness;
         }
         const karar = hazirKimlik?.realOrderReadiness || realOrderBridge.evaluate(yeniPozisyon, { realMode: false });
-        if (ayarlar.premierSanalEmirFiltresiAktif === true && !karar.allowed) {
-            premierObservation.blocked(karar.key, karar.reasons.join('|'), { symbol, side: yon });
-            console.log(`🚫 [PROFIT-FIRST ORTAK KAPI] ${symbol} ${yon} açılmadı | ${karar.key} | ${karar.reasons.join(', ')}`);
-            return false;
-        }
+        // v4.2.6: Alt öğrenme katmanı lig tarafından engellenmez.
+        // UNRANKED/Development/Championship/Premier tüm geçerli tetikler sanalda açılır;
+        // lig etiketi ve güncel kazanan exit planı pozisyona eklenerek öğrenme sürer.
+        console.log(`🧪 [ALT ÖĞRENME KAPISI AÇIK] ${symbol} ${yon} | DNA ${karar.key} | Lig ${karar.league} | Exit ${karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         premierObservation.snapshot(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
@@ -325,7 +324,7 @@ const m = {
             const sl = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 - slOrani) : canliFiyat * (1 + slOrani));
             const tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
 
-            // Sanal ve gerçek emir aynı DNA + lig + rejim + exit kimliğinden geçer.
+            // Sanal ve gerçek emir aynı DNA + rejim + exit kimliğini kullanır; lig yalnız gerçek emir kapısında engeldir.
             const hazirKimlik = {
                 sym: symbol, yon, girisFiyati: canliFiyat, sl, tp, miktar: guvenliMiktar,
                 sanal: ayarlar.sanalEmirModu, acilisZamani: Date.now(), girisAnalizi
@@ -348,7 +347,15 @@ const m = {
                 return false;
             }
 
-            console.log(`⚙️ [BINANCE API] ${symbol} ${yon} Premier onaylı Market + Koruma Emirleri Hazırlanıyor...`);
+            const ligBoyutCarpani = Math.max(0.01, Math.min(1, Number(ortakKarar.sizeMultiplier || 1)));
+            const gercekMiktar = miktarKlip(symbol, guvenliMiktar * ligBoyutCarpani);
+            const gercekNotional = gercekMiktar * canliFiyat;
+            if (!gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional) {
+                console.log(`🚫 [LİG BOYUTU MİNİMUM ALTINDA] ${symbol} ${yon} | Lig ${ortakKarar.realTier} | Çarpan x${ligBoyutCarpani.toFixed(2)} | Notional ${gercekNotional.toFixed(4)} < ${minNotional}`);
+                return false;
+            }
+
+            console.log(`⚙️ [BINANCE API] ${symbol} ${yon} ${ortakKarar.realTier} onaylı | Boyut x${ligBoyutCarpani.toFixed(2)} | Market + Koruma Emirleri Hazırlanıyor...`);
 
             await h.client.futuresLeverage({ symbol, leverage: ayarlar.mevcutKaldirac });
             await h.client.futuresMarginType({ symbol, marginType: 'CROSSED' }).catch(() => {});
@@ -356,13 +363,13 @@ const m = {
             const emirYonu = yon === 'LONG' ? 'BUY' : 'SELL';
             const karsiYon = yon === 'LONG' ? 'SELL' : 'BUY';
 
-            console.log(`📤 [EMİR GÖNDERİLİYOR] ${symbol} ${emirYonu} ${guvenliMiktar} @ Market`);
+            console.log(`📤 [EMİR GÖNDERİLİYOR] ${symbol} ${emirYonu} ${gercekMiktar} @ Market | ${ortakKarar.realTier} x${ligBoyutCarpani.toFixed(2)}`);
 
             const sonuc = await h.client.futuresOrder({
                 symbol,
                 side: emirYonu,
                 type: 'MARKET',
-                quantity: guvenliMiktar.toString()
+                quantity: gercekMiktar.toString()
             });
 
             console.log(`📥 [EMİR CEVABI] ${symbol} Order ID: ${sonuc?.orderId || 'YOK'}`);
@@ -407,7 +414,9 @@ const m = {
                 girisFiyati: canliFiyat,
                 sl,
                 tp,
-                miktar: guvenliMiktar,
+                miktar: gercekMiktar,
+                ligBoyutCarpani,
+                gercekLig: ortakKarar.realTier,
                 sanal: false,
                 borsaOrderId: sonuc.orderId,
                 acilisZamani: Date.now(),

@@ -482,6 +482,9 @@ const ayarlar = {
     // Gerçek emir çıkışlarına dokunmaz. Plan yoksa veya model canlı uygulanabilir değilse kademe fallback çalışır.
     sanalDynamicExitAktif: true,
     sanalDynamicExitMaksPathNoktasi: 240,
+    // Gerçek emir modu ayrıca açıldığında Premier işlem aynı dinamik exit planıyla yönetilebilir.
+    // Varsayılan kapalıdır; gerçek emir yetkisi ve test onayı olmadan etkinleşmez.
+    gercekDynamicExitAktif: false,
     // v3.12.0 DNA League Engine - otomatik Premier/Championship/Gelişim/Tarihsel ligleri.
     // İlk sürüm karar ve metadata katmanıdır; gerçek emir filtresi ayrıca açılacaktır.
     dnaLeagueAktif: true,
@@ -498,7 +501,8 @@ const ayarlar = {
     dnaLeaguePremierExitKanitiZorunlu: false,
     // v4.2.2: SANAL test havuzu dinamiktir; o anki Premier + Championship üyeleri işlem açabilir.
     // Gerçek emir kapısı yalnızca Premier olarak fail-closed kalır. Sabit DNA sayısı yoktur.
-    premierSanalEmirFiltresiAktif: true,
+    // v4.2.6: Eski sanal lig filtresi devre dışı. Tüm geçerli DNA'lar alt öğrenme katmanında sanal açılır.
+    premierSanalEmirFiltresiAktif: false,
     sanalTestPremierAktif: true,
     sanalTestChampionshipAktif: true,
     premierTestExperimentId: 'DYNAMIC-LEAGUE-EXIT-2026-07-17',
@@ -508,8 +512,11 @@ const ayarlar = {
     premierObservationTelegramTopAktif: 8,
 
     // v4.2.0 REAL ORDER READINESS BRIDGE
-    // Sanal ve gerçek emir aynı Profit-First Premier kapısından geçer.
+    // v4.2.7: Premier ana gerçek katman; kârlı Championship kontrollü küçük boyutla gerçek test alır.
     gercekEmirPremierKapisiAktif: true,
+    gercekEmirChampionshipKapisiAktif: true,
+    gercekEmirPremierBoyutCarpani: 1.00,
+    gercekEmirChampionshipBoyutCarpani: 0.25,
     // Üç günlük doğrulama tamamlanmadan true yapılmaz.
     gercekEmirYetkilendirmeAktif: false,
     // Gerçek moda geçerken değiştirilir ve AWS ortamında AGROS_REAL_ORDER_ARM ile aynı değer verilir.

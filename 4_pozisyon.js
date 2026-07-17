@@ -1285,6 +1285,36 @@ async function izSurmeyiGuncelle() {
         const borsaPoz = borsaPozisyonlar.find(p => p.symbol === pos.sym);
         const borsaMiktar = borsaPoz ? Math.abs(parseFloat(borsaPoz.positionAmt)) : 0;
 
+        // v4.2.6: Üst gerçek emir katmanı, yalnız ayrıca etkinleştirildiğinde ve
+        // pozisyon Premier kapısından geçmişse aynı güncel DNA exit planını uygular.
+        // Kapanıştan önce eski koruma emirleri iptal edilir; ardından reduce-only market kapanış yapılır.
+        if (borsaMiktar > 0) {
+            const realDynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
+            if (realDynamicKarar.close) {
+                if (pos.kapanisIsleniyor) continue;
+                pos.kapanisIsleniyor = true;
+                try {
+                    const acikEmirler = await h.client.futuresOpenOrders({ symbol: pos.sym }).catch(() => []);
+                    for (const emir of acikEmirler || []) {
+                        await h.client.futuresCancelOrder({ symbol: pos.sym, orderId: emir.orderId }).catch(() => {});
+                    }
+                    const kapandi = await m.pozisyonKapat(pos.sym, pos.yon);
+                    if (!kapandi) throw new Error('Dinamik gerçek kapanış emri onaylanmadı');
+                    pos.dynamicExitApplied = realDynamicKarar;
+                    console.log(`🧬 [GERÇEK DYNAMIC EXIT] ${pos.sym} ${pos.yon} | ${realDynamicKarar.algorithmLabel} | ${realDynamicKarar.reason}`);
+                    h.state.aktifPozisyonlar.splice(i, 1);
+                    pozisyonListelerindenSil(pos);
+                    await kapanisRaporla(pos, realDynamicKarar.price, realDynamicKarar.reason);
+                    kaliciHafiza.kaydet('gercek-dynamic-exit-kapandi');
+                    await rapor.raporGonder(true);
+                } catch (err) {
+                    pos.kapanisIsleniyor = false;
+                    console.error(`❌ [GERÇEK DYNAMIC EXIT HATASI] ${pos.sym} ${pos.yon} | ${err.message}`);
+                }
+                continue;
+            }
+        }
+
         if (borsaMiktar === 0) {
             if (pos.kapanisIsleniyor) continue;
             pos.kapanisIsleniyor = true;

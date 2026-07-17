@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.2.4-LEAGUE-ENTRY-RELIABILITY';
+const VERSION = 'v4.2.5-LEAGUE-DIAGNOSTIC';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -424,6 +424,75 @@ function build(models = {}, options = {}) {
   return model;
 }
 
+
+function leagueLookupDiagnostics(key, model = null, options = {}) {
+  const current = model || readJson(LEAGUE_FILE, null);
+  const wanted = normalizeSignatureKey(key);
+  const base = baseSignatureKey(wanted);
+  const leagues = current?.leagues || {};
+  const leagueSizes = {};
+  const exactMatches = [];
+  const baseMatches = [];
+  const samples = [];
+  const sampleLimit = Math.max(1, num(options.sampleLimit, 8));
+
+  for (const [league, rowsRaw] of Object.entries(leagues)) {
+    const rows = Array.isArray(rowsRaw) ? rowsRaw : [];
+    leagueSizes[String(league).toUpperCase()] = rows.length;
+    for (const player of rows) {
+      const normalized = normalizeSignatureKey(player?.key || '');
+      const candidateBase = baseSignatureKey(normalized);
+      if (normalized === wanted) exactMatches.push({ league: String(league).toUpperCase(), key: normalized });
+      if (base && candidateBase === base) baseMatches.push({ league: String(league).toUpperCase(), key: normalized });
+      if (samples.length < sampleLimit && normalized) samples.push({ league: String(league).toUpperCase(), key: normalized });
+    }
+  }
+
+  let matchType = 'NONE';
+  if (exactMatches.length === 1) matchType = 'EXACT_NORMALIZED';
+  else if (exactMatches.length > 1) matchType = 'AMBIGUOUS_EXACT';
+  else if (baseMatches.length === 1) matchType = 'UNIQUE_BASE_FALLBACK';
+  else if (baseMatches.length > 1) matchType = 'AMBIGUOUS_BASE';
+
+  return {
+    version: VERSION,
+    leagueFile: LEAGUE_FILE,
+    modelLoaded: Boolean(current?.leagues),
+    generatedAt: current?.generatedAt || null,
+    requestedKey: String(key || ''),
+    normalizedKey: wanted,
+    baseKey: base,
+    matchType,
+    exactMatchCount: exactMatches.length,
+    baseMatchCount: baseMatches.length,
+    exactMatches,
+    baseMatches: baseMatches.slice(0, 12),
+    leagueSizes,
+    totalPlayers: Object.values(leagueSizes).reduce((a, b) => a + num(b), 0),
+    sampleKeys: samples
+  };
+}
+
+function formatLeagueLookupDiagnostics(diag, context = {}) {
+  const sizes = Object.entries(diag?.leagueSizes || {}).map(([k, v]) => `${k}:${v}`).join(' | ') || 'YOK';
+  const exact = (diag?.exactMatches || []).map(x => `${x.league}:${x.key}`).join(' || ') || 'YOK';
+  const base = (diag?.baseMatches || []).map(x => `${x.league}:${x.key}`).join(' || ') || 'YOK';
+  const sample = (diag?.sampleKeys || []).map(x => `${x.league}:${x.key}`).join(' || ') || 'YOK';
+  return [
+    `🧪 [LEAGUE DEBUG] ${context.symbol || '-'} ${context.side || '-'}`,
+    `Aranan DNA: ${diag?.requestedKey || 'YOK'}`,
+    `Normalize DNA: ${diag?.normalizedKey || 'YOK'}`,
+    `Temel DNA: ${diag?.baseKey || 'YOK'}`,
+    `Model: ${diag?.modelLoaded ? 'YUKLU' : 'YOK'} | Üretim: ${diag?.generatedAt || 'BILINMIYOR'}`,
+    `Lig boyutları: ${sizes} | Toplam: ${num(diag?.totalPlayers)}`,
+    `Eşleşme: ${diag?.matchType || 'NONE'} | Exact:${num(diag?.exactMatchCount)} | Base:${num(diag?.baseMatchCount)}`,
+    `Exact adaylar: ${exact}`,
+    `Base adaylar: ${base}`,
+    `Örnek lig anahtarları: ${sample}`,
+    `Karar ligi: ${context.league || 'BILINMIYOR'} | Sebep: ${context.reason || 'YOK'}`
+  ].join('\n');
+}
+
 function findPlayer(key, model = null) {
   const current = model || readJson(LEAGUE_FILE, null);
   if (!current?.leagues || !key) return null;
@@ -505,7 +574,7 @@ function telegramText(model, options = {}) {
   return text;
 }
 
-module.exports = { normalizeSignatureKey, baseSignatureKey,
+module.exports = { normalizeSignatureKey, baseSignatureKey, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
   VERSION,
   LEAGUE_FILE,
   TRANSFER_FILE,

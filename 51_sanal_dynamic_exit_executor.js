@@ -5,7 +5,7 @@
  */
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v4.2.1-SANAL-DYNAMIC-EXIT-ACTIVE';
+const VERSION = 'v4.2.6-DUAL-LAYER-DYNAMIC-EXIT';
 function num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
 function pnlPct(pos, price){return pos.yon==='LONG'?((price-pos.girisFiyati)/pos.girisFiyati)*100:((pos.girisFiyati-price)/pos.girisFiyati)*100;}
 function targetPrice(pos,pct){return pos.yon==='LONG'?pos.girisFiyati*(1+pct/100):pos.girisFiyati*(1-pct/100);}
@@ -17,7 +17,9 @@ function isSupported(id=''){
   return /^TIME_\d+M$/.test(id)||/^FIXED_TP_/.test(id)||/^MFE_PROTECT_\d+$/.test(id)||/^ALT_LADDER_(FAST|WIDE)$/.test(id)||id==='DYNAMIC_PATH_EXIT'||id==='HYBRID_TREND_MFE';
 }
 function evaluate(pos, price){
-  if(ayarlar.sanalDynamicExitAktif!==true||!pos?.sanal)return {active:false};
+  const virtualEnabled=pos?.sanal&&ayarlar.sanalDynamicExitAktif===true;
+  const realEnabled=!pos?.sanal&&ayarlar.gercekDynamicExitAktif===true&&pos?.realOrderReadiness?.allowed===true;
+  if(!virtualEnabled&&!realEnabled)return {active:false,reason:pos?.sanal?'SANAL_DYNAMIC_EXIT_KAPALI':'GERCEK_DYNAMIC_EXIT_KILITLI'};
   const plan=pos.exitPlanShadow;
   if(!plan?.ready||!plan.selectedAlgorithmId||plan.selectedAlgorithmId==='ACTUAL')return {active:false,reason:'KANITLI_EXIT_YOK'};
   const id=String(plan.selectedAlgorithmId);
