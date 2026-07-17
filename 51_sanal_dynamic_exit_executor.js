@@ -5,7 +5,7 @@
  */
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v4.3.1-ATR-LIVE-EXIT';
+const VERSION = 'v4.3.2-FROZEN-EXIT-ASSIGNMENT';
 function num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
 function pnlPct(pos, price){return pos.yon==='LONG'?((price-pos.girisFiyati)/pos.girisFiyati)*100:((pos.girisFiyati-price)/pos.girisFiyati)*100;}
 function targetPrice(pos,pct){return pos.yon==='LONG'?pos.girisFiyati*(1+pct/100):pos.girisFiyati*(1-pct/100);}
@@ -20,7 +20,10 @@ function evaluate(pos, price){
   const virtualEnabled=pos?.sanal&&ayarlar.sanalDynamicExitAktif===true;
   const realEnabled=!pos?.sanal&&ayarlar.gercekDynamicExitAktif===true&&pos?.realOrderReadiness?.allowed===true;
   if(!virtualEnabled&&!realEnabled)return {active:false,reason:pos?.sanal?'SANAL_DYNAMIC_EXIT_KAPALI':'GERCEK_DYNAMIC_EXIT_KILITLI'};
-  const plan=pos.exitPlanShadow;
+  const frozen=pos.executionExitAssignment;
+  const shadow=pos.exitPlanShadow;
+  const plan=frozen?{ready:Boolean(frozen.ready),selectedAlgorithmId:frozen.algorithmId,selectedAlgorithmLabel:frozen.label,assignmentId:frozen.assignmentId}:shadow;
+  if(frozen&&shadow?.selectedAlgorithmId&&String(frozen.algorithmId)!==String(shadow.selectedAlgorithmId))return {active:false,fallback:true,reason:`EXIT_PLAN_MISMATCH_${frozen.algorithmId}_${shadow.selectedAlgorithmId}`};
   if(!plan?.ready||!plan.selectedAlgorithmId||plan.selectedAlgorithmId==='ACTUAL')return {active:false,reason:'KANITLI_EXIT_YOK'};
   const id=String(plan.selectedAlgorithmId);
   if(!isSupported(id))return {active:false,fallback:true,reason:`DESTEKLENMEYEN_MODEL_${id}`};
@@ -31,7 +34,7 @@ function evaluate(pos, price){
   rt.path.push({ts:now,pnlPct:p,atrPct});
   const maxPoints=Math.max(20,num(ayarlar.sanalDynamicExitMaksPathNoktasi,240));
   if(rt.path.length>maxPoints)rt.path=rt.path.slice(-maxPoints);
-  const close=(reason,exitPrice=price)=>({active:true,close:true,price:exitPrice,reason:`Dynamic Exit: ${plan.selectedAlgorithmLabel} | ${reason}`,algorithmId:id,algorithmLabel:plan.selectedAlgorithmLabel,pnlPct:p,minute,peakPct:rt.peakPct});
+  const close=(reason,exitPrice=price)=>({active:true,close:true,price:exitPrice,reason:`Dynamic Exit: ${plan.selectedAlgorithmLabel} | ${reason}`,algorithmId:id,algorithmLabel:plan.selectedAlgorithmLabel,assignmentId:plan.assignmentId||null,pnlPct:p,minute,peakPct:rt.peakPct});
 
   const tm=id.match(/^TIME_(\d+)M$/); if(tm&&minute>=num(tm[1]))return close(`${tm[1]} dakika tamamlandı`);
   if(id.startsWith('FIXED_TP_')){const level=num(id.replace('FIXED_TP_','').replace('_','.'));if(level>0&&p>=level)return close(`Sabit hedef %${level}`,targetPrice(pos,level));}

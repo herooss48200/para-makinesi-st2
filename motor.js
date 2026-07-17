@@ -270,7 +270,11 @@ const m = {
             `🔀 ${symbol} (${yon})\n` +
             `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
             `🏆 Lig: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} | Eşleşme: ${yeniPozisyon.realOrderReadiness?.leagueMatchType || 'NONE'}\n` +
-            `🎯 Atanan Exit: ${yeniPozisyon.realOrderReadiness?.exit?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.realOrderReadiness?.exit?.ready ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
+            `🎯 Atanan Exit: ${yeniPozisyon.executionExitAssignment?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.executionExitAssignment?.activeForPosition ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
+            `📊 Exit Kanıtı: N${Number(yeniPozisyon.executionExitAssignment?.samples || 0)} | Beat %${Number(yeniPozisyon.executionExitAssignment?.beatRate || 0).toFixed(1)} | PF ${Number(yeniPozisyon.executionExitAssignment?.profitFactor || 0).toFixed(2)} | Net ${Number(yeniPozisyon.executionExitAssignment?.netUsdt || 0).toFixed(4)}\n` +
+            `🧭 Seçim Kapsamı: ${yeniPozisyon.executionExitAssignment?.scope || 'ACTUAL_FALLBACK'}\n` +
+            `🔎 Seçim Sebebi: ${yeniPozisyon.executionExitAssignment?.reason || 'Güvenli kademe fallback'}\n` +
+            `🔐 Plan Kimliği: ${yeniPozisyon.executionExitAssignment?.assignmentId || 'YOK'}\n` +
             `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
             `📦 Miktar: ${guvenliMiktar}\n` +
             `🛡️ Sanal SL: ${sl.toFixed(pPrecision)}\n` +

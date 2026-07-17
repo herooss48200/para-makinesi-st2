@@ -14,7 +14,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.2.8-DUAL-LAYER-RUNTIME-LOCK';
+const VERSION = 'v4.3.2-EXIT-DECISION-TRACE';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
@@ -116,12 +116,25 @@ function evaluate(pos, { realMode = false } = {}) {
       algorithmId: exitPlan?.selectedAlgorithmId || 'ACTUAL',
       label: exitPlan?.selectedAlgorithmLabel || 'Mevcut Kademe Sistemi',
       scope: exitPlan?.selectionScope || 'ACTUAL_FALLBACK',
-      executionPolicy: exitPlan?.ready ? (realMode ? 'VALIDATED_DYNAMIC_EXIT_REAL_GUARDED' : 'VALIDATED_DYNAMIC_EXIT_VIRTUAL_ACTIVE') : 'CURRENT_LADDER_FALLBACK'
+      executionPolicy: exitPlan?.ready ? (realMode ? 'VALIDATED_DYNAMIC_EXIT_REAL_GUARDED' : 'VALIDATED_DYNAMIC_EXIT_VIRTUAL_ACTIVE') : 'CURRENT_LADDER_FALLBACK',
+      samples: num(exitPlan?.samples),
+      beatRate: num(exitPlan?.beatRate),
+      profitFactor: num(exitPlan?.profitFactor),
+      netUsdt: num(exitPlan?.netUsdt),
+      recent20: exitPlan?.recent20 || null,
+      strengthening: Boolean(exitPlan?.strengthening),
+      reason: exitPlan?.reason || (exitPlan?.ready ? 'DOĞRULANMIŞ DİNAMİK EXIT' : 'GÜVENLİ KADEME FALLBACK'),
+      activeForPosition: Boolean(!realMode && ayarlar.sanalDynamicExitAktif === true && pos?.sanal && exitPlan?.ready),
+      planVersion: exitPlan?.version || null,
+      planCreatedAt: exitPlan?.createdAt || null
     },
     authorization: realMode ? { enabled: auth.enabled, expectedConfigured: auth.expectedConfigured, envConfigured: auth.envConfigured, valid: auth.valid } : undefined
   };
+  decision.exit.assignmentId = `${decision.key}|${decision.exit.algorithmId}|${decision.exit.planCreatedAt || decision.at}`;
   pos.realOrderReadiness = decision;
-  console.log(`${decision.allowed ? '✅' : '🚫'} [LİG KARAR TEŞHİSİ] ${decision.symbol} ${decision.side} | ${decision.key} | Lig ${decision.league} | Eşleşme ${decision.leagueMatchType} | Exit ${decision.exit.label} | ${decision.allowed ? 'İZİN' : decision.reasons.join(', ')}`);
+  pos.executionExitAssignment = { ...decision.exit, assignedAt: decision.at, immutable: true };
+  pos.exitPlanActiveForVirtual = decision.exit.activeForPosition;
+  console.log(`${decision.allowed ? '✅' : '🚫'} [LİG KARAR TEŞHİSİ] ${decision.symbol} ${decision.side} | ${decision.key} | Lig ${decision.league} | Eşleşme ${decision.leagueMatchType} | Exit ${decision.exit.label} | Aktif ${decision.exit.activeForPosition ? 'EVET' : 'HAYIR'} | Scope ${decision.exit.scope} | ${decision.allowed ? 'İZİN' : decision.reasons.join(', ')}`);
   append(decision);
   return decision;
 }
@@ -133,7 +146,9 @@ function telegramText(d) {
     `${icon} Mod: ${d.mode} | Karar: <b>${d.allowed ? 'İZİN' : 'ENGEL'}</b>\n` +
     `🏆 Lig: ${d.league} | N${m.total || 0} | Exp ${num(m.expectancy).toFixed(4)} | PF ${num(m.profitFactor).toFixed(2)} | Net ${num(m.net).toFixed(4)}\n` +
     `🌦️ Rejim: ${d.regime?.key || 'YOK'}\n` +
-    `🚪 Exit: ${d.exit?.label || 'Mevcut Kademe Sistemi'} | ${d.exit?.scope || 'FALLBACK'}\n` +
+    `🚪 Exit: ${d.exit?.label || 'Mevcut Kademe Sistemi'} | ${d.exit?.scope || 'FALLBACK'} | ${d.exit?.activeForPosition ? 'AKTİF' : 'FALLBACK'}\n` +
+    `📊 Exit Kanıtı: N${num(d.exit?.samples)} | Beat %${num(d.exit?.beatRate).toFixed(1)} | PF ${num(d.exit?.profitFactor).toFixed(2)} | Net ${num(d.exit?.netUsdt).toFixed(4)}\n` +
+    `🔎 Exit Sebebi: ${d.exit?.reason || 'YOK'}\n` +
     (!d.allowed ? `📌 Sebep: ${d.reasons.join(', ')}` : (d.mode === 'VIRTUAL' ? `🧪 Alt öğrenme katmanı: tüm geçerli DNA'lar açık | Lig yalnız etiket` : `🔒 Gerçek katman: ${d.realTier} | Boyut x${num(d.sizeMultiplier, 1).toFixed(2)} | Güncel kazanan exit`));
 }
 module.exports = { VERSION, AUDIT_JSONL, evaluate, telegramText, realAuthorization };
