@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ADAPTIVE-TRADING-LEAGUE',
-    kod: 'AWS Candidate v4.2.7-CHAMPIONSHIP-CONTROLLED-REAL',
-    botSurumu: '4.2.6-DUAL-LAYER-ADAPTIVE-EXECUTION',
+    kod: 'AWS Candidate v4.2.8-DUAL-LAYER-RUNTIME-LOCK',
+    botSurumu: '4.2.8-DUAL-LAYER-RUNTIME-LOCK',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '17.07.2026',
     ortam: {

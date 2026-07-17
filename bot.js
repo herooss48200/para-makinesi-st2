@@ -34,6 +34,7 @@ async function baslat() {
             const observation = premierObservation.read();
             console.log(`🧠 [ADAPTIVE LEAGUE READY] ${adaptiveLeague.VERSION} | Lig kayıt erişimi ${leagueState ? 'OK' : 'OK'} | Exit model ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'} | Observation kapanan ${Number(observation?.closed || 0)}`);
             console.log('🛡️ [RAM-SAFE] Başlangıçta ağır replay yeniden hesaplaması kapalı; kontrollü kapanış aralığında güncellenecek.');
+            console.log('🧬 [DUAL-LAYER RUNTIME ACTIVE] SANAL=ALL_VALID_DNA | GERÇEK=CHAMPIONSHIP_x0.25+PREMIER_x1.00 | PROFIT-FIRST_ONLY_REAL');
         } catch (err) {
             console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
         }
