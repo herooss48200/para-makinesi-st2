@@ -12,6 +12,7 @@ let sonLearningValidationKapanan = null;
 let sonExitEvolutionReplaySayisi = null;
 let sonDnaLeagueTransferKapanisi = null;
 let sonPremierObservationKapanan = null;
+let learningEvolutionBaseline = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -139,9 +140,49 @@ function kisalt(metin, limit = TELEGRAM_GUVENLI_LIMIT) {
         `\n\n⚠️ Rapor güvenlik nedeniyle kısaltıldı.`;
 }
 
+
+function learningEvolutionOzetMetni(s = {}) {
+    try {
+        const model = learningValidation.buildLearningValidationModel();
+        const opened = Number(s.toplamAcilanEmir || 0);
+        const closed = Number(model.kapanan || 0);
+        const observed = Number(model.learningScore?.toplamDna || 0);
+        const ready = Number(model.learningScore?.yeterliDna || 0);
+        const leagueSizes = model.dnaLeague?.leagueSizes || {};
+
+        if (!learningEvolutionBaseline) {
+            learningEvolutionBaseline = { opened, closed, observed, ready };
+        }
+
+        const dOpened = opened - learningEvolutionBaseline.opened;
+        const dClosed = closed - learningEvolutionBaseline.closed;
+        const dObserved = observed - learningEvolutionBaseline.observed;
+        const dReady = ready - learningEvolutionBaseline.ready;
+        const delta = n => `${n >= 0 ? '+' : ''}${n}`;
+
+        let text = `🧠 <b>ÖĞRENME DEVAM EDİYOR</b>
+`;
+        text += `📦 Açılan ${opened} (${delta(dOpened)}) | Kapanan ${closed} (${delta(dClosed)})
+`;
+        text += `🎯 Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT
+`;
+        text += `🧬 DNA: Hazır ${ready} (${delta(dReady)}) / Gözlenen ${observed} (${delta(dObserved)})
+`;
+        text += `🔄 Dinamik Lig: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)}
+`;
+        text += `<i>Parantez içi değişim bu bot çalışmasından itibaren.</i>`;
+        return text;
+    } catch (err) {
+        return `🧠 <b>Öğrenme:</b> aktif | Ayrıntılı sayaç hazırlanıyor.`;
+    }
+}
+
 function canliRaporMetniOlustur() {
     const s = h.state.basariOzeti || {};
-    const aktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
+    const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
+    const aktifler = ayarlar.sanalEmirModu
+        ? tumAktifler.filter(p => p?.sanal !== false && ['PREMIER', 'CHAMPIONSHIP'].includes(String(p?.premierObservation?.learningTrack || '')))
+        : tumAktifler.filter(p => p?.sanal === false);
     const pusuDegerleri = Object.values(h.state.pusuListesi || {});
     const analizOzeti = h.state.analizOzeti || {};
 
@@ -163,9 +204,9 @@ function canliRaporMetniOlustur() {
     const enKarli = sirali.slice(0, 5);
     const enRiskli = [...sirali].reverse().slice(0, 5);
 
-    const sonKapananlar = Array.isArray(analizOzeti.son10Islem)
-        ? analizOzeti.son10Islem.slice(0, 5)
-        : [];
+    // Eski genel muhasebenin son kapananları üst katman raporuna alınmaz.
+    // Böylece öğrenme kapanışları gerçek emir veya lig testi listesine karışmaz.
+    const sonKapananlar = [];
 
     const saat = new Date().toLocaleTimeString('tr-TR', { hour12: false });
     const mod = ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE';
@@ -178,20 +219,26 @@ function canliRaporMetniOlustur() {
     mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}\n`;
     mesaj += `🟢 Long: ${longAktif} | 🔴 Short: ${shortAktif}\n`;
     mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}\n`;
-    if (ayarlar.canliRaporEskiMuhasebeGoster === true) {
-        mesaj += `🔄 <b>Toplam Açılan:</b> ${s.toplamAcilanEmir || 0}\n`;
-        mesaj += `✅ TP: ${tp} | ❌ SL: ${sl} | ⚖️ BE: ${be} | Kapanan: ${toplamKapanan}\n`;
-        mesaj += `🏅 <b>Başarı:</b> %${yuzde(basariOrani)}\n`;
-        mesaj += `💸 <b>Komisyon:</b> ${sayi(s.toplamKomisyon || 0, 4)} USDT\n`;
-        mesaj += `👑 <b>Net Kasa:</b> ${sayi(s.netKarZarar || 0, 4)} USDT\n`;
+    if (ayarlar.sanalEmirModu) {
+        const leagueTestOzeti = premierObservation.compactTelegram(tumAktifler);
+        mesaj += `
+${leagueTestOzeti}
+`;
+        mesaj += `
+━━━━━━━━━━━━━━━━━━
+${learningEvolutionOzetMetni(s)}
+`;
     } else {
-        mesaj += `🧬 <b>Yeni Lig + Exit Testi:</b> aktif\n`;
-        mesaj += `🗃️ Eski başarı/muhasebe sayaçları bu ekranda gizli; öğrenme verisi korunuyor.\n`;
-    }
-
-    const leagueTestOzeti = premierObservation.compactTelegram(aktifler);
-    if (leagueTestOzeti) {
-        mesaj += `\n━━━━━━━━━━━━━━━━━━\n${leagueTestOzeti}\n`;
+        const gercekOzet = premierObservation.realCompactTelegram(tumAktifler);
+        mesaj += `
+${gercekOzet}
+`;
+        mesaj += `
+━━━━━━━━━━━━━━━━━━
+🧠 <b>ÖĞRENME KATMANI AYRI ÇALIŞIYOR</b>
+`;
+        mesaj += `Sanal öğrenme ve geçmiş DNA sonuçları gerçek emir başarı/net kasasına dahil edilmez.
+`;
     }
 
 
@@ -211,7 +258,9 @@ function canliRaporMetniOlustur() {
     }
 
     mesaj += `\n━━━━━━━━━━━━━━━━━━\n`;
-    mesaj += `<i>Öğrenme, Strategy Lab, BlackBox ve Heat Map analizleri ayrı raporlanır.</i>`;
+    mesaj += ayarlar.sanalEmirModu
+        ? `<i>Canlı Portföy yalnız Premier/Championship sanal testini gösterir; alt lig öğrenmesi ayrı raporlanır.</i>`
+        : `<i>Canlı Portföy yalnız Binance gerçek emirlerini gösterir; sanal test ve öğrenme sayaçları karışmaz.</i>`;
 
     return kisalt(mesaj);
 }

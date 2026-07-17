@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.2.9",
-  "description": "AGROS dual-layer sizing guard and clean live startup: Binance minimum checks stay fail-closed while legacy accounting is hidden from the live opening screen.",
+  "version": "4.2.10",
+  "description": "AGROS learning evolution visibility: live Telegram shows growing trade and DNA counters, performance metrics, and dynamic league status without changing execution logic.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
