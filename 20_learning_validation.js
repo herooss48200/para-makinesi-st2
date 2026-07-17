@@ -19,6 +19,7 @@ const agrosConsensus = require('./39_agros_consensus_engine.js');
 const consensusValidation = require('./40_consensus_validation_engine.js');
 const intelligenceDashboard = require('./41_agros_intelligence_dashboard.js');
 const performanceValidation = require('./42_performance_validation_dashboard.js');
+const dnaLeague = require('./46_dna_league_engine.js');
 
 function num(v, d = 0) {
   const n = Number(v);
@@ -239,6 +240,12 @@ function buildLearningValidationModel() {
     minCalls: Math.max(1, num(ayarlar.performanceValidationMinKarar || 10))
   });
 
+  const dnaLeagueModel = dnaLeague.build({
+    ranking: dnaRanking,
+    confidence: confidenceV2,
+    evolution: dnaEvolutionModel
+  });
+
   const intelligenceDashboardModel = intelligenceDashboard.build({
     direction: directionIntelligenceModel,
     evolution: dnaEvolutionModel,
@@ -300,6 +307,7 @@ function buildLearningValidationModel() {
     consensusValidation: consensusValidationModel,
     intelligenceDashboard: intelligenceDashboardModel,
     performanceValidation: performanceValidationModel,
+    dnaLeague: dnaLeagueModel,
     learningScore: {
       toplamDna: dna.toplamDna,
       yeterliDna: dna.yeterliDna,
@@ -340,6 +348,7 @@ function telegramOzetMetni(model = buildLearningValidationModel()) {
     if (ayarlar.agrosConsensusAktif !== false) m += agrosConsensus.telegramText(model.agrosConsensus, { limit: Math.max(1, num(ayarlar.agrosConsensusTopAday || 3)) });
     if (ayarlar.consensusValidationAktif !== false) m += consensusValidation.telegramText(model.consensusValidation);
   }
+  if (ayarlar.dnaLeagueAktif !== false) m += dnaLeague.telegramText(model.dnaLeague, { limit: Math.max(1, num(ayarlar.dnaLeagueTelegramTopAday || 3)) });
   m += `\n`;
   m += `🎓 Öğrenme: ${model.learningScore.yeterliDna}/${model.learningScore.toplamDna} DNA | Kapsam ${pct(model.learningScore.kapsama, 1)} | İlerleme ${pct(model.learningScore.progress, 1)}`;
   return m;

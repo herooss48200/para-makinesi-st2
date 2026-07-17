@@ -464,6 +464,26 @@ const ayarlar = {
     dnaExitSelectorMinConsensus: 60,
 
 
+    // v3.12.0 DNA League Engine - otomatik Premier/Championship/Gelişim/Tarihsel ligleri.
+    // İlk sürüm karar ve metadata katmanıdır; gerçek emir filtresi ayrıca açılacaktır.
+    dnaLeagueAktif: true,
+    dnaLeagueTelegramAktif: true,
+    dnaLeagueTelegramTopAday: 3,
+    dnaLeaguePremierKapasite: 25,
+    dnaLeagueChampionshipKapasite: 50,
+    dnaLeaguePremierMinOrnek: 20,
+    dnaLeagueChampionshipMinOrnek: 10,
+    dnaLeagueHistoricalMinOrnek: 20,
+    dnaLeaguePremierMinGuven: 50,
+    dnaLeaguePremierMinSon20Exp: -0.02,
+    dnaLeagueChampionshipMinPf: 0.85,
+    dnaLeagueChampionshipMinExp: -0.05,
+    dnaLeagueTransferKapanisAraligi: 25,
+    dnaLeagueRejimPenceresi: 60,
+    dnaLeagueRejimEdgeEsik: 0.025,
+    dnaLeagueExitMinOrnek: 20,
+    dnaLeagueExitMinBeatRate: 55,
+
     // v3.11.2 Exit Evolution Telegram Dashboard:
     exitEvolutionDashboardAktif: true,
     exitEvolutionDashboardTopModel: 5,

@@ -6,6 +6,7 @@ const blackbox = require('./8_blackbox.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const positionSizingAudit = require('./19_position_sizing_audit.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
+const dnaLeague = require('./46_dna_league_engine.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -216,6 +217,7 @@ const m = {
 
         exitOptimizer.pozisyonBaslat(yeniPozisyon);
         dnaExitSelector.attachToPosition(yeniPozisyon);
+        dnaLeague.attachToPosition(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
         blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
