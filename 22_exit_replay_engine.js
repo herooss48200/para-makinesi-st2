@@ -32,7 +32,7 @@ const MODEL_JSON = path.join(DATA_DIR, 'exit-replay-model.json');
 const CSV_COLUMNS = [
   'tradeId','zaman','symbol','yon','signatureShort','algorithmId','algorithmLabel','algorithmClass',
   'isExecutable','exitSource','exitMinute','grossPct','netPct','netUsdt','commissionUsdt','deltaVsActualUsdt',
-  'deltaVsActualPct','mfePct','maePct','reached','confidenceNote'
+  'deltaVsActualPct','mfePct','maePct','reached','dataAvailable','modelTriggered','confidenceNote'
 ];
 
 function num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
@@ -173,7 +173,7 @@ function replayTrade(pos, sonuc = {}) {
   if (ayarlar.exitReplayAktif === false) return null;
   try {
     ensureDataDir(); const input = normalizeInput(pos, sonuc), zaman = new Date().toISOString();
-    const actual = { algorithmId:'ACTUAL', algorithmLabel:'Gerçek Çıkış', algorithmClass:'BASELINE', isExecutable:true, exitSource:'ACTUAL_CLOSE', exitMinute:'', grossPct:round(input.actualGrossPct,4), netPct:round(input.actualNetPct,4), netUsdt:round(input.actualNetUsdt,6), commissionUsdt:round(input.commissionUsdt,6), deltaVsActualUsdt:0, deltaVsActualPct:0, mfePct:round(input.mfePct,4), maePct:round(input.maePct,4), reached:true, confidenceNote:'Gerçek muhasebe sonucu.' };
+    const actual = { algorithmId:'ACTUAL', algorithmLabel:'Gerçek Çıkış', algorithmClass:'BASELINE', isExecutable:true, exitSource:'ACTUAL_CLOSE', exitMinute:'', grossPct:round(input.actualGrossPct,4), netPct:round(input.actualNetPct,4), netUsdt:round(input.actualNetUsdt,6), commissionUsdt:round(input.commissionUsdt,6), deltaVsActualUsdt:0, deltaVsActualPct:0, mfePct:round(input.mfePct,4), maePct:round(input.maePct,4), reached:true, dataAvailable:true, modelTriggered:true, confidenceNote:'Gerçek muhasebe sonucu.' };
     const results = [actual, ...algorithms().map(a => a.run(input))];
     const record = { version: VERSION, zaman, input, results: results.map(r => ({ ...r, actualNetUsdt: input.actualNetUsdt })) };
     fs.appendFileSync(JSONL, JSON.stringify(record) + '\n');
@@ -193,7 +193,7 @@ function replayTrade(pos, sonuc = {}) {
     trendBehaviorEngine.addTrade(o.trendBehavior, input);
     volatilityBehaviorEngine.addTrade(o.dnaVolatilityBehavior, input);
     ladderBehaviorEngine.addTrade(o.dnaLadderBehavior, input);
-    const ranked = results.filter(r => r.algorithmId !== 'ACTUAL' && r.isExecutable).sort((a,b) => b.netUsdt-a.netUsdt);
+    const ranked = results.filter(r => r.algorithmId !== 'ACTUAL' && r.isExecutable && r.dataAvailable !== false).sort((a,b) => b.netUsdt-a.netUsdt);
     const best = ranked[0] || actual;
     o.actualTotalNetUsdt += input.actualNetUsdt;
     o.oracleBestTotalNetUsdt += num(best.netUsdt, input.actualNetUsdt);
@@ -238,7 +238,7 @@ function buildModel() {
   const dnaBehavior=dnaBehaviorProfile.buildModel(profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:behaviorMin });
   const behaviorIntelligence=behaviorIntelligenceEngine.buildModel(dnaBehavior,{ minSample:num(ayarlar.behaviorIntelligenceMinOrnek,behaviorMin) });
   const exitConsensus=exitConsensusEngine.buildModel(dna,behaviorIntelligence,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:num(ayarlar.exitConsensusMinOrnek,behaviorMin) });
-  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. Behavior Intelligence ve Exit Consensus yalnızca öğrenme/öneri üretir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,behaviorIntelligence,exitConsensus,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:['ATR_TRAILING_REQUIRES_ATR_PATH_DATA'] };
+  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. Behavior Intelligence ve Exit Consensus yalnızca öğrenme/öneri üretir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,behaviorIntelligence,exitConsensus,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:[] };
 }
 function sign(v, digits = 4) {
   const n = num(v);

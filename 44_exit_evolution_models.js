@@ -31,13 +31,16 @@ function scenarioResult(input, algo, grossPct, meta = {}) {
     mfePct: Number(num(input.mfePct).toFixed(4)),
     maePct: Number(num(input.maePct).toFixed(4)),
     reached: meta.reached !== false,
-    confidenceNote: meta.confidenceNote || ''
+    confidenceNote: meta.confidenceNote || '',
+    dataAvailable: meta.dataAvailable !== false,
+    modelTriggered: meta.modelTriggered !== false
   };
 }
 
 function actualFallback(input, algo, note) {
   return scenarioResult(input, algo, input.actualGrossPct, {
     reached: false,
+    modelTriggered: false,
     exitSource: 'ACTUAL_FALLBACK',
     confidenceNote: note
   });
@@ -145,7 +148,7 @@ function algorithms() {
     id: `ATR_TRAIL_${String(multiplier).replace('.','_')}X`, label: `ATR Trailing ${multiplier}x`, className: 'ATR_TRAILING', isExecutable: true,
     run(input) {
       const hasAtr = (input.pathRows || []).some(p => Number.isFinite(Number(p.atrPct)) && Number(p.atrPct) > 0);
-      if (!hasAtr) return actualFallback(input, this, 'ATR yüzdesi fiyat yolunda yok; model veri bekliyor.');
+      if (!hasAtr) return scenarioResult(input, this, input.actualGrossPct, { reached: false, modelTriggered: false, dataAvailable: false, exitSource: 'ATR_DATA_UNAVAILABLE', confidenceNote: 'ATR yüzdesi fiyat yolunda yok; model doğrulama örneğine alınmadı.' });
       const hit = atrTrailingExit(input, multiplier);
       return hit ? scenarioResult(input, this, hit.p.pnlPct, { exitMinute: minuteOf(input, hit.p), exitSource: 'ATR_TRAILING_BREAK', confidenceNote: `Tepe kârdan ${multiplier} ATR geri çekilme.` }) : actualFallback(input, this, 'ATR trailing tetiklenmedi.');
     }

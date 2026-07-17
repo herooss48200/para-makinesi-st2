@@ -133,19 +133,38 @@ function pozisyonBaslat(pos) {
   return ex;
 }
 
+function candleValue(row, key, arrayIndex) {
+  if (row && typeof row === 'object' && !Array.isArray(row)) return num(row[key]);
+  if (Array.isArray(row)) return num(row[arrayIndex]);
+  return 0;
+}
+
 function atrYuzdeHesapla(sym, canliFiyat, period = 14) {
   const candles = h.state.sniperMumlar?.[sym];
   if (!Array.isArray(candles) || candles.length < period + 1) return null;
   const rows = candles.slice(-(period + 1));
   let sum = 0;
   for (let i = 1; i < rows.length; i++) {
-    const high = num(rows[i]?.high), low = num(rows[i]?.low), prevClose = num(rows[i - 1]?.close);
+    const high = candleValue(rows[i], 'high', 2), low = candleValue(rows[i], 'low', 3), prevClose = candleValue(rows[i - 1], 'close', 4);
     if (!(high > 0 && low > 0 && prevClose > 0)) return null;
     sum += Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
   }
   const atr = sum / period;
   const price = num(canliFiyat);
-  return price > 0 ? round((atr / price) * 100, 4) : null;
+  const atrPct = price > 0 ? round((atr / price) * 100, 4) : null;
+  if (atrPct && atrPct > 0) {
+    h.state.exitAtrPct = h.state.exitAtrPct || {};
+    h.state.exitAtrPct[sym] = { value: atrPct, at: Date.now(), period };
+  }
+  return atrPct;
+}
+
+function atrYuzdeOku(sym, canliFiyat) {
+  const fresh = atrYuzdeHesapla(sym, canliFiyat);
+  if (fresh && fresh > 0) return fresh;
+  const cached = h.state.exitAtrPct?.[sym];
+  const maxAgeMs = Math.max(60000, num(ayarlar.exitReplayAtrCacheMaxAgeMinutes, 30) * 60000);
+  return cached && Date.now() - num(cached.at) <= maxAgeMs && num(cached.value) > 0 ? num(cached.value) : null;
 }
 
 function tickGuncelle(pos, canliFiyat) {
@@ -170,7 +189,7 @@ function tickGuncelle(pos, canliFiyat) {
       ts: ex.sonGuncelleme,
       price: round(fiyat, 12),
       pnlPct: round(k, 4),
-      atrPct: atrYuzdeHesapla(pos.sym, fiyat),
+      atrPct: atrYuzdeOku(pos.sym, fiyat),
       stTrend: trendNow,
       stAligned: trendNow ? trendNow === expectedTrend : null
     });

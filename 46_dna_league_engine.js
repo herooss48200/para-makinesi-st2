@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.1.0-PROFIT-FIRST-LEAGUE';
+const VERSION = 'v4.2.3-EXIT-AWARE-DYNAMIC-LEAGUE';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -122,7 +122,9 @@ function exitEvidence(key, exits) {
     algorithmLabel: ready ? best.algorithmLabel : 'Mevcut Kademe Sistemi',
     samples: num(best?.samples),
     beatRate: round(best?.beatRate, 1),
-    deltaUsdt: round(best?.netUsdt, 4),
+    netUsdt: round(best?.netUsdt, 4),
+    avgNetUsdt: round(best?.avgNetUsdt, 6),
+    deltaUsdt: round(best?.deltaUsdt, 4),
     profitFactor: round(best?.profitFactor, 2),
     strengthening: Boolean(best?.strengthening)
   };
@@ -135,9 +137,13 @@ function scorePlayer(row, confidence, evolution, regime, exit) {
   const momentum = clamp(num(evolution?.momentum?.score), -100, 100) * 0.12;
   const stability = clamp(num(evolution?.stability?.score), 0, 100) * 0.08;
   const recentEdge = clamp(num(recent20.expectancy) / 0.20, -1, 1) * 12;
-  const exitBonus = exit.ready ? clamp(num(exit.beatRate) - 50, 0, 30) * 0.20 + 2 : 0;
+  const exitProfitScore = exit.ready ? (
+    clamp(num(exit.avgNetUsdt) / 0.20, -1, 1) * 12 +
+    clamp((num(exit.profitFactor) - 1) * 12, -10, 18) +
+    clamp(num(exit.beatRate) - 50, 0, 30) * 0.25
+  ) : 0;
   const base = num(confidence?.metaScore, 50) * 0.48 + num(confidence?.confidenceV2, row.confidenceScore || 0) * 0.20 + num(row.score) * 0.12;
-  return round(clamp(base + momentum + stability + recentEdge + regimeAlignment + exitBonus, 0, 100), 2);
+  return round(clamp(base + momentum + stability + recentEdge + regimeAlignment + exitProfitScore, 0, 100), 2);
 }
 
 function buildPlayers(models = {}, options = {}) {
@@ -153,6 +159,19 @@ function buildPlayers(models = {}, options = {}) {
     const exit = exitEvidence(String(row.key), exits);
     const leagueScore = scorePlayer(row, confidence, evolution, regime, exit);
     const recent20 = evolution?.windows?.[20] || {};
+    const pairMetrics = exit.ready ? {
+      source: 'DNA_BEST_VALIDATED_EXIT',
+      algorithmId: exit.algorithmId,
+      algorithmLabel: exit.algorithmLabel,
+      total: exit.samples,
+      expectancy: round(exit.avgNetUsdt, 6),
+      profitFactor: round(exit.profitFactor, 3),
+      net: round(exit.netUsdt, 6),
+      beatRate: round(exit.beatRate, 1)
+    } : {
+      source: 'DNA_ACTUAL_EXIT', algorithmId: 'ACTUAL', algorithmLabel: 'Mevcut Kademe Sistemi',
+      total: num(row.total), expectancy: round(row.expectancy, 6), profitFactor: round(row.profitFactor, 3), net: round(row.net, 6), beatRate: 0
+    };
     return {
       key: String(row.key),
       label: row.label || shortKey(row.key),
@@ -180,6 +199,10 @@ function buildPlayers(models = {}, options = {}) {
       death: evolution?.death || 'YOK',
       regimeAligned: regime.activeDirection === 'NEUTRAL' || directionFromKey(row.key) === regime.activeDirection,
       exit,
+      pairMetrics,
+      effectiveExpectancy: pairMetrics.expectancy,
+      effectiveProfitFactor: pairMetrics.profitFactor,
+      effectiveNet: pairMetrics.net,
       leagueScore
     };
   }).sort((a, b) => b.leagueScore - a.leagueScore || b.expectancy - a.expectancy || b.total - a.total);
@@ -192,23 +215,25 @@ function qualify(player, league, options = {}) {
     // PROFIT-FIRST: Mevcut kademe sistemiyle kanıtlanmış kâr, Premier'e giriş kapısıdır.
     // Güven, momentum, heat/rejim ve exit kanıtı artık kârlı DNA'yı dışarı atmaz;
     // yalnızca Premier içindeki sıralamayı etkiler.
-    return player.total >= premierMin && player.expectancy > 0 && player.profitFactor > 1 && player.net > 0;
+    const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor, net: player.net };
+    return num(m.total) >= premierMin && num(m.expectancy) > 0 && num(m.profitFactor) > 1 && num(m.net) > 0;
   }
   if (league === 'CHAMPIONSHIP') {
-    return player.total >= championshipMin && player.profitFactor >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
-      player.expectancy >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05) && player.death !== 'OLUM_RISKI';
+    const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor };
+    return num(m.total) >= championshipMin && num(m.profitFactor) >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
+      num(m.expectancy) >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05) && player.death !== 'OLUM_RISKI';
   }
   return true;
 }
 
 function audit(players = [], leagues = {}) {
   const minSample = Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10));
-  const profitable = players.filter(p => p.total >= minSample && p.expectancy > 0 && p.profitFactor > 1 && p.net > 0);
+  const profitable = players.filter(p => { const m=p.pairMetrics||p; return num(m.total)>=minSample && num(m.expectancy)>0 && num(m.profitFactor)>1 && num(m.net)>0; });
   const premierKeys = new Set((leagues.premier || []).map(p => p.key));
   const profitableOutsidePremier = profitable.filter(p => !premierKeys.has(p.key));
-  const nearProfit = players.filter(p => p.total >= minSample && !profitable.some(x => x.key === p.key) && p.expectancy >= -0.05 && p.profitFactor >= 0.85);
+  const nearProfit = players.filter(p => { const m=p.pairMetrics||p; return num(m.total)>=minSample && !profitable.some(x=>x.key===p.key) && num(m.expectancy)>=-0.05 && num(m.profitFactor)>=0.85; });
   return {
-    rule: `N>=${minSample} + Exp>0 + PF>1 + Net>0`,
+    rule: `DNA + doğrulanmış en iyi Exit için N>=${minSample} + Exp>0 + PF>1 + Net>0`,
     totalPlayers: players.length,
     profitableCount: profitable.length,
     premierCount: (leagues.premier || []).length,
@@ -368,6 +393,10 @@ function attachToPosition(pos) {
     expectancy: profile.expectancy,
     profitFactor: profile.profitFactor,
     net: profile.net,
+    pairMetrics: profile.pairMetrics,
+    effectiveExpectancy: profile.effectiveExpectancy,
+    effectiveProfitFactor: profile.effectiveProfitFactor,
+    effectiveNet: profile.effectiveNet,
     confidence: profile.confidence,
     regimeAligned: profile.regimeAligned,
     exit: profile.exit,
@@ -384,7 +413,7 @@ function attachToPosition(pos) {
 }
 
 function line(row, index) {
-  return `${index + 1}. ${shortKey(row.key)} | Skor ${num(row.leagueScore).toFixed(1)} | N${row.total} | Exp ${row.expectancy >= 0 ? '+' : ''}${num(row.expectancy).toFixed(4)} | PF ${num(row.profitFactor).toFixed(2)} | ${row.momentum.status}`;
+  const m=row.pairMetrics||row; return `${index + 1}. ${shortKey(row.key)} | ${m.algorithmLabel||'Mevcut Kademe'} | Skor ${num(row.leagueScore).toFixed(1)} | N${num(m.total)} | Exp ${num(m.expectancy)>=0?'+':''}${num(m.expectancy).toFixed(4)} | PF ${num(m.profitFactor).toFixed(2)} | ${row.momentum.status}`;
 }
 
 function telegramText(model, options = {}) {

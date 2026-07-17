@@ -61,10 +61,18 @@ function loadReplayRecords(){
   if(rows[0]?.input&&Array.isArray(rows[0]?.results))return rows;
   return groupRecords(rows);
 }
+function validResult(r){
+  if(!r)return false;
+  if(r.dataAvailable===false)return false;
+  if(String(r.algorithmClass||'')==='ATR_TRAILING' && String(r.exitSource||'')==='ATR_DATA_UNAVAILABLE')return false;
+  if(String(r.algorithmClass||'')==='ATR_TRAILING' && /ATR yüzdesi fiyat yolunda yok/i.test(String(r.confidenceNote||'')))return false;
+  return true;
+}
 function metrics(results=[]){
+  const valid=results.filter(validResult);
   let net=0,grossWin=0,grossLoss=0,beat=0;
-  for(const r of results){const n=num(r.netUsdt);net+=n;if(n>0)grossWin+=n;else grossLoss+=Math.abs(n);if(num(r.deltaVsActualUsdt)>0.000001)beat++;}
-  return {samples:results.length,netUsdt:round(net,4),avgNetUsdt:results.length?round(net/results.length,5):0,profitFactor:grossLoss?round(grossWin/grossLoss,3):(grossWin>0?999:0),beatRate:results.length?round(beat/results.length*100,1):0};
+  for(const r of valid){const n=num(r.netUsdt);net+=n;if(n>0)grossWin+=n;else grossLoss+=Math.abs(n);if(num(r.deltaVsActualUsdt)>0.000001)beat++;}
+  return {samples:valid.length,rawSamples:results.length,netUsdt:round(net,4),avgNetUsdt:valid.length?round(net/valid.length,5):0,profitFactor:grossLoss?round(grossWin/grossLoss,3):(grossWin>0?999:0),beatRate:valid.length?round(beat/valid.length*100,1):0};
 }
 function windowMetrics(results=[],size){return metrics(results.slice(-size));}
 function algoProfile(rows=[]){

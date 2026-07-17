@@ -13,7 +13,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.2.2-DYNAMIC-LEAGUE-VIRTUAL-GATE';
+const VERSION = 'v4.2.3-DNA-EXIT-PAIR-READINESS';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
@@ -57,10 +57,11 @@ function evaluate(pos, { realMode = false } = {}) {
   if (realMode) {
     // Gerçek emir güvenliği değişmez: sadece o an Premier olan, kanıtlı kârlı DNA geçebilir.
     if (currentLeague !== 'PREMIER') reasons.push(`LIG_${currentLeague}`);
-    if (!(num(profile?.total) >= Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10)))) reasons.push('ORNEK_YETERSIZ');
-    if (!(num(profile?.expectancy) > 0)) reasons.push('EXPECTANCY_POZITIF_DEGIL');
-    if (!(num(profile?.profitFactor) > 1)) reasons.push('PF_1_USTU_DEGIL');
-    if (!(num(profile?.net) > 0)) reasons.push('NET_POZITIF_DEGIL');
+    const pair = profile?.pairMetrics || profile || {};
+    if (!(num(pair.total) >= Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10)))) reasons.push('DNA_EXIT_ORNEK_YETERSIZ');
+    if (!(num(pair.expectancy) > 0)) reasons.push('DNA_EXIT_EXPECTANCY_POZITIF_DEGIL');
+    if (!(num(pair.profitFactor) > 1)) reasons.push('DNA_EXIT_PF_1_USTU_DEGIL');
+    if (!(num(pair.net) > 0)) reasons.push('DNA_EXIT_NET_POZITIF_DEGIL');
     if (!Number.isFinite(age) || age > maxAge) reasons.push('LIG_MODELI_ESKI_VEYA_YOK');
   } else if (!virtualLeagueAllowed) {
     // Sanal test havuzu sabit sayı kullanmaz; güncel lig dosyasındaki tüm Premier ve Championship üyeleri dinamiktir.
@@ -85,8 +86,9 @@ function evaluate(pos, { realMode = false } = {}) {
     virtualPool: !realMode && virtualLeagueAllowed ? currentLeague : null,
     leagueModelAgeMinutes: Number.isFinite(age) ? Number(age.toFixed(2)) : null,
     metrics: {
-      total: num(profile?.total), expectancy: num(profile?.expectancy),
-      profitFactor: num(profile?.profitFactor), net: num(profile?.net),
+      total: num(profile?.pairMetrics?.total, profile?.total), expectancy: num(profile?.pairMetrics?.expectancy, profile?.expectancy),
+      profitFactor: num(profile?.pairMetrics?.profitFactor, profile?.profitFactor), net: num(profile?.pairMetrics?.net, profile?.net),
+      source: profile?.pairMetrics?.source || 'DNA_ACTUAL_EXIT',
       score: num(profile?.leagueScore)
     },
     regime: exitPlan?.currentRegime || null,
