@@ -1,4 +1,4 @@
-/** AGROS v4.3.8 - Memory-safe JSON/JSONL helpers. */
+/** AGROS v4.4.6 - Memory-safe JSON/JSONL helpers. */
 const fs = require('fs');
 const path = require('path');
 
@@ -31,14 +31,28 @@ function readJsonBounded(file, fallback = null, options = {}) {
 }
 
 function forEachJsonlSync(file, onRow, options = {}) {
-  if (!fs.existsSync(file)) return { rows: 0, invalid: 0 };
+  if (!fs.existsSync(file)) return { rows: 0, invalid: 0, oversized: 0 };
   const chunkBytes = Math.max(4096, Number(options.chunkBytes || 256 * 1024));
+  const maxLineBytes = Math.max(1024, Number(options.maxLineBytes || 16 * 1024 * 1024));
   const fd = fs.openSync(file, 'r');
   const buffer = Buffer.allocUnsafe(chunkBytes);
   let carry = '';
   let offset = 0;
   let rows = 0;
   let invalid = 0;
+  let oversized = 0;
+  let discardOversizedLine = false;
+
+  function parseLine(line) {
+    if (!line.trim()) return;
+    if (Buffer.byteLength(line, 'utf8') > maxLineBytes) {
+      invalid++;
+      oversized++;
+      return;
+    }
+    try { onRow(JSON.parse(line)); rows++; } catch (_) { invalid++; }
+  }
+
   try {
     const size = fs.fstatSync(fd).size;
     while (offset < size) {
@@ -46,20 +60,32 @@ function forEachJsonlSync(file, onRow, options = {}) {
       const read = fs.readSync(fd, buffer, 0, length, offset);
       if (!read) break;
       offset += read;
-      const parts = (carry + buffer.toString('utf8', 0, read)).split(/\r?\n/);
+      let text = buffer.toString('utf8', 0, read);
+
+      // Tek bir bozuk/aşırı büyük JSON satırı da carry alanını sınırsız büyütmesin.
+      if (discardOversizedLine) {
+        const newline = text.indexOf('\n');
+        if (newline < 0) continue;
+        text = text.slice(newline + 1);
+        discardOversizedLine = false;
+      }
+
+      const parts = (carry + text).split(/\r?\n/);
       carry = parts.pop() || '';
-      for (const line of parts) {
-        if (!line.trim()) continue;
-        try { onRow(JSON.parse(line)); rows++; } catch (_) { invalid++; }
+      for (const line of parts) parseLine(line);
+
+      if (Buffer.byteLength(carry, 'utf8') > maxLineBytes) {
+        carry = '';
+        invalid++;
+        oversized++;
+        discardOversizedLine = true;
       }
     }
-    if (carry.trim()) {
-      try { onRow(JSON.parse(carry)); rows++; } catch (_) { invalid++; }
-    }
+    if (!discardOversizedLine && carry.trim()) parseLine(carry);
   } finally {
     fs.closeSync(fd);
   }
-  return { rows, invalid };
+  return { rows, invalid, oversized };
 }
 
 function readJsonlTailSync(file, limit = 100, options = {}) {

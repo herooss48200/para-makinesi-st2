@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const memorySafeIo = require('./53_memory_safe_io.js');
 
 const VERSION = 'ER-A6-DNA-EVOLUTION-v1';
 const DEFAULT_JSONL = path.join(__dirname, 'data', 'blackbox-snapshots.jsonl');
@@ -97,10 +98,32 @@ function parseJsonlText(text = '') {
   return { trades, invalidLines };
 }
 
-function loadTrades(filePath = DEFAULT_JSONL) {
-  if (!fs.existsSync(filePath)) return { trades: [], invalidLines: 0, filePath, exists: false };
-  const parsed = parseJsonlText(fs.readFileSync(filePath, 'utf8'));
-  return { ...parsed, filePath, exists: true };
+function loadTrades(filePath = DEFAULT_JSONL, options = {}) {
+  if (!fs.existsSync(filePath)) return { trades: [], invalidLines: 0, filePath, exists: false, rowsRead: 0 };
+
+  // BlackBox satırları; açılış snapshot'ları, fiyat yolları ve analiz ayrıntıları nedeniyle
+  // zamanla çok büyüyebilir. Dosyayı readFileSync + split ile tek seferde RAM'e almak,
+  // Node heap sınırını aşarak PM2 sürecini düşürebiliyordu. Her JSONL satırını akış halinde
+  // ayrıştırıp yalnız küçük normalize kapanış özetlerini bellekte tutuyoruz.
+  const trades = [];
+  const scan = memorySafeIo.forEachJsonlSync(filePath, rec => {
+    const trade = normalizeTrade(rec);
+    if (trade) trades.push(trade);
+  }, {
+    chunkBytes: Math.max(64 * 1024, num(options.chunkBytes, 256 * 1024)),
+    maxLineBytes: Math.max(1024 * 1024, num(options.maxLineBytes, 16 * 1024 * 1024))
+  });
+
+  trades.sort((a, b) => a.timestamp - b.timestamp);
+  return {
+    trades,
+    invalidLines: num(scan.invalid),
+    oversizedLines: num(scan.oversized),
+    rowsRead: num(scan.rows),
+    filePath,
+    exists: true,
+    readMode: 'STREAMING_JSONL'
+  };
 }
 
 function metrics(trades = []) {
