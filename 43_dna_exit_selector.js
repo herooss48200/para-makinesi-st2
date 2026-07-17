@@ -15,7 +15,7 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v3.11.0-DNA-EXIT-SELECTOR-SHADOW';
+const VERSION = 'v4.2.1-DNA-EXIT-SELECTOR-SANAL-ACTIVE';
 const DATA_DIR = path.join(__dirname, 'data');
 const MODEL_JSON = path.join(DATA_DIR, 'exit-replay-model.json');
 const VALIDATION_JSONL = path.join(DATA_DIR, 'dna-exit-shadow-validation.jsonl');
@@ -66,6 +66,7 @@ function attachToPosition(pos) {
   if (!pos || ayarlar.dnaExitSelectorAktif === false) return null;
   const plan = selectForPosition(pos);
   pos.exitPlanShadow = plan;
+  pos.exitPlanActiveForVirtual = Boolean(ayarlar.sanalDynamicExitAktif === true && pos.sanal && plan?.ready);
   return plan;
 }
 function readValidationRows() {
@@ -131,7 +132,7 @@ function validateReplay(pos, record) {
 function openingText(plan) {
   if (!plan || ayarlar.dnaExitSelectorTelegramAktif === false) return '';
   if (!plan.ready) return `\n🧬 Exit Planı: Mevcut Kademe (gölge seçim için ${plan.reason})`;
-  return `\n🧬 Gölge Exit Planı: ${plan.selectedAlgorithmLabel}\n📊 Kanıt: ${plan.samples} işlem | Beat %${num(plan.beatRate).toFixed(1)} | Δ ${num(plan.totalDeltaUsdt) >= 0 ? '+' : ''}${num(plan.totalDeltaUsdt).toFixed(2)} USDT\n🛡️ Gerçek çıkış hâlâ mevcut kademe sistemi.`;
+  return `\n🧬 Exit Planı: ${plan.selectedAlgorithmLabel}\n📊 Kanıt: ${plan.samples} işlem | Beat %${num(plan.beatRate).toFixed(1)} | PF ${num(plan.profitFactor).toFixed(2)}\n🧪 Sanal modda aktif uygulanır; gerçek emir çıkışı kilitli kalır.`;
 }
 function closingText(record) {
   const v = record?.shadowExitValidation;

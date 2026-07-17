@@ -8,6 +8,7 @@ const positionSizingAudit = require('./19_position_sizing_audit.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const premierObservation = require('./48_premier_observation_engine.js');
+const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -183,7 +184,7 @@ const m = {
         return { senaryo: null, targetLevel: 0 };
     },
 
-    sanalPozisyonKaydet: async (symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi = null) => {
+    sanalPozisyonKaydet: async (symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi = null, hazirKimlik = null) => {
         const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
         if (!izin.uygun) {
             console.log(`🛡️ [SANAL EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
@@ -210,15 +211,24 @@ const m = {
             breakevenAktif: false,
             girisAnalizi
         };
-        // BlackBox açılış fotoğrafı: stratejiye müdahale etmez, sadece analiz verisi üretir.
-        yeniPozisyon.blackboxAcilis = await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
+        // Ortak kimlik sanal/gerçek emirden önce hazırlanır; burada aynı snapshot yeniden kullanılabilir.
+        yeniPozisyon.blackboxAcilis = hazirKimlik?.blackboxAcilis || await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
             console.log(`⚠️ [BLACKBOX] Açılış snapshot alınamadı: ${symbol} ${yon} | ${err.message}`);
             return null;
         });
 
         exitOptimizer.pozisyonBaslat(yeniPozisyon);
-        dnaExitSelector.attachToPosition(yeniPozisyon);
-        dnaLeague.attachToPosition(yeniPozisyon);
+        if (hazirKimlik) {
+            yeniPozisyon.dnaLeagueProfile = hazirKimlik.dnaLeagueProfile;
+            yeniPozisyon.exitPlanShadow = hazirKimlik.exitPlanShadow;
+            yeniPozisyon.realOrderReadiness = hazirKimlik.realOrderReadiness;
+        }
+        const karar = hazirKimlik?.realOrderReadiness || realOrderBridge.evaluate(yeniPozisyon, { realMode: false });
+        if (ayarlar.premierSanalEmirFiltresiAktif === true && !karar.allowed) {
+            premierObservation.blocked(karar.key, karar.reasons.join('|'));
+            console.log(`🚫 [PROFIT-FIRST ORTAK KAPI] ${symbol} ${yon} açılmadı | ${karar.key} | ${karar.reasons.join(', ')}`);
+            return false;
+        }
         premierObservation.snapshot(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
@@ -312,12 +322,30 @@ const m = {
             const sl = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 - slOrani) : canliFiyat * (1 + slOrani));
             const tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
 
+            // Sanal ve gerçek emir aynı DNA + lig + rejim + exit kimliğinden geçer.
+            const hazirKimlik = {
+                sym: symbol, yon, girisFiyati: canliFiyat, sl, tp, miktar: guvenliMiktar,
+                sanal: ayarlar.sanalEmirModu, acilisZamani: Date.now(), girisAnalizi
+            };
+            hazirKimlik.blackboxAcilis = await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
+                console.log(`⚠️ [BLACKBOX] Emir öncesi snapshot alınamadı: ${symbol} ${yon} | ${err.message}`);
+                return null;
+            });
+            const ortakKarar = realOrderBridge.evaluate(hazirKimlik, { realMode: !ayarlar.sanalEmirModu });
+
             if (ayarlar.sanalEmirModu) {
                 console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${yon}`);
-                return await m.sanalPozisyonKaydet(symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi);
+                return await m.sanalPozisyonKaydet(symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi, hazirKimlik);
             }
 
-            console.log(`⚙️ [BINANCE API] ${symbol} ${yon} Market + Koruma Emirleri Hazırlanıyor...`);
+            if (!ortakKarar.allowed) {
+                premierObservation.blocked(ortakKarar.key, ortakKarar.reasons.join('|'));
+                console.log(`🚫 [GERÇEK EMİR FAIL-CLOSED] ${symbol} ${yon} | ${ortakKarar.reasons.join(', ')}`);
+                await h.telegramMesajGonder(realOrderBridge.telegramText(ortakKarar));
+                return false;
+            }
+
+            console.log(`⚙️ [BINANCE API] ${symbol} ${yon} Premier onaylı Market + Koruma Emirleri Hazırlanıyor...`);
 
             await h.client.futuresLeverage({ symbol, leverage: ayarlar.mevcutKaldirac });
             await h.client.futuresMarginType({ symbol, marginType: 'CROSSED' }).catch(() => {});
@@ -386,10 +414,11 @@ const m = {
                 breakevenAktif: false,
                 girisAnalizi
             };
-            yeniPozisyon.blackboxAcilis = await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
-                console.log(`⚠️ [BLACKBOX] Açılış snapshot alınamadı: ${symbol} ${yon} | ${err.message}`);
-                return null;
-            });
+            yeniPozisyon.blackboxAcilis = hazirKimlik.blackboxAcilis;
+            yeniPozisyon.dnaLeagueProfile = hazirKimlik.dnaLeagueProfile;
+            yeniPozisyon.exitPlanShadow = hazirKimlik.exitPlanShadow;
+            yeniPozisyon.realOrderReadiness = hazirKimlik.realOrderReadiness;
+            premierObservation.snapshot(yeniPozisyon);
 
             h.state.aktifPozisyonlar.push(yeniPozisyon);
             analizMerkezi.acilisKaydet(yeniPozisyon);
@@ -407,6 +436,7 @@ const m = {
                 `📦 Miktar: ${guvenliMiktar}\n` +
                 `🛡️ Borsaya İletilen SL: ${sl.toFixed(pPrecision)}\n` +
                 `🎯 Borsaya İletilen Final TP: ${tp.toFixed(pPrecision)}` +
+                realOrderBridge.telegramText(yeniPozisyon.realOrderReadiness) +
                 dnaExitSelector.openingText(yeniPozisyon.exitPlanShadow) +
               blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
                 (girisAnalizi?.superTrendEtki ? `\n📈 ST Etki: ${girisAnalizi.superTrendEtki.puan}/20 | Yaş: ${girisAnalizi.superTrendEtki.yasMum} | Mesafe: %${Number(girisAnalizi.superTrendEtki.mesafeYuzde || 0).toFixed(2)} | ${girisAnalizi.superTrendEtki.durum}` : '')

@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.0.0-ADAPTIVE-TRADING-LEAGUE';
+const VERSION = 'v4.1.0-PROFIT-FIRST-LEAGUE';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -186,20 +186,37 @@ function buildPlayers(models = {}, options = {}) {
 }
 
 function qualify(player, league, options = {}) {
-  const premierMin = Math.max(1, num(options.premierMinSample, ayarlar.dnaLeaguePremierMinOrnek || 20));
+  const premierMin = Math.max(1, num(options.premierMinSample, ayarlar.dnaLeaguePremierMinOrnek || 10));
   const championshipMin = Math.max(1, num(options.championshipMinSample, ayarlar.dnaLeagueChampionshipMinOrnek || 10));
   if (league === 'PREMIER') {
-    return player.total >= premierMin && player.expectancy > 0 && player.profitFactor > 1 &&
-      player.confidence >= num(ayarlar.dnaLeaguePremierMinGuven, 50) &&
-      player.recent20.expectancy >= num(ayarlar.dnaLeaguePremierMinSon20Exp, -0.02) &&
-      !['COKUYOR'].includes(player.momentum.status) && player.death === 'YOK' &&
-      (ayarlar.dnaLeaguePremierExitKanitiZorunlu === false || player.exit.ready === true);
+    // PROFIT-FIRST: Mevcut kademe sistemiyle kanıtlanmış kâr, Premier'e giriş kapısıdır.
+    // Güven, momentum, heat/rejim ve exit kanıtı artık kârlı DNA'yı dışarı atmaz;
+    // yalnızca Premier içindeki sıralamayı etkiler.
+    return player.total >= premierMin && player.expectancy > 0 && player.profitFactor > 1 && player.net > 0;
   }
   if (league === 'CHAMPIONSHIP') {
     return player.total >= championshipMin && player.profitFactor >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
       player.expectancy >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05) && player.death !== 'OLUM_RISKI';
   }
   return true;
+}
+
+function audit(players = [], leagues = {}) {
+  const minSample = Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10));
+  const profitable = players.filter(p => p.total >= minSample && p.expectancy > 0 && p.profitFactor > 1 && p.net > 0);
+  const premierKeys = new Set((leagues.premier || []).map(p => p.key));
+  const profitableOutsidePremier = profitable.filter(p => !premierKeys.has(p.key));
+  const nearProfit = players.filter(p => p.total >= minSample && !profitable.some(x => x.key === p.key) && p.expectancy >= -0.05 && p.profitFactor >= 0.85);
+  return {
+    rule: `N>=${minSample} + Exp>0 + PF>1 + Net>0`,
+    totalPlayers: players.length,
+    profitableCount: profitable.length,
+    premierCount: (leagues.premier || []).length,
+    profitableOutsidePremierCount: profitableOutsidePremier.length,
+    profitableOutsidePremier,
+    nearProfitCount: nearProfit.length,
+    topProfitable: profitable.slice().sort((a,b) => b.net-a.net || b.expectancy-a.expectancy).slice(0,20)
+  };
 }
 
 function proposedLeagues(players, options = {}) {
@@ -296,6 +313,7 @@ function build(models = {}, options = {}) {
       historical: leagues.historical.length
     },
     leagues,
+    audit: audit(players, leagues),
     transfers: events,
     allPlayers: players,
     policy: {
@@ -313,6 +331,7 @@ function build(models = {}, options = {}) {
       regime: model.regime,
       leagueSizes: model.leagueSizes,
       leagues: model.leagues,
+      audit: model.audit,
       recentTransfers: events.slice(-20),
       nextTransferAt: model.nextTransferAt,
       policy: model.policy
@@ -345,6 +364,11 @@ function attachToPosition(pos) {
     key,
     league: profile.league,
     leagueScore: profile.leagueScore,
+    total: profile.total,
+    expectancy: profile.expectancy,
+    profitFactor: profile.profitFactor,
+    net: profile.net,
+    confidence: profile.confidence,
     regimeAligned: profile.regimeAligned,
     exit: profile.exit,
     attachedAt: new Date().toISOString(),
@@ -379,7 +403,8 @@ function telegramText(model, options = {}) {
     text += `\n🔁 Bu dönem: ${promoted} Premier terfi | ${relegated} Premier düşüş`;
   }
   text += `\n🧪 Gözlem modu: tüm DNA'lar öğrenmeye devam eder; Premier işlemleri ayrı başarı kasasında izlenir.`;
-  text += `\n🎯 Premier sayı sınırı yoktur; kâr ve güven şartını sağlayanların tamamı lige girer.`;
+  text += `\n💰 Kârlı DNA: ${model.audit.profitableCount} | Premier dışında kârlı: ${model.audit.profitableOutsidePremierCount}`;
+  text += `\n🎯 Kural: ${model.audit.rule}. Diğer göstergeler yalnızca sıralama içindir.`;
   return text;
 }
 
@@ -391,6 +416,7 @@ module.exports = {
   inferPerformanceRegime,
   buildPlayers,
   proposedLeagues,
+  audit,
   build,
   findPlayer,
   attachToPosition,

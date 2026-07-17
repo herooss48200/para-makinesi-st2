@@ -10,6 +10,7 @@ const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
 const premierObservation = require('./48_premier_observation_engine.js');
+const sanalDynamicExit = require('./51_sanal_dynamic_exit_executor.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -1226,8 +1227,26 @@ async function izSurmeyiGuncelle() {
         const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
 
         if (sanalPozisyon) {
+            // v4.2.1: Kanıtlı DNA exit planı sanal testte aktif uygulanır.
+            // Plan yoksa/desteklenmiyorsa mevcut kademe sistemi güvenli fallback olarak devam eder.
+            const dynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
+            if (dynamicKarar.close) {
+                if (pos.kapanisIsleniyor) continue;
+                pos.kapanisIsleniyor = true;
+                pos.dynamicExitApplied = dynamicKarar;
+                console.log(`🧬 [SANAL DYNAMIC EXIT] ${pos.sym} ${pos.yon} | ${dynamicKarar.algorithmLabel} | ${dynamicKarar.reason} | Fiyat: ${dynamicKarar.price.toFixed(pPrecision)}`);
+                h.state.aktifPozisyonlar.splice(i, 1);
+                pozisyonListelerindenSil(pos);
+                try { await kapanisRaporla(pos, dynamicKarar.price, dynamicKarar.reason); }
+                catch (err) { console.error(`❌ [DYNAMIC EXIT KAPANIŞ HATASI] ${pos.sym} ${pos.yon} | ${err.message}`); }
+                kaliciHafiza.kaydet('sanal-dynamic-exit-kapandi');
+                await rapor.raporGonder(true);
+                continue;
+            }
+
+            const dynamicAktif = dynamicKarar.active === true;
             const oncekiSl = pos.sl;
-            const guncellendi = trailingHesapla(pos, canliFiyat);
+            const guncellendi = dynamicAktif ? false : trailingHesapla(pos, canliFiyat);
             if (guncellendi) {
                 pos.sl = m.fiyatKlip(pos.sym, pos.sl);
                 exitOptimizer.stopKaydet(pos, oncekiSl, pos.sl, canliFiyat, { kaynak: 'SANAL' });

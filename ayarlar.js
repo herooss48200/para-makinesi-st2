@@ -478,6 +478,10 @@ const ayarlar = {
     dynamicExitLowVolStepPct: 0.045,
     dynamicExitHighVolRangePct: 1.50,
     dynamicExitLowVolRangePct: 0.65,
+    // v4.2.1: Yalnızca SANAL pozisyonlarda kanıtlı dinamik exit planını gerçekten uygula.
+    // Gerçek emir çıkışlarına dokunmaz. Plan yoksa veya model canlı uygulanabilir değilse kademe fallback çalışır.
+    sanalDynamicExitAktif: true,
+    sanalDynamicExitMaksPathNoktasi: 240,
     // v3.12.0 DNA League Engine - otomatik Premier/Championship/Gelişim/Tarihsel ligleri.
     // İlk sürüm karar ve metadata katmanıdır; gerçek emir filtresi ayrıca açılacaktır.
     dnaLeagueAktif: true,
@@ -486,16 +490,29 @@ const ayarlar = {
     // v3.14: geriye uyumluluk için korunur; Premier seçiminde artık kapasite uygulanmaz.
     dnaLeaguePremierKapasite: 0,
     dnaLeagueChampionshipKapasite: 50,
-    dnaLeaguePremierMinOrnek: 20,
+    dnaLeaguePremierMinOrnek: 10,
     dnaLeagueChampionshipMinOrnek: 10,
     dnaLeagueHistoricalMinOrnek: 20,
     dnaLeaguePremierMinGuven: 50,
     dnaLeaguePremierMinSon20Exp: 0,
-    dnaLeaguePremierExitKanitiZorunlu: true,
+    dnaLeaguePremierExitKanitiZorunlu: false,
+    // v4.1: SANAL modda yalnızca mevcut kademe sistemiyle kârlı Premier DNA yeni işlem açar.
+    premierSanalEmirFiltresiAktif: true,
+    premierTestExperimentId: 'PROFIT-FIRST-2026-07-17',
     premierObservationAktif: true,
     premierObservationTelegramAktif: true,
     premierObservationRaporHerKapanis: 5,
     premierObservationTelegramTopAktif: 8,
+
+    // v4.2.0 REAL ORDER READINESS BRIDGE
+    // Sanal ve gerçek emir aynı Profit-First Premier kapısından geçer.
+    gercekEmirPremierKapisiAktif: true,
+    // Üç günlük doğrulama tamamlanmadan true yapılmaz.
+    gercekEmirYetkilendirmeAktif: false,
+    // Gerçek moda geçerken değiştirilir ve AWS ortamında AGROS_REAL_ORDER_ARM ile aynı değer verilir.
+    gercekEmirOnayKodu: 'UC_GUN_TEST_SONRASI_DEGISTIR',
+    // Lig modeli bu süreden eskiyse gerçek emir fail-closed engellenir.
+    gercekEmirLigModelMaksYasDakika: 360,
     dnaLeagueChampionshipMinPf: 0.85,
     dnaLeagueChampionshipMinExp: -0.05,
     dnaLeagueTransferKapanisAraligi: 25,
