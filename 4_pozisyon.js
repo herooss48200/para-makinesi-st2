@@ -11,6 +11,7 @@ const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 const sanalDynamicExit = require('./51_sanal_dynamic_exit_executor.js');
+const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -922,6 +923,9 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     });
 
     const restartGapIslemi = restartGap.isQuarantined(pos);
+    const exitMethodSummary = restartGapIslemi
+        ? exitMethodScoreboard.display(pos)
+        : exitMethodScoreboard.close(pos, { net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc, reason: duzeltilmisSebep });
 
     // Muhasebe PNL/komisyon her durumda korunur; restart-gap pozisyonları
     // bilimsel başarı sayaçlarına ve öğrenme motorlarına alınmaz.
@@ -987,7 +991,8 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `📊 Fiyat Hareketi: %${fiyatKarYuzdesi.toFixed(2)}\n` +
         `📈 Brüt PNL: ${brutKarZarar.toFixed(4)} USDT\n` +
         `💸 Komisyon: ${toplamKomisyon.toFixed(4)} USDT\n` +
-        `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT\n` +
+        `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT` +
+        exitMethodScoreboard.telegramLine(exitMethodSummary) + `\n` +
         (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | Sonuç: ${kaliteSonuc}\n` : '') +
         `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
         restartGap.telegramMetni(pos) +

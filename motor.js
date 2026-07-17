@@ -8,6 +8,7 @@ const positionSizingAudit = require('./19_position_sizing_audit.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const premierObservation = require('./48_premier_observation_engine.js');
+const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 
 function ondalikSayisi(step) {
@@ -229,6 +230,7 @@ const m = {
         // lig etiketi ve güncel kazanan exit planı pozisyona eklenerek öğrenme sürer.
         console.log(`🧪 [ALT ÖĞRENME KAPISI AÇIK] ${symbol} ${yon} | DNA ${karar.key} | Lig ${karar.league} | Exit ${karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         premierObservation.snapshot(yeniPozisyon);
+        exitMethodScoreboard.open(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
         blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
@@ -431,6 +433,7 @@ const m = {
             yeniPozisyon.exitPlanShadow = hazirKimlik.exitPlanShadow;
             yeniPozisyon.realOrderReadiness = hazirKimlik.realOrderReadiness;
             premierObservation.snapshot(yeniPozisyon);
+            exitMethodScoreboard.open(yeniPozisyon);
 
             h.state.aktifPozisyonlar.push(yeniPozisyon);
             analizMerkezi.acilisKaydet(yeniPozisyon);
