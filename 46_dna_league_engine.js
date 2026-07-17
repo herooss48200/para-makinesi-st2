@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.2.3-EXIT-AWARE-DYNAMIC-LEAGUE';
+const VERSION = 'v4.2.3-fix.1-SINGLE-DNA-SINGLE-LEAGUE';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -256,6 +256,36 @@ function proposedLeagues(players, options = {}) {
   return { premier, championship, development, historical };
 }
 
+/**
+ * Tek DNA - tek lig garantisi.
+ * Exit modelleri DNA kaydının altında yarışır; ayrı lig üyeliği oluşturmaz.
+ * Eski state dosyalarında mükerrer DNA varsa en üst lig korunur.
+ */
+function normalizeUniqueLeagues(leagues = {}) {
+  const result = { premier: [], championship: [], development: [], historical: [] };
+  const seen = new Set();
+  for (const league of ['premier', 'championship', 'development', 'historical']) {
+    for (const row of leagues[league] || []) {
+      const key = String(row?.key || '');
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      result[league].push(row);
+    }
+  }
+  return result;
+}
+
+function duplicateLeagueKeys(leagues = {}) {
+  const counts = new Map();
+  for (const league of ['premier', 'championship', 'development', 'historical']) {
+    for (const row of leagues[league] || []) {
+      const key = String(row?.key || '');
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  return [...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key);
+}
+
 function leagueMap(leagues = {}) {
   const map = new Map();
   for (const league of ['premier', 'championship', 'development', 'historical']) {
@@ -309,16 +339,16 @@ function build(models = {}, options = {}) {
   const previous = readJson(LEAGUE_FILE, null);
   const transferDue = shouldTransfer(previous, evolutionModel.totalTrades, options.forceTransfer === true);
 
-  let leagues = proposal;
+  let leagues = normalizeUniqueLeagues(proposal);
   let events = [];
   let lastTransferTradeCount = evolutionModel.totalTrades;
   if (!transferDue && previous?.leagues) {
     const playerMap = new Map(players.map(x => [x.key, x]));
-    leagues = Object.fromEntries(Object.entries(previous.leagues).map(([league, rows]) => [league, (rows || []).map(old => playerMap.get(old.key) || old)]));
+    leagues = normalizeUniqueLeagues(Object.fromEntries(Object.entries(previous.leagues).map(([league, rows]) => [league, (rows || []).map(old => playerMap.get(old.key) || old)])));
     lastTransferTradeCount = num(previous.lastTransferTradeCount);
   } else {
-    const nextMap = new Map(players.map(x => [x.key, x]));
-    events = transferEvents(previous, nextMap, evolutionModel.totalTrades);
+    leagues = normalizeUniqueLeagues(proposal);
+    events = transferEvents(previous, leagues, evolutionModel.totalTrades);
   }
 
   const model = {
@@ -338,7 +368,7 @@ function build(models = {}, options = {}) {
       historical: leagues.historical.length
     },
     leagues,
-    audit: audit(players, leagues),
+    audit: { ...audit(players, leagues), duplicateLeagueKeys: duplicateLeagueKeys(leagues), singleDnaSingleLeague: duplicateLeagueKeys(leagues).length === 0 },
     transfers: events,
     allPlayers: players,
     policy: {
@@ -445,6 +475,8 @@ module.exports = {
   inferPerformanceRegime,
   buildPlayers,
   proposedLeagues,
+  normalizeUniqueLeagues,
+  duplicateLeagueKeys,
   audit,
   build,
   findPlayer,
