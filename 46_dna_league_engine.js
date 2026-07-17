@@ -20,7 +20,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.3.3-DYNAMIC-EXIT-ASSIGNMENT';
+const VERSION = 'v4.4.0-ADAPTIVE-LEAGUE-RECOVERY';
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -161,6 +161,7 @@ function exitEvidence(key, exits) {
 
 function scorePlayer(row, confidence, evolution, regime, exit) {
   const recent20 = evolution?.windows?.[20] || {};
+    const recent5 = dnaEvolution.windowMetrics(tradeGroups.get(normalizeSignatureKey(String(row.key))) || [], 5);
   const direction = directionFromKey(row.key);
   const regimeAlignment = regime.activeDirection === 'NEUTRAL' ? 0 : direction === regime.activeDirection ? 8 : -8;
   const momentum = clamp(num(evolution?.momentum?.score), -100, 100) * 0.12;
@@ -176,6 +177,13 @@ function scorePlayer(row, confidence, evolution, regime, exit) {
 }
 
 function buildPlayers(models = {}, options = {}) {
+  const tradeGroups = new Map();
+  for (const trade of models.trades || []) {
+    const key = normalizeSignatureKey(trade.key);
+    if (!key) continue;
+    if (!tradeGroups.has(key)) tradeGroups.set(key, []);
+    tradeGroups.get(key).push(trade);
+  }
   const ranking = models.ranking || {};
   const confidenceMap = metricIndex(models.confidence || {});
   const evolutionMap = metricIndex(models.evolution || {});
@@ -188,6 +196,7 @@ function buildPlayers(models = {}, options = {}) {
     const exit = exitEvidence(String(row.key), exits);
     const leagueScore = scorePlayer(row, confidence, evolution, regime, exit);
     const recent20 = evolution?.windows?.[20] || {};
+    const recent5 = dnaEvolution.windowMetrics(tradeGroups.get(normalizeSignatureKey(String(row.key))) || [], 5);
     const pairMetrics = exit.ready ? {
       source: 'DNA_BEST_VALIDATED_EXIT',
       algorithmId: exit.algorithmId,
@@ -213,6 +222,7 @@ function buildPlayers(models = {}, options = {}) {
       metaScore: round(confidence.metaScore, 1),
       confidence: round(confidence.confidenceV2, row.confidenceScore || 0),
       recommendation: confidence.recommendation || row.verdict || 'WATCH',
+      recent5: { total: num(recent5.total), expectancy: round(recent5.expectancy, 6), profitFactor: round(recent5.profitFactor, 3), net: round(recent5.net, 4) },
       recent20: {
         total: num(recent20.total),
         expectancy: round(recent20.expectancy, 6),
@@ -253,6 +263,17 @@ function qualify(player, league, options = {}) {
       num(m.expectancy) >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05) && player.death !== 'OLUM_RISKI';
   }
   return true;
+}
+
+
+function worstTen(players = [], options = {}) {
+  const limit = Math.max(1, num(options.worstLimit, ayarlar.dnaLeagueWorstDnaLimit || 10));
+  const minSamples = Math.max(1, num(options.worstMinSamples, ayarlar.dnaLeagueWorstMinOrnek || 5));
+  return players
+    .filter(p => num(p.recent5?.total) >= minSamples && num(p.recent5?.expectancy) < 0 && num(p.recent5?.profitFactor) < 1)
+    .sort((a, b) => num(a.recent5.expectancy) - num(b.recent5.expectancy) || num(a.recent5.profitFactor) - num(b.recent5.profitFactor) || num(a.recent5.net) - num(b.recent5.net))
+    .slice(0, limit)
+    .map((p, index) => ({ ...p, worstRank: index + 1, virtualTradingBlocked: true, shadowLearning: true, blockReason: 'DYNAMIC_WORST_10_RECENT_5' }));
 }
 
 function audit(players = [], leagues = {}) {
@@ -366,7 +387,8 @@ function build(models = {}, options = {}) {
   const players = buildPlayers({ ...models, evolution: evolutionModel, trades: loaded.trades || [], regime }, options);
   const proposal = proposedLeagues(players, options);
   const previous = readJson(LEAGUE_FILE, null);
-  const transferDue = shouldTransfer(previous, evolutionModel.totalTrades, options.forceTransfer === true);
+  const recoveryRequired = !previous?.leagues || num(previous?.totalDna) === 0 || Object.values(previous?.leagueSizes || {}).reduce((a,b)=>a+num(b),0) === 0;
+  const transferDue = shouldTransfer(previous, evolutionModel.totalTrades, options.forceTransfer === true || recoveryRequired);
 
   let leagues = normalizeUniqueLeagues(proposal);
   let events = [];
@@ -380,6 +402,10 @@ function build(models = {}, options = {}) {
     events = transferEvents(previous, leagues, evolutionModel.totalTrades);
   }
 
+  const worst = worstTen(players, options);
+  const worstKeys = new Set(worst.map(x => x.key));
+  for (const player of players) { player.virtualTradingBlocked = worstKeys.has(player.key); player.shadowLearning = worstKeys.has(player.key); }
+
   const model = {
     version: VERSION,
     generatedAt: new Date().toISOString(),
@@ -389,6 +415,7 @@ function build(models = {}, options = {}) {
     lastTransferTradeCount,
     nextTransferAt: lastTransferTradeCount + Math.max(1, num(ayarlar.dnaLeagueTransferKapanisAraligi, 25)),
     transferDue,
+    recovery: { required: recoveryRequired, restoredFromLearning: recoveryRequired, analyzedDna: players.length },
     regime,
     leagueSizes: {
       premier: leagues.premier.length,
@@ -397,6 +424,8 @@ function build(models = {}, options = {}) {
       historical: leagues.historical.length
     },
     leagues,
+    worstTen: worst,
+    worstTenCount: worst.length,
     audit: { ...audit(players, leagues), duplicateLeagueKeys: duplicateLeagueKeys(leagues), singleDnaSingleLeague: duplicateLeagueKeys(leagues).length === 0 },
     transfers: events,
     allPlayers: players,
@@ -493,6 +522,12 @@ function formatLeagueLookupDiagnostics(diag, context = {}) {
   ].join('\n');
 }
 
+function isWorstDna(key, model = null) {
+  const current = model || readJson(LEAGUE_FILE, null);
+  const wanted = normalizeSignatureKey(key);
+  return (current?.worstTen || []).find(x => normalizeSignatureKey(x.key) === wanted) || null;
+}
+
 function findPlayer(key, model = null) {
   const current = model || readJson(LEAGUE_FILE, null);
   if (!current?.leagues || !key) return null;
@@ -538,6 +573,8 @@ function attachToPosition(pos) {
     regimeAligned: profile.regimeAligned,
     exit: profile.exit,
     attachedAt: new Date().toISOString(),
+    virtualTradingBlocked: Boolean(isWorstDna(key)),
+    shadowLearning: Boolean(isWorstDna(key)),
     executionPolicy: ayarlar.premierObservationAktif === false ? 'METADATA_ONLY' : 'PREMIER_OBSERVATION'
   } : {
     version: VERSION,
@@ -560,6 +597,7 @@ function telegramText(model, options = {}) {
   let text = `\n\n🏆 <b>AGROS DNA LEAGUE</b>\n`;
   text += `${regimeIcon} Aktif yön formu: <b>${model.regime.activeDirection}</b> | LONG Exp ${num(model.regime.long.expectancy).toFixed(4)} | SHORT Exp ${num(model.regime.short.expectancy).toFixed(4)}\n`;
   text += `🏆 Premier ${model.leagueSizes.premier} | 🥈 Championship ${model.leagueSizes.championship} | 🌱 Gelişim ${model.leagueSizes.development} | 📚 Tarihsel ${model.leagueSizes.historical}\n`;
+  text += `🚫 Dinamik En Kötü 10: ${model.worstTenCount || 0} | Sanal kasa dışı gölge öğrenme\n`;
   text += `🔄 Son transfer kapanışı: ${model.lastTransferTradeCount} | Sonraki: ${model.nextTransferAt}\n`;
   text += `⭐ <b>Premier İlk ${limit}</b>\n`;
   text += model.leagues.premier.slice(0, limit).length ? model.leagues.premier.slice(0, limit).map(line).join('\n') : 'Premier kriterlerini sağlayan DNA henüz yok.';
@@ -586,6 +624,8 @@ module.exports = { normalizeSignatureKey, baseSignatureKey, leagueLookupDiagnost
   duplicateLeagueKeys,
   audit,
   build,
+  worstTen,
+  isWorstDna,
   findPlayer,
   attachToPosition,
   telegramText

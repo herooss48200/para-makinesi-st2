@@ -14,7 +14,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.3.3-DYNAMIC-EXIT-ASSIGNMENT';
+const VERSION = 'v4.4.0-ADAPTIVE-LEAGUE-RECOVERY';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
@@ -52,6 +52,8 @@ function evaluate(pos, { realMode = false } = {}) {
   if (!key) reasons.push('DNA_IMZASI_YOK');
 
   const currentLeague = profile?.league || 'UNRANKED';
+  const worst = dnaLeague.isWorstDna(key);
+  const virtualShadowOnly = !realMode && Boolean(worst);
 
   let realTier = null;
   let sizeMultiplier = 0;
@@ -80,6 +82,7 @@ function evaluate(pos, { realMode = false } = {}) {
       if (ayarlar.gercekEmirChampionshipKapisiAktif !== true) reasons.push('GERCEK_CHAMPIONSHIP_KAPISI_KAPALI');
     }
   } else {
+    if (virtualShadowOnly) reasons.push('DYNAMIC_WORST_10_SHADOW_ONLY');
     // Alt öğrenme katmanı: lig giriş engeli değildir. UNRANKED/Development dahil
     // tüm geçerli strateji tetikleri sanal işlem açarak DNA + exit yarışına veri üretir.
     // Lig yalnızca gözlem/etiket bilgisidir; gerçek emir yetkisini aşağıdaki realMode kapısı verir.
@@ -96,11 +99,12 @@ function evaluate(pos, { realMode = false } = {}) {
     symbol: pos?.sym || '',
     side: pos?.yon || '',
     key: key || 'SIGNATURE_YOK',
-    allowed: reasons.length === 0,
+    allowed: realMode ? reasons.length === 0 : true,
     reasons,
     league: currentLeague,
     leagueMatchType: profile?.matchType || (profile ? 'EXACT' : 'NONE'),
-    virtualPool: !realMode ? 'ALL_VALID_DNA_LEARNING' : null,
+    virtualPool: !realMode ? (virtualShadowOnly ? 'WORST_10_SHADOW_LEARNING' : 'ALL_VALID_DNA_LEARNING') : null,
+    virtualShadowOnly,
     realTier,
     sizeMultiplier: realMode ? sizeMultiplier : 1,
     leagueModelAgeMinutes: Number.isFinite(age) ? Number(age.toFixed(2)) : null,

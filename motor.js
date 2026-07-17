@@ -225,10 +225,9 @@ const m = {
             yeniPozisyon.realOrderReadiness = hazirKimlik.realOrderReadiness;
         }
         const karar = hazirKimlik?.realOrderReadiness || realOrderBridge.evaluate(yeniPozisyon, { realMode: false });
-        // v4.2.6: Alt öğrenme katmanı lig tarafından engellenmez.
-        // UNRANKED/Development/Championship/Premier tüm geçerli tetikler sanalda açılır;
-        // lig etiketi ve güncel kazanan exit planı pozisyona eklenerek öğrenme sürer.
-        console.log(`🧪 [ALT ÖĞRENME KAPISI AÇIK] ${symbol} ${yon} | DNA ${karar.key} | Lig ${karar.league} | Exit ${karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
+        yeniPozisyon.leagueShadowOnly = Boolean(karar.virtualShadowOnly);
+        yeniPozisyon.virtualAccountIncluded = !yeniPozisyon.leagueShadowOnly;
+        console.log(`[ALT ÖĞRENME KAPISI AÇIK] ${yeniPozisyon.leagueShadowOnly ? '👻 [WORST-10 GÖLGE İŞLEM]' : '🧪 [SANAL KASA İŞLEMİ]'} ${symbol} ${yon} | DNA ${karar.key} | Lig ${karar.league} | Exit ${karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         premierObservation.snapshot(yeniPozisyon);
         exitMethodScoreboard.open(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
@@ -237,8 +236,10 @@ const m = {
 
         if (yon === 'LONG') h.state.alinanlar.push(symbol);
         else h.state.aktifShortlar.push(symbol);
-        h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
-        kaliciHafiza.yeniEmirSay();
+        if (!yeniPozisyon.leagueShadowOnly) {
+            h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
+            kaliciHafiza.yeniEmirSay();
+        }
         kaliciHafiza.kaydet('sanal-pozisyon-acildi');
 
         const analizSatiri = girisAnalizi
@@ -265,7 +266,7 @@ const m = {
             : '';
 
         await h.telegramMesajGonder(
-            `🧪 <b>[SANAL POZİSYON AÇILDI]</b>\n` +
+            `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[WORST-10 GÖLGE POZİSYON]</b>' : '🧪 <b>[SANAL POZİSYON AÇILDI]</b>'}\n` +
             (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>${yeniPozisyon.premierObservation.leagueAtOpen} LİG İŞLEMİ</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
             `🔀 ${symbol} (${yon})\n` +
             `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +

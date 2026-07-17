@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.3.9",
-  "description": "AGROS memory-safe reporting: stream validation and transfer JSONL files, archive oversized DNA story safely, and trace report-chain RAM usage.",
+  "version": "4.4.0",
+  "description": "AGROS v4.4.0 Adaptive League Recovery with dynamic worst-10 shadow learning and protected virtual accounting.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

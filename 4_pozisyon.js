@@ -890,8 +890,11 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         : 0;
     const duzeltilmisSebep = kapanisSebebiDuzenle(pos, sebep, kapanisFiyati);
 
-    h.state.basariOzeti.toplamKomisyon += toplamKomisyon;
-    h.state.basariOzeti.netKarZarar += netKarZarar;
+    const leagueShadowOnly = pos.leagueShadowOnly === true;
+    if (!leagueShadowOnly) {
+        h.state.basariOzeti.toplamKomisyon += toplamKomisyon;
+        h.state.basariOzeti.netKarZarar += netKarZarar;
+    }
 
     const sebepText = String(duzeltilmisSebep || sebep || '').toUpperCase();
     const beBandYuzde = Math.max(0.03, ayarlar.breakevenSonucBandYuzde || 0.10);
@@ -929,7 +932,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     // Muhasebe PNL/komisyon her durumda korunur; restart-gap pozisyonları
     // bilimsel başarı sayaçlarına ve öğrenme motorlarına alınmaz.
-    if (!restartGapIslemi) {
+    if (!restartGapIslemi && !leagueShadowOnly) {
         if (kaliteSonuc === 'TP') {
             h.state.basariOzeti.tp++;
             if (pos.yon === 'LONG') h.state.basariOzeti.longTp++;
@@ -947,7 +950,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
     const emoji = kaliteSonuc === 'TP' ? '✅' : (kaliteSonuc === 'BE' ? (netKarZarar >= 0 ? '⚖️✅' : '⚖️') : '❌');
-    const baslik = pos.sanal ? '[SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]';
+    const baslik = leagueShadowOnly ? '[WORST-10 GÖLGE POZİSYON KAPANDI]' : (pos.sanal ? '[SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]');
     const kapanisZamani = Date.now();
 
     const kapanisAnalizPaketi = {
@@ -958,7 +961,9 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         netKarZarar: Number(netKarZarar.toFixed(6)),
         netPozisyonYuzdesi: Number(netPozisyonYuzdesi.toFixed(4)),
         netMarjinYuzdesi: Number(netMarjinYuzdesi.toFixed(4)),
-        komisyon: Number(toplamKomisyon.toFixed(6))
+        komisyon: Number(toplamKomisyon.toFixed(6)),
+        leagueShadowOnly,
+        virtualAccountIncluded: !leagueShadowOnly
     };
 
     let exitReplayRecord = null;
@@ -991,7 +996,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `📊 Fiyat Hareketi: %${fiyatKarYuzdesi.toFixed(2)}\n` +
         `📈 Brüt PNL: ${brutKarZarar.toFixed(4)} USDT\n` +
         `💸 Komisyon: ${toplamKomisyon.toFixed(4)} USDT\n` +
-        `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT` +
+        `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT${leagueShadowOnly ? ' | 👻 SANAL KASA DIŞI' : ''}` +
         exitMethodScoreboard.telegramLine(exitMethodSummary) + `\n` +
         (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | Sonuç: ${kaliteSonuc}\n` : '') +
         `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
