@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
+const memorySafeIo = require('./53_memory_safe_io.js');
 
 const VERSION = 'v4.2.1-DNA-EXIT-SELECTOR-SANAL-ACTIVE';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -69,16 +70,14 @@ function attachToPosition(pos) {
   pos.exitPlanActiveForVirtual = Boolean(ayarlar.sanalDynamicExitAktif === true && pos.sanal && plan?.ready);
   return plan;
 }
-function readValidationRows() {
-  try {
-    if (!fs.existsSync(VALIDATION_JSONL)) return [];
-    return fs.readFileSync(VALIDATION_JSONL, 'utf8').split(/\r?\n/).filter(Boolean).map(x => JSON.parse(x));
-  } catch (_) { return []; }
+function readValidationRows(limit = 5000) {
+  return memorySafeIo.readJsonlTailSync(VALIDATION_JSONL, limit, { maxScanBytes: 16 * 1024 * 1024 });
 }
 function buildValidationModel(rows = null) {
-  const data = rows || readValidationRows();
   const buckets = {};
-  for (const r of data) {
+  let totalValidated = 0;
+  const consume = (r) => {
+    totalValidated++;
     const key = r.selectedAlgorithmId || 'UNKNOWN';
     const b = buckets[key] || { key, label: r.selectedAlgorithmLabel || key, samples: 0, beatActual: 0, lostToActual: 0, equalActual: 0, deltaUsdt: 0, selectedNetUsdt: 0, actualNetUsdt: 0 };
     b.samples++;
@@ -89,7 +88,9 @@ function buildValidationModel(rows = null) {
     else if (num(r.deltaVsActualUsdt) < -0.000001) b.lostToActual++;
     else b.equalActual++;
     buckets[key] = b;
-  }
+  };
+  if (Array.isArray(rows)) rows.forEach(consume);
+  else memorySafeIo.forEachJsonlSync(VALIDATION_JSONL, consume);
   const algorithms = Object.values(buckets).map(b => ({
     ...b,
     deltaUsdt: round(b.deltaUsdt, 4),
@@ -98,7 +99,7 @@ function buildValidationModel(rows = null) {
     beatRate: b.samples ? round((b.beatActual / b.samples) * 100, 1) : 0,
     avgDeltaUsdt: b.samples ? round(b.deltaUsdt / b.samples, 4) : 0
   })).sort((a, b) => b.deltaUsdt - a.deltaUsdt || b.samples - a.samples);
-  return { version: VERSION, createdAt: new Date().toISOString(), totalValidated: data.length, algorithms };
+  return { version: VERSION, createdAt: new Date().toISOString(), totalValidated, algorithms };
 }
 function validateReplay(pos, record) {
   const plan = pos?.exitPlanShadow;

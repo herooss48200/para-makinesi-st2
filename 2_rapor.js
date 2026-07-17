@@ -6,6 +6,7 @@ const exitEvolutionDashboard = require('./45_exit_evolution_dashboard.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 const adaptiveTradingLeague = require('./49_adaptive_trading_league.js');
+const memorySafeIo = require('./53_memory_safe_io.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
@@ -392,10 +393,19 @@ async function raporGonder(oneCikar = false) {
             await h.telegramMesajGonder(mesaj);
         }
 
+        const ramTrace = (etiket) => {
+            const m = memorySafeIo.ramMb();
+            console.log(`🧠 [RAM TRACE] ${etiket} | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);
+        };
+        ramTrace('Rapor zinciri başlangıç');
         await learningValidationRaporuGonderGerekirse();
+        ramTrace('Learning Validation sonrası');
         await exitEvolutionDashboardGonderGerekirse();
+        ramTrace('Exit Evolution sonrası');
         await premierObservationRaporuGonderGerekirse();
+        ramTrace('Premier Observation sonrası');
         await adaptiveTradingLeagueRaporuGonderGerekirse();
+        ramTrace('Adaptive League sonrası');
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     }
