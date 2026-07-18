@@ -5,7 +5,7 @@ const replay = require('./22_exit_replay_engine.js');
 const io = require('./53_memory_safe_io.js');
 const FILE = path.join(__dirname, 'data', 'exit-replay-results.jsonl');
 const OUT = path.join(__dirname, 'data', 'exit-health-check.json');
-const VERSION = 'v4.5.1-EXIT-HEALTH-CHECK-MEMORY-SAFE';
+const VERSION = 'v4.5.2-EXIT-HEALTH-CHECK-27-CORE';
 function n(v, d = 0) { v = Number(v); return Number.isFinite(v) ? v : d; }
 function catalog() { return replay.algorithms().map(a => ({ id: a.id, label: a.label, className: a.className || '', isExecutable: a.isExecutable !== false })); }
 function build(file = FILE) {
@@ -29,9 +29,9 @@ function build(file = FILE) {
     }
   }, { chunkBytes: 256 * 1024, maxLineBytes: 8 * 1024 * 1024 });
   const models = Object.values(rows).map(x => ({ ...x, netUsdt: +x.netUsdt.toFixed(4), deltaUsdt: +x.deltaUsdt.toFixed(4), health: x.evaluated === 0 ? 'NEVER_EVALUATED' : x.dataAvailable === 0 ? 'NO_DATA' : x.triggered === 0 ? 'NEVER_TRIGGERED' : 'ACTIVE' }));
-  const out = { version: VERSION, createdAt: new Date().toISOString(), catalogCount: models.length, expectedLegacyCount: 33, catalogMismatch: models.length !== 33, trades, invalid: scan.invalid, oversized: scan.oversized, atr: { pathTrades: atrPathTrades, models: models.filter(x => x.className === 'ATR_TRAILING') }, models };
+  const out = { version: VERSION, createdAt: new Date().toISOString(), catalogCount: models.length, expectedCoreCount: 27, configuredVariantCount: models.length, variantCount: Math.max(0, models.length - 27), catalogMismatch: models.length < 27, trades, invalid: scan.invalid, oversized: scan.oversized, atr: { pathTrades: atrPathTrades, models: models.filter(x => x.className === 'ATR_TRAILING') }, models };
   io.writeJsonAtomic(OUT, out);
   return out;
 }
-function telegram(m = build()) { const atr = m.atr.models; return `\n\n🩺 <b>EXIT HEALTH CHECK — v4.5.1</b>\n📚 Aktif katalog: <b>${m.catalogCount}</b> | Eski hedef: 33 ${m.catalogMismatch ? '⚠️' : '✅'}\n📦 İncelenen kapanış: ${m.trades} | Bozuk satır: ${m.invalid}\n🌡️ ATR verili işlem: ${m.atr.pathTrades}\n${atr.map(x => `${x.label}: Değ ${x.evaluated} | Veri ${x.dataAvailable} | Eksik ${x.dataMissing} | Tetik ${x.triggered} | Winner ${x.winner} | Fallback ${x.fallback}`).join('\n') || 'ATR modeli katalogda yok.'}`; }
+function telegram(m = build()) { const atr = m.atr.models; return `\n\n🩺 <b>EXIT HEALTH CHECK — v4.5.1</b>\n🧠 Çekirdek: <b>27</b> | Ayarlı varyant: <b>${m.catalogCount}</b> | Ek varyant: ${m.variantCount || 0} ${m.catalogMismatch ? '⚠️' : '✅'}\n📦 İncelenen kapanış: ${m.trades} | Bozuk satır: ${m.invalid}\n🌡️ ATR verili işlem: ${m.atr.pathTrades}\n${atr.map(x => `${x.label}: Değ ${x.evaluated} | Veri ${x.dataAvailable} | Eksik ${x.dataMissing} | Tetik ${x.triggered} | Winner ${x.winner} | Fallback ${x.fallback}`).join('\n') || 'ATR modeli katalogda yok.'}`; }
 module.exports = { VERSION, FILE, OUT, catalog, build, telegram };

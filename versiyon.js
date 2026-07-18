@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'MEMORY-SAFE-HOTFIX',
-    kod: 'AWS Candidate v4.5.1-MEMORY-SAFE-HOTFIX',
-    botSurumu: '4.5.1-MEMORY-SAFE-HOTFIX',
+    kodAdi: 'EXIT-VICTORY-AUDIT',
+    kod: 'AWS Candidate v4.5.2-EXIT-VICTORY-AUDIT',
+    botSurumu: '4.5.2-EXIT-VICTORY-AUDIT',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '19.07.2026',
     ortam: {

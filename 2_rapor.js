@@ -7,6 +7,7 @@ const dnaLeague = require('./46_dna_league_engine.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 const adaptiveTradingLeague = require('./49_adaptive_trading_league.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
+const exitVictoryAudit = require('./57_exit_victory_audit.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
@@ -15,6 +16,8 @@ let sonDnaLeagueTransferKapanisi = null;
 let sonPremierObservationKapanan = null;
 let learningEvolutionBaseline = null;
 let raporZinciriCalisiyor = false;
+let sonExitVictoryReplay = null;
+let dnaKartlariIlkGonderim = false;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -384,6 +387,27 @@ async function exitEvolutionDashboardGonderGerekirse() {
     }
 }
 
+
+async function exitVictoryVeDnaKartlariGonderGerekirse() {
+    try {
+        const audit = exitVictoryAudit.build(h.state.aktifPozisyonlar || []);
+        const replaySayisi = Number(audit.health?.trades || 0);
+        const ilk = sonExitVictoryReplay === null;
+        const yeni = !ilk && replaySayisi !== sonExitVictoryReplay;
+        if (!ilk && !yeni) return;
+        sonExitVictoryReplay = replaySayisi;
+        await h.telegramMesajGonder(exitVictoryAudit.telegram(audit));
+        console.log(`🏁 [EXIT ZAFER DENETİMİ] Telegram | Replay ${replaySayisi} | Hazır atama ${audit.assignmentStats.ready}`);
+        if (!dnaKartlariIlkGonderim || yeni) {
+            await h.telegramMesajGonder(exitVictoryAudit.dnaTelegram(8));
+            dnaKartlariIlkGonderim = true;
+            console.log('🪪 [DNA KİMLİK KARTLARI] Telegram raporu gönderildi.');
+        }
+    } catch (err) {
+        console.error('❌ [EXIT ZAFER / DNA KART RAPOR HATASI]:', err.message);
+    }
+}
+
 async function raporGonder(oneCikar = false) {
     if (raporZinciriCalisiyor) {
         console.warn('🛡️ [RAPOR GUARD] Önceki rapor zinciri sürüyor; çakışan çağrı atlandı.');
@@ -408,6 +432,8 @@ async function raporGonder(oneCikar = false) {
         ramTrace('Learning Validation sonrası');
         await exitEvolutionDashboardGonderGerekirse();
         ramTrace('Exit Evolution sonrası');
+        await exitVictoryVeDnaKartlariGonderGerekirse();
+        ramTrace('Exit Victory + DNA Cards sonrası');
         await premierObservationRaporuGonderGerekirse();
         ramTrace('Premier Observation sonrası');
         await adaptiveTradingLeagueRaporuGonderGerekirse();
@@ -419,4 +445,4 @@ async function raporGonder(oneCikar = false) {
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse };
