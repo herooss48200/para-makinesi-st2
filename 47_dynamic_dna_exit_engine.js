@@ -15,27 +15,68 @@ const VERSION = 'v4.3.7-MEMORY-SAFE-REPLAY';
 const DATA_DIR = path.join(__dirname, 'data');
 const REPLAY_JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const MODEL_JSON = path.join(DATA_DIR, 'dynamic-dna-exit-model.json');
+const RUNTIME_MODEL_JSON = path.join(DATA_DIR, 'dynamic-dna-exit-runtime.json');
 const HISTORY_JSONL = path.join(DATA_DIR, 'dynamic-dna-exit-decisions.jsonl');
 
 function num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
 function round(v,d=4){return Number(num(v).toFixed(d));}
 function clamp(v,a,b){return Math.max(a,Math.min(b,num(v)));}
 function ensureDir(){if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR,{recursive:true});}
-function readJson(file,fallback=null){return memorySafeIo.readJsonBounded(file,fallback,{maxBytes:64*1024*1024});}
+function readJson(file,fallback=null,maxBytes=64*1024*1024){return memorySafeIo.readJsonBounded(file,fallback,{maxBytes});}
 let modelCache = null;
 let modelCacheStamp = '';
+let missingRuntimeWarned = false;
+function fileStamp(file){const st=fs.statSync(file);return `${st.size}:${st.mtimeMs}`;}
 function readModelCached(){
   try {
-    if(!fs.existsSync(MODEL_JSON)) return modelCache;
-    const st=fs.statSync(MODEL_JSON);
-    const stamp=`${st.size}:${st.mtimeMs}`;
-    if(modelCache && modelCacheStamp===stamp) return modelCache;
-    const loaded=readJson(MODEL_JSON,null);
-    if(loaded){ modelCache=loaded; modelCacheStamp=stamp; }
+    // Canlı seçim her zaman küçük runtime index üzerinden yapılır.
+    if(fs.existsSync(RUNTIME_MODEL_JSON)){
+      const stamp=`runtime:${fileStamp(RUNTIME_MODEL_JSON)}`;
+      if(modelCache && modelCacheStamp===stamp) return modelCache;
+      const loaded=readJson(RUNTIME_MODEL_JSON,null,32*1024*1024);
+      if(loaded){ modelCache=loaded; modelCacheStamp=stamp; missingRuntimeWarned=false; }
+      return modelCache;
+    }
+    // Eski/küçük kurulumlarla geriye uyumluluk. Büyük ana model canlıda parse edilmez.
+    if(fs.existsSync(MODEL_JSON) && fs.statSync(MODEL_JSON).size<=64*1024*1024){
+      const stamp=`full:${fileStamp(MODEL_JSON)}`;
+      if(modelCache && modelCacheStamp===stamp) return modelCache;
+      const loaded=readJson(MODEL_JSON,null,64*1024*1024);
+      if(loaded){ modelCache=loaded; modelCacheStamp=stamp; }
+      return modelCache;
+    }
+    if(!missingRuntimeWarned){
+      const mb=fs.existsSync(MODEL_JSON)?(fs.statSync(MODEL_JSON).size/1048576).toFixed(1):'0.0';
+      console.warn(`🛡️ [EXIT RUNTIME INDEX] Ana model canlıda parse edilmedi | ${mb} MB | npm run build:exit-runtime çalıştırılmalı.`);
+      missingRuntimeWarned=true;
+    }
     return modelCache;
   } catch(_) { return modelCache; }
 }
 function atomicWrite(file,value){ensureDir();const tmp=`${file}.tmp`;fs.writeFileSync(tmp,JSON.stringify(value,null,2));fs.renameSync(tmp,file);}
+function uniqueCandidates(list=[]){
+  const seen=new Set();return list.filter(Boolean).filter(x=>{const k=String(x.algorithmId||'');if(!k||seen.has(k))return false;seen.add(k);return true;});
+}
+function runtimeDnaRow(d,min){
+  const regimes={};
+  for(const [key,r] of Object.entries(d?.regimes||{})){
+    const relative=bestRelative(r.algorithms||[],min);
+    regimes[key]={key:r.key||key,family:r.family,regime:r.regime,volatility:r.volatility,best:r.best||null,algorithms:uniqueCandidates([r.best,relative])};
+  }
+  const allRelative=bestRelative(d?.allAlgorithms||[],Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,5)));
+  return {key:d.key,regimes,allBest:d.allBest||null,allAlgorithms:uniqueCandidates([d.allBest,allRelative])};
+}
+function createRuntimeModel(model){
+  const min=Math.max(3,num(ayarlar.dynamicExitMinOrnek,12));
+  return {
+    version:model?.version||VERSION,generatedAt:model?.generatedAt||new Date().toISOString(),runtimeGeneratedAt:new Date().toISOString(),
+    mode:model?.mode,totalTrades:num(model?.totalTrades),totalDna:num(model?.totalDna),totalBaseDna:num(model?.totalBaseDna),
+    currentRegime:model?.currentRegime||{key:'MIXED|VOL_MEDIUM',regime:'MIXED',regimeFamily:'MIXED',volatility:'MEDIUM',window:0,distribution:{}},
+    dna:(model?.dna||[]).map(d=>runtimeDnaRow(d,min)),dnaBase:(model?.dnaBase||[]).map(d=>runtimeDnaRow(d,min)),
+    policy:{...(model?.policy||{}),runtimeIndex:true,fullHistoryPreserved:true}
+  };
+}
+function writeRuntimeModel(model){const runtime=createRuntimeModel(model);atomicWrite(RUNTIME_MODEL_JSON,runtime);modelCache=runtime;modelCacheStamp=`runtime:${fileStamp(RUNTIME_MODEL_JSON)}`;return runtime;}
 function forEachJsonlSync(file,onRow){
   if(!fs.existsSync(file))return {rows:0,invalid:0};
   const fd=fs.openSync(file,'r');
@@ -176,7 +217,7 @@ function finalizeBuild(state,options={}){
   const counts={};for(const r of state.recentRegimes)counts[r.key]=(counts[r.key]||0)+1;
   const currentKey=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'MIXED|VOL_MEDIUM';const [regimePart,volPart]=currentKey.split('|');
   const model={version:VERSION,generatedAt:new Date().toISOString(),mode:'DYNAMIC_PER_TRANSFER_AND_FROZEN_PER_POSITION',totalTrades:state.totalTrades,totalDna:dna.length,totalBaseDna:dnaBase.length,currentRegime:{key:currentKey,regime:regimePart,regimeFamily:regimePart.startsWith('TREND')?'TREND':regimePart,volatility:String(volPart||'VOL_MEDIUM').replace('VOL_',''),window:state.recentRegimes.length,distribution:counts},dna,dnaBase,policy:{singlePermanentExit:false,reevaluateAtLeagueTransfer:true,freezeOnlyOpenedPosition:true,selectionOrder:['DNA_EXACT_REGIME_VOLATILITY','DNA_REGIME_FAMILY','DNA_ALL_REGIMES','BASE_DNA_FALLBACK','ACTUAL_FALLBACK'],memorySafeReplay:true}};
-  if(options.persist!==false&&ayarlar.dynamicExitEngineAktif!==false)atomicWrite(MODEL_JSON,model);return model;
+  if(options.persist!==false&&ayarlar.dynamicExitEngineAktif!==false){atomicWrite(MODEL_JSON,model);writeRuntimeModel(model);}return model;
 }
 function build(records=null,options={}){
   const state=createBuildState();
@@ -230,4 +271,4 @@ function selectForPosition(pos,model=null,options={}){
 function updateFromReplay(){return buildFromReplayFile({persist:true});}
 function telegramSummary(model=null,limit=5){const m=model||readModel();if(!m)return'';let t=`\n\n🧬 <b>DİNAMİK DNA EXIT MOTORU</b>\n🌦️ Güncel rejim: <b>${m.currentRegime.key}</b> | Pencere ${m.currentRegime.window}\n🔁 Kural: Aynı DNA, farklı rejimde farklı exit seçebilir.\n`;const leaders=[];for(const d of m.dna||[]){const r=d.regimes?.[m.currentRegime.key];if(r?.best)leaders.push({dna:d.key,b:r.best});}leaders.sort((a,b)=>b.b.score-a.b.score);t+=leaders.slice(0,limit).map((x,i)=>`${i+1}. ${x.dna} → ${x.b.algorithmLabel} | N${x.b.samples} | PF ${num(x.b.profitFactor).toFixed(2)} | Beat %${num(x.b.beatRate).toFixed(1)}`).join('\n')||'Bu rejimde yeterli kanıtlı exit henüz yok.';t+='\n🛡️ Shadow mod: gerçek çıkış sistemi değişmedi.';return t;}
 
-module.exports={VERSION,MODEL_JSON,normalizeDnaKey,baseDnaKey,classifyInput,build,buildFromReplayFile,readModel,selectForPosition,updateFromReplay,telegramSummary};
+module.exports={VERSION,MODEL_JSON,RUNTIME_MODEL_JSON,normalizeDnaKey,baseDnaKey,classifyInput,build,buildFromReplayFile,createRuntimeModel,writeRuntimeModel,readModel,selectForPosition,updateFromReplay,telegramSummary};
