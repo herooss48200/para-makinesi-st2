@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.5.5",
-  "description": "AGROS v4.5.5: active regime exit and all-time Elite exit source-of-truth separation.",
+  "version": "4.5.6",
+  "description": "AGROS v4.5.6: verified single-position dual-layer learning and league-performance accounting.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

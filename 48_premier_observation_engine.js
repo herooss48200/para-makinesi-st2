@@ -136,7 +136,13 @@ function close(pos, result = {}) {
         confidence: obs.confidence, regime: obs.regime, exitAlgorithmId: exitId,
         exitAlgorithmLabel: obs.exit?.selectedAlgorithmLabel || 'Mevcut Kademe Sistemi', exitScope: obs.exit?.selectionScope || 'NONE',
         outcome, net, commission, reason: result.reason || '', entry: n(pos.girisFiyati), exitPrice: n(result.exitPrice),
-        mfePct: n(pos?.sanalDynamicExit?.mfePct || pos?.exitReplay?.mfePct), capturePct: n(result.capturePct || pos?.sanalDynamicExit?.capturePct)
+        mfePct: n(pos?.sanalDynamicExit?.mfePct || pos?.exitReplay?.mfePct), capturePct: n(result.capturePct || pos?.sanalDynamicExit?.capturePct),
+        dualLayerAudit: {
+            singlePosition: pos?.dualLayerAudit?.singlePosition === true,
+            learningLayerRecorded: true,
+            leaguePerformanceRecorded: true,
+            track: obs.learningTrack
+        }
     };
     const st = storage.read();
     st.closed++;

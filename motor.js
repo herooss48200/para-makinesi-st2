@@ -227,6 +227,16 @@ const m = {
         yeniPozisyon.virtualAccountIncluded = !yeniPozisyon.leagueShadowOnly;
         console.log(`[ALT ÖĞRENME KAPISI AÇIK] ${yeniPozisyon.leagueShadowOnly ? '👻 [WORST-10 GÖLGE İŞLEM]' : '🧪 [SANAL KASA İŞLEMİ]'} ${symbol} ${yon} | DNA ${karar.key} | Lig ${karar.league} | Exit ${karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         premierObservation.snapshot(yeniPozisyon);
+        // Tek sanal pozisyon, iki ayrı kayıt amacı taşır:
+        // 1) tüm DNA/exit öğrenme motorları, 2) açılışta dondurulan lig test kasası.
+        // Aynı sinyal için ikinci bir pozisyon veya ikinci emir oluşturulmaz.
+        yeniPozisyon.dualLayerAudit = {
+            singlePosition: true,
+            learningLayer: true,
+            leaguePerformanceLayer: Boolean(yeniPozisyon.premierObservation),
+            leagueTrack: yeniPozisyon.premierObservation?.learningTrack || 'SHADOW',
+            markedAt: new Date().toISOString()
+        };
         exitMethodScoreboard.open(yeniPozisyon);
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         analizMerkezi.acilisKaydet(yeniPozisyon);
@@ -434,6 +444,13 @@ const m = {
             yeniPozisyon.blackboxAcilis = hazirKimlik.blackboxAcilis;
             realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik);
             premierObservation.snapshot(yeniPozisyon);
+            yeniPozisyon.dualLayerAudit = {
+                singlePosition: true,
+                learningLayer: true,
+                leaguePerformanceLayer: Boolean(yeniPozisyon.premierObservation),
+                leagueTrack: yeniPozisyon.premierObservation?.learningTrack || 'SHADOW',
+                markedAt: new Date().toISOString()
+            };
             exitMethodScoreboard.open(yeniPozisyon);
 
             h.state.aktifPozisyonlar.push(yeniPozisyon);
