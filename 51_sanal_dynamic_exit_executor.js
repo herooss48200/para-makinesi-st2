@@ -14,7 +14,7 @@ function state(pos){
   return pos.dynamicExitRuntime;
 }
 function isSupported(id=''){
-  return /^TIME_\d+M$/.test(id)||/^FIXED_TP_/.test(id)||/^MFE_PROTECT_\d+$/.test(id)||/^ALT_LADDER_(FAST|WIDE)$/.test(id)||/^ATR_TRAIL_\d+_\d+X$/.test(id)||id==='DYNAMIC_PATH_EXIT'||id==='HYBRID_TREND_MFE';
+  return /^TIME_\d+M$/.test(id)||/^FIXED_TP_/.test(id)||/^MFE_PROTECT_\d+$/.test(id)||/^ALT_LADDER_(FAST|WIDE)$/.test(id)||/^ATR_TRAIL_\d+(?:_\d+)?X$/.test(id)||id==='TREND_EXIT_ST'||id==='DYNAMIC_PATH_EXIT'||id==='HYBRID_TREND_MFE';
 }
 function evaluate(pos, price){
   const virtualEnabled=pos?.sanal&&ayarlar.sanalDynamicExitAktif===true;
@@ -37,9 +37,15 @@ function evaluate(pos, price){
   const close=(reason,exitPrice=price)=>({active:true,close:true,price:exitPrice,reason:`Dynamic Exit: ${plan.selectedAlgorithmLabel} | ${reason}`,algorithmId:id,algorithmLabel:plan.selectedAlgorithmLabel,assignmentId:plan.assignmentId||null,pnlPct:p,minute,peakPct:rt.peakPct});
 
   const tm=id.match(/^TIME_(\d+)M$/); if(tm&&minute>=num(tm[1]))return close(`${tm[1]} dakika tamamlandı`);
+  if(id==='TREND_EXIT_ST'){
+    const minMinute=Math.max(0,num(ayarlar.exitReplayTrendMinMinute,3));
+    const expected=pos.yon==='LONG'?'UP':'DOWN';
+    const broken=latestPath?.stAligned===false||(latestPath?.stTrend&&String(latestPath.stTrend)!==expected);
+    if(minute>=minMinute&&broken)return close(`SuperTrend uyumu bozuldu | ST ${latestPath?.stTrend||'UYUMSUZ'}`);
+  }
   if(id.startsWith('FIXED_TP_')){const level=num(id.replace('FIXED_TP_','').replace('_','.'));if(level>0&&p>=level)return close(`Sabit hedef %${level}`,targetPrice(pos,level));}
   const mfe=id.match(/^MFE_PROTECT_(\d+)$/);if(mfe){const ratio=num(mfe[1])/100;if(rt.peakPct>0&&p<=rt.peakPct*ratio)return close(`Tepe kârın %${mfe[1]} koruması`);}
-  const atr=id.match(/^ATR_TRAIL_(\d+)_(\d+)X$/);if(atr){const multiplier=num(`${atr[1]}.${atr[2]}`);const peakAtr=num(rt.peakAtrPct,atrPct);if(peakAtr>0&&rt.peakPct>0&&p<=rt.peakPct-(peakAtr*multiplier))return close(`Tepe kârdan ${multiplier} ATR geri çekilme | ATR %${peakAtr.toFixed(4)}`);}
+  const atr=id.match(/^ATR_TRAIL_(\d+)(?:_(\d+))?X$/);if(atr){const multiplier=atr[2]===undefined?num(atr[1]):num(`${atr[1]}.${atr[2]}`);const peakAtr=num(rt.peakAtrPct,atrPct);if(peakAtr>0&&rt.peakPct>0&&p<=rt.peakPct-(peakAtr*multiplier))return close(`Tepe kârdan ${multiplier} ATR geri çekilme | ATR %${peakAtr.toFixed(4)}`);}
   if(id.startsWith('ALT_LADDER_')){
     const fast=id.endsWith('FAST'); const triggers=fast?[0.3,0.6,1.0,2.0]:[0.5,1.2,2.5,4.0]; const floors=fast?[0.0,0.2,0.5,1.2]:[0.0,0.4,1.2,2.5];
     let idx=-1;for(let i=0;i<triggers.length;i++)if(rt.peakPct>=triggers[i])idx=i;
