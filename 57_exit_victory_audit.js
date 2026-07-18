@@ -1,11 +1,11 @@
-/** AGROS v4.5.4 — 27/27 runtime denetimi + yeni emir self-test + canlı atama kanıtı. */
+/** AGROS v4.5.5 — 27/27 runtime denetimi + yeni emir self-test + canlı atama kanıtı. */
 const replay = require('./22_exit_replay_engine.js');
 const health = require('./54_exit_health_check.js');
 const cards = require('./55_dna_identity_card_engine.js');
 const dynamic = require('./47_dynamic_dna_exit_engine.js');
 const executor = require('./51_sanal_dynamic_exit_executor.js');
 
-const VERSION = 'v4.5.4-REPORT-CONSISTENCY-FINAL';
+const VERSION = 'v4.5.5-EXIT-SOURCE-OF-TRUTH-FINAL';
 const CORE_EXPECTED = 27;
 
 function n(v,d=0){v=Number(v);return Number.isFinite(v)?v:d;}
@@ -86,7 +86,7 @@ function build(positions=[]){
 }
 function telegram(model,limit=8){
   const m=model||build([]), g=m.catalog.groups||{};
-  let t=`\n\n🏁 <b>EXIT ZAFER DENETİMİ — v4.5.4</b>\n`;
+  let t=`\n\n🏁 <b>EXIT ZAFER DENETİMİ — v4.5.5</b>\n`;
   t+=`🧠 Çekirdek algoritma: <b>${m.catalog.coreExpected}</b> | Aktif ayar varyantı: <b>${m.catalog.configured}</b> | Ek varyant: ${m.catalog.variantCount}\n`;
   t+=`🧩 Dağılım: Zaman ${g.TIME||0} | TP ${g.FIXED_TP||0} | MFE ${g.MFE||0} | ATR ${g.ATR||0} | Trend ${g.TREND||0} | Kademe ${g.LADDER||0} | Dinamik ${g.DYNAMIC||0} | Hibrit ${g.HYBRID||0}\n`;
   t+=`🧪 Canlı executor kapsamı: <b>${m.coverage.supported}/${m.coverage.total}</b> | Desteklenmeyen: ${m.coverage.unsupported.length}\n`;
@@ -100,7 +100,7 @@ function telegram(model,limit=8){
   t+=`\n\n🔗 <b>YENİ EMİR EXIT ATAMA KANITI</b>\nYeni pozisyon ${m.assignmentStats.newPositions} | Hazır ${m.assignmentStats.newReady} | Sanalda aktif ${m.assignmentStats.newVirtualActive} | Gerçek fallback ${m.assignmentStats.newFallback}\n`;
   t+=`🛡️ Restart-gap eski pozisyon: ${m.assignmentStats.recovered} | Dinamik uygulanmıyor: ${m.assignmentStats.recoveredProtected} (bilinmeyen fiyat yolu korunuyor)\n`;
   const live=m.assignments.filter(x=>!x.restartRecovered).slice(0,8);
-  t+=live.map((x,i)=>`${i+1}. ${x.symbol} ${x.side} → ${x.algorithmLabel} | N${x.samples} | Beat %${x.beatRate.toFixed(1)} | ${x.activeForVirtual?'AKTİF':'FALLBACK'}`).join('\n')||'Henüz v4.5.4 sonrası açılmış canlı yeni pozisyon yok; yukarıdaki self-test seçim ve executor yolunu şimdi doğruladı.';
+  t+=live.map((x,i)=>`${i+1}. ${x.symbol} ${x.side} → ${x.algorithmLabel} | N${x.samples} | Beat %${x.beatRate.toFixed(1)} | ${x.activeForVirtual?'AKTİF':'FALLBACK'}`).join('\n')||'Henüz v4.5.5 sonrası açılmış canlı yeni pozisyon yok; yukarıdaki self-test seçim ve executor yolunu şimdi doğruladı.';
   if(m.preflight.rows.length)t+=`\n✅ Self-test örnekleri: ${m.preflight.rows.slice(0,3).map(x=>`${x.algorithmLabel} (N${x.samples})`).join(' | ')}`;
   if(m.coverage.unsupported.length)t+=`\n🚨 Executor dışı: ${m.coverage.unsupported.map(x=>x.label).join(', ')}`;
   return t;

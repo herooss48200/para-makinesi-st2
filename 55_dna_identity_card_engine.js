@@ -1,9 +1,142 @@
-/** AGROS v4.5 — kalıcı DNA Kimlik Kartları. */
-const fs=require('fs');const path=require('path');const league=require('./46_dna_league_engine.js');const dynamic=require('./47_dynamic_dna_exit_engine.js');const io=require('./53_memory_safe_io.js');
-const OUT=path.join(__dirname,'data','dna-identity-cards.json');const VERSION='v4.5.4-DNA-IDENTITY-CARDS-CONSISTENT';
-function n(v,d=0){v=Number(v);return Number.isFinite(v)?v:d;}function leagueName(k,m){for(const [l,a] of Object.entries(m?.leagues||{}))if((a||[]).some(x=>league.normalizeSignatureKey(x.key)===k))return l.toUpperCase();return'UNRANKED';}
-function chars(p){return{trend:Boolean(p.regimeAligned||p.momentum?.status==='GUCLENIYOR'),volatility:Boolean(p.volatility||p.regime),profit:n(p.expectancy)>0&&n(p.net)>0,risk:n(p.profitFactor)>1&&p.death!=='OLUM_RISKI'};}
-function trend(p){if(p.momentum?.status)return p.momentum.status;const r=p.recent5||{};return n(r.net)>0&&n(r.expectancy)>0?'GUCLENIYOR':n(r.net)<0?'ZAYIFLIYOR':'STABIL';}
-function build(lm=null,dm=null){lm=lm||league.build();dm=dm||dynamic.readModel()||{};const old=io.readJsonBounded(OUT,{cards:[]},{maxBytes:24*1024*1024});const oldMap=new Map((old.cards||[]).map(x=>[x.dna,x]));const players=[...Object.values(lm.leagues||{}).flat()];const seen=new Set(),cards=[];for(const p of players){const dna=league.normalizeSignatureKey(p.key);if(!dna||seen.has(dna))continue;seen.add(dna);const d=(dm.dna||[]).find(x=>league.normalizeSignatureKey(x.key)===dna);const ex=d?.allBest||null,prev=oldMap.get(dna);const resultSeq=(p.recent5?.results||p.recent5?.sequence||'');const tp=n(p.tp),sl=n(p.sl),be=n(p.be),decided=n(p.decided,tp+sl);const computedWinRate=decided>0?(tp/decided)*100:0;const storedWinRate=Number(p.winRate);const winRate=Number.isFinite(storedWinRate)&&storedWinRate>=0?storedWinRate:computedWinRate;cards.push({dna,league:leagueName(dna,lm),previousLeague:prev?.league||null,premierScore:+n(p.leagueScore).toFixed(2),trades:n(p.total),tp,sl,be,winRate:+n(winRate,computedWinRate).toFixed(2),net:+n(p.net).toFixed(4),profitFactor:+n(p.profitFactor).toFixed(2),expectancy:+n(p.expectancy).toFixed(4),last5:typeof resultSeq==='string'?resultSeq:'',trend:trend(p),eliteExit:ex?.algorithmLabel||p.exit?.algorithmLabel||'Mevcut Kademe',eliteExitId:ex?.algorithmId||p.exit?.algorithmId||'ACTUAL',previousExit:prev?.eliteExit||null,exitAdvantage:+n(ex?.deltaUsdt||ex?.netUsdt).toFixed(4),characters:chars(p),premierAudit:{eligible:n(p.total)>=10&&n(p.expectancy)>0&&n(p.profitFactor)>1&&n(p.net)>0,reasons:[n(p.total)>=10?`N ${n(p.total)} >= 10`:`N ${n(p.total)} < 10`,n(p.expectancy)>0?'Expectancy pozitif':'Expectancy pozitif değil',n(p.profitFactor)>1?'PF > 1':'PF <= 1',n(p.net)>0?'Net pozitif':'Net pozitif değil']},updatedAt:new Date().toISOString()});}const out={version:VERSION,createdAt:new Date().toISOString(),count:cards.length,cards:cards.sort((a,b)=>b.premierScore-a.premierScore)};io.writeJsonAtomic(OUT,out);return out;}
-function telegram(out=build(),limit=5){return `\n\n🪪 <b>DNA KİMLİK KARTLARI — v4.5.4</b>\nToplam profil: ${out.count} | Telegram görünümü aktif\n`+out.cards.slice(0,limit).map((x,i)=>`${i+1}. ${x.dna}\n   ${x.league} | Skor ${x.premierScore} | N${x.trades} | WR %${x.winRate} | Net ${x.net>=0?'+':''}${x.net} | PF ${x.profitFactor}\n   ⭐ ${x.eliteExit} | ${x.trend}`).join('\n');}
-module.exports={VERSION,OUT,build,telegram};
+/** AGROS v4.5.5 — kalıcı DNA Kimlik Kartları ve aktif/Elite exit ayrımı. */
+const path = require('path');
+const league = require('./46_dna_league_engine.js');
+const dynamic = require('./47_dynamic_dna_exit_engine.js');
+const io = require('./53_memory_safe_io.js');
+
+const OUT = path.join(__dirname, 'data', 'dna-identity-cards.json');
+const VERSION = 'v4.5.5-DNA-IDENTITY-ACTIVE-ELITE-SEPARATION';
+
+function n(v, d = 0) {
+  v = Number(v);
+  return Number.isFinite(v) ? v : d;
+}
+
+function leagueName(key, model) {
+  for (const [name, rows] of Object.entries(model?.leagues || {})) {
+    if ((rows || []).some(x => league.normalizeSignatureKey(x.key) === key)) return name.toUpperCase();
+  }
+  return 'UNRANKED';
+}
+
+function chars(player) {
+  return {
+    trend: Boolean(player.regimeAligned || player.momentum?.status === 'GUCLENIYOR'),
+    volatility: Boolean(player.volatility || player.regime),
+    profit: n(player.expectancy) > 0 && n(player.net) > 0,
+    risk: n(player.profitFactor) > 1 && player.death !== 'OLUM_RISKI'
+  };
+}
+
+function trend(player) {
+  if (player.momentum?.status) return player.momentum.status;
+  const recent = player.recent5 || {};
+  return n(recent.net) > 0 && n(recent.expectancy) > 0
+    ? 'GUCLENIYOR'
+    : n(recent.net) < 0 ? 'ZAYIFLIYOR' : 'STABIL';
+}
+
+function build(leagueModel = null, dynamicModel = null) {
+  const lm = leagueModel || league.build();
+  const dm = dynamicModel || dynamic.readModel() || {};
+  const old = io.readJsonBounded(OUT, { cards: [] }, { maxBytes: 24 * 1024 * 1024 });
+  const oldMap = new Map((old.cards || []).map(x => [x.dna, x]));
+  const players = [...Object.values(lm.leagues || {}).flat()];
+  const dynamicMap = new Map((dm.dna || []).map(x => [league.normalizeSignatureKey(x.key), x]));
+  const seen = new Set();
+  const cards = [];
+
+  for (const player of players) {
+    const dna = league.normalizeSignatureKey(player.key);
+    if (!dna || seen.has(dna)) continue;
+    seen.add(dna);
+
+    const dnaDynamic = dynamicMap.get(dna);
+    const allTimeElite = dnaDynamic?.allBest || null;
+    const previous = oldMap.get(dna);
+    const resultSequence = player.recent5?.results || player.recent5?.sequence || '';
+    const tp = n(player.tp);
+    const sl = n(player.sl);
+    const be = n(player.be);
+    const decided = n(player.decided, tp + sl);
+    const computedWinRate = decided > 0 ? (tp / decided) * 100 : 0;
+    const storedWinRate = Number(player.winRate);
+    const winRate = Number.isFinite(storedWinRate) && storedWinRate >= 0 ? storedWinRate : computedWinRate;
+
+    // Aktif Exit: Lig ve yeni emir atama yolunun şu an kullandığı rejim-bazlı exit.
+    const activeExitId = player.pairMetrics?.algorithmId || player.exit?.algorithmId || 'ACTUAL';
+    const activeExit = player.pairMetrics?.algorithmLabel || player.exit?.algorithmLabel || 'Mevcut Kademe Sistemi';
+    const activeExitSamples = n(player.pairMetrics?.total, player.exit?.samples);
+    const activeExitRegime = player.exit?.regimeKey || dm.currentRegime?.key || 'BILINMIYOR';
+    const activeExitReady = activeExitId !== 'ACTUAL' && Boolean(player.exit?.ready !== false);
+
+    // Elite Exit: Aynı DNA'nın bütün rejimler/tüm dönem üzerinden tarihsel lideri.
+    const eliteExitId = allTimeElite?.algorithmId || activeExitId;
+    const eliteExit = allTimeElite?.algorithmLabel || activeExit;
+    const eliteExitSamples = n(allTimeElite?.samples, activeExitSamples);
+    const eliteDiffersFromActive = eliteExitId !== activeExitId;
+
+    cards.push({
+      dna,
+      league: leagueName(dna, lm),
+      previousLeague: previous?.league || null,
+      premierScore: +n(player.leagueScore).toFixed(2),
+      trades: n(player.total),
+      tp,
+      sl,
+      be,
+      winRate: +n(winRate, computedWinRate).toFixed(2),
+      net: +n(player.net).toFixed(4),
+      profitFactor: +n(player.profitFactor).toFixed(2),
+      expectancy: +n(player.expectancy).toFixed(4),
+      last5: typeof resultSequence === 'string' ? resultSequence : '',
+      trend: trend(player),
+      activeExit,
+      activeExitId,
+      activeExitSamples,
+      activeExitRegime,
+      activeExitReady,
+      eliteExit,
+      eliteExitId,
+      eliteExitSamples,
+      eliteDiffersFromActive,
+      previousExit: previous?.eliteExit || null,
+      exitAdvantage: +n(allTimeElite?.deltaUsdt || allTimeElite?.netUsdt || player.exit?.deltaUsdt).toFixed(4),
+      characters: chars(player),
+      premierAudit: {
+        eligible: n(player.total) >= 10 && n(player.expectancy) > 0 && n(player.profitFactor) > 1 && n(player.net) > 0,
+        reasons: [
+          n(player.total) >= 10 ? `N ${n(player.total)} >= 10` : `N ${n(player.total)} < 10`,
+          n(player.expectancy) > 0 ? 'Expectancy pozitif' : 'Expectancy pozitif değil',
+          n(player.profitFactor) > 1 ? 'PF > 1' : 'PF <= 1',
+          n(player.net) > 0 ? 'Net pozitif' : 'Net pozitif değil'
+        ]
+      },
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  const out = {
+    version: VERSION,
+    createdAt: new Date().toISOString(),
+    currentRegime: dm.currentRegime?.key || 'BILINMIYOR',
+    count: cards.length,
+    cards: cards.sort((a, b) => b.premierScore - a.premierScore)
+  };
+  io.writeJsonAtomic(OUT, out);
+  return out;
+}
+
+function telegram(out = build(), limit = 5) {
+  const rows = out.cards.slice(0, limit).map((card, index) => {
+    const active = `   🎯 Aktif Exit (${card.activeExitRegime}): ${card.activeExit} | ExitN${card.activeExitSamples}`;
+    const elite = card.eliteDiffersFromActive
+      ? `\n   ⭐ Tüm Dönem Elite: ${card.eliteExit} | EliteN${card.eliteExitSamples}`
+      : `\n   ⭐ Aktif/Elite aynı | EliteN${card.eliteExitSamples}`;
+    return `${index + 1}. ${card.dna}\n   ${card.league} | Skor ${card.premierScore} | N${card.trades} | WR %${card.winRate} | Net ${card.net >= 0 ? '+' : ''}${card.net} | PF ${card.profitFactor}\n${active}${elite}\n   📈 Form: ${card.trend}`;
+  });
+
+  return `\n\n🪪 <b>DNA KİMLİK KARTLARI — v4.5.5</b>\nToplam profil: ${out.count} | Güncel rejim: ${out.currentRegime} | Aktif ve tüm dönem Elite exit ayrı gösterilir\n${rows.join('\n')}`;
+}
+
+module.exports = { VERSION, OUT, build, telegram };

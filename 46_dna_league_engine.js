@@ -21,7 +21,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.5.4-LEAGUE-REALIZED-METRICS-SOURCE';
+const VERSION = 'v4.5.5-LEAGUE-ACTIVE-EXIT-EVIDENCE';
 const CLASSIFICATION_POLICY_VERSION = 3;
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
@@ -657,7 +657,7 @@ function line(row, index) {
   const exit=row.pairMetrics||{};
   const realized=realizedMetrics(row);
   const exitSample=num(exit.total);
-  const exitEvidence=exit.algorithmLabel && exitSample !== realized.total ? ` | ExitN${exitSample}` : '';
+  const exitEvidence=exit.algorithmLabel && exit.algorithmLabel !== 'Mevcut Kademe Sistemi' ? ` | ExitN${exitSample}` : '';
   return `${index + 1}. ${shortKey(row.key)} | ${exit.algorithmLabel||'Mevcut Kademe'} | Skor ${num(row.leagueScore).toFixed(1)} | DNA N${realized.total} | Exp ${realized.expectancy>=0?'+':''}${realized.expectancy.toFixed(4)} | PF ${realized.profitFactor.toFixed(2)}${exitEvidence} | ${row.momentum?.status||'YENI'}`;
 }
 
