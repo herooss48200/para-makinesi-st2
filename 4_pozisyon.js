@@ -997,8 +997,8 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `📈 Brüt PNL: ${brutKarZarar.toFixed(4)} USDT\n` +
         `💸 Komisyon: ${toplamKomisyon.toFixed(4)} USDT\n` +
         `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT${leagueShadowOnly ? ' | 👻 SANAL KASA DIŞI' : ''}` +
-        exitMethodScoreboard.telegramLine(exitMethodSummary) + `\n` +
-        (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | Sonuç: ${kaliteSonuc}\n` : '') +
+        exitMethodScoreboard.telegramLine(exitMethodSummary, { restartGap: restartGapIslemi, currentOutcome: kaliteSonuc }) + `\n` +
+        (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | ${restartGapIslemi ? 'Muhasebe Sonucu' : 'Sonuç'}: ${kaliteSonuc}${restartGapIslemi ? ' | Öğrenme: HARİÇ' : ''}\n` : '') +
         `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
         restartGap.telegramMetni(pos) +
         (restartGapIslemi ? '' : blackbox.kapanisAnalizMetni(pos, kapanisAnalizPaketi, kapanisZamani) +

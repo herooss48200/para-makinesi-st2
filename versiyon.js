@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'EXIT-SOURCE-OF-TRUTH-FINAL',
-    kod: 'AWS Candidate v4.5.5-EXIT-SOURCE-OF-TRUTH-FINAL',
-    botSurumu: '4.5.5-EXIT-SOURCE-OF-TRUTH-FINAL',
+    kodAdi: 'RESTART-GAP-REPORT-CONSISTENCY',
+    kod: 'AWS Candidate v4.5.9-RESTART-GAP-REPORT-CONSISTENCY',
+    botSurumu: '4.5.9-RESTART-GAP-REPORT-CONSISTENCY',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '19.07.2026',
     ortam: {
