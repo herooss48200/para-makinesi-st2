@@ -14,6 +14,7 @@ let sonExitEvolutionReplaySayisi = null;
 let sonDnaLeagueTransferKapanisi = null;
 let sonPremierObservationKapanan = null;
 let learningEvolutionBaseline = null;
+let raporZinciriCalisiyor = false;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -384,6 +385,11 @@ async function exitEvolutionDashboardGonderGerekirse() {
 }
 
 async function raporGonder(oneCikar = false) {
+    if (raporZinciriCalisiyor) {
+        console.warn('🛡️ [RAPOR GUARD] Önceki rapor zinciri sürüyor; çakışan çağrı atlandı.');
+        return;
+    }
+    raporZinciriCalisiyor = true;
     try {
         const mesaj = canliRaporMetniOlustur();
 
@@ -408,6 +414,8 @@ async function raporGonder(oneCikar = false) {
         ramTrace('Adaptive League sonrası');
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
+    } finally {
+        raporZinciriCalisiyor = false;
     }
 }
 

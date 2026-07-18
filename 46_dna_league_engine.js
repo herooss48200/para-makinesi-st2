@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const memorySafeIo = require('./53_memory_safe_io.js');
 const ayarlar = require('./ayarlar.js');
 const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
@@ -45,9 +46,9 @@ function ensureDataDir() {
 }
 
 function readJson(file, fallback = null) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
-  catch (_) { return fallback; }
+  return memorySafeIo.readJsonBounded(file, fallback, { maxBytes: 32 * 1024 * 1024 });
 }
+
 
 function atomicWriteJson(file, value) {
   ensureDataDir();
