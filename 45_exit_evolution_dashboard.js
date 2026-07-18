@@ -1,5 +1,5 @@
 /**
- * AGROS v3.11.2 - EXIT EVOLUTION TELEGRAM DASHBOARD
+ * AGROS v4.5.4 - EXIT EVOLUTION TELEGRAM DASHBOARD
  * Replay/selector modellerini tek, okunabilir Telegram raporunda birleştirir.
  * Trade Engine davranışını değiştirmez.
  */
@@ -7,7 +7,7 @@ const exitReplay = require('./22_exit_replay_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v3.11.2-EXIT-EVOLUTION-DASHBOARD';
+const VERSION = 'v4.5.4-EXIT-EVOLUTION-CATALOG-SYNC';
 function num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function sign(v, digits = 2) { const n = num(v); return `${n >= 0 ? '+' : ''}${n.toFixed(digits)}`; }
 function safe(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -15,8 +15,10 @@ function safe(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '
 function buildDashboardModel(replayModel = null, validationModel = null) {
   const replay = replayModel || exitReplay.buildModel();
   const validation = validationModel || dnaExitSelector.buildValidationModel();
-  const algorithms = (replay?.algorithmRanking || []).filter(x => x.key !== 'ACTUAL');
-  const dnaReady = (replay?.dna || []).filter(x => x.bestExit && x.samples >= num(ayarlar.exitEvolutionDashboardMinDnaOrnek, 10));
+  const configuredCatalog = exitReplay.algorithms().filter(x => x?.isExecutable !== false);
+  const configuredIds = new Set(configuredCatalog.map(x => String(x.id)));
+  const algorithms = (replay?.algorithmRanking || []).filter(x => x.key !== 'ACTUAL' && configuredIds.has(String(x.key)));
+  const dnaReady = (replay?.dna || []).filter(x => x.bestExit && configuredIds.has(String(x.bestExit.key || x.bestExit.algorithmId)) && x.samples >= num(ayarlar.exitEvolutionDashboardMinDnaOrnek, 10));
   const opportunities = (replay?.missedOpportunityDna || []).filter(x => x.bestExit);
   const topAlgorithms = algorithms.slice(0, num(ayarlar.exitEvolutionDashboardTopModel, 5));
   const topDna = dnaReady.sort((a,b) => num(b.bestExit?.deltaUsdt)-num(a.bestExit?.deltaUsdt)).slice(0, num(ayarlar.exitEvolutionDashboardTopDna, 5));
@@ -25,7 +27,9 @@ function buildDashboardModel(replayModel = null, validationModel = null) {
     version: VERSION,
     createdAt: new Date().toISOString(),
     totalTrades: num(replay?.totalTrades),
-    totalAlgorithms: algorithms.length + 1,
+    totalAlgorithms: configuredCatalog.length,
+    expectedCoreAlgorithms: 27,
+    historicalInactiveAlgorithms: num(replay?.historicalInactiveAlgorithmCount),
     systemComparison: replay?.systemComparison || {},
     topAlgorithms,
     topDna,
@@ -39,8 +43,9 @@ function buildDashboardModel(replayModel = null, validationModel = null) {
 function telegramMetni(model = null) {
   if (ayarlar.exitEvolutionDashboardAktif === false) return '';
   const m = model || buildDashboardModel();
-  let t = `🧬 <b>EXIT EVOLUTION DASHBOARD — v3.11.2</b>\n`;
-  t += `📦 Replay kapanış: <b>${m.totalTrades}</b> | Yarışan model: <b>${m.totalAlgorithms}</b>\n`;
+  let t = `🧬 <b>EXIT EVOLUTION DASHBOARD — v4.5.4</b>\n`;
+  t += `📦 Replay kapanış: <b>${m.totalTrades}</b> | Çekirdek yarışan exit: <b>${m.totalAlgorithms}</b>\n`;
+  if (num(m.historicalInactiveAlgorithms) > 0) t += `🗃️ Yarış dışı eski varyant: <b>${num(m.historicalInactiveAlgorithms)}</b> (arşivde korunur)\n`;
   t += `✅ Gerçek Kademe Net: <b>${sign(m.systemComparison.actualNetUsdt)} USDT</b>\n`;
   t += `🔭 Oracle potansiyeli: ${sign(m.systemComparison.potentialDeltaUsdt)} USDT`;
   if (num(m.systemComparison.improvementPct)) t += ` | %${num(m.systemComparison.improvementPct).toFixed(1)}`;

@@ -21,8 +21,8 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.4.3-LEAGUE-STATE-RECLASSIFICATION';
-const CLASSIFICATION_POLICY_VERSION = 2;
+const VERSION = 'v4.5.4-LEAGUE-REALIZED-METRICS-SOURCE';
+const CLASSIFICATION_POLICY_VERSION = 3;
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -263,9 +263,18 @@ function buildPlayers(models = {}, options = {}) {
   }).sort((a, b) => b.leagueScore - a.leagueScore || b.expectancy - a.expectancy || b.total - a.total);
 }
 
+function realizedMetrics(player = {}) {
+  return {
+    total: num(player.total),
+    expectancy: num(player.expectancy),
+    profitFactor: num(player.profitFactor),
+    net: num(player.net)
+  };
+}
+
 function historicalProfitGate(player, minSamples) {
-  const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor, net: player.net };
-  return num(m.total) >= minSamples && num(m.expectancy) > 0 && num(m.profitFactor) > 1 && num(m.net) > 0;
+  const m = realizedMetrics(player);
+  return m.total >= minSamples && m.expectancy > 0 && m.profitFactor > 1 && m.net > 0;
 }
 
 function recentFivePositive(player) {
@@ -286,10 +295,10 @@ function qualify(player, league, options = {}) {
     return historicalPositive && player.death !== 'OLUM_RISKI';
   }
   if (league === 'CHAMPIONSHIP') {
-    const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor, net: player.net };
-    const nearPositive = num(m.total) >= championshipMin &&
-      num(m.profitFactor) >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
-      num(m.expectancy) >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05);
+    const m = realizedMetrics(player);
+    const nearPositive = m.total >= championshipMin &&
+      m.profitFactor >= num(ayarlar.dnaLeagueChampionshipMinPf, 0.85) &&
+      m.expectancy >= num(ayarlar.dnaLeagueChampionshipMinExp, -0.05);
     // Geçmişi kârlı olup güncel formu Premier kapısını geçemeyen DNA burada x0.25 ile yaşamaya devam eder.
     return player.death !== 'OLUM_RISKI' && (historicalPositive || nearPositive);
   }
@@ -309,10 +318,10 @@ function worstTen(players = [], options = {}) {
 
 function audit(players = [], leagues = {}) {
   const minSample = Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10));
-  const profitable = players.filter(p => { const m=p.pairMetrics||p; return num(m.total)>=minSample && num(m.expectancy)>0 && num(m.profitFactor)>1 && num(m.net)>0; });
+  const profitable = players.filter(p => { const m=realizedMetrics(p); return m.total>=minSample && m.expectancy>0 && m.profitFactor>1 && m.net>0; });
   const premierKeys = new Set((leagues.premier || []).map(p => p.key));
   const profitableOutsidePremier = profitable.filter(p => !premierKeys.has(p.key));
-  const nearProfit = players.filter(p => { const m=p.pairMetrics||p; return num(m.total)>=minSample && !profitable.some(x=>x.key===p.key) && num(m.expectancy)>=-0.05 && num(m.profitFactor)>=0.85; });
+  const nearProfit = players.filter(p => { const m=realizedMetrics(p); return m.total>=minSample && !profitable.some(x=>x.key===p.key) && m.expectancy>=-0.05 && m.profitFactor>=0.85; });
   return {
     rule: `Premier League 2.0: gerçekleşmiş DNA performansı N>=${minSample}, Exp>0, PF>1, Net>0; son 5/güven/Elite Exit yalnız sıralama ve audit içindir; Championship: yakın-pozitif veya yeterli kanıtı henüz oluşmamış aday`,
     totalPlayers: players.length,
@@ -645,7 +654,11 @@ function attachToPosition(pos) {
 }
 
 function line(row, index) {
-  const m=row.pairMetrics||row; return `${index + 1}. ${shortKey(row.key)} | ${m.algorithmLabel||'Mevcut Kademe'} | Skor ${num(row.leagueScore).toFixed(1)} | N${num(m.total)} | Exp ${num(m.expectancy)>=0?'+':''}${num(m.expectancy).toFixed(4)} | PF ${num(m.profitFactor).toFixed(2)} | ${row.momentum.status}`;
+  const exit=row.pairMetrics||{};
+  const realized=realizedMetrics(row);
+  const exitSample=num(exit.total);
+  const exitEvidence=exit.algorithmLabel && exitSample !== realized.total ? ` | ExitN${exitSample}` : '';
+  return `${index + 1}. ${shortKey(row.key)} | ${exit.algorithmLabel||'Mevcut Kademe'} | Skor ${num(row.leagueScore).toFixed(1)} | DNA N${realized.total} | Exp ${realized.expectancy>=0?'+':''}${realized.expectancy.toFixed(4)} | PF ${realized.profitFactor.toFixed(2)}${exitEvidence} | ${row.momentum?.status||'YENI'}`;
 }
 
 function telegramText(model, options = {}) {
@@ -670,7 +683,7 @@ function telegramText(model, options = {}) {
   return text;
 }
 
-module.exports = { normalizeSignatureKey, baseSignatureKey, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
+module.exports = { normalizeSignatureKey, baseSignatureKey, realizedMetrics, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
   VERSION,
   LEAGUE_FILE,
   TRANSFER_FILE,

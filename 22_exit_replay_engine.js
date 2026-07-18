@@ -222,10 +222,15 @@ function isOracleModel(x) {
 }
 function buildModel() {
   const o=ozetEnsure(), min=num(ayarlar.exitReplayMinOrnek,3);
+  // Kalıcı özet eski ayar varyantlarını saklayabilir. Aktif yarış/sıralama yalnızca
+  // şu anda katalogda bulunan 27 çekirdek algoritmanın ayarlı varyantlarından oluşur.
+  const configuredAlgorithms = algorithms().filter(a => a?.isExecutable !== false);
+  const configuredIds = new Set(configuredAlgorithms.map(a => String(a.id)));
   const allAlgorithms=Object.values(o.byAlgorithm).map(bucketModel);
-  const algorithmRanking=allAlgorithms.filter(x=>x.key!=='ACTUAL' && !isOracleModel(x)).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples);
+  const historicalInactiveAlgorithms=allAlgorithms.filter(x=>x.key!=='ACTUAL' && !isOracleModel(x) && !configuredIds.has(String(x.key)));
+  const algorithmRanking=allAlgorithms.filter(x=>x.key!=='ACTUAL' && !isOracleModel(x) && configuredIds.has(String(x.key))).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples);
   const oracleRanking=allAlgorithms.filter(isOracleModel).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples);
-  const dna=Object.values(o.bySignature).map(s=>{ const all=Object.values(s.algorithms||{}).map(bucketModel).filter(x=>x.key!=='ACTUAL'); const ranked=all.filter(x=>!isOracleModel(x)).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples); const oracle=all.filter(isOracleModel).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples); return { key:s.key,label:s.label,samples:s.samples,confidence:s.samples>=min?'GELISEN':'YETERSIZ_ORNEK',bestExit:ranked[0]||null,ranking:ranked,oracleBestBenchmark:oracle[0]||null,oracleRanking:oracle }; }).sort((a,b)=>b.samples-a.samples);
+  const dna=Object.values(o.bySignature).map(s=>{ const all=Object.values(s.algorithms||{}).map(bucketModel).filter(x=>x.key!=='ACTUAL'); const ranked=all.filter(x=>!isOracleModel(x) && configuredIds.has(String(x.key))).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples); const oracle=all.filter(isOracleModel).sort((a,b)=>b.deltaUsdt-a.deltaUsdt||b.samples-a.samples); return { key:s.key,label:s.label,samples:s.samples,confidence:s.samples>=min?'GELISEN':'YETERSIZ_ORNEK',bestExit:ranked[0]||null,ranking:ranked,oracleBestBenchmark:oracle[0]||null,oracleRanking:oracle }; }).sort((a,b)=>b.samples-a.samples);
   const timeBehavior=Object.values(o.timeBehavior).map(s=>({ key:s.key,label:s.label,checkpoints:Object.values(s.checkpoints||{}).map(b=>({ minute:b.minute,samples:b.samples,avgNetPct:round(b.netPctSum/b.samples,4),avgMfePct:round(b.mfeSum/b.samples,4),avgMaePct:round(b.maeSum/b.samples,4),avgGivebackPct:round(b.givebackSum/b.samples,4) })).sort((a,b)=>a.minute-b.minute) }));
   const systemComparison={ actualNetUsdt:round(o.actualTotalNetUsdt,4), oracleBestNetUsdt:round(o.oracleBestTotalNetUsdt,4), potentialDeltaUsdt:round(o.oraclePotentialDeltaUsdt,4), improvementPct:num(o.actualTotalNetUsdt)!==0?round((o.oraclePotentialDeltaUsdt/Math.abs(o.actualTotalNetUsdt))*100,1):0 };
   const missedOpportunityDna=dna.filter(x=>x.bestExit).sort((a,b)=>num(b.bestExit.deltaUsdt)-num(a.bestExit.deltaUsdt)).slice(0,10);
@@ -238,7 +243,7 @@ function buildModel() {
   const dnaBehavior=dnaBehaviorProfile.buildModel(profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:behaviorMin });
   const behaviorIntelligence=behaviorIntelligenceEngine.buildModel(dnaBehavior,{ minSample:num(ayarlar.behaviorIntelligenceMinOrnek,behaviorMin) });
   const exitConsensus=exitConsensusEngine.buildModel(dna,behaviorIntelligence,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,{ minSample:num(ayarlar.exitConsensusMinOrnek,behaviorMin) });
-  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Uygulanabilir exit modelleri ile oracle benchmarkları ayrı sıralanır. Behavior Intelligence ve Exit Consensus yalnızca öğrenme/öneri üretir; Trade Engine kararını değiştirmez.',totalTrades:o.totalTrades,systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,behaviorIntelligence,exitConsensus,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:[] };
+  return { version:VERSION,createdAt:new Date().toISOString(),dataPolicy:'Aktif sıralama yalnız güncel ayarlı exit kataloğunu kullanır; geçmişte kaldırılmış varyantlar yarışa ve DNA best-exit seçimine girmez. Oracle benchmarkları ayrıdır.',totalTrades:o.totalTrades,configuredAlgorithmCount:configuredAlgorithms.length,historicalInactiveAlgorithmCount:historicalInactiveAlgorithms.length,historicalInactiveAlgorithms:historicalInactiveAlgorithms.map(x=>({key:x.key,label:x.label,samples:x.samples})),systemComparison,algorithmRanking,oracleRanking,dna,profitPotential,dnaTimeBehavior,dnaTrendBehavior,dnaVolatilityBehavior,dnaLadderBehavior,dnaBehavior,behaviorIntelligence,exitConsensus,missedOpportunityDna,timeBehavior,last10:o.last10,pendingModels:[] };
 }
 function sign(v, digits = 4) {
   const n = num(v);
