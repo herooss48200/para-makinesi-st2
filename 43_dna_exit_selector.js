@@ -30,8 +30,7 @@ function signature(pos) {
   return sig.shortKey || pos?.execution?.signatureShort || '';
 }
 function readModel() {
-  try { return JSON.parse(fs.readFileSync(MODEL_JSON, 'utf8')); }
-  catch (_) { return null; }
+  return memorySafeIo.readJsonBounded(MODEL_JSON, null, { maxBytes: 64 * 1024 * 1024 });
 }
 function fallbackPlan(key, reason, samples = 0) {
   return {

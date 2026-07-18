@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
+const memorySafeIo = require('./53_memory_safe_io.js');
 
 const VERSION = 'v4.3.7-MEMORY-SAFE-REPLAY';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -20,7 +21,20 @@ function num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
 function round(v,d=4){return Number(num(v).toFixed(d));}
 function clamp(v,a,b){return Math.max(a,Math.min(b,num(v)));}
 function ensureDir(){if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR,{recursive:true});}
-function readJson(file,fallback=null){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch(_){return fallback;}}
+function readJson(file,fallback=null){return memorySafeIo.readJsonBounded(file,fallback,{maxBytes:64*1024*1024});}
+let modelCache = null;
+let modelCacheStamp = '';
+function readModelCached(){
+  try {
+    if(!fs.existsSync(MODEL_JSON)) return modelCache;
+    const st=fs.statSync(MODEL_JSON);
+    const stamp=`${st.size}:${st.mtimeMs}`;
+    if(modelCache && modelCacheStamp===stamp) return modelCache;
+    const loaded=readJson(MODEL_JSON,null);
+    if(loaded){ modelCache=loaded; modelCacheStamp=stamp; }
+    return modelCache;
+  } catch(_) { return modelCache; }
+}
 function atomicWrite(file,value){ensureDir();const tmp=`${file}.tmp`;fs.writeFileSync(tmp,JSON.stringify(value,null,2));fs.renameSync(tmp,file);}
 function forEachJsonlSync(file,onRow){
   if(!fs.existsSync(file))return {rows:0,invalid:0};
@@ -184,7 +198,7 @@ function buildFromReplayFile(options={}){
   pending.clear();pending=null;
   return finalizeBuild(state,options);
 }
-function readModel(){return readJson(MODEL_JSON,null);}
+function readModel(){return readModelCached();}
 function positionRegime(pos,model){
   const explicit=pos?.marketRegime||pos?.execution?.marketRegime||pos?.blackboxAcilis?.marketRegime;
   if(explicit?.key)return explicit;

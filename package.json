@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.5.6",
+  "version": "4.5.7",
   "description": "AGROS v4.5.6: verified single-position dual-layer learning and league-performance accounting.",
   "main": "bot.js",
   "scripts": {

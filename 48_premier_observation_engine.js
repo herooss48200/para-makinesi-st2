@@ -4,6 +4,7 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const league = require('./46_dna_league_engine.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
+const memorySafeIo = require('./53_memory_safe_io.js');
 
 const VERSION = 'v4.4.1-LEAGUE-RECOVERY-REPAIR';
 const EXPERIMENT_ID = String(ayarlar.premierTestExperimentId || 'DYNAMIC-LEAGUE-EXIT-2026-07-17');
@@ -53,7 +54,7 @@ function normalize(x, kind) {
 function archiveOld() {
     ensure();
     try {
-        const old = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+        const old = memorySafeIo.readJsonBounded(STATE_FILE, null, { maxBytes: 32 * 1024 * 1024 });
         if (old?.experimentId === EXPERIMENT_ID) return;
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         if (fs.existsSync(STATE_FILE)) fs.renameSync(STATE_FILE, path.join(DATA_DIR, `adaptive-league-observation.before-${EXPERIMENT_ID}.${stamp}.json`));
@@ -62,7 +63,7 @@ function archiveOld() {
 }
 function readFile(file, kind) {
     ensure();
-    try { return normalize(JSON.parse(fs.readFileSync(file, 'utf8')), kind); }
+    try { return normalize(memorySafeIo.readJsonBounded(file, null, { maxBytes: 32 * 1024 * 1024 }), kind); }
     catch (_) { return blank(kind); }
 }
 function read() { archiveOld(); const x = readFile(STATE_FILE, 'LEAGUE_TEST'); return x?.experimentId === EXPERIMENT_ID ? x : blank('LEAGUE_TEST'); }
