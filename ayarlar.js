@@ -493,7 +493,7 @@ const ayarlar = {
     // v3.14: geriye uyumluluk için korunur; Premier seçiminde artık kapasite uygulanmaz.
     dnaLeaguePremierKapasite: 0,
     dnaLeagueChampionshipKapasite: 50,
-    dnaLeaguePremierMinOrnek: 5,
+    dnaLeaguePremierMinOrnek: 10,
     dnaLeagueChampionshipMinOrnek: 5,
     dnaLeagueHistoricalMinOrnek: 20,
     dnaLeaguePremierMinGuven: 50,

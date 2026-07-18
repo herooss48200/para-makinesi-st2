@@ -11,9 +11,9 @@ const players = [
   p('DEVELOPMENT', {total:3,expectancy:0.2,profitFactor:2,net:0.6}, {total:3,expectancy:0.2,profitFactor:2,net:0.6}, 80, 3),
   p('HISTORICAL', {total:25,expectancy:-0.2,profitFactor:0.5,net:-5}, {total:5,expectancy:-0.2,profitFactor:0.5,net:-1}, 80, 25)
 ];
-const result = league.proposedLeagues(players, {premierMinSample:5,championshipMinSample:5,championshipSize:50,premierMinConfidence:50});
-assert.deepStrictEqual(result.premier.map(x=>x.key), ['PREMIER']);
-assert.deepStrictEqual(result.championship.map(x=>x.key), ['CHAMP_RECENT_WEAK','CHAMP_RECENT_INCOMPLETE']);
+const result = league.proposedLeagues(players, {premierMinSample:10,championshipMinSample:5,championshipSize:50,premierMinConfidence:50});
+assert.deepStrictEqual(result.premier.map(x=>x.key), ['PREMIER','CHAMP_RECENT_WEAK','CHAMP_RECENT_INCOMPLETE']);
+assert.deepStrictEqual(result.championship.map(x=>x.key), []);
 assert.deepStrictEqual(result.development.map(x=>x.key), ['DEVELOPMENT']);
 assert.deepStrictEqual(result.historical.map(x=>x.key), ['HISTORICAL']);
-console.log('✅ Real Premier/Championship gate test passed');
+console.log('✅ Premier League 2.0 gate test passed');

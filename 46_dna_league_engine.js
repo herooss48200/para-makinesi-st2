@@ -275,9 +275,9 @@ function qualify(player, league, options = {}) {
   const historicalPositive = historicalProfitGate(player, premierMin);
 
   if (league === 'PREMIER') {
-    // Premier = tam boyutlu seçkin lig. Geçmiş kanıt + son 5 toplam pozitif form gerekir.
-    // 5/5 kazanma şartı yoktur; 3 kazanç 2 zarar da toplam Net/Exp/PF pozitifse yeterlidir.
-    return historicalPositive && recentFivePositive(player) && num(player.confidence) >= premierMinConfidence && player.death !== 'OLUM_RISKI';
+    // v4.5 Premier League 2.0: kabul kapısı yalnız gerçekleşmiş DNA performansıdır.
+    // Son-5, güven, rejim ve Elite Exit metrikleri sıralama/audit bilgisidir; temel kapıyı değiştiremez.
+    return historicalPositive && player.death !== 'OLUM_RISKI';
   }
   if (league === 'CHAMPIONSHIP') {
     const m = player.pairMetrics || { total: player.total, expectancy: player.expectancy, profitFactor: player.profitFactor, net: player.net };
@@ -308,7 +308,7 @@ function audit(players = [], leagues = {}) {
   const profitableOutsidePremier = profitable.filter(p => !premierKeys.has(p.key));
   const nearProfit = players.filter(p => { const m=p.pairMetrics||p; return num(m.total)>=minSample && !profitable.some(x=>x.key===p.key) && num(m.expectancy)>=-0.05 && num(m.profitFactor)>=0.85; });
   return {
-    rule: `Premier: tarihsel N>=${minSample}, Exp>0, PF>1, Net>0 + son 5 toplam Exp/PF/Net pozitif + güven>=${num(ayarlar.dnaLeaguePremierMinGuven, 50)}; Championship: kârlı geçmiş fakat güncel Premier kapısı geçilemedi veya yakın-pozitif aday`,
+    rule: `Premier League 2.0: gerçekleşmiş DNA performansı N>=${minSample}, Exp>0, PF>1, Net>0; son 5/güven/Elite Exit yalnız sıralama ve audit içindir; Championship: yakın-pozitif veya yeterli kanıtı henüz oluşmamış aday`,
     totalPlayers: players.length,
     profitableCount: profitable.length,
     premierCount: (leagues.premier || []).length,

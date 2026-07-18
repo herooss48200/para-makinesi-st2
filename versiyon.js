@@ -1,10 +1,10 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ADAPTIVE-TRADING-LEAGUE',
-    kod: 'AWS Candidate v4.4.6-RUNTIME-MEMORY-STABILITY-GUARD',
-    botSurumu: '4.4.6-RUNTIME-MEMORY-STABILITY-GUARD',
+    kodAdi: 'INTELLIGENCE-VALIDATION-ELITE-EVOLUTION',
+    kod: 'AWS Candidate v4.5.0-INTELLIGENCE-VALIDATION-ELITE-EVOLUTION',
+    botSurumu: '4.5.0-INTELLIGENCE-VALIDATION-ELITE-EVOLUTION',
     stratejiSurumu: '1.0.14',
-    yayinTarihi: '18.07.2026',
+    yayinTarihi: '19.07.2026',
     ortam: {
         emirModu: 'SANAL'
     }
