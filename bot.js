@@ -29,6 +29,7 @@ async function baslat() {
             const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
             const premierObservation = require('./48_premier_observation_engine.js');
             const adaptiveLeague = require('./49_adaptive_trading_league.js');
+            const labPremier = require('./62_lab_premier_league.js');
             const leagueState = dnaLeague.findPlayer('__HEALTHCHECK__') === null;
             let exitModel = dynamicExit.readModel();
             if (exitModel && (!Array.isArray(exitModel.dnaBase) || exitModel.version !== dynamicExit.VERSION)) {
@@ -37,9 +38,11 @@ async function baslat() {
                 console.log(`✅ [EXIT MODEL MIGRATION] ${Number(exitModel?.totalBaseDna || 0)} temel DNA exit profili hazır.`);
             }
             const observation = premierObservation.read();
-            console.log(`🧠 [ADAPTIVE LEAGUE READY] ${adaptiveLeague.VERSION} | Lig kayıt erişimi ${leagueState ? 'OK' : 'OK'} | Exit model ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'} | Observation kapanan ${Number(observation?.closed || 0)}`);
+            const labModel = labPremier.build();
+            console.log(`🗺️ [FAMILY MEMORY READY] ${adaptiveLeague.VERSION} | Family lig/audit ${leagueState ? 'OK' : 'OK'} | Emir yetkisi KAPALI | Eski observation kapanan ${Number(observation?.closed || 0)}`);
+            console.log(`🏆 [LAB PREMIER READY] ${labPremier.VERSION} | Premier LAB ${Number(labModel?.premierCount || 0)} | İleri doğrulanmış ${Number(labModel?.forwardVerifiedCount || 0)} | Exit model ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'}`);
             console.log('🛡️ [RAM-SAFE] Ağır replay yalnız model eskiyse bir kez, sonrasında kontrollü 25 kapanış aralığında güncellenir.');
-            console.log('🧬 [DUAL-LAYER RUNTIME ACTIVE] SANAL=ALL_VALID_DNA | GERÇEK=CHAMPIONSHIP_x0.25+PREMIER_x1.00 | PROFIT-FIRST_ONLY_REAL');
+            console.log('🧬 [DUAL-LAYER RUNTIME ACTIVE] ÖĞRENME=ALL_VALID_LAB | ÜST_KATMAN=LAB_PREMIER_x1 | CHAMPIONSHIP=SHADOW_x0 | FAMILY=MEMORY_ONLY | GERÇEK=FAIL_CLOSED');
         } catch (err) {
             console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
         }
@@ -51,9 +54,11 @@ async function baslat() {
             `📊 Strateji: ${ayarlar.trendPeriyodu || ayarlar.superTrendPeriyodu || 'YOK'} trend + ${ayarlar.pusuPeriyodu} pusu + ${ayarlar.sniperPeriyodu} sniper\n` +
             `📡 İzlenen Sembol: ${h.state.semboller.length}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
-            `🧬 Sanal öğrenme: TÜM GEÇERLİ DNA\n` +
-            `🥈 Championship gerçek boyut: x${Number(ayarlar.gercekEmirChampionshipBoyutCarpani || 0.25).toFixed(2)}\n` +
-            `🏆 Premier gerçek boyut: x${Number(ayarlar.gercekEmirPremierBoyutCarpani || 1).toFixed(2)}\n` +
+            `🧬 Sanal öğrenme: TÜM GEÇERLİ LAB/FULL DNA\n` +
+            `🗺️ Family DNA: kalıcı hafıza ve audit; emir yetkisi yok\n` +
+            `🏆 LAB Premier: kendi doğrulanmış Exit'iyle eşit x1 sanal yarış\n` +
+            `🥈 LAB Championship/Development: gölge öğrenme x0\n` +
+            `🔒 Gerçek emir: fail-closed\n` +
             `🛡️ Binance minimumu karşılanmazsa emir güvenle atlanır.\n` +
             `🗃️ Eski muhasebe/başarı sayıları korunuyor; açılış ekranında gizlendi.\n\n` +
             `<i>Sistem kapanmış mumları izliyor, pusu kuruyor ve sniper tetik bekliyor...</i>`;

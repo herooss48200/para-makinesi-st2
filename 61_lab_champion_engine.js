@@ -16,7 +16,7 @@ const io = require('./53_memory_safe_io.js');
 const hierarchy = require('./60_hierarchical_dna_identity_registry.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.7.0-LAB-CHAMPION-GOLDEN-BRIDGE';
+const VERSION = 'v4.8.0-LAB-CHAMPION-SOURCE-FOR-LAB-PREMIER';
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-champion-observation.json');
 const TRADES_FILE = path.join(DATA_DIR, 'lab-champion-trades.jsonl');
@@ -326,7 +326,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
   const model = {
     version: VERSION,
     generatedAt: new Date().toISOString(),
-    mode: 'SAME_POSITION_VIRTUAL_REPLAY_ONLY_REAL_FAIL_CLOSED',
+    mode: 'LAB_PREMIER_CANDIDATE_SOURCE_AND_FORWARD_PROOF',
     sourceClosed: migration.coverage.baseClosed,
     allLabDnaCount: Object.keys(blackboxSummary.exactComboStats || {}).length,
     allFullDnaCount: Object.keys(blackboxSummary.fullSignatureStats || {}).length,
@@ -347,6 +347,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
       labOwnExitReplayRequired: true,
       fullExitInheritsLabUntilOwnReplayProof: true,
       realOrderGateChanged: false,
+      labPremierCandidateSource: true,
       realTradingAuthorized: false
     }
   };
@@ -577,7 +578,7 @@ function telegram(model = null, limit = 8) {
   let text = '\n\n🥇 <b>2000+ ÖĞRENME — LAB CHAMPION ALTIN KÖPRÜ</b>\n';
   text += `📦 Geçmiş kapanış: ${data.sourceClosed} | LAB DNA: ${data.allLabDnaCount} | FULL DNA: ${data.allFullDnaCount}\n`;
   text += `🧬 LAB kapsama %${num(data.coverage.labCoveragePct).toFixed(1)} | FULL kapsama %${num(data.coverage.fullCoveragePct).toFixed(1)} | Kayıp ${data.lostChampionCount}\n`;
-  text += `🏆 Tarihsel şampiyon ${data.championCount} | Exit+ileri terfi hazır ${data.promotionReadyCount}\n`;
+  text += `🏆 Tarihsel şampiyon ${data.championCount} | İleri doğrulanmış ${data.promotionReadyCount}\n`;
   text += data.coverage.complete
     ? '✅ Geçmiş kapanış toplamı Family/LAB/FULL katmanlarında eksiksiz eşleşiyor.'
     : `🚨 Kapsama farkı: LAB -${data.coverage.labMissing}, FULL -${data.coverage.fullMissing}. Gerçek emir fail-closed.`;
@@ -596,7 +597,8 @@ function telegram(model = null, limit = 8) {
     }).join('\n');
   }
 
-  text += '\n🔒 Aynı sanal pozisyon izlenir; ikinci emir yoktur. Trade Engine ve gerçek emir yetkisi değişmedi.';
+  text += '\n🧬 Tarihsel güçlü + kendi pozitif Exit’li LAB’lar, LAB Premier sanal test havuzunun aday kaynağıdır.';
+  text += '\n🔒 Tek sanal pozisyon izlenir; ikinci emir yoktur. Gerçek emir yetkisi kapalıdır.';
   return text;
 }
 

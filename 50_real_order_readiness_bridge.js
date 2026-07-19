@@ -3,7 +3,7 @@
  *
  * Ortak karar kapısı:
  * - Sanal öğrenme katmanı ligden bağımsızdır; tüm geçerli tetikler veri üretir.
- * - Gerçek emir katmanı Premier + kârlılık + açık yetki ile fail-closed çalışır.
+ * - Legacy Family gerçek emir katmanı audit için korunur; v4.8 LAB gerçek kapısı bağlanana kadar fail-closed kalır.
  * - Gerçek emir fail-closed çalışır.
  * - Lig modeli, DNA imzası veya açık yetkilendirme yoksa Binance emri gönderilmez.
  * - Dinamik exit kanıtı varsa plana eklenir; yoksa mevcut kademe güvenli fallback'tir.
@@ -86,7 +86,7 @@ function evaluate(pos, { realMode = false } = {}) {
       if (ayarlar.gercekEmirPremierKapisiAktif !== true) reasons.push('GERCEK_PREMIER_KAPISI_KAPALI');
     } else if (championship) {
       realTier = 'CHAMPIONSHIP';
-      sizeMultiplier = Math.max(0.01, Math.min(1, num(ayarlar.gercekEmirChampionshipBoyutCarpani, 0.25)));
+      sizeMultiplier = Math.max(0.01, Math.min(1, num(ayarlar.gercekEmirChampionshipBoyutCarpani, 1)));
       if (ayarlar.gercekEmirChampionshipKapisiAktif !== true) reasons.push('GERCEK_CHAMPIONSHIP_KAPISI_KAPALI');
     }
   } else {

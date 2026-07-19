@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'GOLDEN-FULL-DNA-LAB-CHAMPION-BRIDGE',
-    kod: 'AWS Candidate v4.7.0-GOLDEN-FULL-DNA-LAB-CHAMPION-BRIDGE',
-    botSurumu: '4.7.0-GOLDEN-FULL-DNA-LAB-CHAMPION-BRIDGE',
+    kodAdi: 'LAB-PREMIER-TRUE-LEAGUE-FINAL',
+    kod: 'AWS Candidate v4.8.0-LAB-PREMIER-TRUE-LEAGUE-FINAL',
+    botSurumu: '4.8.0-LAB-PREMIER-TRUE-LEAGUE-FINAL',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '19.07.2026',
     ortam: { emirModu: 'SANAL' }

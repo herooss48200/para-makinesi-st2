@@ -514,9 +514,10 @@ const ayarlar = {
     // v4.2.0 REAL ORDER READINESS BRIDGE
     // v4.2.7: Premier ana gerçek katman; kârlı Championship kontrollü küçük boyutla gerçek test alır.
     gercekEmirPremierKapisiAktif: true,
-    gercekEmirChampionshipKapisiAktif: true,
+    // v4.8.0: Family ligleri emir yetkisi vermez. Gerçek emir kapısı LAB Premier kanıtı bağlanana kadar kapalıdır.
+    gercekEmirChampionshipKapisiAktif: false,
     gercekEmirPremierBoyutCarpani: 1.00,
-    gercekEmirChampionshipBoyutCarpani: 0.25,
+    gercekEmirChampionshipBoyutCarpani: 1.00,
     // Canlı portföy ekranında eski 2246+ işlem muhasebesini gösterme; veri dosyada korunur.
     canliRaporEskiMuhasebeGoster: false,
     // Üç günlük doğrulama tamamlanmadan true yapılmaz.
@@ -560,6 +561,21 @@ const ayarlar = {
     labChampionForwardMinPF: 1,
     labChampionForwardMinNet: 0,
     labChampionForwardMinExpectancy: 0,
+
+    // v4.8.0 - Family yalnız kalıcı piyasa hafızasıdır; gerçek lig yarışmacısı LAB DNA'dır.
+    // Şimdiki geniş sanal testte tarihsel güçlü + kendi pozitif Exit'i olan LAB doğrudan Premier test havuzuna girer.
+    // 5 ileri pozitif kapanış proof seviyesini FORWARD_VERIFIED yapar; daha sonra tek ayarla zorunlu hale getirilebilir.
+    labPremierAktif: true,
+    labPremierTelegramAktif: true,
+    labPremierTelegramTopAday: 9,
+    labPremierRaporHerKapanis: 5,
+    labPremierModelCacheMs: 30000,
+    labPremierExperimentId: 'LAB-PREMIER-TRUE-LEAGUE-2026-07-19',
+    labPremierTarihselTestAktif: true,
+    labPremierIleriDogrulamaZorunlu: false,
+    labPremierChampionshipUstKatmanAktif: false,
+    labPremierGercekEmirYetkisi: false,
+    familyLeagueEmirYetkisiAktif: false,
 
     // v4.0 Adaptive Trading League - nihai üç günlük gözlem katmanı.
     adaptiveTradingLeagueAktif: true,

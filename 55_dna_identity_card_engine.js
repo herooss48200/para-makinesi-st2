@@ -149,7 +149,7 @@ function telegram(out = build(), limit = 5) {
     return `${index + 1}. ${card.dnaLabel} — ${card.dna}\n   ${card.league} | Skor ${card.premierScore} | N${card.trades} | WR %${card.winRate} | Net ${card.net >= 0 ? '+' : ''}${card.net} | PF ${card.profitFactor}\n${active}${elite}\n   📈 Form: ${card.trend}`;
   });
 
-  return `\n\n🪪 <b>DNA KİMLİK KARTLARI — v4.6</b>\nToplam profil: ${out.count} | Güncel rejim: ${out.currentRegime} | Aktif ve tüm dönem Elite exit ayrı gösterilir\n${rows.join('\n')}`;
+  return `\n\n🗺️ <b>FAMILY DNA HAFIZA KARTLARI — v4.8</b>\nToplam Family profil: ${out.count} | Güncel rejim: ${out.currentRegime} | Family emir açmaz; LAB evlatlarının aile hafızasıdır\n${rows.join('\n')}`;
 }
 
 module.exports = { VERSION, OUT, build, telegram };

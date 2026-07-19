@@ -9,6 +9,7 @@ const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 const labChampion = require('./61_lab_champion_engine.js');
+const labPremier = require('./62_lab_premier_league.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 
@@ -224,19 +225,22 @@ const m = {
             realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik);
         }
         const karar = hazirKimlik?.realOrderReadiness || realOrderBridge.evaluate(yeniPozisyon, { realMode: false });
-        yeniPozisyon.leagueShadowOnly = Boolean(karar.virtualShadowOnly);
-        yeniPozisyon.virtualAccountIncluded = !yeniPozisyon.leagueShadowOnly;
-        console.log(`[ALT ÖĞRENME KAPISI AÇIK] ${yeniPozisyon.leagueShadowOnly ? '👻 [WORST-10 GÖLGE İŞLEM]' : '🧪 [SANAL KASA İŞLEMİ]'} ${symbol} ${yon} | DNA ${karar.key} | Lig ${karar.league} | Exit ${karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
-        premierObservation.snapshot(yeniPozisyon);
+        // v4.8.0: Family lig kararı yalnız hafıza/audit bilgisidir. Üst katman yetkisini LAB Premier verir.
+        const labKarar = labPremier.applyToPosition(yeniPozisyon);
+        console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
+        // Eski Family Premier gözlemi yeni pozisyonlarda üst katman değildir; yalnız açık eski pozisyonların kapanış uyumu korunur.
+        if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon);
         labChampion.snapshot(yeniPozisyon);
+        labPremier.snapshot(yeniPozisyon);
         // Tek sanal pozisyon, iki ayrı kayıt amacı taşır:
         // 1) tüm DNA/exit öğrenme motorları, 2) açılışta dondurulan lig test kasası.
         // Aynı sinyal için ikinci bir pozisyon veya ikinci emir oluşturulmaz.
         yeniPozisyon.dualLayerAudit = {
             singlePosition: true,
             learningLayer: true,
-            leaguePerformanceLayer: Boolean(yeniPozisyon.premierObservation),
-            leagueTrack: yeniPozisyon.premierObservation?.learningTrack || 'SHADOW',
+            leaguePerformanceLayer: Boolean(yeniPozisyon.labPremierObservation),
+            leagueTrack: yeniPozisyon.labPremierDecision?.upperLayerIncluded ? 'LAB_PREMIER' : 'LAB_SHADOW',
+            authority: 'LAB_DNA',
             markedAt: new Date().toISOString()
         };
         exitMethodScoreboard.open(yeniPozisyon);
@@ -276,13 +280,14 @@ const m = {
             : '';
 
         await h.telegramMesajGonder(
-            `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[WORST-10 GÖLGE POZİSYON]</b>' : '🧪 <b>[SANAL POZİSYON AÇILDI]</b>'}\n` +
-            (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>${yeniPozisyon.premierObservation.leagueAtOpen} LİG İŞLEMİ</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
+            `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[LAB GÖLGE ÖĞRENME]</b>' : '🏆 <b>[LAB PREMIER SANAL POZİSYON]</b>'}\n` +
+            (yeniPozisyon.labPremierDecision?.upperLayerIncluded ? `💎 <b>LAB PREMIER İŞLEMİ</b> | ${yeniPozisyon.labPremierDecision.proofLevel}\n` : `🌱 LAB Championship/Development — üst kasa dışı öğrenme\n`) +
             `🔀 ${symbol} (${yon})\n` +
             `🪪 ${yeniPozisyon.realOrderReadiness?.dnaLabel || yeniPozisyon.dnaLabel || 'DNA #YOK'}\n` +
             `🧩 ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
             `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
-            `🏆 Lig: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} | Eşleşme: ${yeniPozisyon.realOrderReadiness?.leagueMatchType || 'NONE'}\n` +
+            `🏆 LAB Lig: ${yeniPozisyon.labPremierDecision?.labLeague || 'DEVELOPMENT'} | Kanıt: ${yeniPozisyon.labPremierDecision?.proofLevel || 'LEARNING'}\n` +
+            `🧬 Family: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} (yalnız hafıza/audit)\n` +
             `🎯 Atanan Exit: ${yeniPozisyon.executionExitAssignment?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.executionExitAssignment?.activeForPosition ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
             `📊 Exit Kanıtı: N${Number(yeniPozisyon.executionExitAssignment?.samples || 0)} | Beat %${Number(yeniPozisyon.executionExitAssignment?.beatRate || 0).toFixed(1)} | PF ${Number(yeniPozisyon.executionExitAssignment?.profitFactor || 0).toFixed(2)} | Net ${Number(yeniPozisyon.executionExitAssignment?.netUsdt || 0).toFixed(4)}\n` +
             `🧭 Seçim Kapsamı: ${yeniPozisyon.executionExitAssignment?.scope || 'ACTUAL_FALLBACK'}\n` +
@@ -353,16 +358,21 @@ const m = {
                 return null;
             });
             const ortakKarar = realOrderBridge.evaluate(hazirKimlik, { realMode: !ayarlar.sanalEmirModu });
+            const labGercekKarar = ayarlar.sanalEmirModu ? null : labPremier.evaluate(hazirKimlik, { realMode: true });
 
             if (ayarlar.sanalEmirModu) {
                 console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${yon}`);
                 return await m.sanalPozisyonKaydet(symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi, hazirKimlik);
             }
 
-            if (!ortakKarar.allowed) {
-                premierObservation.blocked(ortakKarar.key, ortakKarar.reasons.join('|'), { symbol, side: yon });
-                console.log(`🚫 [GERÇEK EMİR FAIL-CLOSED] ${symbol} ${yon} | ${ortakKarar.reasons.join(', ')}`);
-                await h.telegramMesajGonder(realOrderBridge.telegramText(ortakKarar));
+            if (!ortakKarar.allowed || !labGercekKarar?.realTradingAuthorized) {
+                const nedenler = [
+                    ...(ortakKarar.allowed ? [] : ortakKarar.reasons),
+                    ...(!labGercekKarar?.realTradingAuthorized ? ['LAB_PREMIER_GERCEK_EMIR_YETKISI_KAPALI'] : [])
+                ];
+                premierObservation.blocked(ortakKarar.key, nedenler.join('|'), { symbol, side: yon });
+                console.log(`🚫 [GERÇEK EMİR FAIL-CLOSED] ${symbol} ${yon} | ${nedenler.join(', ')}`);
+                await h.telegramMesajGonder(realOrderBridge.telegramText({ ...ortakKarar, allowed: false, reasons: nedenler }));
                 return false;
             }
 

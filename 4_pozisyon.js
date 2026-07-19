@@ -11,6 +11,7 @@ const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 const labChampion = require('./61_lab_champion_engine.js');
+const labPremier = require('./62_lab_premier_league.js');
 const sanalDynamicExit = require('./51_sanal_dynamic_exit_executor.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 
@@ -951,7 +952,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
     const emoji = kaliteSonuc === 'TP' ? '✅' : (kaliteSonuc === 'BE' ? (netKarZarar >= 0 ? '⚖️✅' : '⚖️') : '❌');
-    const baslik = leagueShadowOnly ? '[WORST-10 GÖLGE POZİSYON KAPANDI]' : (pos.sanal ? '[SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]');
+    const baslik = leagueShadowOnly ? '[LAB GÖLGE ÖĞRENME KAPANDI]' : (pos.sanal ? '[LAB PREMIER SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]');
     const kapanisZamani = Date.now();
 
     const kapanisAnalizPaketi = {
@@ -980,6 +981,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         exitReplayRecord = exitReplay.replayTrade(pos, kapanisAnalizPaketi);
         blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
         labChampion.close(pos, kapanisAnalizPaketi, exitReplayRecord);
+        labPremier.close(pos, { net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc, reason: duzeltilmisSebep });
     } else {
         restartGap.closeRecord(pos, kapanisAnalizPaketi);
         console.log(`🛡️ [RESTART GAP KAPANIŞ] ${pos.sym} ${pos.yon} | Muhasebe dahil, öğrenme hariç | Net: ${netKarZarar.toFixed(4)}`);
@@ -991,6 +993,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `🪪 ${pos.dnaLabel || pos.realOrderReadiness?.dnaLabel || pos.premierObservation?.dnaLabel || 'DNA #YOK'}\n` +
         `🧩 ${pos.labDnaLabel || 'LAB #YOK'} | ${pos.fullDnaLabel || 'FULL #YOK'}\n` +
         `🧬 DNA: ${pos.realOrderReadiness?.key || pos.dnaLeagueProfile?.key || pos.premierObservation?.key || 'YOK'}\n` +
+        `🏆 LAB Lig: ${pos.labPremierDecision?.labLeague || 'DEVELOPMENT'} | Kanıt: ${pos.labPremierDecision?.proofLevel || 'LEARNING'}${pos.labPremierObservation ? ' | ÜST KASA' : ' | GÖLGE'}\n` +
         `🕒 Açılış: ${blackbox.tarihSaat(pos.acilisZamani || pos.zaman)}\n` +
         `🕒 Kapanış: ${blackbox.tarihSaat(kapanisZamani)}\n` +
         `⏳ Süre: ${blackbox.sureMetni(kapanisZamani - Number(pos.acilisZamani || pos.zaman || kapanisZamani))}\n` +

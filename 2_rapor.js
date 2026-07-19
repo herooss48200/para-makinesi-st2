@@ -10,6 +10,7 @@ const memorySafeIo = require('./53_memory_safe_io.js');
 const exitVictoryAudit = require('./57_exit_victory_audit.js');
 const realOrderReadiness = require('./50_real_order_readiness_bridge.js');
 const labChampion = require('./61_lab_champion_engine.js');
+const labPremier = require('./62_lab_premier_league.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
@@ -21,6 +22,7 @@ let raporZinciriCalisiyor = false;
 let sonExitVictoryReplay = null;
 let dnaKartlariIlkGonderim = false;
 let sonLabChampionKapanan = null;
+let sonLabPremierKapanan = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -157,6 +159,7 @@ function learningEvolutionOzetMetni(s = {}) {
         const observed = Number(model.learningScore?.toplamDna || 0);
         const ready = Number(model.learningScore?.yeterliDna || 0);
         const leagueSizes = model.dnaLeague?.leagueSizes || {};
+        const labLeague = labPremier.build({ persist: false });
 
         if (!learningEvolutionBaseline) {
             learningEvolutionBaseline = { opened, closed, observed, ready };
@@ -176,7 +179,9 @@ function learningEvolutionOzetMetni(s = {}) {
 `;
         text += `🧬 DNA: Hazır ${ready} (${delta(dReady)}) / Gözlenen ${observed} (${delta(dObserved)})
 `;
-        text += `🔄 Dinamik Lig: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)}
+        text += `🗺️ Family Hafıza: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)} | Emir yetkisi yok
+`;
+        text += `🧬 LAB Ligi: 🏆 Premier ${Number(labLeague.premierCount || 0)} | ✅ İleri doğrulanmış ${Number(labLeague.forwardVerifiedCount || 0)} | 🥈 Gölge ${Number(labLeague.championshipCount || 0)}
 `;
         text += `<i>Parantez içi değişim bu bot çalışmasından itibaren.</i>`;
         return text;
@@ -189,7 +194,7 @@ function canliRaporMetniOlustur() {
     const s = h.state.basariOzeti || {};
     const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
     const aktifler = ayarlar.sanalEmirModu
-        ? tumAktifler.filter(p => p?.sanal !== false && ['PREMIER', 'CHAMPIONSHIP'].includes(String(p?.premierObservation?.learningTrack || '')))
+        ? tumAktifler.filter(p => p?.sanal !== false && p?.labPremierObservation?.upperLayerIncluded === true)
         : tumAktifler.filter(p => p?.sanal === false);
     const pusuDegerleri = Object.values(h.state.pusuListesi || {});
     const analizOzeti = h.state.analizOzeti || {};
@@ -228,7 +233,7 @@ function canliRaporMetniOlustur() {
     mesaj += `🟢 Long: ${longAktif} | 🔴 Short: ${shortAktif}\n`;
     mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}\n`;
     if (ayarlar.sanalEmirModu) {
-        const leagueTestOzeti = premierObservation.compactTelegram(tumAktifler);
+        const leagueTestOzeti = labPremier.compactTelegram(tumAktifler);
         mesaj += `
 ${leagueTestOzeti}
 `;
@@ -267,7 +272,7 @@ ${gercekOzet}
 
     mesaj += `\n━━━━━━━━━━━━━━━━━━\n`;
     mesaj += ayarlar.sanalEmirModu
-        ? `<i>Canlı Portföy yalnız Premier/Championship sanal testini gösterir; alt lig öğrenmesi ayrı raporlanır.</i>`
+        ? `<i>Canlı Portföy yalnız LAB Premier sanal testini gösterir; Family ve diğer LAB'lar gölgede öğrenir.</i>`
         : `<i>Canlı Portföy yalnız Binance gerçek emirlerini gösterir; sanal test ve öğrenme sayaçları karışmaz.</i>`;
 
     return kisalt(mesaj);
@@ -303,7 +308,7 @@ async function learningValidationRaporuGonderGerekirse() {
 
 
 async function dnaLeagueRaporuGonderGerekirse(model = null) {
-    if (ayarlar.dnaLeagueAktif === false || ayarlar.dnaLeagueTelegramAktif === false) return;
+    if (ayarlar.dnaLeagueAktif === false || ayarlar.dnaLeagueTelegramAktif === false || ayarlar.familyLeagueEmirYetkisiAktif === false) return;
 
     try {
         const leagueModel = model || dnaLeague.build();
@@ -359,8 +364,26 @@ async function labChampionRaporuGonderGerekirse() {
     }
 }
 
+async function labPremierRaporuGonderGerekirse() {
+    if (ayarlar.labPremierAktif === false || ayarlar.labPremierTelegramAktif === false) return;
+    try {
+        const model = labPremier.summaryModel(h.state.aktifPozisyonlar || [], { force: true });
+        const kapanan = Number(model.aggregate?.closed || 0);
+        const ilk = sonLabPremierKapanan === null;
+        const degisti = !ilk && kapanan !== sonLabPremierKapanan;
+        const aralik = Math.max(1, Number(ayarlar.labPremierRaporHerKapanis || 5));
+        if (!ilk && (!degisti || kapanan % aralik !== 0)) return;
+        sonLabPremierKapanan = kapanan;
+        const mesaj = labPremier.telegram(model, Math.max(1, Number(ayarlar.labPremierTelegramTopAday || 9)));
+        if (mesaj) await h.telegramMesajGonder(mesaj);
+        console.log(`🏁 [LAB PREMIER] Telegram | Premier LAB ${model.league?.premierCount || 0} | İleri ${model.league?.forwardVerifiedCount || 0} | Açılan ${model.aggregate?.opened || 0} | Kapanan ${kapanan}`);
+    } catch (err) {
+        console.error('❌ [LAB PREMIER RAPOR HATASI]:', err.message);
+    }
+}
+
 async function premierObservationRaporuGonderGerekirse() {
-    if (ayarlar.premierObservationAktif === false || ayarlar.premierObservationTelegramAktif === false) return;
+    if (ayarlar.premierObservationAktif === false || ayarlar.premierObservationTelegramAktif === false || ayarlar.familyLeagueEmirYetkisiAktif === false) return;
     try {
         const model = premierObservation.summaryModel(h.state.aktifPozisyonlar || []);
         const kapanan = Number(model.closed || 0);
@@ -378,7 +401,7 @@ async function premierObservationRaporuGonderGerekirse() {
 }
 
 async function adaptiveTradingLeagueRaporuGonderGerekirse() {
-    if (ayarlar.adaptiveTradingLeagueAktif === false || ayarlar.adaptiveTradingLeagueTelegramAktif === false) return;
+    if (ayarlar.adaptiveTradingLeagueAktif === false || ayarlar.adaptiveTradingLeagueTelegramAktif === false || ayarlar.familyLeagueEmirYetkisiAktif === false) return;
     try {
         const kapanan = kapananIslemSayisi();
         const aralik = Math.max(1, Number(ayarlar.adaptiveTradingLeagueRaporHerKapanis || 10));
@@ -461,10 +484,8 @@ async function raporGonder(oneCikar = false) {
         ramTrace('Exit Victory + DNA Cards sonrası');
         await labChampionRaporuGonderGerekirse();
         ramTrace('Lab Champion sonrası');
-        await premierObservationRaporuGonderGerekirse();
-        ramTrace('Premier Observation sonrası');
-        await adaptiveTradingLeagueRaporuGonderGerekirse();
-        ramTrace('Adaptive League sonrası');
+        await labPremierRaporuGonderGerekirse();
+        ramTrace('LAB Premier sonrası');
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     } finally {
@@ -472,4 +493,4 @@ async function raporGonder(oneCikar = false) {
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse };
