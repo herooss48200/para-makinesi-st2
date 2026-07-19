@@ -33,8 +33,11 @@ try {
   assert.ok(text.includes('HARİÇ (RESTART GAP)'));
   assert.strictEqual(summary.be, 3);
   assert.strictEqual(summary.sl, 0);
-  assert.ok(version.botSurumu.startsWith('4.5.9-'));
-  console.log('✅ v4.5.9 restart-gap report consistency tests passed');
+  const m = String(version.botSurumu || '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  assert.ok(m, 'Sürüm numarası okunamadı');
+  const numeric = Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]);
+  assert.ok(numeric >= 40509, 'Restart-gap düzeltmesi v4.5.9 veya sonrasında korunmalı');
+  console.log('✅ v4.5.9+ restart-gap report consistency tests passed');
 } finally {
   if (backup) fs.writeFileSync(scoreboard.FILE, backup);
   else if (fs.existsSync(scoreboard.FILE)) fs.unlinkSync(scoreboard.FILE);

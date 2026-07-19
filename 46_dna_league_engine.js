@@ -21,7 +21,7 @@ const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 
-const VERSION = 'v4.5.5-LEAGUE-ACTIVE-EXIT-EVIDENCE';
+const VERSION = 'v4.5.10-LEAGUE-MATCH-CONSISTENCY';
 const CLASSIFICATION_POLICY_VERSION = 3;
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
@@ -392,7 +392,7 @@ function transferEvents(previous, next, totalTrades) {
   const events = [];
   for (const key of keys) {
     const from = oldMap.get(key) || 'UNRANKED';
-    const to = newMap.get(key) || 'HISTORICAL';
+    const to = newMap.get(key) || 'UNRANKED';
     if (from === to) continue;
     events.push({
       version: VERSION,
@@ -402,7 +402,7 @@ function transferEvents(previous, next, totalTrades) {
       label: next.get ? next.get(key)?.label : shortKey(key),
       from,
       to,
-      type: to === 'PREMIER' ? 'PROMOTION_TO_PREMIER' : from === 'PREMIER' ? 'RELEGATION_FROM_PREMIER' : 'LEAGUE_CHANGE'
+      type: to === 'UNRANKED' ? 'PROFILE_SET_EXIT' : (to === 'PREMIER' ? 'PROMOTION_TO_PREMIER' : from === 'PREMIER' ? 'RELEGATION_FROM_PREMIER' : 'LEAGUE_CHANGE')
     });
   }
   return events;
@@ -619,10 +619,10 @@ function signature(pos) {
   return normalizeSignatureKey(sig.key || (sig.btcBits && sig.coinBits && pos?.yon ? `YON=${String(pos.yon).toUpperCase()}|BTC=${sig.btcBits}|COIN=${sig.coinBits}` : ''));
 }
 
-function attachToPosition(pos) {
+function attachToPosition(pos, model = null) {
   if (!pos || ayarlar.dnaLeagueAktif === false) return null;
   const key = signature(pos);
-  const profile = findPlayer(key);
+  const profile = findPlayer(key, model);
   pos.dnaLeagueProfile = profile ? {
     version: VERSION,
     key,
@@ -640,13 +640,14 @@ function attachToPosition(pos) {
     regimeAligned: profile.regimeAligned,
     exit: profile.exit,
     attachedAt: new Date().toISOString(),
-    virtualTradingBlocked: Boolean(isWorstDna(key)),
-    shadowLearning: Boolean(isWorstDna(key)),
+    virtualTradingBlocked: Boolean(isWorstDna(key, model)),
+    shadowLearning: Boolean(isWorstDna(key, model)),
     executionPolicy: ayarlar.premierObservationAktif === false ? 'METADATA_ONLY' : 'PREMIER_OBSERVATION'
   } : {
     version: VERSION,
     key: key || 'SIGNATURE_YOK',
     league: 'UNRANKED',
+    matchType: 'NONE',
     attachedAt: new Date().toISOString(),
     executionPolicy: ayarlar.premierObservationAktif === false ? 'METADATA_ONLY' : 'PREMIER_OBSERVATION'
   };
@@ -683,7 +684,7 @@ function telegramText(model, options = {}) {
   return text;
 }
 
-module.exports = { normalizeSignatureKey, baseSignatureKey, realizedMetrics, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
+module.exports = { normalizeSignatureKey, baseSignatureKey, realizedMetrics, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, transferEvents, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
   VERSION,
   LEAGUE_FILE,
   TRANSFER_FILE,

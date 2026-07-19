@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'RESTART-GAP-REPORT-CONSISTENCY',
-    kod: 'AWS Candidate v4.5.9-RESTART-GAP-REPORT-CONSISTENCY',
-    botSurumu: '4.5.9-RESTART-GAP-REPORT-CONSISTENCY',
+    kodAdi: 'LEAGUE-MATCH-CONSISTENCY',
+    kod: 'AWS Candidate v4.5.10-LEAGUE-MATCH-CONSISTENCY',
+    botSurumu: '4.5.10-LEAGUE-MATCH-CONSISTENCY',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '19.07.2026',
     ortam: {

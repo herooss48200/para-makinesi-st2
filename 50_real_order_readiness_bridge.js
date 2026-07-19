@@ -14,7 +14,7 @@ const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 
-const VERSION = 'v4.4.4-FROZEN-EXIT-POSITION-BINDING';
+const VERSION = 'v4.5.10-LEAGUE-MATCH-CONSISTENCY';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 
@@ -102,7 +102,7 @@ function evaluate(pos, { realMode = false } = {}) {
     allowed: realMode ? reasons.length === 0 : true,
     reasons,
     league: currentLeague,
-    leagueMatchType: profile?.matchType || (profile ? 'EXACT' : 'NONE'),
+    leagueMatchType: profile?.matchType || (currentLeague === 'UNRANKED' ? 'NONE' : 'EXACT_NORMALIZED'),
     virtualPool: !realMode ? (virtualShadowOnly ? 'WORST_10_SHADOW_LEARNING' : 'ALL_VALID_DNA_LEARNING') : null,
     virtualShadowOnly,
     realTier,
