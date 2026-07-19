@@ -1,17 +1,19 @@
 'use strict';
 
 /**
- * AGROS v5.0.4 - Accounting Continuity Ledger
+ * AGROS v5.0.5 - Accounting Classification Repair
  *
- * Historical counters are preserved exactly as recorded.  A migration
- * snapshot classifies the pre-v5.0.4 difference without rewriting data.
- * Every position opened after the migration is then tracked in a compact,
- * one-open/one-close ledger so the new period always reconciles.
+ * The cumulative Restart Gap counter spans older bot sessions and therefore
+ * cannot be treated as a verified close batch belonging to the v5 migration.
+ * Historical counters remain untouched; the old difference is classified
+ * without fabricating closes. New opens/closes continue in a separate exact
+ * one-open/one-close ledger.
  */
 
 const h = require('./1_hafiza.js');
 
-const VERSION = 'v5.0.4-ACCOUNTING-CONTINUITY';
+const VERSION = 'v5.0.5-ACCOUNTING-CONTINUITY';
+const CLASSIFICATION_MODEL = 'ACTIVE-BATCH-ONLY-v2';
 
 function n(value) {
   const x = Number(value);
@@ -33,13 +35,17 @@ function baseState() {
   return {
     version: VERSION,
     initializedAt: null,
+    repairedAt: null,
     legacy: {
       openedCounter: 0,
       scientificClosed: 0,
-      restartGapClosed: 0,
       activeAtMigration: 0,
       classifiedDifference: 0,
-      note: 'Pre-v5.0.4 counters preserved; difference classified, never fabricated as a close.'
+      restartGapHistoricalCounter: 0,
+      // Backward-compatible field. It is telemetry, not a migration close.
+      restartGapClosed: 0,
+      classificationModel: null,
+      note: 'Cumulative Restart Gap telemetry is informational and is not subtracted as a verified migration close batch.'
     },
     current: {
       opened: 0,
@@ -60,56 +66,137 @@ function baseState() {
   };
 }
 
+function isRestartGap(pos = {}) {
+  return Boolean(
+    pos.restartRecovered === true ||
+    pos.dataQuality === 'RESTART_GAP' ||
+    pos.learningEligible === false
+  );
+}
+
+function isPremier(pos = {}) {
+  return Boolean(
+    pos.labPremierDecision?.upperLayerIncluded === true ||
+    pos.labPremierObservation?.upperLayerIncluded === true
+  );
+}
+
+function activeBreakdown(activePositions = h.state.aktifPozisyonlar || []) {
+  const list = Array.isArray(activePositions) ? activePositions : [];
+  const realPositions = list.filter(pos => pos?.sanal === false);
+  const virtualPositions = list.filter(pos => pos?.sanal !== false);
+  const restartGapPositions = virtualPositions.filter(isRestartGap);
+  const cleanVirtual = virtualPositions.filter(pos => !isRestartGap(pos));
+  const premierPositions = cleanVirtual.filter(isPremier);
+  const shadowPositions = cleanVirtual.filter(pos => !isPremier(pos));
+
+  return {
+    total: list.length,
+    real: realPositions.length,
+    premier: premierPositions.length,
+    shadow: shadowPositions.length,
+    restartGap: restartGapPositions.length,
+    realPositions,
+    premierPositions,
+    shadowPositions,
+    restartGapPositions
+  };
+}
+
+function legacyActivePositions(activePositions = h.state.aktifPozisyonlar || []) {
+  return (Array.isArray(activePositions) ? activePositions : [])
+    .filter(pos => pos?.accountingContinuityTracked !== true && pos?.accountingContinuityClosed !== true)
+    .length;
+}
+
+function recalculateLegacyClassification(st) {
+  // Only evidence that belongs to the migration equation is used here.
+  // The old cumulative Restart Gap telemetry may overlap older counters.
+  st.legacy.classifiedDifference = Math.max(
+    0,
+    n(st.legacy.openedCounter) - n(st.legacy.scientificClosed) - n(st.legacy.activeAtMigration)
+  );
+  st.legacy.classificationModel = CLASSIFICATION_MODEL;
+  return st;
+}
+
+function repairLegacyClassification(st) {
+  if (st.legacy.classificationModel === CLASSIFICATION_MODEL) return false;
+
+  const historicalCounter = n(
+    st.legacy.restartGapHistoricalCounter ||
+    st.legacy.restartGapClosed ||
+    h.state.restartGapOzet?.closedQuarantined
+  );
+
+  st.legacy.restartGapHistoricalCounter = historicalCounter;
+  st.legacy.restartGapClosed = historicalCounter;
+  recalculateLegacyClassification(st);
+  st.repairedAt = new Date().toISOString();
+  return true;
+}
+
 function ensure({ initialize = true } = {}) {
   if (!h.state.accountingContinuity || typeof h.state.accountingContinuity !== 'object') {
     h.state.accountingContinuity = baseState();
   }
+
+  const defaults = baseState();
   const st = h.state.accountingContinuity;
   st.version = VERSION;
-  st.legacy = { ...baseState().legacy, ...(st.legacy || {}) };
-  st.current = { ...baseState().current, ...(st.current || {}) };
+  st.legacy = { ...defaults.legacy, ...(st.legacy || {}) };
+  st.current = { ...defaults.current, ...(st.current || {}) };
   st.recentClosedIds = Array.isArray(st.recentClosedIds) ? st.recentClosedIds.slice(-2000) : [];
+
   if (initialize && !st.initializedAt) initializeMigration();
+  if (st.initializedAt) repairLegacyClassification(st);
   return st;
 }
 
 function initializeMigration() {
   const st = ensure({ initialize: false });
-  if (st.initializedAt) return st;
+  if (st.initializedAt) {
+    repairLegacyClassification(st);
+    return st;
+  }
+
   const summary = h.state.basariOzeti || {};
   const opened = n(summary.toplamAcilanEmir);
   const scientificClosed = n(summary.tp) + n(summary.sl) + n(summary.be);
-  const restartGapClosed = n(h.state.restartGapOzet?.closedQuarantined);
   const activeAtMigration = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar.length : 0;
+  const restartGapHistoricalCounter = n(h.state.restartGapOzet?.closedQuarantined);
+
   st.initializedAt = new Date().toISOString();
   st.legacy = {
     ...st.legacy,
     openedCounter: opened,
     scientificClosed,
-    restartGapClosed,
     activeAtMigration,
-    classifiedDifference: Math.max(0, opened - scientificClosed - restartGapClosed - activeAtMigration)
+    restartGapHistoricalCounter,
+    restartGapClosed: restartGapHistoricalCounter,
+    classificationModel: CLASSIFICATION_MODEL
   };
+  recalculateLegacyClassification(st);
   return st;
 }
 
 function trackAtOpen(pos = {}) {
   const st = ensure();
   if (pos.accountingContinuityTracked === true) return false;
+
   const id = positionId(pos);
-  const isReal = pos.sanal === false;
-  const isPremier = !isReal && Boolean(pos.labPremierDecision?.upperLayerIncluded || pos.labPremierObservation?.upperLayerIncluded);
-  const isShadow = !isReal && !isPremier;
+  const real = pos.sanal === false;
+  const premier = !real && isPremier(pos);
 
   pos.accountingContinuityId = id;
   pos.accountingContinuityTracked = true;
-  pos.accountingContinuityTrack = isReal ? 'REAL' : (isPremier ? 'LAB_PREMIER' : 'LAB_SHADOW');
+  pos.accountingContinuityTrack = real ? 'REAL' : (premier ? 'LAB_PREMIER' : 'LAB_SHADOW');
   pos.accountingContinuityOpenedAt = new Date().toISOString();
 
   st.current.opened += 1;
-  if (isReal) st.current.openedReal += 1;
-  else if (isPremier) st.current.openedPremier += 1;
-  else if (isShadow) st.current.openedShadow += 1;
+  if (real) st.current.openedReal += 1;
+  else if (premier) st.current.openedPremier += 1;
+  else st.current.openedShadow += 1;
   st.current.lastOpenAt = pos.accountingContinuityOpenedAt;
   return true;
 }
@@ -131,8 +218,8 @@ function trackAtClose(pos = {}, options = {}) {
     else if (track === 'LAB_PREMIER') st.current.closedPremier += 1;
     else if (track === 'LAB_SHADOW') st.current.closedShadow += 1;
   } else {
-    // Old positions are not inserted into the new-period equation. Their
-    // closing is retained only as a transparent legacy recovery count.
+    // Old migration positions stay outside the forward ledger. Their actual
+    // observed closures are counted separately and never guessed.
     st.current.legacyRecoveredClosed += 1;
   }
 
@@ -146,18 +233,31 @@ function trackAtClose(pos = {}, options = {}) {
 
 function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
   const st = ensure();
-  const trackedActive = (Array.isArray(activePositions) ? activePositions : [])
-    .filter(pos => pos?.accountingContinuityTracked === true && pos?.accountingContinuityClosed !== true).length;
+  const list = Array.isArray(activePositions) ? activePositions : [];
+  const trackedActive = list
+    .filter(pos => pos?.accountingContinuityTracked === true && pos?.accountingContinuityClosed !== true)
+    .length;
   const equationActive = Math.max(0, n(st.current.opened) - n(st.current.closed));
   const difference = equationActive - trackedActive;
+
+  const legacyActive = legacyActivePositions(list);
+  const migrationBatchClosed = n(st.current.legacyRecoveredClosed);
+  const migrationBatchDifference = n(st.legacy.activeAtMigration) - migrationBatchClosed - legacyActive;
+
   return {
     version: VERSION,
     initializedAt: st.initializedAt,
+    repairedAt: st.repairedAt,
     legacy: { ...st.legacy },
     current: { ...st.current },
     trackedActive,
     equationActive,
     difference,
+    legacyActive,
+    migrationBatchClosed,
+    migrationBatchDifference,
+    migrationBatchReconciled: migrationBatchDifference === 0,
+    active: activeBreakdown(list),
     reconciled: difference === 0 && n(st.current.closed) <= n(st.current.opened)
   };
 }
@@ -167,19 +267,25 @@ function telegramLines(activePositions = h.state.aktifPozisyonlar || []) {
   const l = s.legacy;
   const c = s.current;
   return [
-    `📚 Geçmiş sayaç: Açılış ${l.openedCounter} | Bilimsel kapanış ${l.scientificClosed} | Restart Gap ${l.restartGapClosed}`,
-    `🧩 Tarihsel sayaç farkı: ${l.classifiedDifference} | Eski sürümlerden devralındı; kapanış gibi yazılmadı`,
-    `🧾 v5.0.4 kesin defter: Açılan ${c.opened} | Kapanan ${c.closed} | Aktif ${s.trackedActive} | Mutabakat ${s.difference >= 0 ? '+' : ''}${s.difference} ${s.reconciled ? '✅' : '⚠️'}`
+    `📚 Geçmiş sayaç: Açılış ${l.openedCounter} | Bilimsel kapanış ${l.scientificClosed}`,
+    `🧩 Tarihsel belirsiz fark: ${l.classifiedDifference} | Kapanış gibi yazılmaz`,
+    `🛡️ Migration Gap: Yüklenen ${l.activeAtMigration} | Kapanan ${s.migrationBatchClosed} | Aktif ${s.legacyActive} | Mutabakat ${s.migrationBatchDifference >= 0 ? '+' : ''}${s.migrationBatchDifference} ${s.migrationBatchReconciled ? '✅' : '⚠️'}`,
+    `ℹ️ Eski Restart Gap telemetrisi: ${l.restartGapHistoricalCounter} | Kümülatif bilgi; migration kapanışı değildir`,
+    `🧾 v5.0.5 kesin defter: Açılan ${c.opened} | Kapanan ${c.closed} | Aktif ${s.trackedActive} | Mutabakat ${s.difference >= 0 ? '+' : ''}${s.difference} ${s.reconciled ? '✅' : '⚠️'}`
   ].join('\n');
 }
 
 module.exports = {
   VERSION,
+  CLASSIFICATION_MODEL,
   ensure,
   initializeMigration,
   trackAtOpen,
   trackAtClose,
   snapshot,
   telegramLines,
-  positionId
+  positionId,
+  activeBreakdown,
+  legacyActivePositions,
+  repairLegacyClassification
 };

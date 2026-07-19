@@ -23,14 +23,14 @@ try {
     netKarZarar: 0
   };
   h.state.restartGapOzet = { closedQuarantined: 44 };
-  h.state.aktifPozisyonlar = [];
+  h.state.aktifPozisyonlar = Array.from({ length: 44 }, (_, i) => ({ sym: `LEG${i}USDT`, yon: 'LONG', sanal: true, sanalOrderId: `LEG-${i}` }));
   h.state.accountingContinuity = null;
 
   const migrated = ledger.initializeMigration();
   assert.strictEqual(migrated.legacy.openedCounter, 2702);
   assert.strictEqual(migrated.legacy.scientificClosed, 2105);
-  assert.strictEqual(migrated.legacy.restartGapClosed, 44);
-  assert.strictEqual(migrated.legacy.classifiedDifference, 553, '597 farkın 44 Gap sonrası kalan 553 bölümü tarihsel fark olarak sınıflanmalı');
+  assert.strictEqual(migrated.legacy.restartGapHistoricalCounter, 44);
+  assert.strictEqual(migrated.legacy.classifiedDifference, 553, '44 migration aktifi sonrası kalan 553 bölüm tarihsel belirsiz fark olmalı');
 
   const premier = { sym: 'AAAUSDT', yon: 'LONG', sanal: true, sanalOrderId: 'A1', labPremierDecision: { upperLayerIncluded: true } };
   const shadow = { sym: 'BBBUSDT', yon: 'SHORT', sanal: true, sanalOrderId: 'B1', labPremierDecision: { upperLayerIncluded: false, virtualShadowOnly: true } };
@@ -63,8 +63,8 @@ try {
 
   const reportSource = fs.readFileSync(path.join(__dirname, '2_rapor.js'), 'utf8');
   assert.ok(reportSource.includes('Geçmiş sayaç: Açılış'));
-  assert.ok(reportSource.includes('Tarihsel sayaç farkı'));
-  assert.ok(reportSource.includes('v5.0.4 kesin defter'));
+  assert.ok(reportSource.includes('Tarihsel belirsiz fark'));
+  assert.ok(reportSource.includes('v5.0.5 kesin defter'));
   assert.ok(!reportSource.includes('📦 Açılan ${opened}'), 'eski belirsiz Açılan/Kapanan satırı kaldırılmalı');
 
   const closeSource = fs.readFileSync(path.join(__dirname, '4_pozisyon.js'), 'utf8');
@@ -75,7 +75,7 @@ try {
   assert.ok(closeSource.includes('DNA: ESKİ KAYIT / ANAHTAR YOK'));
   assert.ok(closeSource.includes("source: 'CLOSE_REPORT_IDENTITY_RECOVERY'"));
 
-  console.log('✅ v5.0.4 report + accounting consistency passed | 597 classified as 44 Gap + 553 legacy difference; forward ledger reconciles');
+  console.log('✅ accounting continuity regression passed | 44 migration active + 553 legacy difference; forward ledger reconciles');
 } finally {
   h.state.basariOzeti = old.summary;
   h.state.restartGapOzet = old.gap;

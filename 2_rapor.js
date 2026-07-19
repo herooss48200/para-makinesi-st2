@@ -177,9 +177,13 @@ function learningEvolutionOzetMetni(s = {}) {
 `;
         text += `📦 Geçmiş sayaç: Açılış ${opened} (${delta(dOpened)}) | Bilimsel kapanış ${closed} (${delta(dClosed)})
 `;
-        text += `🛡️ Restart Gap kapanış: ${Number(continuity.legacy.restartGapClosed || 0)} | Tarihsel sayaç farkı: ${Number(continuity.legacy.classifiedDifference || 0)}
+        text += `🧩 Tarihsel belirsiz fark: ${Number(continuity.legacy.classifiedDifference || 0)} | Kapanış gibi yazılmaz
 `;
-        text += `🧾 v5.0.4 kesin defter: Açılan ${Number(continuity.current.opened || 0)} | Kapanan ${Number(continuity.current.closed || 0)} | Aktif ${Number(continuity.trackedActive || 0)} | Mutabakat ${continuity.difference >= 0 ? '+' : ''}${continuity.difference} ${continuity.reconciled ? '✅' : '⚠️'}
+        text += `🛡️ Migration Gap: Yüklenen ${Number(continuity.legacy.activeAtMigration || 0)} | Kapanan ${Number(continuity.migrationBatchClosed || 0)} | Aktif ${Number(continuity.legacyActive || 0)} | Mutabakat ${continuity.migrationBatchDifference >= 0 ? '+' : ''}${continuity.migrationBatchDifference} ${continuity.migrationBatchReconciled ? '✅' : '⚠️'}
+`;
+        text += `ℹ️ Eski Restart Gap telemetrisi: ${Number(continuity.legacy.restartGapHistoricalCounter || 0)} | Kümülatif bilgi; migration kapanışı değildir
+`;
+        text += `🧾 v5.0.5 kesin defter: Açılan ${Number(continuity.current.opened || 0)} | Kapanan ${Number(continuity.current.closed || 0)} | Aktif ${Number(continuity.trackedActive || 0)} | Mutabakat ${continuity.difference >= 0 ? '+' : ''}${continuity.difference} ${continuity.reconciled ? '✅' : '⚠️'}
 `;
         text += `🎯 Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT
 `;
@@ -199,9 +203,10 @@ function learningEvolutionOzetMetni(s = {}) {
 function canliRaporMetniOlustur() {
     const s = h.state.basariOzeti || {};
     const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
+    const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
     const aktifler = ayarlar.sanalEmirModu
-        ? tumAktifler.filter(p => p?.sanal !== false && p?.labPremierObservation?.upperLayerIncluded === true)
-        : tumAktifler.filter(p => p?.sanal === false);
+        ? aktifDagilim.premierPositions
+        : aktifDagilim.realPositions;
     const pusuDegerleri = Object.values(h.state.pusuListesi || {});
     const analizOzeti = h.state.analizOzeti || {};
 
@@ -235,8 +240,17 @@ function canliRaporMetniOlustur() {
     mesaj += `📊 <b>PARA MAKİNESİ CANLI PORTFÖY</b>\n`;
     mesaj += `🕒 ${saat} | ${mod}\n`;
     mesaj += `━━━━━━━━━━━━━━━━━━\n`;
-    mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}\n`;
-    mesaj += `🟢 Long: ${longAktif} | 🔴 Short: ${shortAktif}\n`;
+    if (ayarlar.sanalEmirModu) {
+        mesaj += `📦 <b>Premier aktif:</b> ${aktifDagilim.premier} / ${ayarlar.maxPozisyonSayisi || '-'} | 🟢 ${longAktif} | 🔴 ${shortAktif}
+`;
+        mesaj += `👻 <b>Gölge aktif:</b> ${aktifDagilim.shadow} | 🛡️ Restart Gap aktif: ${aktifDagilim.restartGap} | 📚 Toplam izlenen: ${aktifDagilim.total}
+`;
+    } else {
+        mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}
+`;
+        mesaj += `🟢 Long: ${longAktif} | 🔴 Short: ${shortAktif}
+`;
+    }
     mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}\n`;
     if (ayarlar.sanalEmirModu) {
         const leagueTestOzeti = labPremier.compactTelegram(tumAktifler);
