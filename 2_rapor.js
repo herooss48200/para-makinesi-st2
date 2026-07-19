@@ -9,6 +9,7 @@ const adaptiveTradingLeague = require('./49_adaptive_trading_league.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
 const exitVictoryAudit = require('./57_exit_victory_audit.js');
 const realOrderReadiness = require('./50_real_order_readiness_bridge.js');
+const labChampion = require('./61_lab_champion_engine.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
@@ -19,6 +20,7 @@ let learningEvolutionBaseline = null;
 let raporZinciriCalisiyor = false;
 let sonExitVictoryReplay = null;
 let dnaKartlariIlkGonderim = false;
+let sonLabChampionKapanan = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -338,6 +340,25 @@ async function dnaLeagueRaporuGonderGerekirse(model = null) {
 
 
 
+
+async function labChampionRaporuGonderGerekirse() {
+    if (ayarlar.labChampionAktif === false || ayarlar.labChampionTelegramAktif === false) return;
+    try {
+        const model = labChampion.build();
+        const kapanan = Number(model.sourceClosed || 0);
+        const ilk = sonLabChampionKapanan === null;
+        const degisti = !ilk && kapanan !== sonLabChampionKapanan;
+        const aralik = Math.max(1, Number(ayarlar.labChampionRaporHerKapanis || 5));
+        if (!ilk && (!degisti || kapanan % aralik !== 0)) return;
+        sonLabChampionKapanan = kapanan;
+        const mesaj = labChampion.telegram(model, Math.max(1, Number(ayarlar.labChampionTelegramTopAday || 10)));
+        if (mesaj) await h.telegramMesajGonder(mesaj);
+        console.log(`🥇 [LAB CHAMPION] Telegram | Geçmiş ${kapanan} | Şampiyon ${model.championCount || 0} | Terfi hazır ${model.promotionReadyCount || 0} | Kayıp ${model.lostChampionCount || 0}`);
+    } catch (err) {
+        console.error('❌ [LAB CHAMPION RAPOR HATASI]:', err.message);
+    }
+}
+
 async function premierObservationRaporuGonderGerekirse() {
     if (ayarlar.premierObservationAktif === false || ayarlar.premierObservationTelegramAktif === false) return;
     try {
@@ -438,6 +459,8 @@ async function raporGonder(oneCikar = false) {
         ramTrace('Exit Evolution sonrası');
         await exitVictoryVeDnaKartlariGonderGerekirse();
         ramTrace('Exit Victory + DNA Cards sonrası');
+        await labChampionRaporuGonderGerekirse();
+        ramTrace('Lab Champion sonrası');
         await premierObservationRaporuGonderGerekirse();
         ramTrace('Premier Observation sonrası');
         await adaptiveTradingLeagueRaporuGonderGerekirse();
@@ -449,4 +472,4 @@ async function raporGonder(oneCikar = false) {
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse };

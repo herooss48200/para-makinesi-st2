@@ -542,6 +542,25 @@ const ayarlar = {
     dnaLeagueExitMinOrnek: 5,
     dnaLeagueExitMinBeatRate: 55,
 
+    // v4.7.0 - 2000+ öğrenmenin tam DNA sonuçlarını Family/LAB/FULL katmanlarında korur.
+    // Yalnız sanal/gölge ileri doğrulama yapar; ikinci emir açmaz ve gerçek emir yetkisi vermez.
+    labChampionAktif: true,
+    labChampionTelegramAktif: true,
+    labChampionTelegramTopAday: 10,
+    labChampionRaporHerKapanis: 5,
+    labChampionMinOrnek: 10,
+    labChampionMinBasari: 65,
+    labChampionMinNet: 0,
+    labChampionMinPF: 1,
+    labChampionMinExpectancy: 0,
+    labChampionExitMinOrnek: 5,
+    labChampionExitMinPF: 1,
+    labChampionExitMinNet: 0,
+    labChampionForwardMinKapanis: 5,
+    labChampionForwardMinPF: 1,
+    labChampionForwardMinNet: 0,
+    labChampionForwardMinExpectancy: 0,
+
     // v4.0 Adaptive Trading League - nihai üç günlük gözlem katmanı.
     adaptiveTradingLeagueAktif: true,
     adaptiveTradingLeagueTelegramAktif: true,

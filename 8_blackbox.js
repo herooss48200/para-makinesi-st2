@@ -10,11 +10,22 @@ const liveIntelligenceMonitor = require('./13_live_intelligence_monitor.js');
 const intelligenceConsole = require('./14_intelligence_console.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
+const dnaHierarchy = require('./60_hierarchical_dna_identity_registry.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'blackbox-snapshots.jsonl');
 const CSV = path.join(DATA_DIR, 'blackbox-trades.csv');
 const TFS = ayarlar.blackboxTimeframes || ['5m', '15m', '1h', '4h'];
+let hierarchyMigrationStamp = '';
+
+function hierarchicalIdentityRefresh(summary, source = 'BLACKBOX_SUMMARY_REFRESH') {
+  if (!summary) return null;
+  const stamp = `${Number(summary?.long?.toplam || 0) + Number(summary?.short?.toplam || 0)}|${Object.keys(summary?.exactComboStats || {}).length}|${Object.keys(summary?.fullSignatureStats || {}).length}`;
+  if (stamp === hierarchyMigrationStamp) return null;
+  const result = dnaHierarchy.bootstrapFromBlackbox(summary, { source });
+  hierarchyMigrationStamp = stamp;
+  return result;
+}
 
 function dnaKimligi(key, source = 'STRATEGY_LAB_REPORT') {
   return dnaIdentity.ensure(String(key || ''), { source }) || { id: null, label: 'DNA #YOK', key: dnaIdentity.identityKey(key) };
@@ -137,10 +148,14 @@ function strategySignatureOlustur(symbol, yon, btc, coin) {
   const label = `${y} | BTC[${tfListeMetni(btcUyumlu)}] ${btcUyumlu.length}/4 | Coin[${tfListeMetni(coinUyumlu)}] ${coinUyumlu.length}/4 | BB ${bb}`;
   // DNA keşfinin ilk noktası: yeni imza bulunduğu anda merkezi ID otomatik atanır.
   const identity = dnaKimligi(key, 'STRATEGY_SIGNATURE_CREATE');
+  const labIdentity = dnaHierarchy.ensureLab(key, { source: 'STRATEGY_SIGNATURE_CREATE' });
   return {
     dnaId: identity.id,
     dnaLabel: identity.label,
     identityKey: identity.key,
+    labDnaId: labIdentity?.id || null,
+    labDnaLabel: labIdentity?.label || 'LAB #YOK',
+    labIdentityKey: labIdentity?.key || dnaHierarchy.labKey(key),
     yon: y,
     hedef,
     symbol: symbol || 'YOK',
@@ -648,12 +663,15 @@ function kayitYaz(pos, kayitTipi, sonuc = {}) {
     ensureData();
     const ac = pos.blackboxAcilis || null;
     const ka = pos.blackboxKapanis || null;
+    const hierarchy = dnaHierarchy.decoratePosition(pos, { source: `BLACKBOX_${kayitTipi}` });
     const dnaKey = ac?.strategySignature?.key || pos?.realOrderReadiness?.key || pos?.dnaLeagueProfile?.key || '';
     const identity = dnaIdentity.ensure(dnaKey, { source: `BLACKBOX_${kayitTipi}` });
     pos.dnaId = identity?.id || pos.dnaId || null;
     pos.dnaLabel = identity?.label || pos.dnaLabel || 'DNA #YOK';
     pos.dnaIdentityKey = identity?.key || pos.dnaIdentityKey || dnaIdentity.identityKey(dnaKey);
-    const rec = { dnaId: pos.dnaId, dnaLabel: pos.dnaLabel, dnaIdentityKey: pos.dnaIdentityKey, dnaKey, kayitTipi, zaman: new Date().toISOString(), tradeId: pos.tradeId || pos.sanalOrderId || '', symbol: pos.sym, yon: pos.yon, sonuc: sonuc.sonuc || '', kapanisSebebi: sonuc.kapanisSebebi || '', girisFiyati: pos.girisFiyati, kapanisFiyati: sonuc.kapanisFiyati ?? '', netKarZarar: sonuc.netKarZarar ?? '', komisyon: sonuc.komisyon ?? '', mfeYuzde: pos.journey?.mfeYuzde ?? '', maeYuzde: pos.journey?.maeYuzde ?? '', acilis: ac, kapanis: ka };
+    const rec = { dnaId: pos.dnaId, dnaLabel: pos.dnaLabel, dnaIdentityKey: pos.dnaIdentityKey, dnaKey,
+      labDnaId: hierarchy?.lab?.id || pos.labDnaId || null, labDnaLabel: hierarchy?.lab?.label || pos.labDnaLabel || 'LAB #YOK', labIdentityKey: hierarchy?.lab?.key || pos.labIdentityKey || '',
+      fullDnaId: hierarchy?.full?.id || pos.fullDnaId || null, fullDnaLabel: hierarchy?.full?.label || pos.fullDnaLabel || 'FULL #YOK', fullIdentityKey: hierarchy?.full?.key || pos.fullIdentityKey || '', kayitTipi, zaman: new Date().toISOString(), tradeId: pos.tradeId || pos.sanalOrderId || '', symbol: pos.sym, yon: pos.yon, sonuc: sonuc.sonuc || '', kapanisSebebi: sonuc.kapanisSebebi || '', girisFiyati: pos.girisFiyati, kapanisFiyati: sonuc.kapanisFiyati ?? '', netKarZarar: sonuc.netKarZarar ?? '', komisyon: sonuc.komisyon ?? '', mfeYuzde: pos.journey?.mfeYuzde ?? '', maeYuzde: pos.journey?.maeYuzde ?? '', acilis: ac, kapanis: ka };
     if (kayitTipi === 'KAPANIS') ozetGuncelle(pos, sonuc);
     fs.appendFileSync(JSONL, JSON.stringify(rec) + '\n');
     const row = {
@@ -705,6 +723,7 @@ function ozetHazirla() {
     if (!h.state.blackboxOzet[k] || typeof h.state.blackboxOzet[k] !== 'object') h.state.blackboxOzet[k] = {};
   }
   if (!Array.isArray(h.state.blackboxOzet.son5)) h.state.blackboxOzet.son5 = [];
+  hierarchicalIdentityRefresh(h.state.blackboxOzet, 'BLACKBOX_SUMMARY_LOAD');
   return h.state.blackboxOzet;
 }
 function bucketEkle(b, sonuc, net) {
@@ -789,13 +808,30 @@ function ozetGuncelle(pos, sonuc) {
   else if (ayni === false) bucketEkle(o.trendTersYon, s, net);
 
   const exactStats = o.exactComboStats;
-  statsBucketEkle(exactStats, signatureKey(ac), signatureEtiket(ac), s, net);
+  const exactBucket = statsBucketEkle(exactStats, signatureKey(ac), signatureEtiket(ac), s, net);
+  const labIdentity = dnaHierarchy.ensureLab(exactBucket.key, { source: 'BLACKBOX_LAB_CLOSE' });
+  if (labIdentity) {
+    exactBucket.labDnaId = labIdentity.id;
+    exactBucket.labDnaLabel = labIdentity.label;
+    exactBucket.labIdentityKey = labIdentity.key;
+    exactBucket.familyDnaId = labIdentity.familyId;
+    exactBucket.familyDnaLabel = labIdentity.familyLabel;
+  }
 
   const matrixStats = o.signatureMatrixStats;
   statsBucketEkle(matrixStats, signatureMatrixKey(ac), signatureMatrixEtiket(ac), s, net);
 
   const fullStats = o.fullSignatureStats;
-  statsBucketEkle(fullStats, fullSignatureKey(pos), fullSignatureEtiket(pos), s, net);
+  const fullBucket = statsBucketEkle(fullStats, fullSignatureKey(pos), fullSignatureEtiket(pos), s, net);
+  const fullIdentity = dnaHierarchy.ensureFull(fullBucket.key, { source: 'BLACKBOX_FULL_CLOSE' });
+  if (fullIdentity) {
+    fullBucket.fullDnaId = fullIdentity.id;
+    fullBucket.fullDnaLabel = fullIdentity.label;
+    fullBucket.fullIdentityKey = fullIdentity.key;
+    fullBucket.labIdentityKey = fullIdentity.labKey;
+    fullBucket.familyDnaId = fullIdentity.familyId;
+    fullBucket.familyDnaLabel = fullIdentity.familyLabel;
+  }
 
   const bbKey = `YON=${String(pos.yon || 'YOK').toUpperCase()}|BB=${bb || 'YOK'}`;
   statsBucketEkle(o.bbYonStats, bbKey, `${String(pos.yon || 'YOK').toUpperCase()} | BB ${bb || 'YOK'}`, s, net);
@@ -850,7 +886,11 @@ function imzaKararSeviyesi(b) {
   return '👀 izleme devam';
 }
 function kararSatiri(b, i) {
-  const identity = dnaKimligi(b?.key, 'STRATEGY_LAB_RADAR');
+  const isFull = /(?:^|\|)PUSU=/.test(String(b?.key || ''));
+  const scopedIdentity = isFull
+    ? dnaHierarchy.ensureFull(b?.key, { source: 'STRATEGY_FULL_LAB_RADAR' })
+    : dnaHierarchy.ensureLab(b?.key, { source: 'STRATEGY_LAB_RADAR' });
+  const familyIdentity = dnaKimligi(b?.key, 'STRATEGY_LAB_RADAR');
   const toplam = Number(b?.toplam || 0);
   const tp = Number(b?.tp || 0);
   const sl = Number(b?.sl || 0);
@@ -860,7 +900,7 @@ function kararSatiri(b, i) {
   const basarisiz = sonucN > 0 ? ((sl / sonucN) * 100).toFixed(1) : '0.0';
   const beOran = toplam > 0 ? ((be / toplam) * 100).toFixed(1) : '0.0';
   const ortNet = toplam > 0 ? (Number(b?.net || 0) / toplam).toFixed(3) : '0.000';
-  return `${i + 1}) ${identity.label} — ${b.etiket}
+  return `${i + 1}) ${scopedIdentity?.label || (isFull ? 'FULL #YOK' : 'LAB #YOK')} | ${familyIdentity.label} — ${b.etiket}
 ` +
     `   🎯 İmza başarı oranı: %${basari} | Başarısızlık: %${basarisiz} | BE: %${beOran}
 ` +
@@ -1782,4 +1822,4 @@ function telegramOzetMetni() {
   return renderOzetRaporu(blackboxReportModelOlustur());
 }
 
-module.exports = { strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur, evolutionLabMetni, featureImportanceLab, pairImportanceLab, tripleDnaLab, confidenceEngine, liveIntelligenceMonitor, intelligenceConsole, exitOptimizer };
+module.exports = { hierarchicalIdentityRefresh, strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur, evolutionLabMetni, featureImportanceLab, pairImportanceLab, tripleDnaLab, confidenceEngine, liveIntelligenceMonitor, intelligenceConsole, exitOptimizer };

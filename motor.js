@@ -8,6 +8,7 @@ const positionSizingAudit = require('./19_position_sizing_audit.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const premierObservation = require('./48_premier_observation_engine.js');
+const labChampion = require('./61_lab_champion_engine.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 
@@ -227,6 +228,7 @@ const m = {
         yeniPozisyon.virtualAccountIncluded = !yeniPozisyon.leagueShadowOnly;
         console.log(`[ALT ÖĞRENME KAPISI AÇIK] ${yeniPozisyon.leagueShadowOnly ? '👻 [WORST-10 GÖLGE İŞLEM]' : '🧪 [SANAL KASA İŞLEMİ]'} ${symbol} ${yon} | DNA ${karar.key} | Lig ${karar.league} | Exit ${karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         premierObservation.snapshot(yeniPozisyon);
+        labChampion.snapshot(yeniPozisyon);
         // Tek sanal pozisyon, iki ayrı kayıt amacı taşır:
         // 1) tüm DNA/exit öğrenme motorları, 2) açılışta dondurulan lig test kasası.
         // Aynı sinyal için ikinci bir pozisyon veya ikinci emir oluşturulmaz.
@@ -278,6 +280,7 @@ const m = {
             (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>${yeniPozisyon.premierObservation.leagueAtOpen} LİG İŞLEMİ</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
             `🔀 ${symbol} (${yon})\n` +
             `🪪 ${yeniPozisyon.realOrderReadiness?.dnaLabel || yeniPozisyon.dnaLabel || 'DNA #YOK'}\n` +
+            `🧩 ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
             `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
             `🏆 Lig: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} | Eşleşme: ${yeniPozisyon.realOrderReadiness?.leagueMatchType || 'NONE'}\n` +
             `🎯 Atanan Exit: ${yeniPozisyon.executionExitAssignment?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.executionExitAssignment?.activeForPosition ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
@@ -466,6 +469,7 @@ const m = {
             await h.telegramMesajGonder(
                 `🚀 <b>[POZİSYON AÇILDI]</b>\n` +
                 `🔀 ${symbol} (${yon})\n` +
+                `🪪 ${yeniPozisyon.dnaLabel || 'DNA #YOK'} | ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
                 `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
                 `📦 Miktar: ${guvenliMiktar}\n` +
                 `🛡️ Borsaya İletilen SL: ${sl.toFixed(pPrecision)}\n` +

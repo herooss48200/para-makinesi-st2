@@ -10,6 +10,7 @@ const pusuKaliteMotoru = require('./6_pusu_kalite_motoru.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
 const blackbox = require('./8_blackbox.js');
 const premierObservation = require('./48_premier_observation_engine.js');
+const labChampion = require('./61_lab_champion_engine.js');
 const sanalDynamicExit = require('./51_sanal_dynamic_exit_executor.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 
@@ -978,6 +979,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         exitOptimizer.kapanisKaydet(pos, kapanisAnalizPaketi);
         exitReplayRecord = exitReplay.replayTrade(pos, kapanisAnalizPaketi);
         blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
+        labChampion.close(pos, kapanisAnalizPaketi, exitReplayRecord);
     } else {
         restartGap.closeRecord(pos, kapanisAnalizPaketi);
         console.log(`🛡️ [RESTART GAP KAPANIŞ] ${pos.sym} ${pos.yon} | Muhasebe dahil, öğrenme hariç | Net: ${netKarZarar.toFixed(4)}`);
@@ -987,6 +989,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         `${emoji} <b>${baslik}</b>\n` +
         `🔀 ${pos.sym} (${pos.yon})\n` +
         `🪪 ${pos.dnaLabel || pos.realOrderReadiness?.dnaLabel || pos.premierObservation?.dnaLabel || 'DNA #YOK'}\n` +
+        `🧩 ${pos.labDnaLabel || 'LAB #YOK'} | ${pos.fullDnaLabel || 'FULL #YOK'}\n` +
         `🧬 DNA: ${pos.realOrderReadiness?.key || pos.dnaLeagueProfile?.key || pos.premierObservation?.key || 'YOK'}\n` +
         `🕒 Açılış: ${blackbox.tarihSaat(pos.acilisZamani || pos.zaman)}\n` +
         `🕒 Kapanış: ${blackbox.tarihSaat(kapanisZamani)}\n` +
