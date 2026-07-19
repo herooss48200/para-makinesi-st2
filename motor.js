@@ -11,6 +11,7 @@ const premierObservation = require('./48_premier_observation_engine.js');
 const labChampion = require('./61_lab_champion_engine.js');
 const labPremier = require('./62_lab_premier_league.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
+const accountingContinuity = require('./65_accounting_continuity.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 
 function ondalikSayisi(step) {
@@ -232,6 +233,7 @@ const m = {
         try { if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] PREMIER_OBSERVATION_ERROR ${symbol} ${yon} | ${e.message}`); }
         try { labChampion.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_CHAMPION_ERROR ${symbol} ${yon} | ${e.message}`); }
         try { labPremier.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_SNAPSHOT_ERROR ${symbol} ${yon} | ${e.message}`); }
+        try { accountingContinuity.trackAtOpen(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] ACCOUNTING_CONTINUITY_OPEN_ERROR ${symbol} ${yon} | ${e.message}`); }
         // Tek sanal pozisyon, iki ayrı kayıt amacı taşır:
         // 1) tüm DNA/exit öğrenme motorları, 2) açılışta dondurulan lig test kasası.
         // Aynı sinyal için ikinci bir pozisyon veya ikinci emir oluşturulmaz.
@@ -469,6 +471,7 @@ const m = {
             exitMethodScoreboard.open(yeniPozisyon);
 
             h.state.aktifPozisyonlar.push(yeniPozisyon);
+            try { accountingContinuity.trackAtOpen(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] ACCOUNTING_CONTINUITY_OPEN_ERROR ${symbol} ${yon} | ${e.message}`); }
             analizMerkezi.acilisKaydet(yeniPozisyon);
             blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
 

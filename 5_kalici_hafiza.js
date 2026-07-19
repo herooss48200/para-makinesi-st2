@@ -49,6 +49,7 @@ function kaydedilecekState() {
         blackboxOzet: h.state.blackboxOzet,
         executionOzet: h.state.executionOzet,
         accountingAudit: h.state.accountingAudit,
+        accountingContinuity: h.state.accountingContinuity,
         exitReplayOzet: h.state.exitReplayOzet,
         restartGapOzet: h.state.restartGapOzet,
         aktifPozisyonlar: h.state.aktifPozisyonlar || []
@@ -95,6 +96,10 @@ function yukle() {
 
         if (veri.executionOzet && typeof veri.executionOzet === 'object') {
             h.state.executionOzet = { ...(h.state.executionOzet || {}), ...veri.executionOzet };
+        }
+
+        if (veri.accountingContinuity && typeof veri.accountingContinuity === 'object') {
+            h.state.accountingContinuity = { ...(h.state.accountingContinuity || {}), ...veri.accountingContinuity };
         }
 
         if (veri.exitReplayOzet && typeof veri.exitReplayOzet === 'object') {

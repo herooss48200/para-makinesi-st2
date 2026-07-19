@@ -8,6 +8,7 @@ const rapor = require('./2_rapor.js');
 const versiyonBilgi = require('./versiyon.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const binanceAg = require('./64_binance_network_resilience.js');
+const accountingContinuity = require('./65_accounting_continuity.js');
 binanceAg.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
 
 let donguCalisiyor = false;
@@ -22,6 +23,8 @@ async function baslat() {
         await piyasa.sembolleriYukle();
         await piyasa.acikPozisyonlariBorsadanDevral();
         kaliciHafiza.yukle();
+        accountingContinuity.initializeMigration();
+        kaliciHafiza.kaydet('accounting-continuity-migration');
         await revizyon.derinGecmisiInsaEt();
 
         // v4.0.1: Yeni katmanların gerçekten yüklendiğini düşük maliyetli biçimde doğrula.

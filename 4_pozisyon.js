@@ -14,6 +14,8 @@ const labChampion = require('./61_lab_champion_engine.js');
 const labPremier = require('./62_lab_premier_league.js');
 const sanalDynamicExit = require('./51_sanal_dynamic_exit_executor.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
+const hierarchyIdentity = require('./60_hierarchical_dna_identity_registry.js');
+const accountingContinuity = require('./65_accounting_continuity.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -23,6 +25,71 @@ const RAPOR_ARALIGI = 300000;
 // Aynı pozisyonun aynı kapanışını ikinci kez işlemeyi engeller.
 // Telegram gönderimi veya BlackBox tarafında hata olsa bile kapanan pozisyon tekrar sayılmamalı.
 const kapananPozisyonAnahtarlari = new Set();
+
+function kapanisRaporKimligi(pos, restartGapIslemi) {
+    const rawKey = pos?.realOrderReadiness?.key
+        || pos?.dnaLeagueProfile?.key
+        || pos?.premierObservation?.key
+        || pos?.blackboxAcilis?.strategySignature?.key
+        || '';
+
+    try {
+        const familyMissing = !pos?.dnaLabel || pos.dnaLabel === 'DNA #YOK';
+        const labMissing = !pos?.labDnaLabel || pos.labDnaLabel === 'LAB #YOK';
+        const fullMissing = !pos?.fullDnaLabel || pos.fullDnaLabel === 'FULL #YOK';
+        if (rawKey && (familyMissing || labMissing || fullMissing)) {
+            hierarchyIdentity.decoratePosition(pos, { source: 'CLOSE_REPORT_IDENTITY_RECOVERY' });
+        }
+    } catch (err) {
+        console.log(`⚠️ [KAPANIŞ KİMLİK GERİ KAZANIMI] ${pos?.sym || 'YOK'} ${pos?.yon || 'YOK'} | ${err.message}`);
+    }
+
+    const frozen = pos?.labPremierDecision || null;
+    const upper = frozen?.upperLayerIncluded === true || pos?.labPremierObservation?.upperLayerIncluded === true;
+    const shadow = pos?.leagueShadowOnly === true || frozen?.virtualShadowOnly === true;
+    let title;
+    let league;
+    let proof;
+    let track;
+
+    if (restartGapIslemi) {
+        title = '[RESTART GAP SANAL POZİSYON KAPANDI]';
+        league = frozen?.labLeague || pos?.labLeagueAtOpen || 'ESKİ_KAYIT';
+        proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'MUHASEBE_ONLY';
+        track = 'ÖĞRENME HARİÇ';
+    } else if (pos?.sanal === false) {
+        title = '[GERÇEK POZİSYON KAPANDI]';
+        league = frozen?.labLeague || pos?.labLeagueAtOpen || 'GERÇEK';
+        proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'REAL';
+        track = 'GERÇEK';
+    } else if (upper) {
+        title = '[LAB PREMIER SANAL POZİSYON KAPANDI]';
+        league = frozen?.labLeague || pos?.labLeagueAtOpen || 'PREMIER';
+        proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'PREMIER';
+        track = 'ÜST KASA';
+    } else if (shadow) {
+        title = '[LAB GÖLGE ÖĞRENME KAPANDI]';
+        league = frozen?.labLeague || pos?.labLeagueAtOpen || 'DEVELOPMENT';
+        proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'LEARNING';
+        track = 'GÖLGE';
+    } else {
+        title = '[ESKİ SANAL POZİSYON KAPANDI]';
+        league = frozen?.labLeague || pos?.labLeagueAtOpen || 'ESKİ_KAYIT';
+        proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'KİMLİK_DONDURULMAMIŞ';
+        track = 'ESKİ KAYIT';
+    }
+
+    return {
+        title,
+        league,
+        proof,
+        track,
+        dnaLabel: (pos?.dnaLabel && pos.dnaLabel !== 'DNA #YOK') ? pos.dnaLabel : 'DNA: ESKİ KAYIT / ANAHTAR YOK',
+        labDnaLabel: (pos?.labDnaLabel && pos.labDnaLabel !== 'LAB #YOK') ? pos.labDnaLabel : 'LAB: ESKİ KAYIT',
+        fullDnaLabel: (pos?.fullDnaLabel && pos.fullDnaLabel !== 'FULL #YOK') ? pos.fullDnaLabel : 'FULL: ESKİ KAYIT',
+        rawKey: rawKey || 'ESKİ KAYIT / ANAHTAR YOK'
+    };
+}
 
 function pozisyonKapanisAnahtari(pos) {
     return String(pos?.id || pos?.orderId || `${pos?.sym || 'YOK'}-${pos?.yon || 'YOK'}-${pos?.acilisZamani || pos?.zaman || '0'}-${pos?.girisFiyati || '0'}`);
@@ -958,7 +1025,8 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
     const emoji = kaliteSonuc === 'TP' ? '✅' : (kaliteSonuc === 'BE' ? (netKarZarar >= 0 ? '⚖️✅' : '⚖️') : '❌');
-    const baslik = leagueShadowOnly ? '[LAB GÖLGE ÖĞRENME KAPANDI]' : (pos.sanal ? '[LAB PREMIER SANAL POZİSYON KAPANDI]' : '[POZİSYON KAPANDI]');
+    const raporKimligi = kapanisRaporKimligi(pos, restartGapIslemi);
+    const baslik = raporKimligi.title;
     const kapanisZamani = Date.now();
 
     const kapanisAnalizPaketi = {
@@ -993,13 +1061,22 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         console.log(`🛡️ [RESTART GAP KAPANIŞ] ${pos.sym} ${pos.yon} | Muhasebe dahil, öğrenme hariç | Net: ${netKarZarar.toFixed(4)}`);
     }
 
+    try {
+        accountingContinuity.trackAtClose(pos, {
+            restartGap: restartGapIslemi,
+            scientific: !restartGapIslemi
+        });
+    } catch (err) {
+        console.log(`⚠️ [ACCOUNTING CONTINUITY CLOSE] ${pos.sym} ${pos.yon} | ${err.message}`);
+    }
+
     const telegramSonuclari = await h.telegramMesajGonder(
         `${emoji} <b>${baslik}</b>\n` +
         `🔀 ${pos.sym} (${pos.yon})\n` +
-        `🪪 ${pos.dnaLabel || pos.realOrderReadiness?.dnaLabel || pos.premierObservation?.dnaLabel || 'DNA #YOK'}\n` +
-        `🧩 ${pos.labDnaLabel || 'LAB #YOK'} | ${pos.fullDnaLabel || 'FULL #YOK'}\n` +
-        `🧬 DNA: ${pos.realOrderReadiness?.key || pos.dnaLeagueProfile?.key || pos.premierObservation?.key || 'YOK'}\n` +
-        `🏆 LAB Lig: ${pos.labPremierDecision?.labLeague || 'DEVELOPMENT'} | Kanıt: ${pos.labPremierDecision?.proofLevel || 'LEARNING'}${pos.labPremierObservation ? ' | ÜST KASA' : ' | GÖLGE'}\n` +
+        `🪪 ${raporKimligi.dnaLabel}\n` +
+        `🧩 ${raporKimligi.labDnaLabel} | ${raporKimligi.fullDnaLabel}\n` +
+        `🧬 DNA: ${raporKimligi.rawKey}\n` +
+        `🏆 Açılıştaki LAB Lig: ${raporKimligi.league} | Kanıt: ${raporKimligi.proof} | ${raporKimligi.track}\n` +
         `🕒 Açılış: ${blackbox.tarihSaat(pos.acilisZamani || pos.zaman)}\n` +
         `🕒 Kapanış: ${blackbox.tarihSaat(kapanisZamani)}\n` +
         `⏳ Süre: ${blackbox.sureMetni(kapanisZamani - Number(pos.acilisZamani || pos.zaman || kapanisZamani))}\n` +
@@ -1434,5 +1511,6 @@ module.exports = {
     piyasayiTaraVePusuKur,
     pusulariDenetleVeIslemAc,
     izSurmeyiGuncelle,
-    pusuRaporuGonder
+    pusuRaporuGonder,
+    _kapanisRaporKimligi: kapanisRaporKimligi
 };

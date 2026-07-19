@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'PUBLIC-URL-HOTFIX',
-    kod: 'AWS Candidate v5.0.3-PUBLIC-URL-HOTFIX',
-    botSurumu: '5.0.3-PUBLIC-URL-HOTFIX',
+    kodAdi: 'REPORT-ACCOUNTING-CONSISTENCY',
+    kod: 'AWS Candidate v5.0.4-REPORT-ACCOUNTING-CONSISTENCY',
+    botSurumu: '5.0.4-REPORT-ACCOUNTING-CONSISTENCY',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }

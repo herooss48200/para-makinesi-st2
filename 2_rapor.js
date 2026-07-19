@@ -11,6 +11,7 @@ const exitVictoryAudit = require('./57_exit_victory_audit.js');
 const realOrderReadiness = require('./50_real_order_readiness_bridge.js');
 const labChampion = require('./61_lab_champion_engine.js');
 const labPremier = require('./62_lab_premier_league.js');
+const accountingContinuity = require('./65_accounting_continuity.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
@@ -171,9 +172,14 @@ function learningEvolutionOzetMetni(s = {}) {
         const dReady = ready - learningEvolutionBaseline.ready;
         const delta = n => `${n >= 0 ? '+' : ''}${n}`;
 
+        const continuity = accountingContinuity.snapshot(h.state.aktifPozisyonlar || []);
         let text = `🧠 <b>ÖĞRENME DEVAM EDİYOR</b>
 `;
-        text += `📦 Açılan ${opened} (${delta(dOpened)}) | Kapanan ${closed} (${delta(dClosed)})
+        text += `📦 Geçmiş sayaç: Açılış ${opened} (${delta(dOpened)}) | Bilimsel kapanış ${closed} (${delta(dClosed)})
+`;
+        text += `🛡️ Restart Gap kapanış: ${Number(continuity.legacy.restartGapClosed || 0)} | Tarihsel sayaç farkı: ${Number(continuity.legacy.classifiedDifference || 0)}
+`;
+        text += `🧾 v5.0.4 kesin defter: Açılan ${Number(continuity.current.opened || 0)} | Kapanan ${Number(continuity.current.closed || 0)} | Aktif ${Number(continuity.trackedActive || 0)} | Mutabakat ${continuity.difference >= 0 ? '+' : ''}${continuity.difference} ${continuity.reconciled ? '✅' : '⚠️'}
 `;
         text += `🎯 Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT
 `;
