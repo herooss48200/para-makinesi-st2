@@ -16,8 +16,9 @@ const io = require('./53_memory_safe_io.js');
 const hierarchy = require('./60_hierarchical_dna_identity_registry.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const evidenceEngine = require('./63_universal_evidence_engine.js');
+const dnaEvolution = require('./38_dna_evolution_engine.js');
 
-const VERSION = 'v4.8.0-LAB-CHAMPION-SOURCE-FOR-LAB-PREMIER';
+const VERSION = 'v4.9.2-LAB-CHAMPION-RECENT5-EVIDENCE';
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-champion-observation.json');
 const TRADES_FILE = path.join(DATA_DIR, 'lab-champion-trades.jsonl');
@@ -34,6 +35,28 @@ function round(v, digits = 6) {
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+
+let recentLabCache = { stamp: '', map: new Map() };
+function recentLabMetricsIndex() {
+  const file = dnaEvolution.DEFAULT_JSONL;
+  let stat = null;
+  try { stat = fs.statSync(file); } catch (_) { return new Map(); }
+  const stamp = `${stat.size}|${stat.mtimeMs}`;
+  if (recentLabCache.stamp === stamp) return recentLabCache.map;
+  const loaded = dnaEvolution.loadTrades(file);
+  const groups = new Map();
+  for (const trade of loaded.trades || []) {
+    const key = hierarchy.labKey(trade.key);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(trade);
+  }
+  const map = new Map();
+  for (const [key, trades] of groups.entries()) map.set(key, dnaEvolution.windowMetrics(trades, 5));
+  recentLabCache = { stamp, map };
+  return map;
 }
 
 function emptyBucket() {
@@ -287,6 +310,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
   const exitModel = dynamicModel || dynamicExit.readModel() || null;
   const champions = [];
   const evidenceCandidates = [];
+  const recentIndex = recentLabMetricsIndex();
   let strongSourceCount = 0;
 
   for (const [rawKey, bucket] of Object.entries(blackboxSummary.exactComboStats || {})) {
@@ -295,8 +319,9 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
     const historical = historicalMetrics(bucket);
     const exit = exitForLab(identity.key, exitModel);
     const forward = forwardProof(identity.key, observationState);
+    const recent5 = recentIndex.get(identity.key) || { total: 0, tp: 0, sl: 0, be: 0, net: 0, expectancy: 0, winRate: 0, profitFactor: 0 };
     const children = fullChildren(blackboxSummary, identity.key);
-    const evidence = evidenceEngine.evaluate({ strategyType: 'LAB_DNA', strategyKey: identity.key, historical, exit, live: forward.metrics });
+    const evidence = evidenceEngine.evaluate({ strategyType: 'LAB_DNA', strategyKey: identity.key, historical, recent: recent5, exit, live: forward.metrics });
     const baseRow = {
       labDnaId: identity.id,
       labDnaLabel: identity.label,
@@ -307,6 +332,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
       familyKey: identity.familyKey,
       label: bucket?.etiket || identity.key,
       historical,
+      recent5,
       score: historicalScore(historical),
       exit,
       forward,
@@ -314,7 +340,8 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
       fullChampionCount: children.filter(x => x.historicalEligible).length,
       historicalCandidate: historicalEligible(historical),
       evidence,
-      warmStartCandidate: Boolean(ayarlar.evidenceWarmStartAktif !== false && evidence.warmStartEligible),
+      warmStartCandidate: Boolean(ayarlar.evidenceWarmStartAktif !== false && evidence.admissionEligible),
+      recent5ProvisionalCandidate: Boolean(ayarlar.evidenceWarmStartAktif !== false && evidence.recentProvisionalEligible),
       promotionReady: Boolean(
         migration.coverage.complete
           && exit?.positive
@@ -343,6 +370,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
     promotionReadyCount: champions.filter(x => x.promotionReady).length,
     labChampions: champions,
     evidenceCandidateCount: evidenceCandidates.length,
+    recent5ProvisionalCandidateCount: evidenceCandidates.filter(x => x.recent5ProvisionalCandidate).length,
     evidenceCandidates: evidenceCandidates.sort((a,b) => b.evidence.confidence - a.evidence.confidence || b.historical.total - a.historical.total),
     policy: {
       familyIdsPreserved: true,

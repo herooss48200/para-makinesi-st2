@@ -281,7 +281,7 @@ const m = {
 
         await h.telegramMesajGonder(
             `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[LAB GÖLGE ÖĞRENME]</b>' : '🏆 <b>[LAB PREMIER SANAL POZİSYON]</b>'}\n` +
-            (yeniPozisyon.labPremierDecision?.upperLayerIncluded ? `💎 <b>LAB PREMIER İŞLEMİ</b> | ${yeniPozisyon.labPremierDecision.proofLevel}\n` : `🌱 LAB Championship/Development — üst kasa dışı öğrenme\n`) +
+            (yeniPozisyon.labPremierDecision?.upperLayerIncluded ? `💎 <b>LAB PREMIER İŞLEMİ</b> | ${yeniPozisyon.labPremierDecision.proofLevel}\n` : `🌱 LAB Championship/Development — tek gölge sanal pozisyon | Telegram açık | üst kasa dışı öğrenme\n`) +
             `🔀 ${symbol} (${yon})\n` +
             `🪪 ${yeniPozisyon.realOrderReadiness?.dnaLabel || yeniPozisyon.dnaLabel || 'DNA #YOK'}\n` +
             `🧩 ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +

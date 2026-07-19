@@ -571,7 +571,10 @@ const ayarlar = {
     evidenceWarmStartMinNet: 0,
     evidenceWarmStartMinExpectancy: 0,
     evidenceWarmStartExitMinSamples: 5,
-    evidenceWarmStartMinConfidence: 60,
+    evidenceWarmStartMinConfidence: 60, // yalnız sıralama/audit; sanal Premier için sert kapı değildir
+    evidenceConfidenceGateAktif: false,
+    evidenceRecent5Aktif: true,
+    evidenceRecentMinSamples: 5,
 
     // v4.8.0 - Family yalnız kalıcı piyasa hafızasıdır; gerçek lig yarışmacısı LAB DNA'dır.
     // Şimdiki geniş sanal testte tarihsel güçlü + kendi pozitif Exit'i olan LAB doğrudan Premier test havuzuna girer.
