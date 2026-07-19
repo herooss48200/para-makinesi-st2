@@ -7,7 +7,7 @@ const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.6.0-PREMIER-OBSERVATION-DNA-ID';
+const VERSION = 'v4.6.1-PREMIER-OBSERVATION-FORWARD-PROOF';
 const EXPERIMENT_ID = String(ayarlar.premierTestExperimentId || 'DYNAMIC-LEAGUE-EXIT-2026-07-17');
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'adaptive-league-observation.json');
@@ -181,6 +181,24 @@ function metrics(b = {}) {
     const decided = n(b.tp) + n(b.sl);
     return { ...b, winRate: decided ? 100 * n(b.tp) / decided : 0, profitFactor: n(b.grossLoss) > 0 ? n(b.grossProfit) / n(b.grossLoss) : (n(b.grossProfit) > 0 ? 999 : 0), expectancy: n(b.closed) ? n(b.net) / n(b.closed) : 0 };
 }
+function dnaForwardProof(key, state = null, options = {}) {
+    const canonical = dnaIdentity.identityKey(key);
+    const st = state || read();
+    const match = Object.entries(st?.byDna || {}).find(([rawKey, row]) => dnaIdentity.identityKey(row?.key || rawKey) === canonical);
+    const row = metrics(match?.[1] || {});
+    const minClosed = Math.max(1, n(options.minClosed, ayarlar.gercekEmirIleriDogrulamaMinKapanis || 5));
+    const minPf = n(options.minPf, ayarlar.gercekEmirIleriDogrulamaMinPF || 1);
+    const minNet = n(options.minNet, ayarlar.gercekEmirIleriDogrulamaMinNet || 0);
+    const minExp = n(options.minExpectancy, ayarlar.gercekEmirIleriDogrulamaMinExpectancy || 0);
+    const checks = {
+        closed: { pass: n(row.closed) >= minClosed, actual: n(row.closed), required: minClosed },
+        profitFactor: { pass: n(row.profitFactor) > minPf, actual: n(row.profitFactor), required: `>${minPf}` },
+        net: { pass: n(row.net) > minNet, actual: n(row.net), required: `>${minNet}` },
+        expectancy: { pass: n(row.expectancy) > minExp, actual: n(row.expectancy), required: `>${minExp}` }
+    };
+    const failed = Object.entries(checks).filter(([, value]) => !value.pass).map(([name, value]) => ({ key: name, ...value }));
+    return { key: canonical, eligible: failed.length === 0, checks, failed, metrics: row, source: match ? 'ADAPTIVE_LEAGUE_BY_DNA' : 'NO_FORWARD_SAMPLE' };
+}
 function blocked(key, reason = 'TEST_HAVUZU_DISI', context = {}) {
     const st = read(); const now = Date.now(); st.blockedRaw = n(st.blockedRaw) + 1;
     const fingerprint = `${String(context.symbol || '')}|${String(context.side || '')}|${key}|${reason}`;
@@ -281,4 +299,4 @@ function telegramFromModel(m) {
     return t;
 }
 function telegram(active = []) { return telegramFromModel(summaryModel(active)); }
-module.exports = { VERSION, EXPERIMENT_ID, STATE_FILE, TRADES_FILE, REAL_STATE_FILE, REAL_TRADES_FILE, read, readReal, blocked, snapshot, close, model, realModel, summaryModel, realSummaryModel, __testBuildSummaryModel: buildSummaryModel, __testBackfillDnaRows: backfillDnaRows, compactTelegramFromModel, telegramFromModel, compactTelegram, realCompactTelegram, telegram };
+module.exports = { VERSION, EXPERIMENT_ID, STATE_FILE, TRADES_FILE, REAL_STATE_FILE, REAL_TRADES_FILE, read, readReal, dnaForwardProof, blocked, snapshot, close, model, realModel, summaryModel, realSummaryModel, __testBuildSummaryModel: buildSummaryModel, __testBackfillDnaRows: backfillDnaRows, compactTelegramFromModel, telegramFromModel, compactTelegram, realCompactTelegram, telegram };

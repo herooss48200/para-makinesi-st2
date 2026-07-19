@@ -525,6 +525,13 @@ const ayarlar = {
     gercekEmirOnayKodu: 'UC_GUN_TEST_SONRASI_DEGISTIR',
     // Lig modeli bu süreden eskiyse gerçek emir fail-closed engellenir.
     gercekEmirLigModelMaksYasDakika: 360,
+    // v4.6.1 - Tarihsel Premier + Exit tek başına gerçek emir kanıtı sayılmaz.
+    // Aynı DNA üst katman sanal kasasında en az 5 kapanışta pozitif PF/Net/Exp üretmelidir.
+    gercekEmirIleriDogrulamaAktif: true,
+    gercekEmirIleriDogrulamaMinKapanis: 5,
+    gercekEmirIleriDogrulamaMinPF: 1,
+    gercekEmirIleriDogrulamaMinNet: 0,
+    gercekEmirIleriDogrulamaMinExpectancy: 0,
     dnaLeagueChampionshipMinPf: 0.85,
     dnaLeagueChampionshipMinExp: -0.05,
     dnaLeagueTransferKapanisAraligi: 5,

@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v4.6.0-PERSISTENT-DNA-IDENTITY';
+const VERSION = 'v4.6.1-PERSISTENT-DNA-IDENTITY';
 const DATA_DIR = path.join(__dirname, 'data');
 const REGISTRY_FILE = path.join(DATA_DIR, 'dna-identity-registry.json');
 const BACKUP_FILE = `${REGISTRY_FILE}.bak`;
@@ -379,6 +379,22 @@ function find(key) {
   return entry ? { ...entry } : null;
 }
 
+function findById(id) {
+  const wanted = Math.trunc(num(id));
+  if (wanted < 1) return null;
+  const registry = readRegistry();
+  const entry = Object.values(registry.entries || {}).find(row => Math.trunc(num(row?.id)) === wanted);
+  return entry ? { ...entry } : null;
+}
+
+function requireIdentity(key, options = {}) {
+  const entry = ensure(key, { source: options.source || 'STRICT_IDENTITY' });
+  if (!entry || entry.id < 1 || entry.label === 'DNA #YOK') {
+    throw new Error(`DNA kimliği üretilemedi: ${String(key || 'ANAHTAR_YOK')}`);
+  }
+  return entry;
+}
+
 function decorate(row = {}, key = row?.key, options = {}) {
   const entry = options.create === false ? find(key) : ensure(key, { source: options.source || 'DECORATE' });
   return entry ? { ...row, dnaId: entry.id, dnaLabel: entry.label, identityKey: entry.key } : { ...row, dnaId: null, dnaLabel: 'DNA #YOK', identityKey: identityKey(key) || '' };
@@ -400,6 +416,8 @@ module.exports = {
   ensure,
   ensureMany,
   find,
+  findById,
+  requireIdentity,
   decorate,
   audit,
   validateRegistry

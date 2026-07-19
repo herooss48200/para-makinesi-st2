@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'PREMIER-VALIDATION-REAL-TRADING-PREPARATION',
-    kod: 'AWS Candidate v4.6.0-PREMIER-VALIDATION-REAL-TRADING-PREPARATION',
-    botSurumu: '4.6.0-PREMIER-VALIDATION-REAL-TRADING-PREPARATION',
+    kodAdi: 'TRANSFER-ID-COMPLETE-FORWARD-PROOF',
+    kod: 'AWS Candidate v4.6.1-TRANSFER-ID-COMPLETE-FORWARD-PROOF',
+    botSurumu: '4.6.1-TRANSFER-ID-COMPLETE-FORWARD-PROOF',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '19.07.2026',
     ortam: {

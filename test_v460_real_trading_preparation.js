@@ -49,7 +49,11 @@ try {
     }]
   };
 
-  const out = readiness.buildPreparation(lm, { dynamicModel: dm, persist: false });
+  const observationState = { byDna: {
+    [readyKey]: { key: readyKey, closed: 5, tp: 4, sl: 1, be: 0, net: 1.0, grossProfit: 2.0, grossLoss: 1.0 },
+    [pendingKey]: { key: pendingKey, closed: 2, tp: 1, sl: 1, be: 0, net: -0.2, grossProfit: 0.4, grossLoss: 0.6 }
+  }};
+  const out = readiness.buildPreparation(lm, { dynamicModel: dm, observationState, persist: false });
   assert.strictEqual(out.readyCount, 1);
   assert.strictEqual(out.failClosed, false);
   assert.strictEqual(out.ready[0].key, readyKey);
@@ -66,7 +70,7 @@ try {
   assert.ok(text.includes('Tüm Dönem Elite: 10 Dakika Exit'));
 
   const failClosedLm = { allPlayers: [pendingPlayer], leagues: { premier: [pendingPlayer], championship: [], development: [], historical: [] }, audit: { lostChampions: [] } };
-  const blocked = readiness.buildPreparation(failClosedLm, { dynamicModel: { currentRegime: { key: 'RANGE|VOL_HIGH' }, dna: [] }, persist: false });
+  const blocked = readiness.buildPreparation(failClosedLm, { dynamicModel: { currentRegime: { key: 'RANGE|VOL_HIGH' }, dna: [] }, observationState: { byDna: {} }, persist: false });
   assert.strictEqual(blocked.readyCount, 0);
   assert.strictEqual(blocked.failClosed, true);
   assert.ok(blocked.answer.includes('gerçek emir açılmaz'));

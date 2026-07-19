@@ -16,8 +16,9 @@ const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
+const premierObservation = require('./48_premier_observation_engine.js');
 
-const VERSION = 'v4.6.0-REAL-TRADING-PREPARATION';
+const VERSION = 'v4.6.1-REAL-TRADING-FORWARD-PROOF';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 const PREPARATION_JSON = path.join(DATA_DIR, 'real-trading-preparation.json');
@@ -51,6 +52,7 @@ function evaluate(pos, { realMode = false } = {}) {
   const maxAge = Math.max(5, num(ayarlar.gercekEmirLigModelMaksYasDakika, 360));
   const age = modelAgeMinutes();
   const auth = realAuthorization();
+  const forwardProof = key ? premierObservation.dnaForwardProof(key) : null;
   const reasons = [];
 
   if (ayarlar.dnaLeagueAktif === false) reasons.push('DNA_LIGI_KAPALI');
@@ -76,6 +78,7 @@ function evaluate(pos, { realMode = false } = {}) {
     if (!(num(pair.profitFactor) > 1)) reasons.push('DNA_EXIT_PF_1_USTU_DEGIL');
     if (!(num(pair.net) > 0)) reasons.push('DNA_EXIT_NET_POZITIF_DEGIL');
     if (!Number.isFinite(age) || age > maxAge) reasons.push('LIG_MODELI_ESKI_VEYA_YOK');
+    if (ayarlar.gercekEmirIleriDogrulamaAktif !== false && !forwardProof?.eligible) reasons.push('ILERI_DOGRULAMA_POZITIF_DEGIL');
 
     if (premier) {
       realTier = 'PREMIER';
@@ -117,7 +120,8 @@ function evaluate(pos, { realMode = false } = {}) {
     sizeMultiplier: realMode ? sizeMultiplier : 1,
     leagueModelAgeMinutes: Number.isFinite(age) ? Number(age.toFixed(2)) : null,
     premierValidation: profile ? dnaLeague.premierValidation(profile) : null,
-    todayRealCandidate: currentLeague === 'PREMIER' && Boolean(profile && dnaLeague.premierValidation(profile).eligible) && Boolean(exitPlan?.ready) && exitPlan?.selectionQuality === 'POSITIVE_CONFIRMED',
+    todayRealCandidate: currentLeague === 'PREMIER' && Boolean(profile && dnaLeague.premierValidation(profile).eligible) && Boolean(exitPlan?.ready) && exitPlan?.selectionQuality === 'POSITIVE_CONFIRMED' && Boolean(forwardProof?.eligible),
+    forwardProof,
     metrics: {
       total: num(profile?.pairMetrics?.total, profile?.total), expectancy: num(profile?.pairMetrics?.expectancy, profile?.expectancy),
       profitFactor: num(profile?.pairMetrics?.profitFactor, profile?.profitFactor), net: num(profile?.pairMetrics?.net, profile?.net),
@@ -166,6 +170,7 @@ function eliteIndex(model = null) {
 function buildPreparation(leagueModel = null, options = {}) {
   const lm = leagueModel || dnaLeague.build();
   const elites = eliteIndex(options.dynamicModel);
+  const observationState = options.observationState || premierObservation.read();
   const players = lm?.allPlayers?.length ? lm.allPlayers : Object.values(lm?.leagues || {}).flat();
   const seen = new Set();
   const rows = [];
@@ -178,12 +183,15 @@ function buildPreparation(leagueModel = null, options = {}) {
     const validation = player?.premierValidation || dnaLeague.premierValidation(player);
     const activeExit = player?.exit || {};
     const elite = elites.map.get(identity.key)?.allBest || null;
+    const forwardProof = premierObservation.dnaForwardProof(key, observationState, options.forwardProof || {});
     const positiveExit = Boolean(activeExit.ready && activeExit.algorithmId !== 'ACTUAL' && num(activeExit.samples) >= 5 && num(activeExit.profitFactor) > 1 && num(activeExit.netUsdt) > 0);
     const blockers = [];
     if (assignedLeague !== 'PREMIER') blockers.push(`LIG_${assignedLeague}`);
     for (const failed of validation.failed || []) blockers.push(`PREMIER_${String(failed.key).toUpperCase()}_FAIL`);
     if (!positiveExit) blockers.push('GUNCEL_POZITIF_EXIT_KANITI_YOK');
-    const ready = assignedLeague === 'PREMIER' && validation.eligible && positiveExit;
+    if (ayarlar.gercekEmirIleriDogrulamaAktif !== false && !forwardProof.eligible) blockers.push('ILERI_DOGRULAMA_POZITIF_DEGIL');
+    const historicalCandidate = assignedLeague === 'PREMIER' && validation.eligible && positiveExit;
+    const ready = historicalCandidate && (ayarlar.gercekEmirIleriDogrulamaAktif === false || forwardProof.eligible);
     rows.push({
       dnaId: identity.id,
       dnaLabel: identity.label,
@@ -191,7 +199,9 @@ function buildPreparation(leagueModel = null, options = {}) {
       key,
       league: assignedLeague,
       ready,
+      historicalCandidate,
       blockers,
+      forwardProof,
       proof: {
         total: num(player.total),
         winRate: num(player.winRate),
@@ -223,19 +233,22 @@ function buildPreparation(leagueModel = null, options = {}) {
     });
   }
   rows.sort((a, b) => Number(b.ready) - Number(a.ready) || b.score - a.score || b.proof.expectancy - a.proof.expectancy || b.proof.net - a.proof.net);
+  const historicalCandidates = rows.filter(x => x.historicalCandidate);
   const ready = rows.filter(x => x.ready);
   const out = {
     version: VERSION,
     generatedAt: new Date().toISOString(),
     question: 'Bugün gerçek emir açacak olsam hangi DNA\'ları kullanırım?',
-    answer: ready.length ? `${ready.length} DNA, güncel pozitif Exit eşleşmesiyle matematiksel olarak hazır.` : 'Doğrulanmış DNA + güncel pozitif Exit eşleşmesi yok; gerçek emir açılmaz.',
+    answer: ready.length ? `${ready.length} DNA; tarihsel Premier, pozitif Exit ve ileri sanal doğrulama kanıtıyla gerçek emir için hazır.` : historicalCandidates.length ? `${historicalCandidates.length} tarihsel DNA + Exit adayı var; ileri sanal doğrulama geçilmediği için gerçek emir açılmaz.` : 'Doğrulanmış DNA + güncel pozitif Exit eşleşmesi yok; gerçek emir açılmaz.',
     failClosed: ready.length === 0,
     currentRegime: elites.model?.currentRegime?.key || 'BILINMIYOR',
     identityAudit: dnaIdentity.audit(),
     premierCount: (lm?.leagues?.premier || []).length,
+    historicalCandidateCount: historicalCandidates.length,
     readyCount: ready.length,
     ready,
-    exitPending: rows.filter(x => x.league === 'PREMIER' && x.proof.premierValidation?.eligible && !x.ready),
+    forwardPending: historicalCandidates.filter(x => !x.ready),
+    exitPending: rows.filter(x => x.league === 'PREMIER' && x.proof.premierValidation?.eligible && !x.historicalCandidate),
     lostChampions: lm?.audit?.lostChampions || [],
     all: rows
   };
@@ -244,18 +257,20 @@ function buildPreparation(leagueModel = null, options = {}) {
 }
 
 function preparationTelegram(model = buildPreparation(), limit = 5) {
-  let t = `\n\n🚀 <b>GERÇEK EMİR HAZIRLIK DENETİMİ — v4.6</b>\n`;
+  let t = `\n\n🚀 <b>GERÇEK EMİR HAZIRLIK DENETİMİ — v4.6.1</b>\n`;
   t += `❓ Bugün gerçek emir açsam hangi DNA'ları kullanırım?\n`;
   t += `📌 ${model.answer}\n`;
-  t += `🏆 Premier ${model.premierCount} | ✅ Tam hazır ${model.readyCount} | ⏳ Exit bekleyen ${model.exitPending.length}\n`;
+  t += `🏆 Premier ${model.premierCount} | 🧾 Tarihsel+Exit ${model.historicalCandidateCount || 0} | ✅ İleri doğrulanmış ${model.readyCount} | ⏳ İleri bekleyen ${(model.forwardPending || []).length}\n`;
   if (model.ready.length) {
-    t += model.ready.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel} — ${x.key}\n   DNA: N${x.proof.total} | WR %${x.proof.winRate.toFixed(2)} | PF ${x.proof.profitFactor.toFixed(2)} | Exp ${x.proof.expectancy.toFixed(4)} | Net ${x.proof.net.toFixed(4)}\n   🎯 Aktif Exit (${x.activeExit.regime}): ${x.activeExit.label} | ExitN${x.activeExit.samples} | PF ${x.activeExit.profitFactor.toFixed(2)}\n   ⭐ Tüm Dönem Elite: ${x.eliteExit.label} | EliteN${x.eliteExit.samples}`).join('\n');
+    t += model.ready.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel} — ${x.key}\n   DNA: N${x.proof.total} | WR %${x.proof.winRate.toFixed(2)} | PF ${x.proof.profitFactor.toFixed(2)} | Exp ${x.proof.expectancy.toFixed(4)} | Net ${x.proof.net.toFixed(4)}\n   🎯 Aktif Exit (${x.activeExit.regime}): ${x.activeExit.label} | ExitN${x.activeExit.samples} | PF ${x.activeExit.profitFactor.toFixed(2)}\n   ⭐ Tüm Dönem Elite: ${x.eliteExit.label} | EliteN${x.eliteExit.samples}\n   🧪 İleri Kanıt: N${x.forwardProof.metrics.closed} | PF ${x.forwardProof.metrics.profitFactor.toFixed(2)} | Exp ${x.forwardProof.metrics.expectancy.toFixed(4)} | Net ${x.forwardProof.metrics.net.toFixed(4)}`).join('\n');
   } else {
-    t += '🛑 Fail-closed: doğrulanmış eşleşme oluşmadan gerçek emir adayı üretilmez.';
+    t += '🛑 Fail-closed: tarihsel başarı + pozitif Exit + DNA bazlı ileri sanal kanıt birlikte oluşmadan gerçek emir adayı üretilmez.';
+    if ((model.forwardPending || []).length) {
+      t += `\n⏳ <b>İLERİ KANIT BEKLEYENLER</b>\n` + model.forwardPending.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel} | N${x.forwardProof.metrics.closed}/${x.forwardProof.checks.closed.required} | PF ${x.forwardProof.metrics.profitFactor.toFixed(2)} | Exp ${x.forwardProof.metrics.expectancy.toFixed(4)} | Net ${x.forwardProof.metrics.net.toFixed(4)}\n   Eksik: ${x.forwardProof.failed.map(f => f.key).join(', ')}`).join('\n');
+    }
   }
   return t;
 }
-
 function copyDecisionToPosition(target, source) {
   if (!target || !source) return target;
   if (source.dnaLeagueProfile) target.dnaLeagueProfile = source.dnaLeagueProfile;
@@ -283,6 +298,7 @@ function telegramText(d) {
     `🌦️ Rejim: ${d.regime?.key || 'YOK'}\n` +
     `🚪 Exit: ${d.exit?.label || 'Mevcut Kademe Sistemi'} | ${d.exit?.scope || 'FALLBACK'} | ${d.exit?.activeForPosition ? 'AKTİF' : 'FALLBACK'}\n` +
     `📊 Exit Kanıtı: N${num(d.exit?.samples)} | Beat %${num(d.exit?.beatRate).toFixed(1)} | PF ${num(d.exit?.profitFactor).toFixed(2)} | Net ${num(d.exit?.netUsdt).toFixed(4)}\n` +
+    `🧪 İleri DNA Kanıtı: N${num(d.forwardProof?.metrics?.closed)} | PF ${num(d.forwardProof?.metrics?.profitFactor).toFixed(2)} | Exp ${num(d.forwardProof?.metrics?.expectancy).toFixed(4)} | Net ${num(d.forwardProof?.metrics?.net).toFixed(4)} | ${d.forwardProof?.eligible ? 'GEÇTİ' : 'BEKLİYOR'}\n` +
     `🔎 Exit Sebebi: ${d.exit?.reason || 'YOK'}\n` +
     (!d.allowed ? `📌 Sebep: ${d.reasons.join(', ')}` : (d.mode === 'VIRTUAL' ? `🧪 Alt öğrenme katmanı: tüm geçerli DNA'lar açık | Lig yalnız etiket` : `🔒 Gerçek katman: ${d.realTier} | Boyut x${num(d.sizeMultiplier, 1).toFixed(2)} | Güncel kazanan exit`));
 }

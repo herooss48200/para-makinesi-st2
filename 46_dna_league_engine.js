@@ -22,12 +22,14 @@ const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.6.0-PREMIER-VALIDATION';
+const VERSION = 'v4.6.1-PREMIER-VALIDATION-TRANSFER-ID';
 const CLASSIFICATION_POLICY_VERSION = 4;
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
 const CONSOLE_FILE = path.join(DATA_DIR, 'dna-league-console.json');
+const TRANSFER_ID_MIGRATION_VERSION = 1;
+const TRANSFER_BACKUP_FILE = path.join(DATA_DIR, 'dna-league-transfers.before-v4.6.1-dna-id.jsonl');
 
 function num(value, fallback = 0) {
   const n = Number(value);
@@ -483,10 +485,75 @@ function transferEvents(previous, next, totalTrades) {
   return events;
 }
 
+function resolveTransferIdentity(row = {}, source = 'LEAGUE_TRANSFER_HISTORY') {
+  let key = String(row?.key || row?.dna || row?.signature || row?.baseSignature || '').trim();
+  let entry = key ? dnaIdentity.ensure(key, { source }) : null;
+  if (!entry && num(row?.dnaId) > 0) {
+    entry = dnaIdentity.findById(row.dnaId);
+    if (entry) key = entry.key;
+  }
+  if (!entry || entry.id < 1 || !key) {
+    throw new Error(`Transfer kaydı DNA kimliğine bağlanamadı: ${JSON.stringify({ key: row?.key, dnaId: row?.dnaId, from: row?.from, to: row?.to })}`);
+  }
+  return { key, entry };
+}
+
+function migrateTransferHistory(options = {}) {
+  const persist = options.persist !== false;
+  if (!fs.existsSync(TRANSFER_FILE)) return { rows: [], total: 0, changed: 0, migrated: 0, valid: true, persisted: false };
+  const stat = fs.statSync(TRANSFER_FILE);
+  const maxBytes = Math.max(1024 * 1024, num(options.maxBytes, 64 * 1024 * 1024));
+  if (stat.size > maxBytes) throw new Error(`Transfer geçmişi güvenli göç sınırını aşıyor: ${stat.size} > ${maxBytes}`);
+  const rawText = fs.readFileSync(TRANSFER_FILE, 'utf8');
+  const sourceLines = rawText.split(/\r?\n/).filter(line => line.trim());
+  const rows = [];
+  let changed = 0;
+  let migrated = 0;
+  for (let index = 0; index < sourceLines.length; index++) {
+    let row;
+    try { row = JSON.parse(sourceLines[index]); }
+    catch (err) { throw new Error(`Transfer geçmişi satır ${index + 1} bozuk JSON: ${err.message}`); }
+    const { key, entry } = resolveTransferIdentity(row, 'LEAGUE_TRANSFER_HISTORY_MIGRATION');
+    const needsChange = row.key !== key || num(row.dnaId) !== entry.id || row.dnaLabel !== entry.label || row.identityKey !== entry.key || num(row.identityMigrationVersion) !== TRANSFER_ID_MIGRATION_VERSION;
+    const next = {
+      ...row,
+      key,
+      dnaId: entry.id,
+      dnaLabel: entry.label,
+      identityKey: entry.key,
+      identityMigrationVersion: TRANSFER_ID_MIGRATION_VERSION
+    };
+    if (needsChange) {
+      changed++;
+      if (!row.dnaId || row.dnaLabel === 'DNA #YOK') migrated++;
+      next.identityMigratedAt = new Date().toISOString();
+    }
+    rows.push(next);
+  }
+  const unresolved = rows.filter(row => !(num(row?.dnaId) > 0) || !row?.dnaLabel || row.dnaLabel === 'DNA #YOK' || !row?.identityKey);
+  if (unresolved.length) throw new Error(`Transfer geçmişinde ${unresolved.length} ID'siz kayıt kaldı.`);
+  let persisted = false;
+  if (persist && changed > 0) {
+    ensureDataDir();
+    if (!fs.existsSync(TRANSFER_BACKUP_FILE)) fs.copyFileSync(TRANSFER_FILE, TRANSFER_BACKUP_FILE);
+    const temp = `${TRANSFER_FILE}.tmp-v461`;
+    fs.writeFileSync(temp, rows.map(row => JSON.stringify(row)).join('\n') + (rows.length ? '\n' : ''));
+    fs.renameSync(temp, TRANSFER_FILE);
+    persisted = true;
+  }
+  return { rows, total: rows.length, changed, migrated, valid: true, persisted, backupFile: persisted ? TRANSFER_BACKUP_FILE : null };
+}
+
 function appendTransfers(events = []) {
   if (!events.length) return;
   ensureDataDir();
-  fs.appendFileSync(TRANSFER_FILE, events.map(x => JSON.stringify(x)).join('\n') + '\n');
+  const strictEvents = events.map(row => {
+    const { key, entry } = resolveTransferIdentity(row, 'LEAGUE_TRANSFER_APPEND');
+    return { ...row, key, dnaId: entry.id, dnaLabel: entry.label, identityKey: entry.key, identityMigrationVersion: TRANSFER_ID_MIGRATION_VERSION };
+  });
+  const invalid = strictEvents.filter(row => !(num(row.dnaId) > 0) || row.dnaLabel === 'DNA #YOK' || !row.identityKey);
+  if (invalid.length) throw new Error('ID’siz transfer yazımı engellendi.');
+  fs.appendFileSync(TRANSFER_FILE, strictEvents.map(x => JSON.stringify(x)).join('\n') + '\n');
 }
 
 function classificationPolicyMigrationRequired(previous) {
@@ -512,6 +579,15 @@ function ensureLeagueIdentities(leagues = {}, source = 'PERSISTED_LEAGUE_STATE')
 }
 
 function build(models = {}, options = {}) {
+  const transferIdentityMigrationResult = migrateTransferHistory({ persist: options.persist !== false });
+  const transferIdentityMigration = {
+    total: transferIdentityMigrationResult.total,
+    changed: transferIdentityMigrationResult.changed,
+    migrated: transferIdentityMigrationResult.migrated,
+    valid: transferIdentityMigrationResult.valid,
+    persisted: transferIdentityMigrationResult.persisted,
+    backupFile: transferIdentityMigrationResult.backupFile
+  };
   const evolutionModel = models.evolution || dnaEvolution.build({ minSample: ayarlar.dnaEvolutionMinOrnek || 10 });
   const loaded = models.trades ? { trades: models.trades } : dnaEvolution.loadTrades();
   const regime = inferPerformanceRegime(loaded.trades || [], num(options.regimeWindow, ayarlar.dnaLeagueRejimPenceresi || 60), num(options.regimeEdgeThreshold, ayarlar.dnaLeagueRejimEdgeEsik || 0.025));
@@ -531,6 +607,7 @@ function build(models = {}, options = {}) {
       generatedAt: new Date().toISOString(),
       leagues: preservedLeagues,
       identityAudit: dnaIdentity.audit(),
+      transferIdentityMigration,
       audit: { ...audit(Object.values(preservedLeagues).flat(), preservedLeagues), duplicateLeagueKeys: duplicateLeagueKeys(preservedLeagues), singleDnaSingleLeague: duplicateLeagueKeys(preservedLeagues).length === 0 },
       recovery: {
         ...(previous.recovery || {}),
@@ -587,6 +664,7 @@ function build(models = {}, options = {}) {
     },
     leagues,
     identityAudit: dnaIdentity.audit(),
+    transferIdentityMigration,
     worstTen: worst,
     worstTenCount: worst.length,
     audit: { ...audit(players, leagues), duplicateLeagueKeys: duplicateLeagueKeys(leagues), singleDnaSingleLeague: duplicateLeagueKeys(leagues).length === 0 },
@@ -797,13 +875,13 @@ function telegramText(model, options = {}) {
     text += `\n✅ Kayıp şampiyon yok: Premier şartlarını geçen bütün DNA'lar Premier'de.`;
   }
   const ready = (model.leagues?.premier || []).filter(x => (x.premierValidation || premierValidation(x)).eligible && x.exit?.ready);
-  text += `\n🚀 <b>BUGÜN GERÇEK EMİR ADAYI</b>: ${ready.length}`;
-  text += ready.length ? `\n` + ready.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel || dnaIdentity.label(x.dnaId)} | ${shortKey(x.key)} | ${x.exit.algorithmLabel} | DNA N${x.total} / ExitN${x.exit.samples}`).join('\n') : `\nDoğrulanmış DNA + güncel pozitif Exit eşleşmesi henüz yok; gerçek emir için fail-closed.`;
+  text += `\n🧾 <b>TARİHSEL DNA + EXIT ADAYI</b>: ${ready.length}`;
+  text += ready.length ? `\n` + ready.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel || dnaIdentity.label(x.dnaId)} | ${shortKey(x.key)} | ${x.exit.algorithmLabel} | DNA N${x.total} / ExitN${x.exit.samples}`).join('\n') : `\nTarihsel DNA + güncel pozitif Exit eşleşmesi henüz yok.`;
   text += `\n🎯 Kural: ${model.audit?.rule || 'Premier League 2.0'}. Diğer göstergeler yalnızca sıralama içindir.`;
   return text;
 }
 
-module.exports = { normalizeSignatureKey, baseSignatureKey, realizedMetrics, premierValidation, leagueDecision, findAssignedLeague, applyLeagueDecisions, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, transferEvents, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
+module.exports = { TRANSFER_ID_MIGRATION_VERSION, TRANSFER_BACKUP_FILE, migrateTransferHistory, appendTransfers, resolveTransferIdentity, normalizeSignatureKey, baseSignatureKey, realizedMetrics, premierValidation, leagueDecision, findAssignedLeague, applyLeagueDecisions, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, transferEvents, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
   VERSION,
   LEAGUE_FILE,
   TRANSFER_FILE,
