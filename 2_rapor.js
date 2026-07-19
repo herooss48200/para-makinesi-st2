@@ -8,6 +8,7 @@ const premierObservation = require('./48_premier_observation_engine.js');
 const adaptiveTradingLeague = require('./49_adaptive_trading_league.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
 const exitVictoryAudit = require('./57_exit_victory_audit.js');
+const realOrderReadiness = require('./50_real_order_readiness_bridge.js');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
@@ -323,7 +324,10 @@ async function dnaLeagueRaporuGonderGerekirse(model = null) {
         const sonuclar = await h.telegramMesajGonder(mesaj);
         const basarili = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ok);
         if (basarili) {
-            console.log(`🏆 [DNA LEAGUE] Telegram raporu gönderildi | Premier: ${leagueModel.leagueSizes?.premier || 0} | Transfer kapanışı: ${transferKapanisi}`);
+            const preparation = realOrderReadiness.buildPreparation(leagueModel);
+            const hazirlikMesaji = realOrderReadiness.preparationTelegram(preparation, Math.max(1, Number(ayarlar.dnaLeagueTelegramTopAday || 3)));
+            await h.telegramMesajGonder(hazirlikMesaji);
+            console.log(`🏆 [DNA LEAGUE] Telegram raporu gönderildi | Premier: ${leagueModel.leagueSizes?.premier || 0} | Gerçek aday: ${preparation.readyCount || 0} | Transfer kapanışı: ${transferKapanisi}`);
         } else {
             console.error(`❌ [DNA LEAGUE TELEGRAM HATASI] Mesaj Telegram tarafından onaylanmadı | Transfer kapanışı: ${transferKapanisi}`);
         }

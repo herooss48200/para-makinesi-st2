@@ -10,8 +10,9 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
+const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.3.7-MEMORY-SAFE-REPLAY';
+const VERSION = 'v4.6.0-DYNAMIC-EXIT-DNA-ID';
 const DATA_DIR = path.join(__dirname, 'data');
 const REPLAY_JSONL = path.join(DATA_DIR, 'exit-replay-results.jsonl');
 const MODEL_JSON = path.join(DATA_DIR, 'dynamic-dna-exit-model.json');
@@ -64,7 +65,7 @@ function runtimeDnaRow(d,min){
     regimes[key]={key:r.key||key,family:r.family,regime:r.regime,volatility:r.volatility,best:r.best||null,algorithms:uniqueCandidates([r.best,relative])};
   }
   const allRelative=bestRelative(d?.allAlgorithms||[],Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,5)));
-  return {key:d.key,regimes,allBest:d.allBest||null,allAlgorithms:uniqueCandidates([d.allBest,allRelative])};
+  const identity=dnaIdentity.ensure(d.key,{source:'DYNAMIC_EXIT_RUNTIME'});return {key:d.key,dnaId:identity?.id||d.dnaId||null,dnaLabel:identity?.label||d.dnaLabel||'DNA #YOK',identityKey:identity?.key||dnaIdentity.identityKey(d.key),regimes,allBest:d.allBest||null,allAlgorithms:uniqueCandidates([d.allBest,allRelative])};
 }
 function createRuntimeModel(model){
   const min=Math.max(3,num(ayarlar.dynamicExitMinOrnek,12));
@@ -214,6 +215,8 @@ function addRecordToState(state,rec){
 function finalizeBuild(state,options={}){
   const min=Math.max(3,num(options.minSamples,ayarlar.dynamicExitMinOrnek||12));
   const dna=profilesFromBuckets(state.detailBuckets,min);const dnaBase=profilesFromBuckets(state.baseBuckets,min);
+  const identityMap=dnaIdentity.ensureMany([...dna,...dnaBase].map(x=>x.key),{source:'DYNAMIC_EXIT_MODEL'});
+  for(const row of [...dna,...dnaBase]){const id=identityMap.get(dnaIdentity.identityKey(row.key));row.dnaId=id?.id||null;row.dnaLabel=id?.label||'DNA #YOK';row.identityKey=id?.key||dnaIdentity.identityKey(row.key);}
   const counts={};for(const r of state.recentRegimes)counts[r.key]=(counts[r.key]||0)+1;
   const currentKey=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'MIXED|VOL_MEDIUM';const [regimePart,volPart]=currentKey.split('|');
   const model={version:VERSION,generatedAt:new Date().toISOString(),mode:'DYNAMIC_PER_TRANSFER_AND_FROZEN_PER_POSITION',totalTrades:state.totalTrades,totalDna:dna.length,totalBaseDna:dnaBase.length,currentRegime:{key:currentKey,regime:regimePart,regimeFamily:regimePart.startsWith('TREND')?'TREND':regimePart,volatility:String(volPart||'VOL_MEDIUM').replace('VOL_',''),window:state.recentRegimes.length,distribution:counts},dna,dnaBase,policy:{singlePermanentExit:false,reevaluateAtLeagueTransfer:true,freezeOnlyOpenedPosition:true,selectionOrder:['DNA_EXACT_REGIME_VOLATILITY','DNA_REGIME_FAMILY','DNA_ALL_REGIMES','BASE_DNA_FALLBACK','ACTUAL_FALLBACK'],memorySafeReplay:true}};
@@ -265,10 +268,11 @@ function selectForPosition(pos,model=null,options={}){
     if(!selected){const allRelative=bestRelative(d.allAlgorithms||[],Math.max(min,num(ayarlar.dynamicExitFallbackMinOrnek,5)));if(allRelative){selected=allRelative;scope=usedBase?'BASE_DNA_ALL_RELATIVE_BEST':'DNA_ALL_RELATIVE_BEST';matchedRegime='ALL';selectionQuality='RELATIVE_BEST';}}
   }
   const ready=Boolean(selected);
-  const plan={version:VERSION,mode:'SHADOW_ONLY',signature:dnaKey||rawDnaKey||'SIGNATURE_YOK',baseSignature:baseKey||null,currentRegime:regime,matchedRegime,selectionScope:scope,selectionQuality,selectedAlgorithmId:ready?selected.algorithmId:'ACTUAL',selectedAlgorithmLabel:ready?selected.algorithmLabel:'Mevcut Kademe Sistemi',ready,samples:ready?selected.samples:0,beatRate:ready?selected.beatRate:0,profitFactor:ready?selected.profitFactor:0,netUsdt:ready?selected.netUsdt:0,recent5:ready?selected.windows?.[5]:null,recent20:ready?selected.windows?.[20]:null,strengthening:ready?selected.strengthening:false,weakening:ready?selected.weakening:false,reason:ready?(selectionQuality==='RELATIVE_BEST'?`${regime.key} için pozitif exit yok; göreceli en iyi atandı: ${selected.algorithmLabel}`:`${regime.key} için ${scope}: ${selected.algorithmLabel}`):`${dnaKey?'Bu DNA için en az 5 örnekli dinamik exit henüz yok; mevcut kademe kullanılır.':'DNA imzası yok.'}`,createdAt:new Date().toISOString(),executionPolicy:'FREEZE_PER_OPEN_POSITION_ROTATE_FOR_NEW_POSITIONS_EVERY_5_CLOSES'};
+  const identity=dnaIdentity.ensure(dnaKey||baseKey||rawDnaKey,{source:'DYNAMIC_EXIT_SELECTION'});
+  const plan={version:VERSION,mode:'SHADOW_ONLY',dnaId:identity?.id||d?.dnaId||null,dnaLabel:identity?.label||d?.dnaLabel||'DNA #YOK',identityKey:identity?.key||dnaIdentity.identityKey(dnaKey||baseKey||rawDnaKey),signature:dnaKey||rawDnaKey||'SIGNATURE_YOK',baseSignature:baseKey||null,currentRegime:regime,matchedRegime,selectionScope:scope,selectionQuality,selectedAlgorithmId:ready?selected.algorithmId:'ACTUAL',selectedAlgorithmLabel:ready?selected.algorithmLabel:'Mevcut Kademe Sistemi',ready,samples:ready?selected.samples:0,beatRate:ready?selected.beatRate:0,profitFactor:ready?selected.profitFactor:0,netUsdt:ready?selected.netUsdt:0,recent5:ready?selected.windows?.[5]:null,recent20:ready?selected.windows?.[20]:null,strengthening:ready?selected.strengthening:false,weakening:ready?selected.weakening:false,reason:ready?(selectionQuality==='RELATIVE_BEST'?`${regime.key} için pozitif exit yok; göreceli en iyi atandı: ${selected.algorithmLabel}`:`${regime.key} için ${scope}: ${selected.algorithmLabel}`):`${dnaKey?'Bu DNA için en az 5 örnekli dinamik exit henüz yok; mevcut kademe kullanılır.':'DNA imzası yok.'}`,createdAt:new Date().toISOString(),executionPolicy:'FREEZE_PER_OPEN_POSITION_ROTATE_FOR_NEW_POSITIONS_EVERY_5_CLOSES'};
   if(options.persistDecision!==false){ensureDir();fs.appendFileSync(HISTORY_JSONL,JSON.stringify({...plan,symbol:pos?.sym||'',side:pos?.yon||''})+'\n');}return plan;
 }
 function updateFromReplay(){return buildFromReplayFile({persist:true});}
-function telegramSummary(model=null,limit=5){const m=model||readModel();if(!m)return'';let t=`\n\n🧬 <b>DİNAMİK DNA EXIT MOTORU</b>\n🌦️ Güncel rejim: <b>${m.currentRegime.key}</b> | Pencere ${m.currentRegime.window}\n🔁 Kural: Aynı DNA, farklı rejimde farklı exit seçebilir.\n`;const leaders=[];for(const d of m.dna||[]){const r=d.regimes?.[m.currentRegime.key];if(r?.best)leaders.push({dna:d.key,b:r.best});}leaders.sort((a,b)=>b.b.score-a.b.score);t+=leaders.slice(0,limit).map((x,i)=>`${i+1}. ${x.dna} → ${x.b.algorithmLabel} | N${x.b.samples} | PF ${num(x.b.profitFactor).toFixed(2)} | Beat %${num(x.b.beatRate).toFixed(1)}`).join('\n')||'Bu rejimde yeterli kanıtlı exit henüz yok.';t+='\n🛡️ Shadow mod: gerçek çıkış sistemi değişmedi.';return t;}
+function telegramSummary(model=null,limit=5){const m=model||readModel();if(!m)return'';let t=`\n\n🧬 <b>DİNAMİK DNA EXIT MOTORU</b>\n🌦️ Güncel rejim: <b>${m.currentRegime.key}</b> | Pencere ${m.currentRegime.window}\n🔁 Kural: Aynı DNA, farklı rejimde farklı exit seçebilir.\n`;const leaders=[];for(const d of m.dna||[]){const r=d.regimes?.[m.currentRegime.key];if(r?.best)leaders.push({dna:d.key,dnaLabel:d.dnaLabel||dnaIdentity.ensure(d.key,{source:'DYNAMIC_EXIT_TELEGRAM'})?.label||'DNA #YOK',b:r.best});}leaders.sort((a,b)=>b.b.score-a.b.score);t+=leaders.slice(0,limit).map((x,i)=>`${i+1}. ${x.dnaLabel} — ${x.dna} → ${x.b.algorithmLabel} | N${x.b.samples} | PF ${num(x.b.profitFactor).toFixed(2)} | Beat %${num(x.b.beatRate).toFixed(1)}`).join('\n')||'Bu rejimde yeterli kanıtlı exit henüz yok.';t+='\n🛡️ Shadow mod: gerçek çıkış sistemi değişmedi.';return t;}
 
 module.exports={VERSION,MODEL_JSON,RUNTIME_MODEL_JSON,normalizeDnaKey,baseDnaKey,classifyInput,build,buildFromReplayFile,createRuntimeModel,writeRuntimeModel,readModel,selectForPosition,updateFromReplay,telegramSummary};

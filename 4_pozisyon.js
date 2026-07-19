@@ -986,6 +986,8 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     const telegramSonuclari = await h.telegramMesajGonder(
         `${emoji} <b>${baslik}</b>\n` +
         `🔀 ${pos.sym} (${pos.yon})\n` +
+        `🪪 ${pos.dnaLabel || pos.realOrderReadiness?.dnaLabel || pos.premierObservation?.dnaLabel || 'DNA #YOK'}\n` +
+        `🧬 DNA: ${pos.realOrderReadiness?.key || pos.dnaLeagueProfile?.key || pos.premierObservation?.key || 'YOK'}\n` +
         `🕒 Açılış: ${blackbox.tarihSaat(pos.acilisZamani || pos.zaman)}\n` +
         `🕒 Kapanış: ${blackbox.tarihSaat(kapanisZamani)}\n` +
         `⏳ Süre: ${blackbox.sureMetni(kapanisZamani - Number(pos.acilisZamani || pos.zaman || kapanisZamani))}\n` +

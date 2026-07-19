@@ -5,8 +5,9 @@ const ayarlar = require('./ayarlar.js');
 const league = require('./46_dna_league_engine.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
+const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.4.1-LEAGUE-RECOVERY-REPAIR';
+const VERSION = 'v4.6.0-PREMIER-OBSERVATION-DNA-ID';
 const EXPERIMENT_ID = String(ayarlar.premierTestExperimentId || 'DYNAMIC-LEAGUE-EXIT-2026-07-17');
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'adaptive-league-observation.json');
@@ -83,6 +84,7 @@ function snapshot(pos) {
     if (!pos || ayarlar.premierObservationAktif === false) return null;
     const key = signature(pos);
     const player = league.findPlayer(key);
+    const identity = dnaIdentity.ensure(key, { source: 'PREMIER_OBSERVATION_OPEN' });
     const selected = dynamicExit.selectForPosition(pos) || null;
     const lig = player?.league || pos?.gercekLig || 'UNRANKED';
     const track = trackFor(lig);
@@ -90,6 +92,9 @@ function snapshot(pos) {
     const obs = {
         version: VERSION,
         performanceLayer: storage.kind,
+        dnaId: identity?.id || pos?.dnaId || player?.dnaId || null,
+        dnaLabel: identity?.label || pos?.dnaLabel || player?.dnaLabel || 'DNA #YOK',
+        identityKey: identity?.key || pos?.dnaIdentityKey || dnaIdentity.identityKey(key),
         key: key || 'SIGNATURE_YOK',
         leagueAtOpen: lig,
         qualifiedAtOpen: track !== 'SHADOW',
@@ -106,7 +111,13 @@ function snapshot(pos) {
     const st = storage.read();
     st.opened++;
     bucketFor(st, track).opened++;
-    st.byDna[obs.key] = st.byDna[obs.key] || { ...bucket(), key: obs.key, lastLeague: obs.leagueAtOpen, lastExit: selected?.selectedAlgorithmId || 'ACTUAL' };
+    st.byDna[obs.key] = st.byDna[obs.key] || { ...bucket(), dnaId: obs.dnaId, dnaLabel: obs.dnaLabel, identityKey: obs.identityKey, key: obs.key, lastLeague: obs.leagueAtOpen, lastExit: selected?.selectedAlgorithmId || 'ACTUAL' };
+    // Eski öğrenilmiş gözlem kovaları DNA ID öncesinden kalmış olabilir.
+    // Her açılışta merkezi kayıt defterindeki kimliği geriye dönük tamamla.
+    st.byDna[obs.key].dnaId = obs.dnaId;
+    st.byDna[obs.key].dnaLabel = obs.dnaLabel;
+    st.byDna[obs.key].identityKey = obs.identityKey;
+    st.byDna[obs.key].key = obs.key;
     st.byDna[obs.key].opened++;
     st.byDna[obs.key].lastLeague = obs.leagueAtOpen;
     st.byDna[obs.key].lastExit = selected?.selectedAlgorithmId || 'ACTUAL';
@@ -133,6 +144,7 @@ function close(pos, result = {}) {
     const row = {
         version: VERSION, performanceLayer: storage.kind, experimentId: storage.kind === 'REAL_TRADING' ? 'REAL-TRADING-LIFETIME' : EXPERIMENT_ID,
         closedAt: new Date().toISOString(), openedAt: obs.openedAt, symbol: pos.sym, direction: pos.yon,
+        dnaId: obs.dnaId || pos?.dnaId || null, dnaLabel: obs.dnaLabel || pos?.dnaLabel || 'DNA #YOK', identityKey: obs.identityKey || pos?.dnaIdentityKey || dnaIdentity.identityKey(obs.key),
         key: obs.key, track: obs.learningTrack, leagueAtOpen: obs.leagueAtOpen, leagueScore: obs.leagueScore,
         confidence: obs.confidence, regime: obs.regime, exitAlgorithmId: exitId,
         exitAlgorithmLabel: obs.exit?.selectedAlgorithmLabel || 'Mevcut Kademe Sistemi', exitScope: obs.exit?.selectionScope || 'NONE',
@@ -148,7 +160,12 @@ function close(pos, result = {}) {
     const st = storage.read();
     st.closed++;
     apply(bucketFor(st, obs.learningTrack), outcome, net, commission);
-    st.byDna[obs.key] = st.byDna[obs.key] || { ...bucket(), key: obs.key, lastLeague: obs.leagueAtOpen, lastExit: exitId };
+    st.byDna[obs.key] = st.byDna[obs.key] || { ...bucket(), dnaId: obs.dnaId, dnaLabel: obs.dnaLabel, identityKey: obs.identityKey, key: obs.key, lastLeague: obs.leagueAtOpen, lastExit: exitId };
+    // Kapanış yolu da aynı merkezi kimliği zorunlu olarak taşır.
+    st.byDna[obs.key].dnaId = obs.dnaId || pos?.dnaId || st.byDna[obs.key].dnaId || null;
+    st.byDna[obs.key].dnaLabel = obs.dnaLabel || pos?.dnaLabel || st.byDna[obs.key].dnaLabel || 'DNA #YOK';
+    st.byDna[obs.key].identityKey = obs.identityKey || pos?.dnaIdentityKey || st.byDna[obs.key].identityKey || dnaIdentity.identityKey(obs.key);
+    st.byDna[obs.key].key = obs.key;
     apply(st.byDna[obs.key], outcome, net, commission);
     st.byDna[obs.key].lastLeague = obs.leagueAtOpen;
     st.byDna[obs.key].lastExit = exitId;
@@ -179,14 +196,28 @@ function activeRows(active = [], kind = 'LEAGUE_TEST') {
         const o = x?.premierObservation; if (!o) return null;
         const layer = o.performanceLayer || (x?.sanal === false ? 'REAL_TRADING' : 'LEAGUE_TEST');
         if (layer !== kind) return null;
-        return { symbol: x.sym, direction: x.yon, key: o.key, track: o.learningTrack, league: o.leagueAtOpen, score: o.leagueScore, exit: o.exit?.selectedAlgorithmLabel || 'Mevcut Kademe' };
+        return { symbol: x.sym, direction: x.yon, dnaId: o.dnaId || x.dnaId || null, dnaLabel: o.dnaLabel || x.dnaLabel || 'DNA #YOK', key: o.key, track: o.learningTrack, league: o.leagueAtOpen, score: o.leagueScore, exit: o.exit?.selectedAlgorithmLabel || 'Mevcut Kademe' };
     }).filter(Boolean);
+}
+function backfillDnaRows(byDna = {}, source = 'PREMIER_OBSERVATION_REPORT') {
+    // ID sistemi kurulmadan önce öğrenilmiş DNA kovalarını rapor anında topluca
+    // merkezî deftere bağla. Böylece yeni işlem beklemeden eski öğrenme de aynı ID ile görünür.
+    const identities = dnaIdentity.ensureMany(Object.keys(byDna), { source });
+    for (const [key, row] of Object.entries(byDna)) {
+        const identity = identities?.get(dnaIdentity.identityKey(key)) || dnaIdentity.find(key);
+        if (!identity || !row) continue;
+        row.dnaId = identity.id;
+        row.dnaLabel = identity.label;
+        row.identityKey = identity.key;
+        row.key = row.key || key;
+    }
+    return Object.values(byDna);
 }
 function buildModel(st, active, kind) {
     // Ayrıntılı model yalnız konsol/inceleme çağrılarında kullanılır. Büyük lig modeli ve
     // sıralı DNA dizileri Telegram rapor yolunda üretilmez.
     let leagueModel = null; try { leagueModel = league.build ? league.build() : null; } catch (_) {}
-    const dnaRows = Object.values(st.byDna || {});
+    const dnaRows = backfillDnaRows(st.byDna || {}, `PREMIER_OBSERVATION_${kind}_REPORT`);
     const exitRows = Object.values(st.byExit || {});
     return {
         ...st,
@@ -250,4 +281,4 @@ function telegramFromModel(m) {
     return t;
 }
 function telegram(active = []) { return telegramFromModel(summaryModel(active)); }
-module.exports = { VERSION, EXPERIMENT_ID, STATE_FILE, TRADES_FILE, REAL_STATE_FILE, REAL_TRADES_FILE, read, readReal, blocked, snapshot, close, model, realModel, summaryModel, realSummaryModel, __testBuildSummaryModel: buildSummaryModel, compactTelegramFromModel, telegramFromModel, compactTelegram, realCompactTelegram, telegram };
+module.exports = { VERSION, EXPERIMENT_ID, STATE_FILE, TRADES_FILE, REAL_STATE_FILE, REAL_TRADES_FILE, read, readReal, blocked, snapshot, close, model, realModel, summaryModel, realSummaryModel, __testBuildSummaryModel: buildSummaryModel, __testBackfillDnaRows: backfillDnaRows, compactTelegramFromModel, telegramFromModel, compactTelegram, realCompactTelegram, telegram };

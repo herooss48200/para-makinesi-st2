@@ -13,10 +13,14 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const dnaLeague = require('./46_dna_league_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
+const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
+const memorySafeIo = require('./53_memory_safe_io.js');
+const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.5.10-LEAGUE-MATCH-CONSISTENCY';
+const VERSION = 'v4.6.0-REAL-TRADING-PREPARATION';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
+const PREPARATION_JSON = path.join(DATA_DIR, 'real-trading-preparation.json');
 
 function num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
 function ensureDir() { if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true }); }
@@ -42,6 +46,7 @@ function realAuthorization() {
 function evaluate(pos, { realMode = false } = {}) {
   const key = signature(pos);
   const profile = dnaLeague.attachToPosition(pos);
+  const identity = key ? dnaIdentity.ensure(key, { source: 'REAL_ORDER_READINESS' }) : null;
   const exitPlan = dnaExitSelector.attachToPosition(pos);
   const maxAge = Math.max(5, num(ayarlar.gercekEmirLigModelMaksYasDakika, 360));
   const age = modelAgeMinutes();
@@ -98,6 +103,9 @@ function evaluate(pos, { realMode = false } = {}) {
     mode: realMode ? 'REAL' : 'VIRTUAL',
     symbol: pos?.sym || '',
     side: pos?.yon || '',
+    dnaId: identity?.id || profile?.dnaId || pos?.dnaId || null,
+    dnaLabel: identity?.label || profile?.dnaLabel || pos?.dnaLabel || 'DNA #YOK',
+    identityKey: identity?.key || profile?.identityKey || pos?.dnaIdentityKey || dnaIdentity.identityKey(key),
     key: key || 'SIGNATURE_YOK',
     allowed: realMode ? reasons.length === 0 : true,
     reasons,
@@ -108,6 +116,8 @@ function evaluate(pos, { realMode = false } = {}) {
     realTier,
     sizeMultiplier: realMode ? sizeMultiplier : 1,
     leagueModelAgeMinutes: Number.isFinite(age) ? Number(age.toFixed(2)) : null,
+    premierValidation: profile ? dnaLeague.premierValidation(profile) : null,
+    todayRealCandidate: currentLeague === 'PREMIER' && Boolean(profile && dnaLeague.premierValidation(profile).eligible) && Boolean(exitPlan?.ready) && exitPlan?.selectionQuality === 'POSITIVE_CONFIRMED',
     metrics: {
       total: num(profile?.pairMetrics?.total, profile?.total), expectancy: num(profile?.pairMetrics?.expectancy, profile?.expectancy),
       profitFactor: num(profile?.pairMetrics?.profitFactor, profile?.profitFactor), net: num(profile?.pairMetrics?.net, profile?.net),
@@ -134,14 +144,118 @@ function evaluate(pos, { realMode = false } = {}) {
     },
     authorization: realMode ? { enabled: auth.enabled, expectedConfigured: auth.expectedConfigured, envConfigured: auth.envConfigured, valid: auth.valid } : undefined
   };
-  decision.exit.assignmentId = `${decision.key}|${decision.exit.algorithmId}|${decision.exit.planCreatedAt || decision.at}`;
+  decision.exit.assignmentId = `${decision.dnaLabel}|${decision.key}|${decision.exit.algorithmId}|${decision.exit.planCreatedAt || decision.at}`;
   pos.realOrderReadiness = decision;
   pos.executionExitAssignment = { ...decision.exit, assignedAt: decision.at, immutable: true };
   pos.exitPlanActiveForVirtual = decision.exit.activeForPosition;
-  console.log(`${decision.allowed ? '✅' : '🚫'} [LİG KARAR TEŞHİSİ] ${decision.symbol} ${decision.side} | ${decision.key} | Lig ${decision.league} | Eşleşme ${decision.leagueMatchType} | Exit ${decision.exit.label} | Aktif ${decision.exit.activeForPosition ? 'EVET' : 'HAYIR'} | Scope ${decision.exit.scope} | ${decision.allowed ? 'İZİN' : decision.reasons.join(', ')}`);
+  console.log(`${decision.allowed ? '✅' : '🚫'} [LİG KARAR TEŞHİSİ] ${decision.symbol} ${decision.side} | ${decision.dnaLabel} | ${decision.key} | Lig ${decision.league} | Eşleşme ${decision.leagueMatchType} | Exit ${decision.exit.label} | Aktif ${decision.exit.activeForPosition ? 'EVET' : 'HAYIR'} | Scope ${decision.exit.scope} | ${decision.allowed ? 'İZİN' : decision.reasons.join(', ')}`);
   append(decision);
   return decision;
 }
+
+function eliteIndex(model = null) {
+  const m = model || dynamicExit.readModel() || {};
+  const map = new Map();
+  for (const row of [...(m.dnaBase || []), ...(m.dna || [])]) {
+    const key = dnaIdentity.identityKey(row?.key);
+    if (key && !map.has(key)) map.set(key, row);
+  }
+  return { model: m, map };
+}
+
+function buildPreparation(leagueModel = null, options = {}) {
+  const lm = leagueModel || dnaLeague.build();
+  const elites = eliteIndex(options.dynamicModel);
+  const players = lm?.allPlayers?.length ? lm.allPlayers : Object.values(lm?.leagues || {}).flat();
+  const seen = new Set();
+  const rows = [];
+  for (const player of players) {
+    const key = dnaLeague.normalizeSignatureKey(player?.key || '');
+    const identity = dnaIdentity.ensure(key, { source: 'REAL_TRADING_PREPARATION' });
+    if (!identity || seen.has(identity.id)) continue;
+    seen.add(identity.id);
+    const assignedLeague = dnaLeague.findAssignedLeague(key, lm?.leagues || {});
+    const validation = player?.premierValidation || dnaLeague.premierValidation(player);
+    const activeExit = player?.exit || {};
+    const elite = elites.map.get(identity.key)?.allBest || null;
+    const positiveExit = Boolean(activeExit.ready && activeExit.algorithmId !== 'ACTUAL' && num(activeExit.samples) >= 5 && num(activeExit.profitFactor) > 1 && num(activeExit.netUsdt) > 0);
+    const blockers = [];
+    if (assignedLeague !== 'PREMIER') blockers.push(`LIG_${assignedLeague}`);
+    for (const failed of validation.failed || []) blockers.push(`PREMIER_${String(failed.key).toUpperCase()}_FAIL`);
+    if (!positiveExit) blockers.push('GUNCEL_POZITIF_EXIT_KANITI_YOK');
+    const ready = assignedLeague === 'PREMIER' && validation.eligible && positiveExit;
+    rows.push({
+      dnaId: identity.id,
+      dnaLabel: identity.label,
+      identityKey: identity.key,
+      key,
+      league: assignedLeague,
+      ready,
+      blockers,
+      proof: {
+        total: num(player.total),
+        winRate: num(player.winRate),
+        profitFactor: num(player.profitFactor),
+        expectancy: num(player.expectancy),
+        net: num(player.net),
+        premierValidation: validation
+      },
+      activeExit: {
+        algorithmId: activeExit.algorithmId || 'ACTUAL',
+        label: activeExit.algorithmLabel || 'Mevcut Kademe Sistemi',
+        regime: activeExit.regimeKey || lm?.regime?.activeDirection || 'BILINMIYOR',
+        ready: positiveExit,
+        samples: num(activeExit.samples),
+        beatRate: num(activeExit.beatRate),
+        profitFactor: num(activeExit.profitFactor),
+        netUsdt: num(activeExit.netUsdt),
+        scope: activeExit.selectionScope || 'NONE'
+      },
+      eliteExit: {
+        algorithmId: elite?.algorithmId || activeExit.algorithmId || 'ACTUAL',
+        label: elite?.algorithmLabel || activeExit.algorithmLabel || 'Mevcut Kademe Sistemi',
+        samples: num(elite?.samples, activeExit.samples),
+        profitFactor: num(elite?.profitFactor),
+        netUsdt: num(elite?.netUsdt),
+        deltaUsdt: num(elite?.deltaUsdt)
+      },
+      score: num(player.leagueScore)
+    });
+  }
+  rows.sort((a, b) => Number(b.ready) - Number(a.ready) || b.score - a.score || b.proof.expectancy - a.proof.expectancy || b.proof.net - a.proof.net);
+  const ready = rows.filter(x => x.ready);
+  const out = {
+    version: VERSION,
+    generatedAt: new Date().toISOString(),
+    question: 'Bugün gerçek emir açacak olsam hangi DNA\'ları kullanırım?',
+    answer: ready.length ? `${ready.length} DNA, güncel pozitif Exit eşleşmesiyle matematiksel olarak hazır.` : 'Doğrulanmış DNA + güncel pozitif Exit eşleşmesi yok; gerçek emir açılmaz.',
+    failClosed: ready.length === 0,
+    currentRegime: elites.model?.currentRegime?.key || 'BILINMIYOR',
+    identityAudit: dnaIdentity.audit(),
+    premierCount: (lm?.leagues?.premier || []).length,
+    readyCount: ready.length,
+    ready,
+    exitPending: rows.filter(x => x.league === 'PREMIER' && x.proof.premierValidation?.eligible && !x.ready),
+    lostChampions: lm?.audit?.lostChampions || [],
+    all: rows
+  };
+  if (options.persist !== false) memorySafeIo.writeJsonAtomic(PREPARATION_JSON, out);
+  return out;
+}
+
+function preparationTelegram(model = buildPreparation(), limit = 5) {
+  let t = `\n\n🚀 <b>GERÇEK EMİR HAZIRLIK DENETİMİ — v4.6</b>\n`;
+  t += `❓ Bugün gerçek emir açsam hangi DNA'ları kullanırım?\n`;
+  t += `📌 ${model.answer}\n`;
+  t += `🏆 Premier ${model.premierCount} | ✅ Tam hazır ${model.readyCount} | ⏳ Exit bekleyen ${model.exitPending.length}\n`;
+  if (model.ready.length) {
+    t += model.ready.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel} — ${x.key}\n   DNA: N${x.proof.total} | WR %${x.proof.winRate.toFixed(2)} | PF ${x.proof.profitFactor.toFixed(2)} | Exp ${x.proof.expectancy.toFixed(4)} | Net ${x.proof.net.toFixed(4)}\n   🎯 Aktif Exit (${x.activeExit.regime}): ${x.activeExit.label} | ExitN${x.activeExit.samples} | PF ${x.activeExit.profitFactor.toFixed(2)}\n   ⭐ Tüm Dönem Elite: ${x.eliteExit.label} | EliteN${x.eliteExit.samples}`).join('\n');
+  } else {
+    t += '🛑 Fail-closed: doğrulanmış eşleşme oluşmadan gerçek emir adayı üretilmez.';
+  }
+  return t;
+}
+
 function copyDecisionToPosition(target, source) {
   if (!target || !source) return target;
   if (source.dnaLeagueProfile) target.dnaLeagueProfile = source.dnaLeagueProfile;
@@ -172,4 +286,4 @@ function telegramText(d) {
     `🔎 Exit Sebebi: ${d.exit?.reason || 'YOK'}\n` +
     (!d.allowed ? `📌 Sebep: ${d.reasons.join(', ')}` : (d.mode === 'VIRTUAL' ? `🧪 Alt öğrenme katmanı: tüm geçerli DNA'lar açık | Lig yalnız etiket` : `🔒 Gerçek katman: ${d.realTier} | Boyut x${num(d.sizeMultiplier, 1).toFixed(2)} | Güncel kazanan exit`));
 }
-module.exports = { VERSION, AUDIT_JSONL, evaluate, copyDecisionToPosition, telegramText, realAuthorization };
+module.exports = { VERSION, AUDIT_JSONL, PREPARATION_JSON, evaluate, buildPreparation, preparationTelegram, copyDecisionToPosition, telegramText, realAuthorization };

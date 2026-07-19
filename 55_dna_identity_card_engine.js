@@ -3,9 +3,10 @@ const path = require('path');
 const league = require('./46_dna_league_engine.js');
 const dynamic = require('./47_dynamic_dna_exit_engine.js');
 const io = require('./53_memory_safe_io.js');
+const identity = require('./59_dna_identity_registry.js');
 
 const OUT = path.join(__dirname, 'data', 'dna-identity-cards.json');
-const VERSION = 'v4.5.5-DNA-IDENTITY-ACTIVE-ELITE-SEPARATION';
+const VERSION = 'v4.6.0-DNA-IDENTITY-PREMIER-VALIDATION';
 
 function n(v, d = 0) {
   v = Number(v);
@@ -40,9 +41,17 @@ function build(leagueModel = null, dynamicModel = null) {
   const lm = leagueModel || league.build();
   const dm = dynamicModel || dynamic.readModel() || {};
   const old = io.readJsonBounded(OUT, { cards: [] }, { maxBytes: 24 * 1024 * 1024 });
-  const oldMap = new Map((old.cards || []).map(x => [x.dna, x]));
+  const oldMap = new Map((old.cards || []).flatMap(x => [[x.dna, x], [x.dnaId ? `ID:${x.dnaId}` : '', x]]).filter(([k]) => k));
   const players = [...Object.values(lm.leagues || {}).flat()];
-  const dynamicMap = new Map((dm.dna || []).map(x => [league.normalizeSignatureKey(x.key), x]));
+  const dynamicMap = new Map();
+  // Kimlik düzeyi 256 temel DNA olduğundan tüm-zaman Elite için önce dnaBase kullanılır.
+  // Eski modellerde dnaBase yoksa ayrıntılı dna satırı güvenli fallback'tir.
+  for (const row of [...(dm.dnaBase || []), ...(dm.dna || [])]) {
+    const exact = league.normalizeSignatureKey(row?.key || '');
+    const base = identity.identityKey(row?.key || '');
+    if (exact && !dynamicMap.has(exact)) dynamicMap.set(exact, row);
+    if (base && !dynamicMap.has(base)) dynamicMap.set(base, row);
+  }
   const seen = new Set();
   const cards = [];
 
@@ -51,9 +60,10 @@ function build(leagueModel = null, dynamicModel = null) {
     if (!dna || seen.has(dna)) continue;
     seen.add(dna);
 
-    const dnaDynamic = dynamicMap.get(dna);
+    const dnaIdentity = identity.ensure(dna, { source: 'DNA_IDENTITY_CARD' });
+    const dnaDynamic = dynamicMap.get(dna) || dynamicMap.get(identity.identityKey(dna));
     const allTimeElite = dnaDynamic?.allBest || null;
-    const previous = oldMap.get(dna);
+    const previous = oldMap.get(`ID:${dnaIdentity?.id}`) || oldMap.get(dna);
     const resultSequence = player.recent5?.results || player.recent5?.sequence || '';
     const tp = n(player.tp);
     const sl = n(player.sl);
@@ -76,9 +86,14 @@ function build(leagueModel = null, dynamicModel = null) {
     const eliteExitSamples = n(allTimeElite?.samples, activeExitSamples);
     const eliteDiffersFromActive = eliteExitId !== activeExitId;
 
+    const assignedLeague = leagueName(dna, lm);
+    const premierAudit = player.premierValidation || league.premierValidation(player);
     cards.push({
+      dnaId: dnaIdentity?.id || player.dnaId || null,
+      dnaLabel: dnaIdentity?.label || player.dnaLabel || 'DNA #YOK',
+      identityKey: dnaIdentity?.key || identity.identityKey(dna),
       dna,
-      league: leagueName(dna, lm),
+      league: assignedLeague,
       previousLeague: previous?.league || null,
       premierScore: +n(player.leagueScore).toFixed(2),
       trades: n(player.total),
@@ -104,13 +119,10 @@ function build(leagueModel = null, dynamicModel = null) {
       exitAdvantage: +n(allTimeElite?.deltaUsdt || allTimeElite?.netUsdt || player.exit?.deltaUsdt).toFixed(4),
       characters: chars(player),
       premierAudit: {
-        eligible: n(player.total) >= 10 && n(player.expectancy) > 0 && n(player.profitFactor) > 1 && n(player.net) > 0,
-        reasons: [
-          n(player.total) >= 10 ? `N ${n(player.total)} >= 10` : `N ${n(player.total)} < 10`,
-          n(player.expectancy) > 0 ? 'Expectancy pozitif' : 'Expectancy pozitif değil',
-          n(player.profitFactor) > 1 ? 'PF > 1' : 'PF <= 1',
-          n(player.net) > 0 ? 'Net pozitif' : 'Net pozitif değil'
-        ]
+        ...premierAudit,
+        assignedLeague,
+        leagueReason: player.leagueReason || league.leagueDecision(player, assignedLeague).reason,
+        reasons: Object.values(premierAudit.checks || {}).map(x => `${x.passed ? '✓' : '✗'} ${x.rule} | gerçek ${x.actual}`)
       },
       updatedAt: new Date().toISOString()
     });
@@ -121,7 +133,8 @@ function build(leagueModel = null, dynamicModel = null) {
     createdAt: new Date().toISOString(),
     currentRegime: dm.currentRegime?.key || 'BILINMIYOR',
     count: cards.length,
-    cards: cards.sort((a, b) => b.premierScore - a.premierScore)
+    identityAudit: identity.audit(),
+    cards: cards.sort((a, b) => b.premierScore - a.premierScore || n(a.dnaId) - n(b.dnaId))
   };
   io.writeJsonAtomic(OUT, out);
   return out;
@@ -133,10 +146,10 @@ function telegram(out = build(), limit = 5) {
     const elite = card.eliteDiffersFromActive
       ? `\n   ⭐ Tüm Dönem Elite: ${card.eliteExit} | EliteN${card.eliteExitSamples}`
       : `\n   ⭐ Aktif/Elite aynı | EliteN${card.eliteExitSamples}`;
-    return `${index + 1}. ${card.dna}\n   ${card.league} | Skor ${card.premierScore} | N${card.trades} | WR %${card.winRate} | Net ${card.net >= 0 ? '+' : ''}${card.net} | PF ${card.profitFactor}\n${active}${elite}\n   📈 Form: ${card.trend}`;
+    return `${index + 1}. ${card.dnaLabel} — ${card.dna}\n   ${card.league} | Skor ${card.premierScore} | N${card.trades} | WR %${card.winRate} | Net ${card.net >= 0 ? '+' : ''}${card.net} | PF ${card.profitFactor}\n${active}${elite}\n   📈 Form: ${card.trend}`;
   });
 
-  return `\n\n🪪 <b>DNA KİMLİK KARTLARI — v4.5.5</b>\nToplam profil: ${out.count} | Güncel rejim: ${out.currentRegime} | Aktif ve tüm dönem Elite exit ayrı gösterilir\n${rows.join('\n')}`;
+  return `\n\n🪪 <b>DNA KİMLİK KARTLARI — v4.6</b>\nToplam profil: ${out.count} | Güncel rejim: ${out.currentRegime} | Aktif ve tüm dönem Elite exit ayrı gösterilir\n${rows.join('\n')}`;
 }
 
 module.exports = { VERSION, OUT, build, telegram };

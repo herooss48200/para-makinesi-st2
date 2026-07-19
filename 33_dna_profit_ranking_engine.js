@@ -13,7 +13,9 @@
  * - Yalnızca mevcut kapanmış işlem istatistiklerini okur.
  */
 
-const VERSION = 'ER-A1-DNA-PROFIT-RANKING-v1';
+const dnaIdentity = require('./59_dna_identity_registry.js');
+
+const VERSION = 'ER-A1-DNA-PROFIT-RANKING-v4.6-ID';
 
 function num(value, fallback = 0) {
   const n = Number(value);
@@ -131,6 +133,14 @@ function rank(stats = {}, options = {}) {
       return model;
     });
 
+  const idMap = dnaIdentity.ensureMany(rows.map(row => row.key), { source: 'STRATEGY_LAB_RANKING' });
+  for (const row of rows) {
+    const id = idMap.get(dnaIdentity.identityKey(row.key));
+    row.dnaId = id?.id || null;
+    row.dnaLabel = id?.label || 'DNA #YOK';
+    row.identityKey = id?.key || dnaIdentity.identityKey(row.key);
+  }
+
   const eligible = rows.filter(row => row.ready);
   const positive = eligible
     .filter(row => row.expectancy > 0 && row.net > 0)
@@ -160,7 +170,7 @@ function shortKey(row, max = 30) {
 }
 
 function rowText(row, index) {
-  return `${index + 1}. ${shortKey(row)} | N:${row.total} | Exp ${signed(row.expectancy, 4)} | PF ${row.profitFactor.toFixed(2)} | Net ${signed(row.net, 2)} | Güven ${row.confidence}`;
+  return `${index + 1}. ${row.dnaLabel || dnaIdentity.label(row.dnaId)} — ${shortKey(row)} | N:${row.total} | Exp ${signed(row.expectancy, 4)} | PF ${row.profitFactor.toFixed(2)} | Net ${signed(row.net, 2)} | Güven ${row.confidence}`;
 }
 
 function telegramText(model, options = {}) {

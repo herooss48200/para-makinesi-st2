@@ -4,7 +4,7 @@ const replay = require('./22_exit_replay_engine.js');
 const dashboard = require('./45_exit_evolution_dashboard.js');
 const league = require('./46_dna_league_engine.js');
 
-assert.strictEqual(league.CLASSIFICATION_POLICY_VERSION, 3, 'Politika sürümü yeniden sınıflandırmayı tetiklemeli');
+assert.strictEqual(league.CLASSIFICATION_POLICY_VERSION, 4, 'v4.6 politika sürümü yeniden sınıflandırmayı tetiklemeli');
 assert.strictEqual(league.classificationPolicyMigrationRequired({ classificationPolicyVersion: 2 }), true);
 
 const catalog = replay.algorithms().filter(x => x.isExecutable !== false);

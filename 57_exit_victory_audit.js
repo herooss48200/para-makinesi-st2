@@ -4,8 +4,9 @@ const health = require('./54_exit_health_check.js');
 const cards = require('./55_dna_identity_card_engine.js');
 const dynamic = require('./47_dynamic_dna_exit_engine.js');
 const executor = require('./51_sanal_dynamic_exit_executor.js');
+const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.5.5-EXIT-SOURCE-OF-TRUTH-FINAL';
+const VERSION = 'v4.6.0-EXIT-AUDIT-DNA-ID';
 const CORE_EXPECTED = 27;
 
 function n(v,d=0){v=Number(v);return Number.isFinite(v)?v:d;}
@@ -45,7 +46,8 @@ function assignmentPreflight(limit=8){
     const side=key.includes('YON=SHORT')?'SHORT':'LONG';
     const pos={sym:'SELFTEST',yon:side,sanal:true,acilisZamani:Date.now(),blackboxAcilis:{strategySignature:{key,shortKey:key}}};
     const plan=dynamic.selectForPosition(pos,model,{persistDecision:false});
-    rows.push({dna:key,ready:Boolean(plan?.ready),algorithmId:plan?.selectedAlgorithmId||'ACTUAL',algorithmLabel:plan?.selectedAlgorithmLabel||'Mevcut Kademe Sistemi',samples:n(plan?.samples),supported:plan?.ready?executor.isSupported(plan.selectedAlgorithmId):false,scope:plan?.selectionScope||'NONE'});
+    const identity=plan?.dnaId?{id:plan.dnaId,label:plan.dnaLabel}:dnaIdentity.ensure(key,{source:'EXIT_PREFLIGHT'});
+    rows.push({dnaId:identity?.id||null,dnaLabel:identity?.label||'DNA #YOK',dna:key,ready:Boolean(plan?.ready),algorithmId:plan?.selectedAlgorithmId||'ACTUAL',algorithmLabel:plan?.selectedAlgorithmLabel||'Mevcut Kademe Sistemi',samples:n(plan?.samples),supported:plan?.ready?executor.isSupported(plan.selectedAlgorithmId):false,scope:plan?.selectionScope||'NONE'});
   }
   const ready=rows.filter(x=>x.ready),executable=ready.filter(x=>x.supported),unsupported=ready.filter(x=>!x.supported);
   return {profiles:rows.length,ready:ready.length,executable:executable.length,unsupported:unsupported.length,rows:executable.slice(0,limit),unsupportedRows:unsupported.slice(0,limit)};
@@ -57,7 +59,7 @@ function activeAssignments(positions=[]){
     if(!plan) continue;
     rows.push({
       symbol:p.sym||p.symbol||'?', side:String(p.yon||p.side||'').toUpperCase(),
-      dna:plan.signature||'SIGNATURE_YOK', ready:Boolean(plan.ready),
+      dnaId:plan.dnaId||p?.dnaId||null,dnaLabel:plan.dnaLabel||p?.dnaLabel||'DNA #YOK',dna:plan.signature||'SIGNATURE_YOK', ready:Boolean(plan.ready),
       algorithmId:plan.selectedAlgorithmId||'ACTUAL', algorithmLabel:plan.selectedAlgorithmLabel||'Mevcut Kademe Sistemi',
       samples:n(plan.samples), beatRate:n(plan.beatRate), pf:n(plan.profitFactor),
       frozen:Boolean(p?.adaptiveExecution?.frozenExit||p?.premierObservation?.frozenExit||p?.exitPlanFrozen),
@@ -86,7 +88,7 @@ function build(positions=[]){
 }
 function telegram(model,limit=8){
   const m=model||build([]), g=m.catalog.groups||{};
-  let t=`\n\n🏁 <b>EXIT ZAFER DENETİMİ — v4.5.5</b>\n`;
+  let t=`\n\n🏁 <b>EXIT ZAFER DENETİMİ — v4.6</b>\n`;
   t+=`🧠 Çekirdek algoritma: <b>${m.catalog.coreExpected}</b> | Aktif ayar varyantı: <b>${m.catalog.configured}</b> | Ek varyant: ${m.catalog.variantCount}\n`;
   t+=`🧩 Dağılım: Zaman ${g.TIME||0} | TP ${g.FIXED_TP||0} | MFE ${g.MFE||0} | ATR ${g.ATR||0} | Trend ${g.TREND||0} | Kademe ${g.LADDER||0} | Dinamik ${g.DYNAMIC||0} | Hibrit ${g.HYBRID||0}\n`;
   t+=`🧪 Canlı executor kapsamı: <b>${m.coverage.supported}/${m.coverage.total}</b> | Desteklenmeyen: ${m.coverage.unsupported.length}\n`;

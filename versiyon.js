@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'LEAGUE-MATCH-CONSISTENCY',
-    kod: 'AWS Candidate v4.5.10-LEAGUE-MATCH-CONSISTENCY',
-    botSurumu: '4.5.10-LEAGUE-MATCH-CONSISTENCY',
+    kodAdi: 'PREMIER-VALIDATION-REAL-TRADING-PREPARATION',
+    kod: 'AWS Candidate v4.6.0-PREMIER-VALIDATION-REAL-TRADING-PREPARATION',
+    botSurumu: '4.6.0-PREMIER-VALIDATION-REAL-TRADING-PREPARATION',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '19.07.2026',
     ortam: {

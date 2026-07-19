@@ -20,9 +20,10 @@ const ayarlar = require('./ayarlar.js');
 const dnaEvolution = require('./38_dna_evolution_engine.js');
 const dnaExitSelector = require('./43_dna_exit_selector.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
+const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.5.10-LEAGUE-MATCH-CONSISTENCY';
-const CLASSIFICATION_POLICY_VERSION = 3;
+const VERSION = 'v4.6.0-PREMIER-VALIDATION';
+const CLASSIFICATION_POLICY_VERSION = 4;
 const DATA_DIR = path.join(__dirname, 'data');
 const LEAGUE_FILE = path.join(DATA_DIR, 'dna-league-state.json');
 const TRANSFER_FILE = path.join(DATA_DIR, 'dna-league-transfers.jsonl');
@@ -199,7 +200,7 @@ function buildPlayers(models = {}, options = {}) {
   const exits = exitIndex();
   const regime = models.regime || inferPerformanceRegime(models.trades || [], options.regimeWindow, options.regimeEdgeThreshold);
 
-  return (ranking.all || []).map(row => {
+  const players = (ranking.all || []).map(row => {
     const confidence = confidenceMap.get(String(row.key)) || {};
     const evolution = evolutionMap.get(String(row.key)) || {};
     const exit = exitEvidence(String(row.key), exits);
@@ -260,7 +261,18 @@ function buildPlayers(models = {}, options = {}) {
       effectiveNet: pairMetrics.net,
       leagueScore
     };
-  }).sort((a, b) => b.leagueScore - a.leagueScore || b.expectancy - a.expectancy || b.total - a.total);
+  });
+
+  // Tek merkezli kimlik kaydı: ilk kurulumda toplu ve deterministik, sonraki
+  // DNA'larda otomatik artan ID. Sıralama değişse bile eski ID değişmez.
+  const identityMap = dnaIdentity.ensureMany(players.map(x => x.key), { source: 'DNA_LEAGUE_BUILD' });
+  for (const player of players) {
+    const identity = identityMap.get(dnaIdentity.identityKey(player.key));
+    player.dnaId = identity?.id || null;
+    player.dnaLabel = identity?.label || 'DNA #YOK';
+    player.identityKey = identity?.key || dnaIdentity.identityKey(player.key);
+  }
+  return players.sort((a, b) => b.leagueScore - a.leagueScore || b.expectancy - a.expectancy || b.total - a.total);
 }
 
 function realizedMetrics(player = {}) {
@@ -283,16 +295,50 @@ function recentFivePositive(player) {
   return num(r.total) >= 5 && num(r.expectancy) > 0 && num(r.profitFactor) > 1 && num(r.net) > 0;
 }
 
+function premierValidation(player = {}, options = {}) {
+  const minSample = Math.max(1, num(options.premierMinSample, ayarlar.dnaLeaguePremierMinOrnek || 5));
+  const checks = {
+    sample: { passed: num(player.total) >= minSample, actual: num(player.total), rule: `N >= ${minSample}` },
+    profitFactor: { passed: num(player.profitFactor) > 1, actual: round(player.profitFactor, 3), rule: 'PF > 1' },
+    net: { passed: num(player.net) > 0, actual: round(player.net, 6), rule: 'Net > 0' },
+    expectancy: { passed: num(player.expectancy) > 0, actual: round(player.expectancy, 6), rule: 'Expectancy > 0' },
+    survival: { passed: player.death !== 'OLUM_RISKI', actual: player.death || 'YOK', rule: 'Ölüm riski yok' }
+  };
+  const failed = Object.entries(checks).filter(([, v]) => !v.passed).map(([key, v]) => ({ key, ...v }));
+  const passed = Object.entries(checks).filter(([, v]) => v.passed).map(([key, v]) => ({ key, ...v }));
+  return {
+    policy: 'PREMIER_LEAGUE_2_0',
+    minSample,
+    eligible: failed.length === 0,
+    checks,
+    passed,
+    failed,
+    reason: failed.length === 0
+      ? `Premier: N${num(player.total)}, PF ${round(player.profitFactor, 2)}, Exp ${round(player.expectancy, 4)}, Net ${round(player.net, 4)} şartların tamamını geçti.`
+      : `Premier değil: ${failed.map(x => `${x.rule} (gerçek ${x.actual})`).join('; ')}`
+  };
+}
+
+function leagueDecision(player = {}, assignedLeague = 'UNRANKED', options = {}) {
+  const validation = premierValidation(player, options);
+  const league = String(assignedLeague || 'UNRANKED').toUpperCase();
+  let reason = validation.reason;
+  if (league === 'CHAMPIONSHIP') reason = validation.eligible
+    ? 'Premier şartları sağlandı; transfer anı bekleniyor veya kalıcı state yeniden sınıflandırılacak.'
+    : `Championship: ${validation.failed.map(x => x.rule).join(', ')} eksik; yakın-pozitif gelişim adayı.`;
+  if (league === 'DEVELOPMENT') reason = `Development: örnek/güç kanıtı gelişiyor. ${validation.reason}`;
+  if (league === 'HISTORICAL') reason = `Historical: yeterli geçmiş var ancak Premier/Championship ekonomik kapıları geçilmedi. ${validation.reason}`;
+  return { league, reason, premierValidation: validation };
+}
+
 function qualify(player, league, options = {}) {
   const premierMin = Math.max(1, num(options.premierMinSample, ayarlar.dnaLeaguePremierMinOrnek || 5));
   const championshipMin = Math.max(1, num(options.championshipMinSample, ayarlar.dnaLeagueChampionshipMinOrnek || 5));
-  const premierMinConfidence = num(options.premierMinConfidence, ayarlar.dnaLeaguePremierMinGuven || 50);
   const historicalPositive = historicalProfitGate(player, premierMin);
 
   if (league === 'PREMIER') {
-    // v4.5 Premier League 2.0: kabul kapısı yalnız gerçekleşmiş DNA performansıdır.
-    // Son-5, güven, rejim ve Elite Exit metrikleri sıralama/audit bilgisidir; temel kapıyı değiştiremez.
-    return historicalPositive && player.death !== 'OLUM_RISKI';
+    // Premier 2.0 tek doğruluk kaynağı: N>=5, PF>1, Net>0, Expectancy>0 ve ölüm riski yok.
+    return premierValidation(player, options).eligible;
   }
   if (league === 'CHAMPIONSHIP') {
     const m = realizedMetrics(player);
@@ -316,19 +362,45 @@ function worstTen(players = [], options = {}) {
     .map((p, index) => ({ ...p, worstRank: index + 1, virtualTradingBlocked: true, shadowLearning: true, blockReason: 'DYNAMIC_WORST_10_RECENT_5' }));
 }
 
+function findAssignedLeague(key, leagues = {}) {
+  const wanted = normalizeSignatureKey(key);
+  for (const [name, rows] of Object.entries(leagues || {})) {
+    if ((rows || []).some(x => normalizeSignatureKey(x.key) === wanted)) return String(name).toUpperCase();
+  }
+  return 'UNRANKED';
+}
+
+function applyLeagueDecisions(leagues = {}, options = {}) {
+  for (const [name, rows] of Object.entries(leagues || {})) {
+    for (const row of rows || []) {
+      const decision = leagueDecision(row, String(name).toUpperCase(), options);
+      row.assignedLeague = decision.league;
+      row.leagueReason = decision.reason;
+      row.premierValidation = decision.premierValidation;
+    }
+  }
+  return leagues;
+}
+
 function audit(players = [], leagues = {}) {
-  const minSample = Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 10));
+  const minSample = Math.max(1, num(ayarlar.dnaLeaguePremierMinOrnek, 5));
   const profitable = players.filter(p => { const m=realizedMetrics(p); return m.total>=minSample && m.expectancy>0 && m.profitFactor>1 && m.net>0; });
-  const premierKeys = new Set((leagues.premier || []).map(p => p.key));
-  const profitableOutsidePremier = profitable.filter(p => !premierKeys.has(p.key));
+  const premierKeys = new Set((leagues.premier || []).map(p => normalizeSignatureKey(p.key)));
+  const profitableOutsidePremier = profitable.filter(p => !premierKeys.has(normalizeSignatureKey(p.key)));
   const nearProfit = players.filter(p => { const m=realizedMetrics(p); return m.total>=minSample && !profitable.some(x=>x.key===p.key) && m.expectancy>=-0.05 && m.profitFactor>=0.85; });
   return {
-    rule: `Premier League 2.0: gerçekleşmiş DNA performansı N>=${minSample}, Exp>0, PF>1, Net>0; son 5/güven/Elite Exit yalnız sıralama ve audit içindir; Championship: yakın-pozitif veya yeterli kanıtı henüz oluşmamış aday`,
+    rule: `Premier League 2.0: gerçekleşmiş DNA performansı N>=${minSample}, Exp>0, PF>1, Net>0 ve ölüm riski yok; son 5/güven/Elite Exit yalnız sıralama ve audit içindir; Championship: yakın-pozitif veya yeterli kanıtı henüz oluşmamış aday`,
     totalPlayers: players.length,
     profitableCount: profitable.length,
     premierCount: (leagues.premier || []).length,
     profitableOutsidePremierCount: profitableOutsidePremier.length,
-    profitableOutsidePremier,
+    profitableOutsidePremier: profitableOutsidePremier.map(p => ({ ...p, missingChampionReason: leagueDecision(p, findAssignedLeague(p.key, leagues)).reason })),
+    lostChampionCount: profitableOutsidePremier.length,
+    lostChampions: profitableOutsidePremier.map(p => ({
+      dnaId: p.dnaId, dnaLabel: p.dnaLabel, key: p.key, assignedLeague: findAssignedLeague(p.key, leagues),
+      total: p.total, winRate: p.winRate, profitFactor: p.profitFactor, expectancy: p.expectancy, net: p.net,
+      reason: leagueDecision(p, findAssignedLeague(p.key, leagues)).reason
+    })),
     nearProfitCount: nearProfit.length,
     topProfitable: profitable.slice().sort((a,b) => b.net-a.net || b.expectancy-a.expectancy).slice(0,20)
   };
@@ -343,7 +415,7 @@ function proposedLeagues(players, options = {}) {
   const upperKeys = new Set([...premierKeys, ...championship.map(x => x.key)]);
   const development = players.filter(x => !upperKeys.has(x.key) && x.total < num(ayarlar.dnaLeagueHistoricalMinOrnek, 20));
   const historical = players.filter(x => !upperKeys.has(x.key) && !development.some(d => d.key === x.key));
-  return { premier, championship, development, historical };
+  return applyLeagueDecisions({ premier, championship, development, historical }, options);
 }
 
 /**
@@ -394,12 +466,15 @@ function transferEvents(previous, next, totalTrades) {
     const from = oldMap.get(key) || 'UNRANKED';
     const to = newMap.get(key) || 'UNRANKED';
     if (from === to) continue;
+    const identity = dnaIdentity.ensure(key, { source: 'LEAGUE_TRANSFER' });
     events.push({
       version: VERSION,
       timestamp: new Date().toISOString(),
       totalTrades,
       key,
-      label: next.get ? next.get(key)?.label : shortKey(key),
+      dnaId: identity?.id || null,
+      dnaLabel: identity?.label || 'DNA #YOK',
+      label: shortKey(key),
       from,
       to,
       type: to === 'UNRANKED' ? 'PROFILE_SET_EXIT' : (to === 'PREMIER' ? 'PROMOTION_TO_PREMIER' : from === 'PREMIER' ? 'RELEGATION_FROM_PREMIER' : 'LEAGUE_CHANGE')
@@ -424,6 +499,18 @@ function shouldTransfer(previous, totalTrades, force = false) {
   return totalTrades - num(previous.lastTransferTradeCount) >= interval;
 }
 
+function ensureLeagueIdentities(leagues = {}, source = 'PERSISTED_LEAGUE_STATE') {
+  const rows = Object.values(leagues || {}).flat();
+  const ids = dnaIdentity.ensureMany(rows.map(x => x?.key), { source });
+  for (const row of rows) {
+    const entry = ids.get(dnaIdentity.identityKey(row?.key));
+    row.dnaId = entry?.id || row.dnaId || null;
+    row.dnaLabel = entry?.label || row.dnaLabel || 'DNA #YOK';
+    row.identityKey = entry?.key || dnaIdentity.identityKey(row?.key);
+  }
+  return leagues;
+}
+
 function build(models = {}, options = {}) {
   const evolutionModel = models.evolution || dnaEvolution.build({ minSample: ayarlar.dnaEvolutionMinOrnek || 10 });
   const loaded = models.trades ? { trades: models.trades } : dnaEvolution.loadTrades();
@@ -436,9 +523,15 @@ function build(models = {}, options = {}) {
   // Kalıcı lig üyelerini koru ve kurtarma sayacını gerçek kayıtlı DNA sayısından üret.
   if (!players.length && previous?.leagues && previousLeagueCount > 0) {
     const analyzedDna = Math.max(num(previous.totalDna), previousLeagueCount);
+    const preservedLeagues = applyLeagueDecisions(ensureLeagueIdentities(previous.leagues), options);
     return {
       ...previous,
+      version: VERSION,
+      classificationPolicyVersion: CLASSIFICATION_POLICY_VERSION,
       generatedAt: new Date().toISOString(),
+      leagues: preservedLeagues,
+      identityAudit: dnaIdentity.audit(),
+      audit: { ...audit(Object.values(preservedLeagues).flat(), preservedLeagues), duplicateLeagueKeys: duplicateLeagueKeys(preservedLeagues), singleDnaSingleLeague: duplicateLeagueKeys(preservedLeagues).length === 0 },
       recovery: {
         ...(previous.recovery || {}),
         required: false,
@@ -468,6 +561,8 @@ function build(models = {}, options = {}) {
     events = transferEvents(previous, leagues, evolutionModel.totalTrades);
   }
 
+  leagues = applyLeagueDecisions(ensureLeagueIdentities(leagues, 'LEAGUE_CLASSIFICATION'), options);
+
   const worst = worstTen(players, options);
   const worstKeys = new Set(worst.map(x => x.key));
   for (const player of players) { player.virtualTradingBlocked = worstKeys.has(player.key); player.shadowLearning = worstKeys.has(player.key); }
@@ -491,6 +586,7 @@ function build(models = {}, options = {}) {
       historical: leagues.historical.length
     },
     leagues,
+    identityAudit: dnaIdentity.audit(),
     worstTen: worst,
     worstTenCount: worst.length,
     audit: { ...audit(players, leagues), duplicateLeagueKeys: duplicateLeagueKeys(leagues), singleDnaSingleLeague: duplicateLeagueKeys(leagues).length === 0 },
@@ -623,7 +719,14 @@ function attachToPosition(pos, model = null) {
   if (!pos || ayarlar.dnaLeagueAktif === false) return null;
   const key = signature(pos);
   const profile = findPlayer(key, model);
+  const identity = key ? dnaIdentity.ensure(key, { source: 'POSITION_ATTACH' }) : null;
+  pos.dnaId = identity?.id || null;
+  pos.dnaLabel = identity?.label || 'DNA #YOK';
+  pos.dnaIdentityKey = identity?.key || dnaIdentity.identityKey(key);
   pos.dnaLeagueProfile = profile ? {
+    dnaId: identity?.id || profile.dnaId || null,
+    dnaLabel: identity?.label || profile.dnaLabel || 'DNA #YOK',
+    identityKey: identity?.key || profile.identityKey || dnaIdentity.identityKey(key),
     version: VERSION,
     key,
     league: profile.league,
@@ -645,6 +748,9 @@ function attachToPosition(pos, model = null) {
     executionPolicy: ayarlar.premierObservationAktif === false ? 'METADATA_ONLY' : 'PREMIER_OBSERVATION'
   } : {
     version: VERSION,
+    dnaId: identity?.id || null,
+    dnaLabel: identity?.label || 'DNA #YOK',
+    identityKey: identity?.key || dnaIdentity.identityKey(key),
     key: key || 'SIGNATURE_YOK',
     league: 'UNRANKED',
     matchType: 'NONE',
@@ -659,7 +765,7 @@ function line(row, index) {
   const realized=realizedMetrics(row);
   const exitSample=num(exit.total);
   const exitEvidence=exit.algorithmLabel && exit.algorithmLabel !== 'Mevcut Kademe Sistemi' ? ` | ExitN${exitSample}` : '';
-  return `${index + 1}. ${shortKey(row.key)} | ${exit.algorithmLabel||'Mevcut Kademe'} | Skor ${num(row.leagueScore).toFixed(1)} | DNA N${realized.total} | Exp ${realized.expectancy>=0?'+':''}${realized.expectancy.toFixed(4)} | PF ${realized.profitFactor.toFixed(2)}${exitEvidence} | ${row.momentum?.status||'YENI'}`;
+  return `${index + 1}. ${row.dnaLabel || dnaIdentity.label(row.dnaId)} — ${shortKey(row.key)} | ${exit.algorithmLabel||'Mevcut Kademe'} | Skor ${num(row.leagueScore).toFixed(1)} | DNA N${realized.total} | Exp ${realized.expectancy>=0?'+':''}${realized.expectancy.toFixed(4)} | PF ${realized.profitFactor.toFixed(2)}${exitEvidence} | ${row.momentum?.status||'YENI'}`;
 }
 
 function telegramText(model, options = {}) {
@@ -672,19 +778,32 @@ function telegramText(model, options = {}) {
   text += `🚫 Dinamik En Kötü 10: ${model.worstTenCount || 0} | Sanal kasa dışı gölge öğrenme\n`;
   text += `🔄 Son transfer kapanışı: ${model.lastTransferTradeCount} | Sonraki: ${model.nextTransferAt}\n`;
   text += `⭐ <b>Premier İlk ${limit}</b>\n`;
-  text += model.leagues.premier.slice(0, limit).length ? model.leagues.premier.slice(0, limit).map(line).join('\n') : 'Premier kriterlerini sağlayan DNA henüz yok.';
-  if (model.transfers.length) {
+  const premierRows = (model.leagues?.premier || []).slice(0, limit);
+  text += premierRows.length ? premierRows.map((row, i) => {
+    const base = line(row, i);
+    const checks = row.premierValidation?.checks || premierValidation(row).checks;
+    return `${base}\n   ✅ N ${num(checks.sample?.actual)} | ✅ PF ${num(checks.profitFactor?.actual).toFixed(2)} | ✅ Exp ${num(checks.expectancy?.actual).toFixed(4)} | ✅ Net ${num(checks.net?.actual).toFixed(4)}\n   🎯 Aktif Exit: ${row.exit?.algorithmLabel || 'Mevcut Kademe Sistemi'} | ${row.exit?.ready ? 'DOĞRULANDI' : 'KANIT BEKLİYOR'}`;
+  }).join('\n') : 'Premier kriterlerini sağlayan DNA henüz yok.';
+  if ((model.transfers || []).length) {
     const promoted = model.transfers.filter(x => x.to === 'PREMIER').length;
     const relegated = model.transfers.filter(x => x.from === 'PREMIER').length;
     text += `\n🔁 Bu dönem: ${promoted} Premier terfi | ${relegated} Premier düşüş`;
   }
   text += `\n🧪 Gözlem modu: tüm DNA'lar öğrenmeye devam eder; Premier işlemleri ayrı başarı kasasında izlenir.`;
-  text += `\n💰 Kârlı DNA: ${model.audit.profitableCount} | Premier dışında kârlı: ${model.audit.profitableOutsidePremierCount}`;
-  text += `\n🎯 Kural: ${model.audit.rule}. Diğer göstergeler yalnızca sıralama içindir.`;
+  text += `\n💰 Kârlı DNA: ${model.audit?.profitableCount || 0} | Premier dışında güçlü: ${model.audit?.lostChampionCount || model.audit?.profitableOutsidePremierCount || 0}`;
+  if ((model.audit?.lostChampions || []).length) {
+    text += `\n🚨 <b>KAYIP ŞAMPİYON DENETİMİ</b>\n` + model.audit.lostChampions.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel || dnaIdentity.label(x.dnaId)} | ${shortKey(x.key)}\n   N${x.total} | WR %${num(x.winRate).toFixed(2)} | PF ${num(x.profitFactor).toFixed(2)} | Exp ${num(x.expectancy).toFixed(4)} | Net ${num(x.net).toFixed(4)}\n   Neden Premier değil? ${x.reason}`).join('\n');
+  } else {
+    text += `\n✅ Kayıp şampiyon yok: Premier şartlarını geçen bütün DNA'lar Premier'de.`;
+  }
+  const ready = (model.leagues?.premier || []).filter(x => (x.premierValidation || premierValidation(x)).eligible && x.exit?.ready);
+  text += `\n🚀 <b>BUGÜN GERÇEK EMİR ADAYI</b>: ${ready.length}`;
+  text += ready.length ? `\n` + ready.slice(0, limit).map((x, i) => `${i + 1}. ${x.dnaLabel || dnaIdentity.label(x.dnaId)} | ${shortKey(x.key)} | ${x.exit.algorithmLabel} | DNA N${x.total} / ExitN${x.exit.samples}`).join('\n') : `\nDoğrulanmış DNA + güncel pozitif Exit eşleşmesi henüz yok; gerçek emir için fail-closed.`;
+  text += `\n🎯 Kural: ${model.audit?.rule || 'Premier League 2.0'}. Diğer göstergeler yalnızca sıralama içindir.`;
   return text;
 }
 
-module.exports = { normalizeSignatureKey, baseSignatureKey, realizedMetrics, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, transferEvents, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
+module.exports = { normalizeSignatureKey, baseSignatureKey, realizedMetrics, premierValidation, leagueDecision, findAssignedLeague, applyLeagueDecisions, classificationPolicyMigrationRequired, CLASSIFICATION_POLICY_VERSION, transferEvents, leagueLookupDiagnostics, formatLeagueLookupDiagnostics,
   VERSION,
   LEAGUE_FILE,
   TRANSFER_FILE,

@@ -277,6 +277,7 @@ const m = {
             `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[WORST-10 GÖLGE POZİSYON]</b>' : '🧪 <b>[SANAL POZİSYON AÇILDI]</b>'}\n` +
             (yeniPozisyon.premierObservation?.qualifiedAtOpen ? `💎 <b>${yeniPozisyon.premierObservation.leagueAtOpen} LİG İŞLEMİ</b> | Lig Skoru ${Number(yeniPozisyon.premierObservation.leagueScore||0).toFixed(1)}\n` : `🌱 Alt Lig / Öğrenme İşlemi\n`) +
             `🔀 ${symbol} (${yon})\n` +
+            `🪪 ${yeniPozisyon.realOrderReadiness?.dnaLabel || yeniPozisyon.dnaLabel || 'DNA #YOK'}\n` +
             `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
             `🏆 Lig: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} | Eşleşme: ${yeniPozisyon.realOrderReadiness?.leagueMatchType || 'NONE'}\n` +
             `🎯 Atanan Exit: ${yeniPozisyon.executionExitAssignment?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.executionExitAssignment?.activeForPosition ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +

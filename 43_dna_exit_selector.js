@@ -15,8 +15,9 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
+const dnaIdentity = require('./59_dna_identity_registry.js');
 
-const VERSION = 'v4.2.1-DNA-EXIT-SELECTOR-SANAL-ACTIVE';
+const VERSION = 'v4.6.0-DNA-EXIT-SELECTOR-ID';
 const DATA_DIR = path.join(__dirname, 'data');
 const MODEL_JSON = path.join(DATA_DIR, 'exit-replay-model.json');
 const VALIDATION_JSONL = path.join(DATA_DIR, 'dna-exit-shadow-validation.jsonl');
@@ -33,8 +34,12 @@ function readModel() {
   return memorySafeIo.readJsonBounded(MODEL_JSON, null, { maxBytes: 64 * 1024 * 1024 });
 }
 function fallbackPlan(key, reason, samples = 0) {
+  const identity = dnaIdentity.ensure(key, { source: 'EXIT_SELECTOR_FALLBACK' });
   return {
     version: VERSION,
+    dnaId: identity?.id || null,
+    dnaLabel: identity?.label || 'DNA #YOK',
+    identityKey: identity?.key || dnaIdentity.identityKey(key),
     mode: 'SHADOW_ONLY',
     signature: key || 'SIGNATURE_YOK',
     selectedAlgorithmId: 'ACTUAL',
@@ -113,6 +118,9 @@ function validateReplay(pos, record) {
     tradeId: record.input?.tradeId || '',
     symbol: record.input?.symbol || pos?.sym || '',
     side: record.input?.side || pos?.yon || '',
+    dnaId: plan.dnaId || pos?.dnaId || null,
+    dnaLabel: plan.dnaLabel || pos?.dnaLabel || 'DNA #YOK',
+    identityKey: plan.identityKey || pos?.dnaIdentityKey || dnaIdentity.identityKey(plan.signature),
     signature: plan.signature,
     selectedAlgorithmId: plan.selectedAlgorithmId,
     selectedAlgorithmLabel: plan.selectedAlgorithmLabel,

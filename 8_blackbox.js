@@ -9,11 +9,16 @@ const confidenceEngine = require('./12_confidence_engine.js');
 const liveIntelligenceMonitor = require('./13_live_intelligence_monitor.js');
 const intelligenceConsole = require('./14_intelligence_console.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
+const dnaIdentity = require('./59_dna_identity_registry.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'blackbox-snapshots.jsonl');
 const CSV = path.join(DATA_DIR, 'blackbox-trades.csv');
 const TFS = ayarlar.blackboxTimeframes || ['5m', '15m', '1h', '4h'];
+
+function dnaKimligi(key, source = 'STRATEGY_LAB_REPORT') {
+  return dnaIdentity.ensure(String(key || ''), { source }) || { id: null, label: 'DNA #YOK', key: dnaIdentity.identityKey(key) };
+}
 
 function deneyKimligi() {
   const raw = ayarlar.strategyLabDeneyId || `${ayarlar.trendPeriyodu}-${ayarlar.pusuPeriyodu}-${ayarlar.sniperPeriyodu}-ST${ayarlar.superTrendPeriod}x${ayarlar.superTrendMultiplier}-BB${ayarlar.bollingerperiod}x${ayarlar.bollingercarpani}-${ayarlar.stopTakipModu}`;
@@ -130,7 +135,12 @@ function strategySignatureOlustur(symbol, yon, btc, coin) {
   // Bu yüzden coin adını etikete yazmıyoruz; aksi halde ilk görülen coin (örn. DOGEUSDT)
   // sonraki ADA/YFI gibi işlemlerin 'Aynı Tam Kombinasyon + BB' satırında yanlış görünür.
   const label = `${y} | BTC[${tfListeMetni(btcUyumlu)}] ${btcUyumlu.length}/4 | Coin[${tfListeMetni(coinUyumlu)}] ${coinUyumlu.length}/4 | BB ${bb}`;
+  // DNA keşfinin ilk noktası: yeni imza bulunduğu anda merkezi ID otomatik atanır.
+  const identity = dnaKimligi(key, 'STRATEGY_SIGNATURE_CREATE');
   return {
+    dnaId: identity.id,
+    dnaLabel: identity.label,
+    identityKey: identity.key,
     yon: y,
     hedef,
     symbol: symbol || 'YOK',
@@ -159,7 +169,9 @@ function strategySignatureMetni(snap) {
       return `${tf} ${uyumEmoji(sig.yon, t)} ${t}`;
     }).join(' | ');
   }
+  const identity = dnaKimligi(sig.key, 'STRATEGY_LAB_SIGNATURE');
   return `\n🧬 <b>STRATEGY LAB İMZASI</b>\n` +
+    `🪪 ${identity.label}\n` +
     `📈 Yön: ${sig.yon === 'SHORT' ? '🔴 SHORT' : '🟢 LONG'} | Hedef ST: ${sig.hedef}\n` +
     `₿ BTC Uyum: ${sig.btcScore}\n${line('BTC', snap.btc?.superTrend)}\n` +
     `🪙 ${snap.symbol} Uyum: ${sig.coinScore}\n${line(snap.symbol, snap.coin?.superTrend)}\n` +
@@ -636,7 +648,12 @@ function kayitYaz(pos, kayitTipi, sonuc = {}) {
     ensureData();
     const ac = pos.blackboxAcilis || null;
     const ka = pos.blackboxKapanis || null;
-    const rec = { kayitTipi, zaman: new Date().toISOString(), tradeId: pos.tradeId || pos.sanalOrderId || '', symbol: pos.sym, yon: pos.yon, sonuc: sonuc.sonuc || '', kapanisSebebi: sonuc.kapanisSebebi || '', girisFiyati: pos.girisFiyati, kapanisFiyati: sonuc.kapanisFiyati ?? '', netKarZarar: sonuc.netKarZarar ?? '', komisyon: sonuc.komisyon ?? '', mfeYuzde: pos.journey?.mfeYuzde ?? '', maeYuzde: pos.journey?.maeYuzde ?? '', acilis: ac, kapanis: ka };
+    const dnaKey = ac?.strategySignature?.key || pos?.realOrderReadiness?.key || pos?.dnaLeagueProfile?.key || '';
+    const identity = dnaIdentity.ensure(dnaKey, { source: `BLACKBOX_${kayitTipi}` });
+    pos.dnaId = identity?.id || pos.dnaId || null;
+    pos.dnaLabel = identity?.label || pos.dnaLabel || 'DNA #YOK';
+    pos.dnaIdentityKey = identity?.key || pos.dnaIdentityKey || dnaIdentity.identityKey(dnaKey);
+    const rec = { dnaId: pos.dnaId, dnaLabel: pos.dnaLabel, dnaIdentityKey: pos.dnaIdentityKey, dnaKey, kayitTipi, zaman: new Date().toISOString(), tradeId: pos.tradeId || pos.sanalOrderId || '', symbol: pos.sym, yon: pos.yon, sonuc: sonuc.sonuc || '', kapanisSebebi: sonuc.kapanisSebebi || '', girisFiyati: pos.girisFiyati, kapanisFiyati: sonuc.kapanisFiyati ?? '', netKarZarar: sonuc.netKarZarar ?? '', komisyon: sonuc.komisyon ?? '', mfeYuzde: pos.journey?.mfeYuzde ?? '', maeYuzde: pos.journey?.maeYuzde ?? '', acilis: ac, kapanis: ka };
     if (kayitTipi === 'KAPANIS') ozetGuncelle(pos, sonuc);
     fs.appendFileSync(JSONL, JSON.stringify(rec) + '\n');
     const row = {
@@ -833,6 +850,7 @@ function imzaKararSeviyesi(b) {
   return '👀 izleme devam';
 }
 function kararSatiri(b, i) {
+  const identity = dnaKimligi(b?.key, 'STRATEGY_LAB_RADAR');
   const toplam = Number(b?.toplam || 0);
   const tp = Number(b?.tp || 0);
   const sl = Number(b?.sl || 0);
@@ -842,7 +860,7 @@ function kararSatiri(b, i) {
   const basarisiz = sonucN > 0 ? ((sl / sonucN) * 100).toFixed(1) : '0.0';
   const beOran = toplam > 0 ? ((be / toplam) * 100).toFixed(1) : '0.0';
   const ortNet = toplam > 0 ? (Number(b?.net || 0) / toplam).toFixed(3) : '0.000';
-  return `${i + 1}) ${b.etiket}
+  return `${i + 1}) ${identity.label} — ${b.etiket}
 ` +
     `   🎯 İmza başarı oranı: %${basari} | Başarısızlık: %${basarisiz} | BE: %${beOran}
 ` +
@@ -863,6 +881,7 @@ function tersYon(yon) {
   return 'YOK';
 }
 function tersYonOneriSatiri(b, i) {
+  const identity = dnaKimligi(b?.key, 'STRATEGY_LAB_REVERSE_CANDIDATE');
   const y = bucketYon(b);
   const ters = tersYon(y);
   const basari = Number(oran(b));
@@ -874,7 +893,7 @@ function tersYonOneriSatiri(b, i) {
   const seviye = basari <= 0 ? '🧨 %100 başarısız' : '⚠️ çok zayıf';
   return `${i + 1}) ${seviye}
 ` +
-    `   ${b.etiket}
+    `   ${identity.label} — ${b.etiket}
 ` +
     `   🎯 Bu imzanın başarı oranı: %${basari.toFixed(1)} | Başarısızlık oranı: %${basarisiz}
 ` +
@@ -929,6 +948,7 @@ function profitFactor(b) {
 }
 
 function matrixSatiri(b, i) {
+  const identity = dnaKimligi(b?.key, 'STRATEGY_LAB_256_MATRIX');
   const toplam = Number(b?.toplam || 0);
   const tp = Number(b?.tp || 0);
   const sl = Number(b?.sl || 0);
@@ -937,7 +957,7 @@ function matrixSatiri(b, i) {
   const basari = Number(oran(b)).toFixed(1);
   const basarisiz = sonucN > 0 ? ((sl / sonucN) * 100).toFixed(1) : '0.0';
   const ortNet = toplam > 0 ? (Number(b?.net || 0) / toplam).toFixed(3) : '0.000';
-  return `${i + 1}) ${b.etiket}
+  return `${i + 1}) ${identity.label} — ${b.etiket}
 ` +
     `   🎯 Bu 256 imzasının başarı oranı: %${basari} | Başarısızlık: %${basarisiz}
 ` +
