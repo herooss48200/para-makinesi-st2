@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS v5.0.2 - SHARED BINANCE REQUEST QUEUE
+ * AGROS v5.0.3 - SHARED BINANCE REQUEST QUEUE / URL HOTFIX
  *
  * Tüm halka açık Binance piyasa verisi aynı global kuyruğu kullanır.
  * - Gerçek global eşzamanlılık sınırı
@@ -224,6 +224,20 @@ function istekYap(fn, options = {}) {
     return kuyrukluIstek(key, () => timeoutIle(fn(), options.timeoutMs || DEFAULTS.timeoutMs, options.label || 'BINANCE_REQUEST_TIMEOUT'), options);
 }
 
+function publicUrlOlustur(pathname, params = undefined) {
+    const base = new URL(`${MARKET_DATA_BASE_URL}/`);
+    const relativePath = String(pathname || '').replace(/^\/+/, '');
+    if (!relativePath) throw new Error('BINANCE_PUBLIC_URL_PATH_EMPTY');
+    const url = new URL(relativePath, base);
+    if (params) {
+        const entries = params instanceof URLSearchParams ? params.entries() : Object.entries(params);
+        for (const [key, value] of entries) {
+            if (value !== undefined && value !== null && value !== '') url.searchParams.set(String(key), String(value));
+        }
+    }
+    return url.toString();
+}
+
 function httpsJson(urlString, options = {}) {
     const timeoutMs = Math.max(1000, Number(options.timeoutMs || DEFAULTS.timeoutMs));
     const label = options.label || 'BINANCE_HTTP';
@@ -241,7 +255,7 @@ function httpsJson(urlString, options = {}) {
             agent,
             headers: {
                 'Accept': 'application/json',
-                'User-Agent': 'AGROS/5.0.2',
+                'User-Agent': 'AGROS/5.0.3',
                 'Connection': 'keep-alive'
             }
         }, res => {
@@ -297,9 +311,9 @@ function binanceMumlariCek(symbol, interval, limit = 80, options = {}) {
     const tf = String(interval || '3m');
     const lim = Math.max(1, Math.min(1500, Number(limit) || 80));
     const key = `KLINES:${sym}:${tf}:${lim}`;
-    const qs = new URLSearchParams({ symbol: sym, interval: tf, limit: String(lim) });
+    const url = publicUrlOlustur('/fapi/v1/klines', { symbol: sym, interval: tf, limit: lim });
     const cfg = { ...DEFAULTS, ...options, cacheTtlMs: options.cacheTtlMs ?? mumCacheTtl(tf) };
-    return kuyrukluIstek(key, () => httpsJson(`${MARKET_DATA_BASE_URL}/fapi/v1/klines?${qs.toString()}`, {
+    return kuyrukluIstek(key, () => httpsJson(url, {
         timeoutMs: cfg.timeoutMs,
         label: cfg.label || `KLINES:${sym}:${tf}`
     }).then(rows => (rows || []).map(row => ({
@@ -315,7 +329,8 @@ function binanceMumlariCek(symbol, interval, limit = 80, options = {}) {
 
 function binanceFiyatlariCek(options = {}) {
     const cfg = { ...DEFAULTS, ...options, cacheTtlMs: options.cacheTtlMs ?? 700 };
-    return kuyrukluIstek('TICKER:ALL', () => httpsJson('${MARKET_DATA_BASE_URL}/fapi/v1/ticker/price', {
+    const url = publicUrlOlustur('/fapi/v1/ticker/price');
+    return kuyrukluIstek('TICKER:ALL', () => httpsJson(url, {
         timeoutMs: cfg.timeoutMs,
         label: cfg.label || 'TICKER_ALL'
     }).then(rows => {
@@ -390,5 +405,6 @@ module.exports = {
     binanceFiyatlariCek,
     havuzdaCalistir,
     durumOzeti,
+    _publicUrlOlustur: publicUrlOlustur,
     _testReset: testReset
 };

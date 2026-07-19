@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'SHARED-REQUEST-QUEUE',
-    kod: 'AWS Candidate v5.0.2-SHARED-REQUEST-QUEUE',
-    botSurumu: '5.0.2-SHARED-REQUEST-QUEUE',
+    kodAdi: 'PUBLIC-URL-HOTFIX',
+    kod: 'AWS Candidate v5.0.3-PUBLIC-URL-HOTFIX',
+    botSurumu: '5.0.3-PUBLIC-URL-HOTFIX',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }
