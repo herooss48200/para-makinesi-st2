@@ -7,6 +7,7 @@ const ayarlar = require('./ayarlar.js');
 const rapor = require('./2_rapor.js');
 const versiyonBilgi = require('./versiyon.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
+const binanceAg = require('./64_binance_network_resilience.js');
 
 let donguCalisiyor = false;
 let sonOzetLog = 0;
@@ -73,7 +74,7 @@ async function baslat() {
 
             donguCalisiyor = true;
             try {
-                const fiyatlar = await h.client.futuresPrices();
+                const fiyatlar = await binanceAg.istekYap(() => h.client.futuresPrices(), { timeoutMs: ayarlar.binanceAgTimeoutMs || 12000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 700, label: 'FUTURES_PRICES' });
                 for (const [sym, price] of Object.entries(fiyatlar)) {
                     h.state.canliFiyatlar[sym] = parseFloat(price);
                 }

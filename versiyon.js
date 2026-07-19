@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ENTRY-CHAIN-RELIABILITY',
-    kod: 'AWS Candidate v5.0.0-ENTRY-CHAIN-RELIABILITY',
-    botSurumu: '5.0.0-ENTRY-CHAIN-RELIABILITY',
+    kodAdi: 'BINANCE-NETWORK-RESILIENCE',
+    kod: 'AWS Candidate v5.0.1-BINANCE-NETWORK-RESILIENCE',
+    botSurumu: '5.0.1-BINANCE-NETWORK-RESILIENCE',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }

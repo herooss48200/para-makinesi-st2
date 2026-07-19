@@ -81,6 +81,7 @@ function yerelTelegramIstegiAt(path, veri) {
             port: 443,
             path: `/bot${TELEGRAM_TOKEN}/${path}`,
             method: 'POST',
+            timeout: 12000,
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(postData)
@@ -98,6 +99,8 @@ function yerelTelegramIstegiAt(path, veri) {
                 }
             });
         });
+
+        req.setTimeout(12000, () => req.destroy(new Error('TELEGRAM_TIMEOUT:12000ms')));
 
         req.on('error', (err) => {
             console.error(`❌ Telegram HTTP Hatası: ${err.message}`);
