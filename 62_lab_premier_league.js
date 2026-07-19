@@ -16,8 +16,9 @@ const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 const hierarchy = require('./60_hierarchical_dna_identity_registry.js');
 const labChampion = require('./61_lab_champion_engine.js');
+const evidenceEngine = require('./63_universal_evidence_engine.js');
 
-const VERSION = 'v4.8.0-LAB-PREMIER-TRUE-LEAGUE';
+const VERSION = 'v4.9.1-UNIVERSAL-EVIDENCE-WARM-START';
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-premier-observation.json');
 const MODEL_FILE = path.join(DATA_DIR, 'lab-premier-league-model.json');
@@ -93,28 +94,26 @@ function championTier(champion) {
   const historicalReady = Boolean(champion?.historicalCandidate);
   const ownExitReady = Boolean(champion?.exit?.positive && champion?.exit?.ownLabExit);
   const forwardVerified = Boolean(champion?.forward?.eligible);
+  const evidence = champion?.evidence || evidenceEngine.evaluate({
+    strategyType: 'LAB_DNA', strategyKey: champion?.labKey || '', historical: champion?.historical || {},
+    exit: champion?.exit || {}, live: champion?.forward?.metrics || {}
+  });
+  const warmStartVerified = Boolean(ayarlar.evidenceWarmStartAktif !== false && evidence.warmStartEligible);
   const historicalTestEnabled = ayarlar.labPremierTarihselTestAktif !== false;
   const forwardRequired = ayarlar.labPremierIleriDogrulamaZorunlu === true;
 
-  if (historicalReady && ownExitReady && (forwardVerified || (historicalTestEnabled && !forwardRequired))) {
-    return {
-      league: 'PREMIER',
-      upperLayerIncluded: true,
-      proofLevel: forwardVerified ? 'FORWARD_VERIFIED' : 'HISTORICAL_POSITIVE_EXIT_TEST',
-      reason: forwardVerified
-        ? 'Tarihsel LAB + kendi Exit + 5 ileri pozitif kapanış'
-        : 'Tarihsel LAB + kendi pozitif Exit; sanal geniş test kabulü'
-    };
+  if ((historicalReady && ownExitReady && (forwardVerified || (historicalTestEnabled && !forwardRequired))) || (warmStartVerified && !forwardRequired)) {
+    const proofLevel = forwardVerified ? 'FORWARD_VERIFIED'
+      : (historicalReady && ownExitReady ? 'HISTORICAL_POSITIVE_EXIT_TEST' : 'WARM_START_VERIFIED');
+    return { league:'PREMIER', upperLayerIncluded:true, proofLevel, evidence,
+      reason: forwardVerified ? 'Tarihsel LAB + kendi Exit + 5 ileri pozitif kapanış'
+        : proofLevel === 'WARM_START_VERIFIED' ? `Kendi tarihsel kanıtı + kendi pozitif Exit | Güven %${evidence.confidence}`
+        : 'Tarihsel LAB + kendi pozitif Exit; sanal geniş test kabulü' };
   }
-  if (historicalReady) {
-    return {
-      league: 'CHAMPIONSHIP',
-      upperLayerIncluded: false,
-      proofLevel: ownExitReady ? 'FORWARD_PENDING' : 'OWN_EXIT_PENDING',
-      reason: ownExitReady ? 'İleri kanıt bekliyor' : 'Kendi pozitif LAB Exit kanıtı bekliyor'
-    };
-  }
-  return { league: 'DEVELOPMENT', upperLayerIncluded: false, proofLevel: 'LEARNING', reason: 'Tarihsel LAB şartları oluşmadı' };
+  if (historicalReady || champion?.warmStartCandidate) return { league:'CHAMPIONSHIP', upperLayerIncluded:false,
+    proofLevel: ownExitReady ? 'FORWARD_PENDING' : 'OWN_EXIT_PENDING', evidence,
+    reason: ownExitReady ? 'İleri kanıt veya Warm Start güven eşiği bekliyor' : 'Kendi pozitif LAB Exit kanıtı bekliyor' };
+  return { league:'DEVELOPMENT', upperLayerIncluded:false, proofLevel:'LEARNING', evidence, reason:'Tarihsel LAB şartları oluşmadı' };
 }
 function rowFromChampion(champion) {
   const tier = championTier(champion);
@@ -124,6 +123,7 @@ function rowFromChampion(champion) {
     upperLayerIncluded: tier.upperLayerIncluded,
     proofLevel: tier.proofLevel,
     admissionReason: tier.reason,
+    evidence: tier.evidence,
     realTradingAuthorized: false,
     sizeMultiplier: tier.upperLayerIncluded ? 1 : 0
   };
@@ -132,11 +132,14 @@ function build({ catalogue = null, persist = true, force = false } = {}) {
   const cacheMs = Math.max(1000, num(ayarlar.labPremierModelCacheMs, 30000));
   if (!catalogue && !force && cachedLeagueModel && (Date.now() - cachedLeagueAt) < cacheMs) return cachedLeagueModel;
   const source = catalogue || labChampion.build({ persist: false });
-  const rows = (source?.labChampions || []).map(rowFromChampion);
+  const merged = [...(source?.labChampions || []), ...(source?.evidenceCandidates || [])];
+  const unique = [...new Map(merged.map(row => [row.labKey, row])).values()];
+  const rows = unique.map(rowFromChampion);
   const premier = rows.filter(x => x.labLeague === 'PREMIER');
   const championship = rows.filter(x => x.labLeague === 'CHAMPIONSHIP');
   const verified = premier.filter(x => x.proofLevel === 'FORWARD_VERIFIED');
   const historicalTest = premier.filter(x => x.proofLevel === 'HISTORICAL_POSITIVE_EXIT_TEST');
+  const warmStart = premier.filter(x => x.proofLevel === 'WARM_START_VERIFIED');
   const model = {
     version: VERSION,
     generatedAt: new Date().toISOString(),
@@ -149,6 +152,7 @@ function build({ catalogue = null, persist = true, force = false } = {}) {
     championshipCount: championship.length,
     forwardVerifiedCount: verified.length,
     historicalTestCount: historicalTest.length,
+    warmStartCount: warmStart.length,
     premier,
     championship,
     allCandidates: rows,
@@ -159,6 +163,8 @@ function build({ catalogue = null, persist = true, force = false } = {}) {
       equalVirtualSize: true,
       premierSizeMultiplier: 1,
       championshipSizeMultiplier: 0,
+      universalEvidenceEngine: true,
+      warmStartEnabled: ayarlar.evidenceWarmStartAktif !== false,
       historicalPositiveExitTestEnabled: ayarlar.labPremierTarihselTestAktif !== false,
       forwardVerificationRequired: ayarlar.labPremierIleriDogrulamaZorunlu === true,
       forwardVerificationClosed: Math.max(1, num(ayarlar.labChampionForwardMinKapanis, 5)),
@@ -419,7 +425,7 @@ function compactTelegram(activePositions = []) {
   const model = summaryModel(activePositions);
   const a = model.aggregate;
   return `🧬 <b>LAB PREMIER SANAL TESTİ</b>\n`
-    + `🏆 Premier LAB ${model.league.premierCount} | ✅ İleri doğrulanmış ${model.league.forwardVerifiedCount} | ⏳ Tarihsel test ${model.league.historicalTestCount}\n`
+    + `🏆 Premier LAB ${model.league.premierCount} | 🔥 Warm ${model.league.warmStartCount} | ✅ İleri ${model.league.forwardVerifiedCount} | ⏳ Tarihsel ${model.league.historicalTestCount}\n`
     + `📦 Açılan ${a.opened} | Aktif ${model.active.length} | Kapalı ${a.closed} | Başarı %${a.winRate.toFixed(2)}\n`
     + `💎 Net ${a.net >= 0 ? '+' : ''}${a.net.toFixed(4)} | PF ${a.profitFactor >= 999 ? '∞' : a.profitFactor.toFixed(2)} | Exp ${a.expectancy >= 0 ? '+' : ''}${a.expectancy.toFixed(4)}\n`
     + `🔒 Family yalnız hafıza | Championship gölge | Premier LAB eşit x1 sanal boyut`;
@@ -429,7 +435,7 @@ function telegram(model = null, limit = 9) {
   const league = data.league || build({ persist: false });
   let text = '\n\n🏁 <b>LAB PREMIER — GERÇEK DNA LİGİ</b>\n';
   text += `🧬 Yetkili yarışmacı: LAB DNA | Family rolü: kalıcı piyasa hafızası\n`;
-  text += `🏆 Premier LAB ${league.premierCount} | ✅ İleri doğrulanmış ${league.forwardVerifiedCount} | ⏳ Tarihsel test ${league.historicalTestCount} | 🥈 Gölge Championship ${league.championshipCount}\n`;
+  text += `🏆 Premier LAB ${league.premierCount} | 🔥 Warm Start ${league.warmStartCount} | ✅ İleri doğrulanmış ${league.forwardVerifiedCount} | ⏳ Tarihsel test ${league.historicalTestCount} | 🥈 Gölge Championship ${league.championshipCount}\n`;
   text += `⚖️ Boyut: bütün Premier LAB'lar x1 | Championship emir açmaz | Eski Family 1/0.25 kuralı kullanılmaz\n`;
   if (league.premier.length) {
     text += '⭐ <b>LAB PREMIER LİSTESİ</b>\n';
@@ -439,6 +445,7 @@ function telegram(model = null, limit = 9) {
       return `${i + 1}. ${row.labDnaLabel} | ${row.familyDnaLabel} — ${row.label}\n`
         + `   Tarihsel N${num(h.total)} | WR %${num(h.winRate).toFixed(1)} | PF ${num(h.profitFactor) >= 999 ? '∞' : num(h.profitFactor).toFixed(2)} | Net ${num(h.net) >= 0 ? '+' : ''}${num(h.net).toFixed(2)}\n`
         + `   🎯 ${row.exit?.algorithmLabel || 'Exit yok'} | ExitN${num(row.exit?.samples)} | PF ${num(row.exit?.profitFactor).toFixed(2)} | ${row.proofLevel}\n`
+        + `   🔥 Kanıt güveni %${num(row.evidence?.confidence).toFixed(1)} | Warm ${row.evidence?.warmStartEligible ? 'UYGUN' : 'BEKLİYOR'}\n`
         + `   🧪 İleri N${num(f.closed)}/${Math.max(1, num(ayarlar.labChampionForwardMinKapanis, 5))} | PF ${num(f.profitFactor).toFixed(2)} | Exp ${num(f.expectancy).toFixed(4)} | Net ${num(f.net).toFixed(4)}`;
     }).join('\n');
   }

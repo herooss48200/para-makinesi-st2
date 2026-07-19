@@ -15,6 +15,7 @@ const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 const hierarchy = require('./60_hierarchical_dna_identity_registry.js');
 const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
+const evidenceEngine = require('./63_universal_evidence_engine.js');
 
 const VERSION = 'v4.8.0-LAB-CHAMPION-SOURCE-FOR-LAB-PREMIER';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -285,18 +286,18 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
   const observationState = state || readState();
   const exitModel = dynamicModel || dynamicExit.readModel() || null;
   const champions = [];
+  const evidenceCandidates = [];
   let strongSourceCount = 0;
 
   for (const [rawKey, bucket] of Object.entries(blackboxSummary.exactComboStats || {})) {
     const identity = hierarchy.ensureLab(rawKey, { source: 'LAB_CHAMPION_MODEL' });
     if (!identity) continue;
     const historical = historicalMetrics(bucket);
-    if (!historicalEligible(historical)) continue;
-    strongSourceCount++;
     const exit = exitForLab(identity.key, exitModel);
     const forward = forwardProof(identity.key, observationState);
     const children = fullChildren(blackboxSummary, identity.key);
-    champions.push({
+    const evidence = evidenceEngine.evaluate({ strategyType: 'LAB_DNA', strategyKey: identity.key, historical, exit, live: forward.metrics });
+    const baseRow = {
       labDnaId: identity.id,
       labDnaLabel: identity.label,
       labKey: identity.key,
@@ -311,14 +312,18 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
       forward,
       fullChildren: children,
       fullChampionCount: children.filter(x => x.historicalEligible).length,
-      historicalCandidate: true,
+      historicalCandidate: historicalEligible(historical),
+      evidence,
+      warmStartCandidate: Boolean(ayarlar.evidenceWarmStartAktif !== false && evidence.warmStartEligible),
       promotionReady: Boolean(
         migration.coverage.complete
           && exit?.positive
           && forward.eligible
       ),
       realTradingAuthorized: false
-    });
+    };
+    if (baseRow.historicalCandidate) { strongSourceCount++; champions.push(baseRow); }
+    if (baseRow.warmStartCandidate) evidenceCandidates.push(baseRow);
   }
 
   champions.sort((a, b) => b.score - a.score || b.historical.total - a.historical.total);
@@ -337,6 +342,8 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
     lostChampionCount: lost.length,
     promotionReadyCount: champions.filter(x => x.promotionReady).length,
     labChampions: champions,
+    evidenceCandidateCount: evidenceCandidates.length,
+    evidenceCandidates: evidenceCandidates.sort((a,b) => b.evidence.confidence - a.evidence.confidence || b.historical.total - a.historical.total),
     policy: {
       familyIdsPreserved: true,
       labIdsPersistent: true,

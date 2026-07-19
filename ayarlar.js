@@ -562,6 +562,17 @@ const ayarlar = {
     labChampionForwardMinNet: 0,
     labChampionForwardMinExpectancy: 0,
 
+    // v4.9.1 - Tüm stratejilerin kendi verisiyle kullanabileceği ortak Warm Start kanıt motoru.
+    evidenceWarmStartAktif: true,
+    evidenceWarmStartMinHistorical: 5,
+    evidenceWarmStartTargetHistorical: 20,
+    evidenceWarmStartMinWinRate: 60,
+    evidenceWarmStartMinPF: 1,
+    evidenceWarmStartMinNet: 0,
+    evidenceWarmStartMinExpectancy: 0,
+    evidenceWarmStartExitMinSamples: 5,
+    evidenceWarmStartMinConfidence: 60,
+
     // v4.8.0 - Family yalnız kalıcı piyasa hafızasıdır; gerçek lig yarışmacısı LAB DNA'dır.
     // Şimdiki geniş sanal testte tarihsel güçlü + kendi pozitif Exit'i olan LAB doğrudan Premier test havuzuna girer.
     // 5 ileri pozitif kapanış proof seviyesini FORWARD_VERIFIED yapar; daha sonra tek ayarla zorunlu hale getirilebilir.
