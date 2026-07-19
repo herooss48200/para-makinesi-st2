@@ -13,3 +13,4 @@ data/sanal-state.json
 backups/
 *.backup-*
 fix-sl.js
+data/*.bak
