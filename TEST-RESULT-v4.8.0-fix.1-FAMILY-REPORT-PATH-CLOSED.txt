@@ -1,0 +1,146 @@
+
+> para-makinesi-binance@4.8.1 check
+> node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 3_piyasa.js && node --check 4_pozisyon.js && node --check 5_kalici_hafiza.js && node --check ayarlar.js && node --check motor.js && node --check revizyon.js && node --check versiyon.js && node --check 6_pusu_kalite_motoru.js && node --check 8_blackbox.js && node --check 9_feature_importance_lab.js && node --check 10_pair_importance_lab.js && node --check 11_triple_dna_lab.js && node --check 12_confidence_engine.js && node --check 13_live_intelligence_monitor.js && node --check 14_intelligence_console.js && node --check 15_exit_optimizer_foundation.js && node --check 16_success_cluster_engine.js && node --check 17_cluster_intelligence_engine.js && node --check 18_similarity_learning_core.js && node --check 19_position_sizing_audit.js && node --check 20_learning_validation.js && node --check 21_accounting_audit.js && node --check 22_exit_replay_engine.js && node --check 23_restart_gap_protection.js && node --check 24_exit_replay_migration.js && node --check 25_dna_profit_potential_engine.js && node --check 26_time_behavior_engine.js && node --check 27_dna_behavior_profile.js && node --check 28_trend_behavior_engine.js && node --check 29_volatility_behavior_engine.js && node --check 30_ladder_behavior_engine.js && node --check 31_behavior_intelligence_engine.js && node --check 32_exit_consensus_engine.js && node --check 33_dna_profit_ranking_engine.js && node --check 34_dna_filter_simulator.js && node --check 35_confidence_engine_v2.js && node --check 36_dna_heat_map.js && node --check 37_direction_intelligence_lab.js && node --check 38_dna_evolution_engine.js && node --check 39_agros_consensus_engine.js && node --check 40_consensus_validation_engine.js && node --check 41_agros_intelligence_dashboard.js && node --check 42_performance_validation_dashboard.js && node --check 43_dna_exit_selector.js && node --check 44_exit_evolution_models.js && node --check 45_exit_evolution_dashboard.js && node --check 46_dna_league_engine.js && node --check 47_dynamic_dna_exit_engine.js && node --check 48_premier_observation_engine.js && node --check 49_adaptive_trading_league.js && node --check 50_real_order_readiness_bridge.js && node --check 51_sanal_dynamic_exit_executor.js && node --check 52_exit_method_scoreboard.js && node --check 53_memory_safe_io.js && node --check 54_exit_health_check.js && node --check 55_dna_identity_card_engine.js && node --check 56_agros_evolution_dashboard.js && node --check 57_exit_victory_audit.js && node --check 59_dna_identity_registry.js && node --check 60_hierarchical_dna_identity_registry.js && node --check 61_lab_champion_engine.js && node --check 62_lab_premier_league.js && npm run test:memory-safe-premier && npm run test:memory-safe-reporting && npm run test:dual-layer && npm run test:exit-trace && npm run test:dynamic-assignment && npm run test:memory-safe && npm run test:real-league-gate && npm run test:league-state-reclass && npm run test:exit-position-binding && npm run test:filter-top10 && npm run test:memory-safe-evolution && npm run test:runtime-stability && npm run test:v45 && npm run test:v451 && npm run test:v452 && npm run test:v453 && npm run test:v454 && npm run test:v455 && node --check 58_dynamic_exit_runtime_index.js && npm run test:v458 && npm run test:v459 && npm run test:v4510 && npm run test:v460 && npm run test:v461 && npm run test:v470 && npm run test:v480
+
+
+> para-makinesi-binance@4.8.1 test:memory-safe-premier
+> node --expose-gc test_memory_safe_premier_observation.js
+
+✅ Memory-safe Premier Observation | 50,000 DNA | Heap delta 0.0 MB
+
+> para-makinesi-binance@4.8.1 test:memory-safe-reporting
+> node test_memory_safe_reporting.js
+
+✅ Memory-safe reporting test passed | Rows 20000 | Tail 25 | Heap delta 2.9 MB
+
+> para-makinesi-binance@4.8.1 test:dual-layer
+> node test_dual_layer_adaptive_execution.js && node test_dual_layer_runtime_contract.js
+
+✅ [LİG KARAR TEŞHİSİ] TESTUSDT LONG | DNA #1 | YON=LONG|BTC=0000|COIN=0000|BTC_TF=-|COIN_TF=-|BB=ORTA_ALT | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | İZİN
+🚫 [LİG KARAR TEŞHİSİ] TESTUSDT LONG | DNA #1 | YON=LONG|BTC=0000|COIN=0000|BTC_TF=-|COIN_TF=-|BB=ORTA_ALT | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | LIG_UNRANKED, DNA_EXIT_ORNEK_YETERSIZ, DNA_EXIT_EXPECTANCY_POZITIF_DEGIL, DNA_EXIT_PF_1_USTU_DEGIL, DNA_EXIT_NET_POZITIF_DEGIL, LIG_MODELI_ESKI_VEYA_YOK, ILERI_DOGRULAMA_POZITIF_DEGIL, GERCEK_EMIR_YETKISI_YOK
+✅ Dual-layer adaptive execution tests passed
+✅ Dual-layer runtime contract tests passed | LAB Premier authority, one signal, one position, separate learning/accounting
+
+> para-makinesi-binance@4.8.1 test:exit-trace
+> node test_exit_decision_trace.js
+
+✅ Exit decision trace tests passed
+
+> para-makinesi-binance@4.8.1 test:dynamic-assignment
+> node test_dynamic_exit_assignment.js
+
+✅ Dynamic exit assignment tests passed.
+✅ Relative-best negative exit fallback test passed.
+
+> para-makinesi-binance@4.8.1 test:memory-safe
+> node test_memory_safe_replay.js
+
+✅ Memory-safe replay streaming test passed | Trades 120 | Retained heap delta 15.5 MB
+
+> para-makinesi-binance@4.8.1 test:real-league-gate
+> node test_real_league_gate_repair.js
+
+✅ Premier League 2.0 realized-DNA gate test passed
+
+> para-makinesi-binance@4.8.1 test:league-state-reclass
+> node test_league_state_reclassification.js
+
+✅ League state reclassification + Recent-5 key repair test passed.
+
+> para-makinesi-binance@4.8.1 test:exit-position-binding
+> node test_exit_position_binding.js
+
+✅ Frozen exit position binding test passed
+
+> para-makinesi-binance@4.8.1 test:filter-top10
+> node test_filter_simulator_top10.js
+
+✅ Filter simulator Top-10 alignment test passed
+
+> para-makinesi-binance@4.8.1 test:memory-safe-evolution
+> node test_memory_safe_evolution.js
+
+✅ Memory-safe DNA Evolution streaming test passed | File 70.3 MB | Heap limit 64 MB
+
+> para-makinesi-binance@4.8.1 test:runtime-stability
+> node test_runtime_stability_guard.js
+
+✅ Intelligence + league runtime stability test passed (tradeGroups scope regression guarded)
+
+> para-makinesi-binance@4.8.1 test:v45
+> node test_v45_intelligence_validation.js
+
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+✅ AGROS v4.5 Intelligence Validation testleri geçti.
+
+> para-makinesi-binance@4.8.1 test:v451
+> node test_v451_memory_safe_hotfix.js
+
+◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }
+✅ AGROS v4.5.1 memory-safe Exit Health hotfix test passed
+
+> para-makinesi-binance@4.8.1 test:v452
+> node test_v452_exit_victory.js
+
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+✅ v4.5.2 Exit Victory test passed | Core 27 | Configured 27
+
+> para-makinesi-binance@4.8.1 test:v453
+> node test_v453_exit_finalization.js
+
+◇ injected env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+✅ v4.5.3 Exit Finalization tests passed | Runtime 27/27 | WR 70
+
+> para-makinesi-binance@4.8.1 test:v454
+> node test_v454_report_consistency.js
+
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+✅ v4.5.4 report consistency tests passed | Catalog 27 | Premier DNA N source unified
+
+> para-makinesi-binance@4.8.1 test:v455
+> node test_v455_exit_source_of_truth.js
+
+✅ v4.5.5 exit source-of-truth tests passed | Active regime exit and all-time Elite separated
+
+> para-makinesi-binance@4.8.1 test:v458
+> node test_v458_exit_runtime_index.js
+
+✅ v4.5.8 compact exit runtime index test passed.
+
+> para-makinesi-binance@4.8.1 test:v459
+> node test_v459_restart_gap_report_consistency.js
+
+✅ v4.5.9+ restart-gap report consistency tests passed
+
+> para-makinesi-binance@4.8.1 test:v4510
+> node test_v4510_league_match_consistency.js
+
+✅ v4.5.10 league match consistency tests passed
+
+> para-makinesi-binance@4.8.1 test:v460
+> node test_v460_dna_identity_registry.js && node test_v460_premier_validation.js && node test_v460_real_trading_preparation.js
+
+⚠️ [RAM-SAFE JSON] dna-identity-registry.json okunamadı: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+⚠️ [RAM-SAFE JSON] dna-identity-registry.json okunamadı: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+✅ v4.6.0 DNA identity registry tests passed | automatic, persistent, alias-safe and recovery-safe IDs
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+✅ v4.6.0 Premier validation tests passed | exact thresholds, reasons, lost champions and cross-report DNA ID consistency
+✅ v4.6.0 real-trading preparation tests passed | proof-based candidates, active/Elite separation and fail-closed behavior
+
+> para-makinesi-binance@4.8.1 test:v461
+> node test_v461_transfer_identity_and_forward_proof.js
+
+✅ v4.6.1 transfer identity + forward proof tests passed | zero DNA #YOK, zero lost transfer rows, real gate fail-closed
+
+> para-makinesi-binance@4.8.1 test:v470
+> node test_v470_full_dna_lab_champion_bridge.js
+
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+⚠️ [RAM-SAFE JSON] hierarchical-dna-identity-registry.json okunamadı: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+✅ v4.7.0 Golden Full DNA + Lab Champion tests passed | DNA #32 preserved, N28 restored, 2103/2103 coverage, zero second order, real gate closed
+
+> para-makinesi-binance@4.8.1 test:v480
+> node test_v480_lab_premier_true_league.js
+
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+✅ v4.8.0 LAB Premier true league tests passed | Family memory-only, LAB authority, own exit active, x1/0 sizing, zero second order, real gate closed

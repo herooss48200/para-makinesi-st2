@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.8.0",
-  "description": "AGROS v4.8.0: Family DNA memory-only, LAB DNA true Premier authority, own validated LAB exit, equal x1 virtual competition and conflict-free Telegram reporting.",
+  "version": "4.8.1",
+  "description": "AGROS v4.8.0-fix.1: Family DNA memory-only, LAB DNA true Premier authority, own validated LAB exit, equal x1 virtual competition and conflict-free Telegram reporting.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

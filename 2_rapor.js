@@ -300,7 +300,8 @@ async function learningValidationRaporuGonderGerekirse() {
         const mesaj = learningValidation.telegramOzetMetni(model);
         await h.telegramMesajGonder(mesaj);
         console.log(`🧠 [AGROS INTELLIGENCE] Telegram raporu gönderildi | Kapanan: ${kapanan}`);
-        await dnaLeagueRaporuGonderGerekirse(model.dnaLeague);
+        // v4.8.0-fix.1: Family League artık yalnız hafızadır.
+        // Eski Family Telegram/real-readiness yolu ana rapor zincirinden kesin olarak çağrılmaz.
     } catch (err) {
         console.error('❌ [AGROS INTELLIGENCE RAPOR HATASI]:', err.message);
     }
