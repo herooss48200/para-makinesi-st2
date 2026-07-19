@@ -1,10 +1,10 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'RECENT5-POSITIVE-SHADOW-CONTINUITY',
-    kod: 'AWS Candidate v4.9.2-RECENT5-POSITIVE-PREMIER',
-    botSurumu: '4.9.2-RECENT5-POSITIVE-PREMIER',
+    kodAdi: 'ENTRY-CHAIN-RELIABILITY',
+    kod: 'AWS Candidate v5.0.0-ENTRY-CHAIN-RELIABILITY',
+    botSurumu: '5.0.0-ENTRY-CHAIN-RELIABILITY',
     stratejiSurumu: '1.0.14',
-    yayinTarihi: '19.07.2026',
+    yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }
 };
 function kisaOzet() { return `${versiyon.isim} ${versiyon.botSurumu} | ${versiyon.kodAdi} | Strateji ${versiyon.stratejiSurumu}`; }

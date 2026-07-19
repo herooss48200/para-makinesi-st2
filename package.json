@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "4.9.2",
-  "description": "AGROS v4.9.2: Recent-5 positive LAB admission, confidence ranking-only, shadow learning and Telegram continuity.",
+  "version": "5.0.0",
+  "description": "AGROS v5.0.0: Entry-chain reliability, bounded Blackbox requests, fail-open auxiliary layers and terminal entry outcomes.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -34,7 +34,8 @@
     "test:v470": "node test_v470_full_dna_lab_champion_bridge.js",
     "test:v480": "node test_v480_lab_premier_true_league.js",
     "test:v491": "node test_v491_universal_evidence_warm_start.js",
-    "test:v492": "node test_v492_recent5_positive_shadow_continuity.js"
+    "test:v492": "node test_v492_recent5_positive_shadow_continuity.js",
+    "test:v500": "node test_v500_entry_chain_reliability.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

@@ -214,24 +214,24 @@ const m = {
             breakevenAktif: false,
             girisAnalizi
         };
-        // Ortak kimlik sanal/gerçek emirden önce hazırlanır; burada aynı snapshot yeniden kullanılabilir.
-        yeniPozisyon.blackboxAcilis = hazirKimlik?.blackboxAcilis || await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
-            console.log(`⚠️ [BLACKBOX] Açılış snapshot alınamadı: ${symbol} ${yon} | ${err.message}`);
-            return null;
-        });
+        // v5.0: Geçerli sanal emir önce temel state'e alınır; yardımcı katmanlar ana açılışı bloke edemez.
+        yeniPozisyon.blackboxAcilis = hazirKimlik?.blackboxAcilis || null;
+        h.state.aktifPozisyonlar.push(yeniPozisyon);
+        if (yon === 'LONG') h.state.alinanlar.push(symbol);
+        else h.state.aktifShortlar.push(symbol);
+        kaliciHafiza.kaydet('sanal-pozisyon-temel-kayit');
 
-        exitOptimizer.pozisyonBaslat(yeniPozisyon);
-        if (hazirKimlik) {
-            realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik);
-        }
-        const karar = hazirKimlik?.realOrderReadiness || realOrderBridge.evaluate(yeniPozisyon, { realMode: false });
-        // v4.8.0: Family lig kararı yalnız hafıza/audit bilgisidir. Üst katman yetkisini LAB Premier verir.
-        const labKarar = labPremier.applyToPosition(yeniPozisyon);
+        try { exitOptimizer.pozisyonBaslat(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] EXIT_INIT_ERROR ${symbol} ${yon} | ${e.message}`); }
+        try { if (hazirKimlik) realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik); } catch (e) { console.log(`⚠️ [ENTRY AUX] IDENTITY_COPY_ERROR ${symbol} ${yon} | ${e.message}`); }
+        let karar = hazirKimlik?.realOrderReadiness || null;
+        try { if (!karar) karar = realOrderBridge.evaluate(yeniPozisyon, { realMode: false }); } catch (e) { console.log(`⚠️ [ENTRY AUX] READINESS_ERROR ${symbol} ${yon} | ${e.message}`); karar = {}; }
+        let labKarar = null;
+        try { labKarar = labPremier.applyToPosition(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_IDENTITY_ERROR ${symbol} ${yon} | ${e.message}`); }
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         // Eski Family Premier gözlemi yeni pozisyonlarda üst katman değildir; yalnız açık eski pozisyonların kapanış uyumu korunur.
-        if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon);
-        labChampion.snapshot(yeniPozisyon);
-        labPremier.snapshot(yeniPozisyon);
+        try { if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] PREMIER_OBSERVATION_ERROR ${symbol} ${yon} | ${e.message}`); }
+        try { labChampion.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_CHAMPION_ERROR ${symbol} ${yon} | ${e.message}`); }
+        try { labPremier.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_SNAPSHOT_ERROR ${symbol} ${yon} | ${e.message}`); }
         // Tek sanal pozisyon, iki ayrı kayıt amacı taşır:
         // 1) tüm DNA/exit öğrenme motorları, 2) açılışta dondurulan lig test kasası.
         // Aynı sinyal için ikinci bir pozisyon veya ikinci emir oluşturulmaz.
@@ -243,13 +243,10 @@ const m = {
             authority: 'LAB_DNA',
             markedAt: new Date().toISOString()
         };
-        exitMethodScoreboard.open(yeniPozisyon);
-        h.state.aktifPozisyonlar.push(yeniPozisyon);
-        analizMerkezi.acilisKaydet(yeniPozisyon);
-        blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
+        try { exitMethodScoreboard.open(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] EXIT_SCOREBOARD_ERROR ${symbol} ${yon} | ${e.message}`); }
+        try { analizMerkezi.acilisKaydet(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] INTELLIGENCE_SAVE_ERROR ${symbol} ${yon} | ${e.message}`); }
+        try { blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' }); } catch (e) { console.log(`⚠️ [ENTRY AUX] BLACKBOX_SAVE_ERROR ${symbol} ${yon} | ${e.message}`); }
 
-        if (yon === 'LONG') h.state.alinanlar.push(symbol);
-        else h.state.aktifShortlar.push(symbol);
         if (!yeniPozisyon.leagueShadowOnly) {
             h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
             kaliciHafiza.yeniEmirSay();
@@ -301,8 +298,10 @@ const m = {
             `🕒 İşlem Açılış: ${blackbox.tarihSaat(yeniPozisyon.acilisZamani)}` +
             blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
             analizMesaji
-        );
+        ).catch(err => console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`));
 
+        kaliciHafiza.kaydet('sanal-pozisyon-zenginlestirildi');
+        console.log(`✅ [ENTRY_SUCCESS] ${symbol} ${yon} | ${sanalId}`);
         return true;
     },
 
@@ -311,6 +310,7 @@ const m = {
             const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
             if (!izin.uygun) {
                 console.log(`🛡️ [EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
+                console.log(`⛔ [ENTRY_ABORT:${String(izin.sebep || 'EMIR_GATE').replace(/[^A-Z0-9_:-]/gi, '_').toUpperCase()}] ${symbol} ${yon}`);
                 return false;
             }
 
@@ -338,6 +338,7 @@ const m = {
                     miktarKapasiteEngeliniIsaretle(symbol, yon, audit);
                 }
                 miktarRedLoglaVePusuyuTemizle(symbol, yon, audit);
+                console.log(`⛔ [ENTRY_ABORT:INVALID_POSITION_SIZE] ${symbol} ${yon}`);
                 return false;
             }
 
@@ -494,6 +495,7 @@ const m = {
             return true;
         } catch (e) {
             console.error(`❌ [API HATASI] ${symbol}:`, e.message || e);
+            console.log(`⛔ [ENTRY_ABORT:UNKNOWN] ${symbol} ${yon} | ${e.message || e}`);
             if (e.response) console.error('📄 [YANIT]', JSON.stringify(e.response.data || {}, null, 2));
             return false;
         }

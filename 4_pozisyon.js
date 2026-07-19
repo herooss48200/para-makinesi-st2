@@ -795,7 +795,13 @@ async function pusulariDenetleVeIslemAc() {
         console.log(`📊 [GİRİŞ TEŞHİSİ] ${sym} ${pusu.yon} | TF: ${ayarlar.pusuPeriyodu}/${ayarlar.sniperPeriyodu} | Giriş: ${dinamikBasamak(sym, canliFiyat)} | Hedef: ${dinamikBasamak(sym, hedef)} | Tetik: ${dinamikBasamak(sym, gerekenFiyat)} | TetikModu: ${tetikModu} | Sapma: %${tetikSapmaYuzde.toFixed(4)} | Kırılım→Emir: ${girisAnalizi.kirilimdanEmreMs ?? 'YOK'} ms | ST→Emir: ${girisAnalizi.trenddenEmreMs ?? 'YOK'} ms | ST(${superTrendOnayPeriyodu()}): ${superTrendYonu} (${aktifTrend.kaynak})${superTrendEtkiMetni(stEtki)} | ${tetikSirasi}${pusuDebug ? '\n' + pusuDebug : ''}${sniperDebug ? '\n' + sniperDebug : ''}`);
         console.log(`🚀 [POZİSYON AÇILIYOR] ${sym} ${pusu.yon}`);
 
-        const basarili = await m.pozisyonAc(sym, pusu.yon, canliFiyat, girisAnalizi);
+        let basarili = false;
+        try {
+            basarili = await m.pozisyonAc(sym, pusu.yon, canliFiyat, girisAnalizi);
+        } catch (e) {
+            console.error(`❌ [ENTRY_ABORT:UNCAUGHT] ${sym} ${pusu.yon} | ${e.message || e}`);
+        }
+        if (!basarili) console.log(`⛔ [ENTRY_ABORT:POSITION_OPEN_RETURNED_FALSE] ${sym} ${pusu.yon}`);
         if (basarili) {
             pusuKaliteMotoru.islemAcilisKaydet(girisAnalizi, { sym, yon: pusu.yon, girisFiyati: canliFiyat });
             buDongudeAcilanEmir++;

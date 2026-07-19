@@ -133,6 +133,9 @@ const ayarlar = {
     // Stratejiyi değiştirmez; açılış/kapanış/kalite/yolculuk verisini ölçer.
     analizMerkeziAktif: true,
     // v2.2.0 BlackBox: Her işlemde BTC ve coin için 5m/15m/1h/4h SuperTrend + Bollinger fotoğrafı alır.
+
+  blackboxRequestTimeoutMs: 5000,
+  blackboxSnapshotTimeoutMs: 7000,
     blackboxAktif: true,
     blackboxTimeframes: ['5m', '15m', '1h', '4h'],
     blackboxBollingerTf: '15m',

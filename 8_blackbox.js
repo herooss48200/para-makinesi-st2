@@ -16,6 +16,23 @@ const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'blackbox-snapshots.jsonl');
 const CSV = path.join(DATA_DIR, 'blackbox-trades.csv');
 const TFS = ayarlar.blackboxTimeframes || ['5m', '15m', '1h', '4h'];
+const BLACKBOX_REQUEST_TIMEOUT_MS = Math.max(1000, Number(ayarlar.blackboxRequestTimeoutMs || 5000));
+const BLACKBOX_SNAPSHOT_TIMEOUT_MS = Math.max(BLACKBOX_REQUEST_TIMEOUT_MS, Number(ayarlar.blackboxSnapshotTimeoutMs || 7000));
+
+function timeoutPromise(ms, code) {
+  return new Promise((_, reject) => {
+    const timer = setTimeout(() => {
+      const err = new Error(code);
+      err.code = code;
+      reject(err);
+    }, ms);
+    if (typeof timer.unref === 'function') timer.unref();
+  });
+}
+
+async function timeoutIle(promise, ms, code) {
+  return Promise.race([promise, timeoutPromise(ms, code)]);
+}
 let hierarchyMigrationStamp = '';
 
 function hierarchicalIdentityRefresh(summary, source = 'BLACKBOX_SUMMARY_REFRESH') {
@@ -425,7 +442,7 @@ function normalizeMum(m) {
 
 async function mumlariCek(symbol, interval, limit = 80) {
   try {
-    const raw = await h.client.futuresCandles({ symbol, interval, limit });
+    const raw = await timeoutIle(h.client.futuresCandles({ symbol, interval, limit }), BLACKBOX_REQUEST_TIMEOUT_MS, `BLACKBOX_CANDLE_TIMEOUT:${symbol}:${interval}`);
     return (raw || []).map(normalizeMum).filter(x => x.open && x.high && x.low && x.close);
   } catch (err) {
     console.log(`⚠️ [BLACKBOX] Mum çekilemedi: ${symbol} ${interval} | ${err.message}`);
@@ -531,7 +548,7 @@ async function varlikSnapshot(symbol) {
 async function snapshotAl(symbol, yon, kayitTipi = 'ACILIS') {
   if (ayarlar.blackboxAktif === false) return null;
   const zaman = new Date().toISOString();
-  const [btc, coin] = await Promise.all([varlikSnapshot('BTCUSDT'), varlikSnapshot(symbol)]);
+  const [btc, coin] = await timeoutIle(Promise.all([varlikSnapshot('BTCUSDT'), varlikSnapshot(symbol)]), BLACKBOX_SNAPSHOT_TIMEOUT_MS, `BLACKBOX_SNAPSHOT_TIMEOUT:${symbol}`);
   const btcUyum = uyumSay(btc.superTrend, yon);
   const coinUyum = uyumSay(coin.superTrend, yon);
   const toplamUyum = { uygun: btcUyum.uygun + coinUyum.uygun, toplam: btcUyum.toplam + coinUyum.toplam };
