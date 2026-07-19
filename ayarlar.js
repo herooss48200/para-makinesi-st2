@@ -546,11 +546,13 @@ const ayarlar = {
     dnaLeagueExitMinOrnek: 5,
     dnaLeagueExitMinBeatRate: 55,
 
-    // v5.0.1 - Binance ağ dayanıklılığı. Trade Engine değişmez; yalnız veri erişimi korunur.
-    binanceAgEszamanlilik: 5,
-    binanceAgTimeoutMs: 12000,
+    // v5.0.2 - Tüm halka açık Binance verisi tek global kuyruktan geçer.
+    // Trade Engine değişmez; asılı istekler iptal edilir, aynı mum istekleri birleştirilir.
+    binanceAgEszamanlilik: 3,
+    binanceAgIsciSayisi: 8,
+    binanceAgTimeoutMs: 15000,
     binanceAgRetry: 2,
-    binanceAgRetryTabanMs: 700,
+    binanceAgRetryTabanMs: 900,
 
     // v4.7.0 - 2000+ öğrenmenin tam DNA sonuçlarını Family/LAB/FULL katmanlarında korur.
     // Yalnız sanal/gölge ileri doğrulama yapar; ikinci emir açmaz ve gerçek emir yetkisi vermez.

@@ -8,6 +8,7 @@ const rapor = require('./2_rapor.js');
 const versiyonBilgi = require('./versiyon.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const binanceAg = require('./64_binance_network_resilience.js');
+binanceAg.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
 
 let donguCalisiyor = false;
 let sonOzetLog = 0;
@@ -74,7 +75,7 @@ async function baslat() {
 
             donguCalisiyor = true;
             try {
-                const fiyatlar = await binanceAg.istekYap(() => h.client.futuresPrices(), { timeoutMs: ayarlar.binanceAgTimeoutMs || 12000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 700, label: 'FUTURES_PRICES' });
+                const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.binanceAgTimeoutMs || 15000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, label: 'FUTURES_PRICES' });
                 for (const [sym, price] of Object.entries(fiyatlar)) {
                     h.state.canliFiyatlar[sym] = parseFloat(price);
                 }
@@ -104,7 +105,8 @@ async function baslat() {
 
                 if (now - sonOzetLog > 30000) {
                     sonOzetLog = now;
-                    console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu: ${Object.keys(h.state.pusuListesi).length} | Pozisyon: ${h.state.aktifPozisyonlar.length} | ST Güncelleme: ${h.state.sonSniperGuncellemeZamani ? new Date(h.state.sonSniperGuncellemeZamani).toLocaleTimeString() : 'yok'}`);
+                    const agDurum = binanceAg.durumOzeti({ reset: true });
+                    console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu: ${Object.keys(h.state.pusuListesi).length} | Pozisyon: ${h.state.aktifPozisyonlar.length} | ST Güncelleme: ${h.state.sonSniperGuncellemeZamani ? new Date(h.state.sonSniperGuncellemeZamani).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow}`);
                 }
             } catch (e) {
                 if (e.message && (e.message.includes('429') || e.message.includes('1095'))) {

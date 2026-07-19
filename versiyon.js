@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'BINANCE-NETWORK-RESILIENCE',
-    kod: 'AWS Candidate v5.0.1-BINANCE-NETWORK-RESILIENCE',
-    botSurumu: '5.0.1-BINANCE-NETWORK-RESILIENCE',
+    kodAdi: 'SHARED-REQUEST-QUEUE',
+    kod: 'AWS Candidate v5.0.2-SHARED-REQUEST-QUEUE',
+    botSurumu: '5.0.2-SHARED-REQUEST-QUEUE',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }

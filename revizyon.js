@@ -12,17 +12,19 @@ function mumDonustur(x) {
 }
 function sadeceKapanmisMumlar(mumlar) { const now=Date.now(); return (mumlar||[]).filter(x=>Number(x.closeTime)<=now).map(mumDonustur); }
 function superTrendOnayPeriyodu() { return ayarlar.superTrendPeriyodu || ayarlar.trendPeriyodu || ayarlar.sniperPeriyodu || '5m'; }
-function agAyar(label) { return { timeoutMs: ayarlar.binanceAgTimeoutMs || 12000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 700, label }; }
+function agAyar(label) { return { timeoutMs: ayarlar.binanceAgTimeoutMs || 15000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, label }; }
 async function mumCek(sym, interval, limit, label) {
-    return ag.istekYap(() => h.client.futuresCandles({ symbol:sym, interval, limit }), agAyar(label));
+    return ag.binanceMumlariCek(sym, interval, limit, agAyar(label));
 }
 async function sembolHavuzu(worker) {
-    return ag.havuzdaCalistir(h.state.semboller, worker, ayarlar.binanceAgEszamanlilik || 5);
+    ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
+    return ag.havuzdaCalistir(h.state.semboller, worker, Math.max(3, ayarlar.binanceAgIsciSayisi || 8));
 }
 
 async function derinGecmisiInsaEt() {
     console.log('📥 Başlangıç verileri çekiliyor...');
     h.state.yerelPusuHafizasi={}; h.state.canliFiyatlar={}; h.state.sniperMumlar={}; h.state.sniperCanliMumlar={}; h.state.sniperSuperTrend={}; h.state.sniperSuperTrendCanli={}; h.state.trendMumlar={}; h.state.trendCanliMumlar={}; h.state.trendSuperTrend={}; h.state.trendSuperTrendCanli={}; h.state.sonPusuMumZamani={};
+    const tumSemboller=[...(h.state.semboller || [])];
     const gecerli=[];
     const sonuclar=await sembolHavuzu(async sym=>{
         const ham=await mumCek(sym, ayarlar.pusuPeriyodu || '5m', (ayarlar.bollingerperiod||20)+5, `START_CANDLE:${sym}`);
@@ -30,8 +32,9 @@ async function derinGecmisiInsaEt() {
         if(kapanmis.length >= (ayarlar.bollingerperiod||20)) { h.state.yerelPusuHafizasi[sym]=kapanmis; h.state.sonPusuMumZamani[sym]=kapanmis.at(-1).closeTime; gecerli.push(sym); }
     });
     const hata=sonuclar.filter(x=>!x.ok).length;
-    h.state.semboller=gecerli;
-    console.log(`✅ ${h.state.semboller.length} coin için kapanmış ${ayarlar.pusuPeriyodu} verileri çekildi${hata ? ` | geçici ağ hatası: ${hata}` : ''}.`);
+    // Geçici ağ hatası yaşayan sembolleri kalıcı olarak takip listesinden çıkarmıyoruz.
+    h.state.semboller=tumSemboller;
+    console.log(`✅ Başlangıç mum verisi: ${gecerli.length}/${h.state.semboller.length} coin hazır${hata ? ` | sonraki turda tekrar denenecek: ${hata}` : ''}.`);
     await superTrendHesapla(true);
     setInterval(()=>{ pusuVerileriniTazele().catch(e=>console.error('❌ Pusu tazeleme üst hata:',e.message)); }, ayarlar.pusuVeriTazelemeMs || 30000);
     setInterval(()=>{ superTrendHesapla(false).catch(e=>console.error('❌ SuperTrend üst hata:',e.message)); }, ayarlar.superTrendTazelemeMs || 10000);

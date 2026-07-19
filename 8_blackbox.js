@@ -11,6 +11,7 @@ const intelligenceConsole = require('./14_intelligence_console.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
 const dnaHierarchy = require('./60_hierarchical_dna_identity_registry.js');
+const binanceAg = require('./64_binance_network_resilience.js');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'blackbox-snapshots.jsonl');
@@ -442,10 +443,15 @@ function normalizeMum(m) {
 
 async function mumlariCek(symbol, interval, limit = 80) {
   try {
-    const raw = await timeoutIle(h.client.futuresCandles({ symbol, interval, limit }), BLACKBOX_REQUEST_TIMEOUT_MS, `BLACKBOX_CANDLE_TIMEOUT:${symbol}:${interval}`);
+    const raw = await binanceAg.binanceMumlariCek(symbol, interval, limit, {
+      timeoutMs: Math.max(BLACKBOX_REQUEST_TIMEOUT_MS, Number(ayarlar.binanceAgTimeoutMs || 15000)),
+      retries: ayarlar.binanceAgRetry ?? 2,
+      baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900,
+      label: `BLACKBOX_CANDLE_TIMEOUT:${symbol}:${interval}`
+    });
     return (raw || []).map(normalizeMum).filter(x => x.open && x.high && x.low && x.close);
-  } catch (err) {
-    console.log(`⚠️ [BLACKBOX] Mum çekilemedi: ${symbol} ${interval} | ${err.message}`);
+  } catch (_) {
+    // Sembol başına log fırtınası üretme; ortak ağ sayacı heartbeat satırında özetlenir.
     return [];
   }
 }

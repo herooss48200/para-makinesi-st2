@@ -1,3 +1,8 @@
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const testDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-runtime-stability-'));
+process.env.AGROS_DATA_DIR = testDataDir;
 const assert = require('assert');
 const intelligence = require('./41_agros_intelligence_dashboard.js');
 const league = require('./46_dna_league_engine.js');
@@ -29,3 +34,5 @@ const model = intelligence.build({
 });
 assert.doesNotThrow(() => intelligence.telegramText(model));
 console.log('✅ Intelligence + league runtime stability test passed (tradeGroups scope regression guarded)');
+
+try { fs.rmSync(testDataDir, { recursive: true, force: true }); } catch (_) {}

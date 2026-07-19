@@ -16,7 +16,7 @@ const path = require('path');
 const io = require('./53_memory_safe_io.js');
 
 const VERSION = 'v4.6.1-PERSISTENT-DNA-IDENTITY';
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const REGISTRY_FILE = path.join(DATA_DIR, 'dna-identity-registry.json');
 const BACKUP_FILE = `${REGISTRY_FILE}.bak`;
 const LOCK_FILE = `${REGISTRY_FILE}.lock`;
@@ -272,28 +272,32 @@ function lockOwnerAlive() {
 
 function withLock(fn) {
   ensureDir();
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 20000;
+  const token = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   let fd = null;
   while (fd === null) {
     try {
       fd = fs.openSync(LOCK_FILE, 'wx');
-      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, token, at: new Date().toISOString() }));
     } catch (err) {
       if (err.code !== 'EEXIST') throw err;
       try {
         const age = Date.now() - fs.statSync(LOCK_FILE).mtimeMs;
         const ownerAlive = lockOwnerAlive();
-        // PM2 çökme/yeniden başlatma aralığında ölü PID kilidi 30 saniye bekletilmez.
-        if (ownerAlive === false || age > 30000) fs.unlinkSync(LOCK_FILE);
+        // Yalnız ölü/bozuk sahipli kilit temizlenir. Canlı sürecin kilidi yaşına bakılarak silinmez.
+        if (ownerAlive === false || (ownerAlive === null && age > 5000)) fs.unlinkSync(LOCK_FILE);
       } catch (_) {}
-      if (Date.now() >= deadline) throw new Error('DNA kimlik defteri kilidi alınamadı.');
-      sleepMs(15);
+      if (Date.now() >= deadline) throw new Error('DNA kimlik defteri kilidi 20 saniye içinde alınamadı.');
+      sleepMs(25 + Math.floor(Math.random() * 25));
     }
   }
   try { return fn(); }
   finally {
     try { fs.closeSync(fd); } catch (_) {}
-    try { fs.unlinkSync(LOCK_FILE); } catch (_) {}
+    try {
+      const current = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8'));
+      if (current?.token === token) fs.unlinkSync(LOCK_FILE);
+    } catch (_) {}
   }
 }
 
@@ -324,6 +328,21 @@ function ensureMany(keys = [], options = {}) {
   }
   const canonicalKeys = [...aliasesByKey.keys()];
   if (!canonicalKeys.length) return new Map();
+
+  // Var olan kimlikler değişmeyecekse yazma kilidine hiç girme. Bu, çalışan bot ile
+  // test/rapor süreçlerinin gereksiz biçimde birbirini bekletmesini engeller.
+  if (options.touch !== true) {
+    const snapshot = readRegistry();
+    const writeNeeded = canonicalKeys.some(key => {
+      const entry = snapshot.entries?.[key];
+      if (!entry) return true;
+      const existing = new Set(entry.aliases || []);
+      return [...(aliasesByKey.get(key) || [])].some(alias => !existing.has(alias));
+    });
+    if (!writeNeeded) {
+      return new Map(canonicalKeys.map(key => [key, { ...snapshot.entries[key] }]));
+    }
+  }
 
   return withLock(() => {
     const registry = readRegistry({ refresh: true });
