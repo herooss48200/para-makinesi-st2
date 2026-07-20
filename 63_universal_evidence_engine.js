@@ -5,7 +5,7 @@
  * Confidence is a ranking/audit score, not a virtual Premier admission wall.
  */
 const ayarlar = require('./ayarlar.js');
-const VERSION = 'v4.9.2-UNIVERSAL-EVIDENCE-ENGINE';
+const VERSION = 'v5.0.10-ENTRY-EXIT-SEPARATED-EVIDENCE';
 function num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,num(v)));}
 function round(v,d=2){return Number(num(v).toFixed(d));}
@@ -50,13 +50,20 @@ function evaluate({strategyType='UNKNOWN',strategyKey='',historical={},recent={}
   const liveScore=liveClosed ? clamp((Math.min(5,liveClosed)/5)*50 + (livePositive?50:0)) : 0;
   const confidence=round(sampleScore*0.4 + qualityScore*0.3 + exitScore*0.3,1);
 
-  const warmStartEligible=Boolean(strategyKey && historicalPositive && exitPositive);
-  const recentProvisionalEligible=Boolean(strategyKey && recentPositive && exitPositive);
+  // Entry evidence and Exit evidence are deliberately separated. A strong entry DNA may
+  // join the virtual Premier race with the safe current-ladder fallback; own LAB Exit
+  // remains mandatory for the EXIT_VALIDATED tier and any future real-order gate.
+  const entryHistoricalEligible=Boolean(strategyKey && historicalPositive);
+  const entryRecentProvisionalEligible=Boolean(strategyKey && recentPositive);
+  const entryAdmissionEligible=Boolean(entryHistoricalEligible || entryRecentProvisionalEligible);
+  const warmStartEligible=Boolean(entryHistoricalEligible && exitPositive);
+  const recentProvisionalEligible=Boolean(entryRecentProvisionalEligible && exitPositive);
   const admissionEligible=Boolean(warmStartEligible || recentProvisionalEligible);
 
   return {
     version:VERSION,strategyType,strategyKey,isolatedEvidence:true,
     historicalPositive,recentPositive,exitPositive,livePositive,
+    entryHistoricalEligible,entryRecentProvisionalEligible,entryAdmissionEligible,
     warmStartEligible,recentProvisionalEligible,admissionEligible,
     confidence,confidenceBand:confidenceBand(confidence),confidenceGateActive:false,
     scores:{sample:round(sampleScore,1),quality:round(qualityScore,1),exit:round(exitScore,1),live:round(liveScore,1)},

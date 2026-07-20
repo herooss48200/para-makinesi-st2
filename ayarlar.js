@@ -597,6 +597,8 @@ const ayarlar = {
     labPremierModelCacheMs: 30000,
     labPremierExperimentId: 'LAB-PREMIER-TRUE-LEAGUE-2026-07-19',
     labPremierTarihselTestAktif: true,
+    // v5.0.10: Güçlü giriş DNA, özel Exit beklerken mevcut kademe ile Premier sanal teste katılır.
+    labPremierEntryProvenFallbackAktif: true,
     labPremierIleriDogrulamaZorunlu: false,
     labPremierChampionshipUstKatmanAktif: false,
     labPremierGercekEmirYetkisi: false,

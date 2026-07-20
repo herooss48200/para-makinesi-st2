@@ -42,6 +42,6 @@ assert.strictEqual(shadow.virtualAccountIncluded, false);
 assert.strictEqual(labPremier.snapshot(shadow), null, 'Alt lig Premier kasası gözlemi açmamalı');
 
 const text = labPremier.telegram({ league }, 9);
-assert.ok(text.includes('tek gölge sanal pozisyon'));
+assert.ok(text.includes('Giriş kanıtı Premier sanal teste yeter'));
 assert.ok(text.includes('işlem kapısı değil'));
 console.log('✅ v4.9.2 recent-5 positive admission + shadow learning/Telegram continuity tests passed');

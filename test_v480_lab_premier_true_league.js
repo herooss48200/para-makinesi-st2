@@ -68,8 +68,10 @@ try {
   assert.strictEqual(league.policy.championshipOrderAuthority, false);
   assert.strictEqual(league.policy.championshipSizeMultiplier, 0, 'Eski Championship 0.25 kaldırılmalı');
   assert.strictEqual(league.policy.premierSizeMultiplier, 1, 'Tüm LAB Premier eşit x1 yarışmalı');
-  assert.strictEqual(league.premierCount, 2, 'Pozitif kendi Exit’i olan tarihsel LAB’lar test Premier’e girmeli');
-  assert.strictEqual(league.championshipCount, 1, 'Kendi Exit’i kanıtsız LAB gölgede kalmalı');
+  assert.strictEqual(league.premierCount, 3, 'Pozitif giriş DNA özel Exit beklerken de güvenli fallback ile Premier’e girmeli');
+  assert.strictEqual(league.championshipCount, 0, 'Giriş kanıtlı LAB yalnız özel Exit eksik diye gölgede kalmamalı');
+  assert.strictEqual(league.exitValidatedCount, 2);
+  assert.strictEqual(league.entryFallbackCount, 1);
   assert.strictEqual(league.forwardVerifiedCount, 1);
   assert.strictEqual(league.historicalTestCount, 1);
 
@@ -94,6 +96,30 @@ try {
   assert.strictEqual(pos.exitPlanShadow.selectedAlgorithmId, pos.executionExitAssignment.algorithmId, 'Frozen/shadow exit çakışmamalı');
   assert.strictEqual(pos.executionExitAssignment.activeForPosition, true);
 
+  const fallbackDecision = {
+    ...decision,
+    labDnaId: 68, labDnaLabel: 'LAB #68', labKey: waitingExit.labKey,
+    proofLevel: 'HISTORICAL_ENTRY_PROVEN_FALLBACK', exitValidated: false,
+    safeExitFallback: true, entryProven: true, exit: waitingExit.exit
+  };
+  const fallbackPos = {
+    sanal: true,
+    executionExitAssignment: {
+      ready: true, algorithmId: 'TIME_15M', label: '15 Dakika Exit',
+      activeForPosition: true, scope: 'BASE_DNA_LEAK_TEST'
+    },
+    exitPlanActiveForVirtual: true
+  };
+  labPremier.applyToPosition(fallbackPos, fallbackDecision);
+  assert.strictEqual(fallbackPos.leagueShadowOnly, false, 'Entry-Proven DNA Premier üst katmana alınmalı');
+  assert.strictEqual(fallbackPos.virtualAccountIncluded, true);
+  assert.strictEqual(fallbackPos.executionExitAssignment.algorithmId, 'ACTUAL', 'Family dinamik Exit sızıntısı güvenli kademe ile ezilmeli');
+  assert.strictEqual(fallbackPos.executionExitAssignment.scope, 'LAB_PREMIER_ENTRY_PROVEN_FALLBACK');
+  assert.strictEqual(fallbackPos.executionExitAssignment.ready, false);
+  assert.strictEqual(fallbackPos.exitPlanActiveForVirtual, false);
+  assert.ok(labPremier.snapshot(fallbackPos), 'Entry-Proven fallback Premier kasasında izlenmeli');
+  labPremier.close(fallbackPos, { net: -0.2, commission: 0.05, outcome: 'SL' });
+
   const activeBefore = 0;
   const observation = labPremier.snapshot(pos);
   assert.ok(observation);
@@ -105,10 +131,10 @@ try {
   assert.strictEqual(closed.realTradingAuthorized, false);
 
   const state = labPremier.readState();
-  assert.strictEqual(state.aggregate.opened, 1);
-  assert.strictEqual(state.aggregate.closed, 1);
+  assert.strictEqual(state.aggregate.opened, 2);
+  assert.strictEqual(state.aggregate.closed, 2);
   assert.strictEqual(state.aggregate.tp, 1);
-  assert.strictEqual(state.aggregate.net, 0.7);
+  assert.ok(Math.abs(state.aggregate.net - 0.5) < 1e-9);
 
   const shadowPos = { sanal: true, executionExitAssignment: { algorithmId: 'ACTUAL', activeForPosition: false } };
   labPremier.applyToPosition(shadowPos, {
@@ -124,7 +150,8 @@ try {
   const text = labPremier.telegram({ league }, 9);
   assert.ok(text.includes('LAB PREMIER'));
   assert.ok(text.includes('Family rolü: kalıcı piyasa hafızası'));
-  assert.ok(text.includes('Eski Family 1/0.25 kuralı kullanılmaz'));
+  assert.ok(text.includes('Giriş kanıtı Premier sanal teste yeter'));
+  assert.ok(text.includes('Mevcut Kademe güvenli fallback'));
   assert.ok(text.includes('LAB #67'));
   assert.ok(!text.includes('gerçek emir yetkisi açık'));
 
@@ -135,7 +162,7 @@ try {
   assert.strictEqual(audit.secondOrderCreated, false);
   assert.strictEqual(audit.realTradingAuthorized, false);
 
-  console.log('✅ v4.8.0 LAB Premier true league tests passed | Family memory-only, LAB authority, own exit active, x1/0 sizing, zero second order, real gate closed');
+  console.log('✅ v4.8.0 LAB Premier regression passed | Entry-Proven fallback + own Exit active + zero second order + real gate closed');
 } finally {
   ayarlar.labPremierTarihselTestAktif = oldHistoricalTest;
   ayarlar.labPremierIleriDogrulamaZorunlu = oldForwardRequired;

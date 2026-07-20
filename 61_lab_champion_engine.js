@@ -18,7 +18,7 @@ const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const evidenceEngine = require('./63_universal_evidence_engine.js');
 const dnaEvolution = require('./38_dna_evolution_engine.js');
 
-const VERSION = 'v4.9.2-LAB-CHAMPION-RECENT5-EVIDENCE';
+const VERSION = 'v5.0.10-LAB-ENTRY-PROVEN-CANDIDATES';
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-champion-observation.json');
 const TRADES_FILE = path.join(DATA_DIR, 'lab-champion-trades.jsonl');
@@ -340,6 +340,9 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
       fullChampionCount: children.filter(x => x.historicalEligible).length,
       historicalCandidate: historicalEligible(historical),
       evidence,
+      entryProvenCandidate: Boolean(ayarlar.labPremierEntryProvenFallbackAktif !== false && evidence.entryAdmissionEligible),
+      historicalEntryCandidate: Boolean(ayarlar.labPremierEntryProvenFallbackAktif !== false && evidence.entryHistoricalEligible),
+      recent5EntryCandidate: Boolean(ayarlar.labPremierEntryProvenFallbackAktif !== false && evidence.entryRecentProvisionalEligible),
       warmStartCandidate: Boolean(ayarlar.evidenceWarmStartAktif !== false && evidence.admissionEligible),
       recent5ProvisionalCandidate: Boolean(ayarlar.evidenceWarmStartAktif !== false && evidence.recentProvisionalEligible),
       promotionReady: Boolean(
@@ -350,7 +353,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
       realTradingAuthorized: false
     };
     if (baseRow.historicalCandidate) { strongSourceCount++; champions.push(baseRow); }
-    if (baseRow.warmStartCandidate) evidenceCandidates.push(baseRow);
+    if (baseRow.entryProvenCandidate || baseRow.warmStartCandidate) evidenceCandidates.push(baseRow);
   }
 
   champions.sort((a, b) => b.score - a.score || b.historical.total - a.historical.total);
@@ -370,6 +373,9 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
     promotionReadyCount: champions.filter(x => x.promotionReady).length,
     labChampions: champions,
     evidenceCandidateCount: evidenceCandidates.length,
+    entryProvenCandidateCount: evidenceCandidates.filter(x => x.entryProvenCandidate).length,
+    entryFallbackCandidateCount: evidenceCandidates.filter(x => x.entryProvenCandidate && !x.exit?.positive).length,
+    recent5EntryCandidateCount: evidenceCandidates.filter(x => x.recent5EntryCandidate).length,
     recent5ProvisionalCandidateCount: evidenceCandidates.filter(x => x.recent5ProvisionalCandidate).length,
     evidenceCandidates: evidenceCandidates.sort((a,b) => b.evidence.confidence - a.evidence.confidence || b.historical.total - a.historical.total),
     policy: {
@@ -379,7 +385,9 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
       existingCountersUntouched: true,
       samePositionOnly: true,
       secondOrderCreated: false,
-      labOwnExitReplayRequired: true,
+      labOwnExitReplayRequiredForExitValidated: true,
+      labOwnExitReplayRequiredForVirtualPremierAdmission: false,
+      entryProvenUsesCurrentLadderFallback: true,
       fullExitInheritsLabUntilOwnReplayProof: true,
       realOrderGateChanged: false,
       labPremierCandidateSource: true,
@@ -613,7 +621,7 @@ function telegram(model = null, limit = 8) {
   let text = '\n\n🥇 <b>2000+ ÖĞRENME — LAB CHAMPION ALTIN KÖPRÜ</b>\n';
   text += `📦 Geçmiş kapanış: ${data.sourceClosed} | LAB DNA: ${data.allLabDnaCount} | FULL DNA: ${data.allFullDnaCount}\n`;
   text += `🧬 LAB kapsama %${num(data.coverage.labCoveragePct).toFixed(1)} | FULL kapsama %${num(data.coverage.fullCoveragePct).toFixed(1)} | Kayıp ${data.lostChampionCount}\n`;
-  text += `🏆 Tarihsel şampiyon ${data.championCount} | İleri doğrulanmış ${data.promotionReadyCount}\n`;
+  text += `🏆 Tarihsel şampiyon ${data.championCount} | 🧪 Entry-Proven aday ${data.entryProvenCandidateCount || 0} | 🛟 Exit bekleyen ${data.entryFallbackCandidateCount || 0} | İleri doğrulanmış ${data.promotionReadyCount}\n`;
   text += data.coverage.complete
     ? '✅ Geçmiş kapanış toplamı Family/LAB/FULL katmanlarında eksiksiz eşleşiyor.'
     : `🚨 Kapsama farkı: LAB -${data.coverage.labMissing}, FULL -${data.coverage.fullMissing}. Gerçek emir fail-closed.`;
@@ -632,7 +640,7 @@ function telegram(model = null, limit = 8) {
     }).join('\n');
   }
 
-  text += '\n🧬 Tarihsel güçlü + kendi pozitif Exit’li LAB’lar, LAB Premier sanal test havuzunun aday kaynağıdır.';
+  text += '\n🧬 Pozitif giriş kanıtı Premier sanal test için yeterlidir; özel LAB Exit yoksa güvenli mevcut kademe kullanılır.';
   text += '\n🔒 Tek sanal pozisyon izlenir; ikinci emir yoktur. Gerçek emir yetkisi kapalıdır.';
   return text;
 }
