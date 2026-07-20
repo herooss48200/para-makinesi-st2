@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'LEARNING-TELEMETRY-CONSISTENCY',
-    kod: 'AWS Candidate v5.0.7-LEARNING-TELEMETRY-CONSISTENCY',
-    botSurumu: '5.0.7-LEARNING-TELEMETRY-CONSISTENCY',
+    kodAdi: 'ACTIVE-EVIDENCE-RECONCILIATION',
+    kod: 'AWS Candidate v5.0.8-ACTIVE-EVIDENCE-RECONCILIATION',
+    botSurumu: '5.0.8-ACTIVE-EVIDENCE-RECONCILIATION',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }

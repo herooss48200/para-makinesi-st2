@@ -17,6 +17,7 @@ const io = require('./53_memory_safe_io.js');
 const hierarchy = require('./60_hierarchical_dna_identity_registry.js');
 const labChampion = require('./61_lab_champion_engine.js');
 const evidenceEngine = require('./63_universal_evidence_engine.js');
+const accountingContinuity = require('./65_accounting_continuity.js');
 
 const VERSION = 'v4.9.2-RECENT5-POSITIVE-PREMIER';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -409,11 +410,13 @@ function close(pos, result = {}) {
   return trade;
 }
 function activeRows(activePositions = []) {
-  return (activePositions || []).filter(p => p?.labPremierObservation?.upperLayerIncluded).map(p => ({
-    symbol: p.sym || '', side: p.yon || '', labDnaLabel: p.labPremierObservation.labDnaLabel,
-    familyDnaLabel: p.labPremierObservation.familyDnaLabel,
-    proofLevel: p.labPremierObservation.proofLevel,
-    exitAlgorithmLabel: p.labPremierObservation.exitAlgorithmLabel
+  // One source of truth: GAP positions are never active Premier evidence,
+  // even when an old persisted observation still says upperLayerIncluded=true.
+  return accountingContinuity.activeBreakdown(activePositions).premierPositions.map(p => ({
+    symbol: p.sym || '', side: p.yon || '', labDnaLabel: p.labPremierObservation?.labDnaLabel || '',
+    familyDnaLabel: p.labPremierObservation?.familyDnaLabel || '',
+    proofLevel: p.labPremierObservation?.proofLevel || '',
+    exitAlgorithmLabel: p.labPremierObservation?.exitAlgorithmLabel || ''
   }));
 }
 function summaryModel(activePositions = [], { force = false } = {}) {
@@ -491,5 +494,5 @@ function audit() {
 module.exports = {
   VERSION, STATE_FILE, MODEL_FILE, TRADES_FILE,
   readState, writeState, metrics, championTier, build, evaluate, frozenExit,
-  applyToPosition, snapshot, close, summaryModel, compactTelegram, telegram, audit
+  applyToPosition, snapshot, close, activeRows, summaryModel, compactTelegram, telegram, audit
 };

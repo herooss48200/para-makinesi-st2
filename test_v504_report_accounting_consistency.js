@@ -62,7 +62,9 @@ try {
   assert.strictEqual(closeModule._kapanisRaporKimligi({ ...commonIdentity }, true).title, '[RESTART GAP SANAL POZİSYON KAPANDI]');
 
   const reportSource = fs.readFileSync(path.join(__dirname, '2_rapor.js'), 'utf8');
-  assert.ok(reportSource.includes('Toplam yeni öğrenme (Premier + Gölge, GAP hariç)'));
+  assert.ok(reportSource.includes('Yeni bilimsel defter (Premier + Gölge)'));
+  assert.ok(reportSource.includes('Öğrenme mutabakatı'));
+  assert.ok(reportSource.includes('Sonradan GAP karantinası'));
   assert.ok(reportSource.includes('Premier kanıtı'));
   assert.ok(reportSource.includes('Gölge kanıtı'));
   assert.ok(reportSource.includes('GAP / MUHASEBE DURUMU — ÖĞRENMEYE DAHİL DEĞİL'));

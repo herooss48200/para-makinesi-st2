@@ -12,7 +12,7 @@
 
 const h = require('./1_hafiza.js');
 
-const VERSION = 'v5.0.7-LEARNING-TELEMETRY-CONSISTENCY';
+const VERSION = 'v5.0.8-ACTIVE-EVIDENCE-RECONCILIATION';
 const CLASSIFICATION_MODEL = 'ACTIVE-BATCH-ONLY-v2';
 
 function n(value) {
@@ -238,9 +238,11 @@ function trackAtClose(pos = {}, options = {}) {
 function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
   const st = ensure();
   const list = Array.isArray(activePositions) ? activePositions : [];
-  const trackedActive = list
-    .filter(pos => pos?.accountingContinuityTracked === true && pos?.accountingContinuityClosed !== true)
-    .length;
+  const trackedOpenPositions = list
+    .filter(pos => pos?.accountingContinuityTracked === true && pos?.accountingContinuityClosed !== true);
+  const trackedActive = trackedOpenPositions.length;
+  const trackedRestartGapActive = trackedOpenPositions.filter(isRestartGap).length;
+  const trackedScientificActive = trackedOpenPositions.filter(pos => !isRestartGap(pos) && pos?.sanal !== false).length;
   const equationActive = Math.max(0, n(st.current.opened) - n(st.current.closed));
   const difference = equationActive - trackedActive;
 
@@ -255,6 +257,8 @@ function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
     legacy: { ...st.legacy },
     current: { ...st.current },
     trackedActive,
+    trackedRestartGapActive,
+    trackedScientificActive,
     equationActive,
     difference,
     legacyActive,
