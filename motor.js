@@ -13,6 +13,7 @@ const labPremier = require('./62_lab_premier_league.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
+const identityChain = require('./66_identity_chain_repair.js');
 
 function ondalikSayisi(step) {
     const s = String(step);
@@ -215,19 +216,20 @@ const m = {
             breakevenAktif: false,
             girisAnalizi
         };
-        // v5.0: Geçerli sanal emir önce temel state'e alınır; yardımcı katmanlar ana açılışı bloke edemez.
-        yeniPozisyon.blackboxAcilis = hazirKimlik?.blackboxAcilis || null;
+        // v5.0.6: Eksiksiz Identity -> League -> Exit zinciri state kaydından ÖNCE kopyalanır.
+        // Snapshot/kimlik eksikse anonim pozisyon hiçbir zaman aktif state'e giremez.
+        identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
+        identityChain.assertPrepared(yeniPozisyon);
+
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         if (yon === 'LONG') h.state.alinanlar.push(symbol);
         else h.state.aktifShortlar.push(symbol);
         kaliciHafiza.kaydet('sanal-pozisyon-temel-kayit');
 
         try { exitOptimizer.pozisyonBaslat(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] EXIT_INIT_ERROR ${symbol} ${yon} | ${e.message}`); }
-        try { if (hazirKimlik) realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik); } catch (e) { console.log(`⚠️ [ENTRY AUX] IDENTITY_COPY_ERROR ${symbol} ${yon} | ${e.message}`); }
-        let karar = hazirKimlik?.realOrderReadiness || null;
-        try { if (!karar) karar = realOrderBridge.evaluate(yeniPozisyon, { realMode: false }); } catch (e) { console.log(`⚠️ [ENTRY AUX] READINESS_ERROR ${symbol} ${yon} | ${e.message}`); karar = {}; }
-        let labKarar = null;
-        try { labKarar = labPremier.applyToPosition(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_IDENTITY_ERROR ${symbol} ${yon} | ${e.message}`); }
+        const karar = yeniPozisyon.realOrderReadiness;
+        // Önceden dondurulan LAB kararı yeniden uygulanır; yeni karar/kimlik üretilmez.
+        const labKarar = labPremier.applyToPosition(yeniPozisyon, yeniPozisyon.labPremierDecision);
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         // Eski Family Premier gözlemi yeni pozisyonlarda üst katman değildir; yalnız açık eski pozisyonların kapanış uyumu korunur.
         try { if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] PREMIER_OBSERVATION_ERROR ${symbol} ${yon} | ${e.message}`); }
@@ -247,7 +249,12 @@ const m = {
         };
         try { exitMethodScoreboard.open(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] EXIT_SCOREBOARD_ERROR ${symbol} ${yon} | ${e.message}`); }
         try { analizMerkezi.acilisKaydet(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] INTELLIGENCE_SAVE_ERROR ${symbol} ${yon} | ${e.message}`); }
-        try { blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' }); } catch (e) { console.log(`⚠️ [ENTRY AUX] BLACKBOX_SAVE_ERROR ${symbol} ${yon} | ${e.message}`); }
+        const blackboxKaydi = blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
+        if (!blackboxKaydi?.ok) {
+            console.log(`⚠️ [IDENTITY CHAIN] BLACKBOX aşaması tamamlanamadı: ${symbol} ${yon} | ${blackboxKaydi?.error || 'BILINMEYEN'}`);
+        } else {
+            identityChain.markStage(yeniPozisyon, 'BLACKBOX');
+        }
 
         if (!yeniPozisyon.leagueShadowOnly) {
             h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
@@ -278,7 +285,7 @@ const m = {
               (girisAnalizi.sniperDebug ? `\n\n${girisAnalizi.sniperDebug}` : '')
             : '';
 
-        await h.telegramMesajGonder(
+        const telegramGonderildi = await h.telegramMesajGonder(
             `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[LAB GÖLGE ÖĞRENME]</b>' : '🏆 <b>[LAB PREMIER SANAL POZİSYON]</b>'}\n` +
             (yeniPozisyon.labPremierDecision?.upperLayerIncluded ? `💎 <b>LAB PREMIER İŞLEMİ</b> | ${yeniPozisyon.labPremierDecision.proofLevel}\n` : `🌱 LAB Championship/Development — tek gölge sanal pozisyon | Telegram açık | üst kasa dışı öğrenme\n`) +
             `🔀 ${symbol} (${yon})\n` +
@@ -300,7 +307,13 @@ const m = {
             `🕒 İşlem Açılış: ${blackbox.tarihSaat(yeniPozisyon.acilisZamani)}` +
             blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
             analizMesaji
-        ).catch(err => console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`));
+        ).then(() => true).catch(err => {
+            console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`);
+            return false;
+        });
+        if (telegramGonderildi && yeniPozisyon.identityChainAudit?.completed?.includes('BLACKBOX')) {
+            identityChain.markStage(yeniPozisyon, 'TELEGRAM');
+        }
 
         kaliciHafiza.kaydet('sanal-pozisyon-zenginlestirildi');
         console.log(`✅ [ENTRY_SUCCESS] ${symbol} ${yon} | ${sanalId}`);
@@ -356,12 +369,14 @@ const m = {
                 sym: symbol, yon, girisFiyati: canliFiyat, sl, tp, miktar: guvenliMiktar,
                 sanal: ayarlar.sanalEmirModu, acilisZamani: Date.now(), girisAnalizi
             };
-            hazirKimlik.blackboxAcilis = await blackbox.snapshotAl(symbol, yon, 'ACILIS').catch(err => {
-                console.log(`⚠️ [BLACKBOX] Emir öncesi snapshot alınamadı: ${symbol} ${yon} | ${err.message}`);
-                return null;
-            });
-            const ortakKarar = realOrderBridge.evaluate(hazirKimlik, { realMode: !ayarlar.sanalEmirModu });
-            const labGercekKarar = ayarlar.sanalEmirModu ? null : labPremier.evaluate(hazirKimlik, { realMode: true });
+            try {
+                await identityChain.prepare(hazirKimlik, { realMode: !ayarlar.sanalEmirModu });
+            } catch (err) {
+                console.log(`⛔ [ENTRY_ABORT:IDENTITY_CHAIN] ${symbol} ${yon} | ${err.code || 'IDENTITY_CHAIN_ERROR'} | ${err.message}`);
+                return false;
+            }
+            const ortakKarar = hazirKimlik.realOrderReadiness;
+            const labGercekKarar = ayarlar.sanalEmirModu ? null : hazirKimlik.labPremierDecision;
 
             if (ayarlar.sanalEmirModu) {
                 console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${yon}`);
@@ -458,8 +473,8 @@ const m = {
                 breakevenAktif: false,
                 girisAnalizi
             };
-            yeniPozisyon.blackboxAcilis = hazirKimlik.blackboxAcilis;
-            realOrderBridge.copyDecisionToPosition(yeniPozisyon, hazirKimlik);
+            identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
+            identityChain.assertPrepared(yeniPozisyon);
             premierObservation.snapshot(yeniPozisyon);
             yeniPozisyon.dualLayerAudit = {
                 singlePosition: true,
@@ -473,14 +488,16 @@ const m = {
             h.state.aktifPozisyonlar.push(yeniPozisyon);
             try { accountingContinuity.trackAtOpen(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] ACCOUNTING_CONTINUITY_OPEN_ERROR ${symbol} ${yon} | ${e.message}`); }
             analizMerkezi.acilisKaydet(yeniPozisyon);
-            blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
+            const gercekBlackboxKaydi = blackbox.kayitYaz(yeniPozisyon, 'ACILIS', { sonuc: 'ACIK' });
+            if (gercekBlackboxKaydi?.ok) identityChain.markStage(yeniPozisyon, 'BLACKBOX');
+            else console.log(`⚠️ [IDENTITY CHAIN] BLACKBOX aşaması tamamlanamadı: ${symbol} ${yon} | ${gercekBlackboxKaydi?.error || 'BILINMEYEN'}`);
 
             if (yon === 'LONG') h.state.alinanlar.push(symbol);
             else h.state.aktifShortlar.push(symbol);
             h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
             kaliciHafiza.yeniEmirSay();
 
-            await h.telegramMesajGonder(
+            const gercekTelegramGonderildi = await h.telegramMesajGonder(
                 `🚀 <b>[POZİSYON AÇILDI]</b>\n` +
                 `🔀 ${symbol} (${yon})\n` +
                 `🪪 ${yeniPozisyon.dnaLabel || 'DNA #YOK'} | ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
@@ -492,7 +509,13 @@ const m = {
                 dnaExitSelector.openingText(yeniPozisyon.exitPlanShadow) +
               blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
                 (girisAnalizi?.superTrendEtki ? `\n📈 ST Etki: ${girisAnalizi.superTrendEtki.puan}/20 | Yaş: ${girisAnalizi.superTrendEtki.yasMum} | Mesafe: %${Number(girisAnalizi.superTrendEtki.mesafeYuzde || 0).toFixed(2)} | ${girisAnalizi.superTrendEtki.durum}` : '')
-            );
+            ).then(() => true).catch(err => {
+                console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`);
+                return false;
+            });
+            if (gercekTelegramGonderildi && yeniPozisyon.identityChainAudit?.completed?.includes('BLACKBOX')) {
+                identityChain.markStage(yeniPozisyon, 'TELEGRAM');
+            }
 
             console.log(`✅ [TELEGRAM] ${symbol} için mesaj gönderildi.`);
             return true;

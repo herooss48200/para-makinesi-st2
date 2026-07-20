@@ -17,22 +17,24 @@ const DATA_DIR = path.join(__dirname, 'data');
 const JSONL = path.join(DATA_DIR, 'blackbox-snapshots.jsonl');
 const CSV = path.join(DATA_DIR, 'blackbox-trades.csv');
 const TFS = ayarlar.blackboxTimeframes || ['5m', '15m', '1h', '4h'];
-const BLACKBOX_REQUEST_TIMEOUT_MS = Math.max(1000, Number(ayarlar.blackboxRequestTimeoutMs || 5000));
-const BLACKBOX_SNAPSHOT_TIMEOUT_MS = Math.max(BLACKBOX_REQUEST_TIMEOUT_MS, Number(ayarlar.blackboxSnapshotTimeoutMs || 7000));
-
-function timeoutPromise(ms, code) {
-  return new Promise((_, reject) => {
-    const timer = setTimeout(() => {
-      const err = new Error(code);
-      err.code = code;
-      reject(err);
-    }, ms);
-    if (typeof timer.unref === 'function') timer.unref();
-  });
-}
+const BLACKBOX_REQUEST_TIMEOUT_MS = Math.max(1000, Number(ayarlar.blackboxRequestTimeoutMs || 5000), Number(ayarlar.binanceAgTimeoutMs || 15000));
+// Dış snapshot süresi iç mum isteğinden kısa olamaz. v5.0.5'te 7 sn dış timeout,
+// 15 sn + retry iç istekleri yarıda keserek kimlik zincirini null bırakabiliyordu.
+const BLACKBOX_SNAPSHOT_TIMEOUT_MS = Math.max(BLACKBOX_REQUEST_TIMEOUT_MS * 4, Number(ayarlar.blackboxSnapshotTimeoutMs || 60000));
 
 async function timeoutIle(promise, ms, code) {
-  return Promise.race([promise, timeoutPromise(ms, code)]);
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error(code);
+        err.code = code;
+        reject(err);
+      }, ms);
+      if (typeof timer.unref === 'function') timer.unref();
+    })
+  ]).finally(() => clearTimeout(timer));
 }
 let hierarchyMigrationStamp = '';
 
@@ -447,12 +449,13 @@ async function mumlariCek(symbol, interval, limit = 80) {
       timeoutMs: Math.max(BLACKBOX_REQUEST_TIMEOUT_MS, Number(ayarlar.binanceAgTimeoutMs || 15000)),
       retries: ayarlar.binanceAgRetry ?? 2,
       baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900,
-      label: `BLACKBOX_CANDLE_TIMEOUT:${symbol}:${interval}`
+      label: `BLACKBOX_CANDLE_TIMEOUT:${symbol}:${interval}`,
+      priority: 'CRITICAL'
     });
     return (raw || []).map(normalizeMum).filter(x => x.open && x.high && x.low && x.close);
-  } catch (_) {
-    // Sembol başına log fırtınası üretme; ortak ağ sayacı heartbeat satırında özetlenir.
-    return [];
+  } catch (err) {
+    // Snapshot katmanı eksik mumla sahte Y-bit kimliği üretmez; üst zincir retry/fail-closed uygular.
+    throw err;
   }
 }
 
@@ -540,13 +543,27 @@ function uyumSay(matrix, yon) {
 }
 
 async function varlikSnapshot(symbol) {
-  const matrix = {};
-  let bb = null;
-  for (const tf of TFS) {
+  const bbTf = ayarlar.blackboxBollingerTf || ayarlar.pusuPeriyodu || '15m';
+  const rows = await Promise.all(TFS.map(async tf => {
     const mumlar = await mumlariCek(symbol, tf, Math.max(80, (ayarlar.superTrendPeriod || 10) * 5));
     const st = hesaplaSuperTrend(mumlar);
-    matrix[tf] = st;
-    if (tf === (ayarlar.blackboxBollingerTf || ayarlar.pusuPeriyodu || '15m')) bb = hesaplaBollinger(mumlar);
+    if (st?.trend !== 'UP' && st?.trend !== 'DOWN') {
+      const err = new Error(`BLACKBOX_TREND_INCOMPLETE:${symbol}:${tf}`);
+      err.code = 'BLACKBOX_TREND_INCOMPLETE';
+      throw err;
+    }
+    return { tf, st, bb: tf === bbTf ? hesaplaBollinger(mumlar) : null };
+  }));
+  const matrix = {};
+  let bb = null;
+  for (const row of rows) {
+    matrix[row.tf] = row.st;
+    if (row.bb) bb = row.bb;
+  }
+  if (!bb) {
+    const err = new Error(`BLACKBOX_BOLLINGER_INCOMPLETE:${symbol}:${bbTf}`);
+    err.code = 'BLACKBOX_BOLLINGER_INCOMPLETE';
+    throw err;
   }
   return { symbol, superTrend: matrix, bollinger: bb };
 }
@@ -711,7 +728,11 @@ function kayitYaz(pos, kayitTipi, sonuc = {}) {
       experimentId: deneyMeta().id, experimentLabel: deneyMeta().etiket, trendTf: ayarlar.trendPeriyodu, pusuTf: ayarlar.pusuPeriyodu, sniperTf: ayarlar.sniperPeriyodu, stPeriod: ayarlar.superTrendPeriod, stMultiplier: ayarlar.superTrendMultiplier, bbPeriod: ayarlar.bollingerperiod, bbMultiplier: ayarlar.bollingercarpani, stopMode: ayarlar.stopTakipModu, leverage: ayarlar.mevcutKaldirac
     };
     fs.appendFileSync(CSV, CSV_BASLIK.map(k => csv(row[k])).join(',') + '\n');
-  } catch (err) { console.log(`⚠️ [BLACKBOX] Kayıt yazılamadı: ${err.message}`); }
+    return { ok: true, record: rec };
+  } catch (err) {
+    console.log(`⚠️ [BLACKBOX] Kayıt yazılamadı: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
 }
 
 

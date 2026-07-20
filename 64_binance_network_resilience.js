@@ -35,6 +35,7 @@ const agent = new https.Agent({
 
 const queue = [];
 const inFlightByKey = new Map();
+const taskByKey = new Map();
 const cache = new Map();
 let active = 0;
 let configuredConcurrency = DEFAULTS.concurrency;
@@ -52,6 +53,7 @@ const stats = {
     cacheHit: 0,
     timeout: 0,
     transientFailure: 0,
+    promoted: 0,
     lastError: '',
     lastErrorAt: 0
 };
@@ -141,6 +143,20 @@ async function retryIleCalistir(fn, options = {}) {
     throw sonHata;
 }
 
+
+function priorityValue(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const text = String(value || '').toUpperCase();
+    if (text === 'CRITICAL') return 100;
+    if (text === 'HIGH') return 50;
+    if (text === 'LOW') return -10;
+    return 0;
+}
+
+function queueSort() {
+    queue.sort((a, b) => (b.priority - a.priority) || (a.id - b.id));
+}
+
 function pump() {
     if (pumpTimer) return;
     const run = () => {
@@ -155,6 +171,7 @@ function pump() {
                 if (typeof pumpTimer.unref === 'function') pumpTimer.unref();
                 return;
             }
+            task.status = 'active';
             active++;
             lastStartAt = Date.now();
             stats.started++;
@@ -173,6 +190,7 @@ function pump() {
                 .finally(() => {
                     active--;
                     if (task.key && inFlightByKey.get(task.key) === task.promise) inFlightByKey.delete(task.key);
+                    if (task.key && taskByKey.get(task.key) === task) taskByKey.delete(task.key);
                     cacheTemizle();
                     pump();
                 });
@@ -192,6 +210,15 @@ function kuyrukluIstek(key, fn, options = {}) {
         }
         if (inFlightByKey.has(normalizedKey)) {
             stats.deduped++;
+            const existingTask = taskByKey.get(normalizedKey);
+            const requestedPriority = priorityValue(options.priority);
+            if (existingTask?.status === 'queued' && requestedPriority > existingTask.priority) {
+                existingTask.priority = requestedPriority;
+                existingTask.options.priority = requestedPriority;
+                queueSort();
+                stats.promoted++;
+                pump();
+            }
             return inFlightByKey.get(normalizedKey);
         }
     }
@@ -209,10 +236,16 @@ function kuyrukluIstek(key, fn, options = {}) {
         options: { ...DEFAULTS, ...options },
         resolve: resolveTask,
         reject: rejectTask,
-        promise
+        promise,
+        priority: priorityValue(options.priority),
+        status: 'queued'
     };
-    if (normalizedKey) inFlightByKey.set(normalizedKey, promise);
+    if (normalizedKey) {
+        inFlightByKey.set(normalizedKey, promise);
+        taskByKey.set(normalizedKey, task);
+    }
     queue.push(task);
+    queueSort();
     stats.queued++;
     pump();
     return promise;
@@ -384,6 +417,7 @@ function durumOzeti({ reset = false } = {}) {
 function testReset() {
     queue.length = 0;
     inFlightByKey.clear();
+    taskByKey.clear();
     cache.clear();
     active = 0;
     configuredConcurrency = DEFAULTS.concurrency;

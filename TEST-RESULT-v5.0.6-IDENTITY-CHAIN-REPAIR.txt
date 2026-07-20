@@ -1,0 +1,27 @@
+AGROS v5.0.6 — Identity Chain Repair
+Test date: 20.07.2026
+
+Scope verified:
+- DNA/LAB/FULL identity completeness before active-state insertion
+- Snapshot fail-closed behavior
+- Deterministic IDENTITY -> LEAGUE -> EXIT -> BLACKBOX -> TELEGRAM order
+- Shared Binance queue critical promotion for entry snapshots
+- No Trade Engine, League criteria, Exit rules, or accounting rule change
+
+Scenario regression:
+- SKLUSDT SHORT
+- DNA #171
+- LAB #378
+- FULL #365
+- Result: PASS
+
+Commands:
+- npm run verify:v506 : PASS
+- npm run check       : PASS
+
+Historical regression coverage:
+- Runtime stability
+- v4.5 through v5.0.5 compatibility tests
+- v5.0.6 identity-chain regression
+
+Final result: PASS

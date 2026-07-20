@@ -6,8 +6,14 @@ const pos = fs.readFileSync('4_pozisyon.js', 'utf8');
 const bb = fs.readFileSync('8_blackbox.js', 'utf8');
 
 const pushAt = motor.indexOf('h.state.aktifPozisyonlar.push(yeniPozisyon);');
-const labAt = motor.indexOf('labPremier.applyToPosition(yeniPozisyon)');
-assert(pushAt >= 0 && labAt >= 0 && pushAt < labAt, 'Temel state kaydı LAB yardımcı katmanından önce olmalı');
+const preparedCopyAt = motor.indexOf('identityChain.copyPrepared(yeniPozisyon, hazirKimlik)');
+const labAt = motor.indexOf('labPremier.applyToPosition(yeniPozisyon');
+assert(pushAt >= 0, 'Temel state kaydı bulunmalı');
+if (preparedCopyAt >= 0) {
+  assert(preparedCopyAt < pushAt, 'v5.0.6 eksiksiz kimlik zinciri state kaydından önce kopyalanmalı');
+} else {
+  assert(labAt >= 0 && pushAt < labAt, 'Temel state kaydı LAB yardımcı katmanından önce olmalı');
+}
 assert(motor.includes("kaliciHafiza.kaydet('sanal-pozisyon-temel-kayit')"), 'Temel sanal state kalıcı kayda alınmalı');
 assert(motor.includes('[ENTRY AUX] TELEGRAM_ERROR'), 'Telegram hatası yardımcı katman olarak yakalanmalı');
 assert(motor.includes('[ENTRY_SUCCESS]'), 'Başarılı giriş terminal sonucu bulunmalı');

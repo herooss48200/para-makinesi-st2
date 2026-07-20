@@ -46,9 +46,9 @@ function realAuthorization() {
 }
 function evaluate(pos, { realMode = false } = {}) {
   const key = signature(pos);
-  const profile = dnaLeague.attachToPosition(pos);
+  const profile = pos?.dnaLeagueProfile || dnaLeague.attachToPosition(pos);
   const identity = key ? dnaIdentity.ensure(key, { source: 'REAL_ORDER_READINESS' }) : null;
-  const exitPlan = dnaExitSelector.attachToPosition(pos);
+  const exitPlan = pos?.exitPlanShadow || dnaExitSelector.attachToPosition(pos);
   const maxAge = Math.max(5, num(ayarlar.gercekEmirLigModelMaksYasDakika, 360));
   const age = modelAgeMinutes();
   const auth = realAuthorization();
