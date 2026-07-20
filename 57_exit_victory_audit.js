@@ -82,9 +82,11 @@ function build(positions=[]){
   const assignments=activeAssignments(positions);
   const coverage=runtimeCoverage();
   const preflight=assignmentPreflight();
+  const atrModels=(h.atr?.models||[]);
+  const atrAudit={total:atrModels.length,supported:atrModels.filter(x=>executor.isSupported(x.id)).length,triggered:atrModels.filter(x=>n(x.triggered)>0).length,dataModels:atrModels.filter(x=>n(x.dataAvailable)>0).length,pathTrades:n(h.atr?.pathTrades)};
   const liveAssignments=assignments.filter(x=>!x.restartRecovered);
   const recoveredAssignments=assignments.filter(x=>x.restartRecovered);
-  return {version:VERSION,createdAt:new Date().toISOString(),catalog,coverage,preflight,health:h,activeNonTime,neverTriggered,noData,assignments,assignmentStats:{total:assignments.length,ready:assignments.filter(x=>x.ready).length,virtualActive:assignments.filter(x=>x.activeForVirtual).length,fallback:assignments.filter(x=>!x.ready).length,recovered:recoveredAssignments.length,recoveredProtected:recoveredAssignments.filter(x=>!x.activeForVirtual).length,newPositions:liveAssignments.length,newReady:liveAssignments.filter(x=>x.ready).length,newVirtualActive:liveAssignments.filter(x=>x.activeForVirtual).length,newFallback:liveAssignments.filter(x=>!x.ready).length}};
+  return {version:VERSION,createdAt:new Date().toISOString(),catalog,coverage,preflight,health:h,atrAudit,activeNonTime,neverTriggered,noData,assignments,assignmentStats:{total:assignments.length,ready:assignments.filter(x=>x.ready).length,virtualActive:assignments.filter(x=>x.activeForVirtual).length,fallback:assignments.filter(x=>!x.ready).length,recovered:recoveredAssignments.length,recoveredProtected:recoveredAssignments.filter(x=>!x.activeForVirtual).length,newPositions:liveAssignments.length,newReady:liveAssignments.filter(x=>x.ready).length,newVirtualActive:liveAssignments.filter(x=>x.activeForVirtual).length,newFallback:liveAssignments.filter(x=>!x.ready).length}};
 }
 function telegram(model,limit=8){
   const m=model||build([]), g=m.catalog.groups||{};
@@ -94,6 +96,8 @@ function telegram(model,limit=8){
   t+=`🧪 Canlı executor kapsamı: <b>${m.coverage.supported}/${m.coverage.total}</b> | Desteklenmeyen: ${m.coverage.unsupported.length}\n`;
   t+=`🔬 Yeni emir self-test: Profil ${m.preflight.profiles} | Exit hazır ${m.preflight.ready} | Uygulanabilir ${m.preflight.executable} | Hatalı ${m.preflight.unsupported}\n`;
   t+=`📦 Replay: ${m.health.trades} | Zaman dışı aktif: ${m.activeNonTime.length} | Hiç tetiklenmeyen: ${m.neverTriggered.length} | Verisiz: ${m.noData.length}\n`;
+  const atr=m.atrAudit||{};
+  t+=`🌡️ ATR zinciri: Executor ${n(atr.supported)}/${n(atr.total)} | ATR verili replay ${n(atr.pathTrades)} | Veri alan model ${n(atr.dataModels)}/${n(atr.total)} | Tetiklenen ${n(atr.triggered)}/${n(atr.total)}\n`;
   const top=m.activeNonTime.slice(0,limit);
   t+=`\n⚙️ <b>ZAMAN DIŞI MODELLER</b>\n`;
   t+=top.length?top.map((x,i)=>`${i+1}. ${x.label} | Tetik ${x.triggered}/${x.evaluated} | Winner ${x.winner} | Δ ${n(x.deltaUsdt)>=0?'+':''}${n(x.deltaUsdt).toFixed(2)}`).join('\n'):'Aktif zaman dışı model bulunamadı — bu doğrudan hata/eksik veri alarmıdır.';

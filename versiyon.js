@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ACTIVE-EVIDENCE-RECONCILIATION',
-    kod: 'AWS Candidate v5.0.8-ACTIVE-EVIDENCE-RECONCILIATION',
-    botSurumu: '5.0.8-ACTIVE-EVIDENCE-RECONCILIATION',
+    kodAdi: 'CANONICAL-LEDGER-ATR-PROOF',
+    kod: 'AWS Candidate v5.0.9-CANONICAL-LEDGER-ATR-PROOF',
+    botSurumu: '5.0.9-CANONICAL-LEDGER-ATR-PROOF',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }

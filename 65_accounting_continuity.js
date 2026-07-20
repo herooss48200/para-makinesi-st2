@@ -1,19 +1,18 @@
 'use strict';
 
 /**
- * AGROS v5.0.5 - Accounting Classification Repair
+ * AGROS v5.0.9 - Canonical Position Ledger Repair
  *
- * The cumulative Restart Gap counter spans older bot sessions and therefore
- * cannot be treated as a verified close batch belonging to the v5 migration.
- * Historical counters remain untouched; the old difference is classified
- * without fabricating closes. New opens/closes continue in a separate exact
- * one-open/one-close ledger.
+ * Premier, Shadow, Real and Restart-GAP states are partitioned from the exact
+ * opening counters plus the currently active position records. Historical raw
+ * GAP overlap is retained for audit, while the canonical close bucket is
+ * repaired without changing PNL, DNA learning, or Trade Engine behavior.
  */
 
 const h = require('./1_hafiza.js');
 
-const VERSION = 'v5.0.8-ACTIVE-EVIDENCE-RECONCILIATION';
-const CLASSIFICATION_MODEL = 'ACTIVE-BATCH-ONLY-v2';
+const VERSION = 'v5.0.9-CANONICAL-LEDGER-ATR-PROOF';
+const CLASSIFICATION_MODEL = 'CANONICAL-POSITION-PARTITION-v3';
 
 function n(value) {
   const x = Number(value);
@@ -59,6 +58,9 @@ function baseState() {
       closedShadow: 0,
       closedReal: 0,
       legacyRecoveredClosed: 0,
+      closedRestartGapRawBeforeRepair: 0,
+      restartGapOverlapCorrection: 0,
+      classificationRepairedAt: null,
       lastOpenAt: null,
       lastCloseAt: null
     },
@@ -235,9 +237,65 @@ function trackAtClose(pos = {}, options = {}) {
   return true;
 }
 
+function activeTrackPartition(activePositions = h.state.aktifPozisyonlar || []) {
+  const list = Array.isArray(activePositions) ? activePositions : [];
+  const rows = {
+    LAB_PREMIER: { activeScientific: 0, activeGap: 0 },
+    LAB_SHADOW: { activeScientific: 0, activeGap: 0 },
+    REAL: { activeScientific: 0, activeGap: 0 }
+  };
+  for (const pos of list) {
+    if (pos?.accountingContinuityTracked !== true || pos?.accountingContinuityClosed === true) continue;
+    const track = String(pos.accountingContinuityTrack || (pos?.sanal === false ? 'REAL' : (isPremier(pos) ? 'LAB_PREMIER' : 'LAB_SHADOW')));
+    const bucket = rows[track] || rows.LAB_SHADOW;
+    if (isRestartGap(pos)) bucket.activeGap += 1;
+    else bucket.activeScientific += 1;
+  }
+  return rows;
+}
+
+function canonicalPartition(st, activePositions = h.state.aktifPozisyonlar || []) {
+  const a = activeTrackPartition(activePositions);
+  const specs = {
+    premier: { track: 'LAB_PREMIER', opened: n(st.current.openedPremier), closedScientific: n(st.current.closedPremier) },
+    shadow: { track: 'LAB_SHADOW', opened: n(st.current.openedShadow), closedScientific: n(st.current.closedShadow) },
+    real: { track: 'REAL', opened: n(st.current.openedReal), closedScientific: n(st.current.closedReal) }
+  };
+  const out = {};
+  for (const [name, spec] of Object.entries(specs)) {
+    const activeScientific = n(a[spec.track]?.activeScientific);
+    const activeGap = n(a[spec.track]?.activeGap);
+    // Historical v5.0.5-v5.0.8 counters may contain overlap. The only
+    // unclassified bucket is a GAP close, so derive it once from the exact
+    // one-open/one-current-state partition instead of trusting cumulative raw telemetry.
+    const closedGap = Math.max(0, spec.opened - spec.closedScientific - activeScientific - activeGap);
+    const difference = spec.opened - spec.closedScientific - closedGap - activeScientific - activeGap;
+    out[name] = { ...spec, activeScientific, activeGap, closedGap, difference, reconciled: difference === 0 };
+  }
+  const closedGap = out.premier.closedGap + out.shadow.closedGap + out.real.closedGap;
+  const rawGap = n(st.current.closedRestartGap);
+  const correction = rawGap - closedGap;
+  if (rawGap !== closedGap) {
+    st.current.closedRestartGapRawBeforeRepair = Math.max(n(st.current.closedRestartGapRawBeforeRepair), rawGap);
+    st.current.restartGapOverlapCorrection = correction;
+    st.current.closedRestartGap = closedGap;
+    st.current.classificationRepairedAt = new Date().toISOString();
+    st.repairedAt = st.current.classificationRepairedAt;
+  }
+  st.current.closedScientific = out.premier.closedScientific + out.shadow.closedScientific + out.real.closedScientific;
+  return {
+    ...out,
+    closedGap,
+    rawGapBeforeRepair: rawGap,
+    correction,
+    reconciled: Object.values(out).every(x => x.reconciled)
+  };
+}
+
 function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
   const st = ensure();
   const list = Array.isArray(activePositions) ? activePositions : [];
+  const canonical = canonicalPartition(st, list);
   const trackedOpenPositions = list
     .filter(pos => pos?.accountingContinuityTracked === true && pos?.accountingContinuityClosed !== true);
   const trackedActive = trackedOpenPositions.length;
@@ -256,6 +314,7 @@ function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
     repairedAt: st.repairedAt,
     legacy: { ...st.legacy },
     current: { ...st.current },
+    canonical,
     trackedActive,
     trackedRestartGapActive,
     trackedScientificActive,
@@ -295,5 +354,7 @@ module.exports = {
   positionId,
   activeBreakdown,
   legacyActivePositions,
+  activeTrackPartition,
+  canonicalPartition,
   repairLegacyClassification
 };
