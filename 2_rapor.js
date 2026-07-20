@@ -406,7 +406,7 @@ async function labPremierRaporuGonderGerekirse() {
         sonLabPremierKapanan = kapanan;
         const mesaj = labPremier.telegram(model, Math.max(1, Number(ayarlar.labPremierTelegramTopAday || 9)));
         if (mesaj) await h.telegramMesajGonder(mesaj);
-        console.log(`🏁 [LAB PREMIER] Telegram | Premier LAB ${model.league?.premierCount || 0} | İleri ${model.league?.forwardVerifiedCount || 0} | Açılan ${model.aggregate?.opened || 0} | Kapanan ${kapanan}`);
+        console.log(`🏁 [LAB PREMIER] Telegram | Premier LAB ${model.league?.premierCount || 0} | İleri ${model.league?.forwardVerifiedCount || 0} | Açılan ${model.accounting?.opened ?? model.aggregate?.opened ?? 0} | Bilimsel kapanan ${model.accounting?.closedScientific ?? kapanan} | Bilimsel aktif ${model.accounting?.activeScientific || 0} | GAP aktif ${model.accounting?.activeGap || 0} | Fark ${model.accounting?.difference || 0}`);
     } catch (err) {
         console.error('❌ [LAB PREMIER RAPOR HATASI]:', err.message);
     }

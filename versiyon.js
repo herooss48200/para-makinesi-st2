@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ENTRY-PROVEN-PREMIER-SAFE-FALLBACK',
-    kod: 'AWS Candidate v5.0.10-ENTRY-PROVEN-PREMIER-SAFE-FALLBACK',
-    botSurumu: '5.0.10-ENTRY-PROVEN-PREMIER-SAFE-FALLBACK',
+    kodAdi: 'PREMIER-CANONICAL-LEDGER',
+    kod: 'AWS Candidate v5.0.11-PREMIER-CANONICAL-LEDGER',
+    botSurumu: '5.0.11-PREMIER-CANONICAL-LEDGER',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }

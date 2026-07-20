@@ -21,7 +21,7 @@ const labChampion = require('./61_lab_champion_engine.js');
 const evidenceEngine = require('./63_universal_evidence_engine.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 
-const VERSION = 'v5.0.10-ENTRY-PROVEN-PREMIER-SAFE-FALLBACK';
+const VERSION = 'v5.0.11-PREMIER-CANONICAL-LEDGER';
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-premier-observation.json');
 const MODEL_FILE = path.join(DATA_DIR, 'lab-premier-league-model.json');
@@ -500,28 +500,64 @@ function activeRows(activePositions = []) {
     exitAlgorithmLabel: p.labPremierObservation?.exitAlgorithmLabel || ''
   }));
 }
+function premierAccounting(activePositions = [], observationAggregate = {}) {
+  const continuity = accountingContinuity.snapshot(activePositions);
+  const canonical = continuity?.canonical?.premier || {};
+  const observation = metrics(observationAggregate);
+  const opened = num(canonical.opened);
+  const closedScientific = num(canonical.closedScientific);
+  const activeScientific = num(canonical.activeScientific);
+  const activeGap = num(canonical.activeGap);
+  const closedGap = num(canonical.closedGap);
+  const difference = opened - closedScientific - activeScientific - activeGap - closedGap;
+  const observationOpenedDifference = observation.opened - opened;
+  const observationClosedDifference = observation.closed - closedScientific;
+  return {
+    opened,
+    closedScientific,
+    activeScientific,
+    activeGap,
+    closedGap,
+    difference,
+    reconciled: difference === 0,
+    observationOpened: observation.opened,
+    observationClosed: observation.closed,
+    observationActive: observation.active,
+    observationOpenedDifference,
+    observationClosedDifference,
+    observationReconciled: observationOpenedDifference === 0 && observationClosedDifference === 0,
+    equation: `${opened} = ${closedScientific} + ${activeScientific} + ${activeGap} + ${closedGap}`
+  };
+}
 function summaryModel(activePositions = [], { force = false } = {}) {
   const state = readState();
   const league = build({ persist: false, force });
+  const aggregate = metrics(state.aggregate);
+  const accounting = premierAccounting(activePositions, state.aggregate);
   return {
     version: VERSION,
     experimentId: state.experimentId,
     league,
-    aggregate: metrics(state.aggregate),
+    aggregate,
+    accounting,
     byLab: Object.values(state.byLab || {}).map(row => ({ ...row, metrics: metrics(row.bucket) })),
     active: activeRows(activePositions),
     lastTrades: state.lastTrades,
     updatedAt: state.updatedAt
   };
 }
-function compactTelegram(activePositions = []) {
-  const model = summaryModel(activePositions);
+function compactTelegramFromModel(model) {
   const a = model.aggregate;
+  const l = model.accounting || premierAccounting([], a);
   return `🧬 <b>LAB PREMIER SANAL TESTİ</b>
 `
     + `🏆 Premier LAB ${model.league.premierCount} | 🎯 Exit doğrulanmış ${model.league.exitValidatedCount || 0} | 🛟 Kademe fallback ${model.league.entryFallbackCount || 0} | ✅ İleri ${model.league.forwardVerifiedCount}
 `
-    + `📦 Açılan ${a.opened} | Aktif ${model.active.length} | Kapanan ${a.closed}
+    + `📦 Açılan ${l.opened} | Bilimsel aktif ${l.activeScientific} | Bilimsel kapanan ${l.closedScientific}
+`
+    + `🛡️ Restart-GAP: Aktif ${l.activeGap} | Kapanan ${l.closedGap} | Öğrenme dışı
+`
+    + `🧮 Premier mutabakatı: ${l.equation} | Fark ${l.difference >= 0 ? '+' : ''}${l.difference} ${l.reconciled ? '✅' : '⚠️'}
 `
     + `✅ Kârlı/TP ${a.tp} | ❌ Zararlı/SL ${a.sl} | ⚖️ BE ${a.be} | Başarı %${a.winRate.toFixed(2)}
 `
@@ -529,7 +565,15 @@ function compactTelegram(activePositions = []) {
 `
     + `💎 Net ${a.net >= 0 ? '+' : ''}${a.net.toFixed(4)} | PF ${a.profitFactor >= 999 ? '∞' : a.profitFactor.toFixed(2)} | Exp ${a.expectancy >= 0 ? '+' : ''}${a.expectancy.toFixed(4)}
 `
-    + `🔒 Bu kart yalnız Premier sonuçlarıdır; gölge ve GAP dahil değildir.`;
+    + (l.observationReconciled
+      ? `🔬 Premier sonuç defteri: Açılış/Kapanış kanonik kayıtla uyumlu ✅
+`
+      : `⚠️ Premier sonuç defteri farkı: Açılış ${l.observationOpenedDifference >= 0 ? '+' : ''}${l.observationOpenedDifference} | Kapanış ${l.observationClosedDifference >= 0 ? '+' : ''}${l.observationClosedDifference}
+`)
+    + `🔒 Performans yalnız bilimsel Premier kapanışlarından hesaplanır; GAP sonuçları dahil edilmez.`;
+}
+function compactTelegram(activePositions = []) {
+  return compactTelegramFromModel(summaryModel(activePositions));
 }
 function telegram(model = null, limit = 9) {
   const data = model || summaryModel([]);
@@ -579,5 +623,5 @@ function audit() {
 module.exports = {
   VERSION, STATE_FILE, MODEL_FILE, TRADES_FILE,
   readState, writeState, metrics, championTier, build, evaluate, frozenExit,
-  applyToPosition, snapshot, close, activeRows, summaryModel, compactTelegram, telegram, audit
+  applyToPosition, snapshot, close, activeRows, premierAccounting, summaryModel, compactTelegramFromModel, compactTelegram, telegram, audit
 };
