@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-binance",
-  "version": "5.0.6",
-  "description": "AGROS v5.0.6: deterministic Identity -> League -> Exit -> BlackBox -> Telegram chain repair.",
+  "version": "5.0.7",
+  "description": "AGROS v5.0.7: Premier/Shadow learning telemetry consistency; GAP excluded from scientific evidence.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -46,7 +46,9 @@
     "test:v505": "node test_v505_accounting_classification_repair.js",
     "verify:v505": "node --check bot.js && node --check motor.js && node --check 2_rapor.js && node --check 4_pozisyon.js && node --check 5_kalici_hafiza.js && node --check 60_hierarchical_dna_identity_registry.js && node --check 65_accounting_continuity.js && npm run test:runtime-stability && npm run test:v500 && npm run test:v501 && npm run test:v502 && npm run test:v503 && npm run test:v504 && npm run test:v505",
     "test:v506": "node test_v506_identity_chain_repair.js",
-    "verify:v506": "node --check bot.js && node --check motor.js && node --check 8_blackbox.js && node --check 50_real_order_readiness_bridge.js && node --check 64_binance_network_resilience.js && node --check 66_identity_chain_repair.js && npm run test:runtime-stability && npm run test:v500 && npm run test:v501 && npm run test:v502 && npm run test:v503 && npm run test:v504 && npm run test:v505 && npm run test:v506"
+    "verify:v506": "node --check bot.js && node --check motor.js && node --check 8_blackbox.js && node --check 50_real_order_readiness_bridge.js && node --check 64_binance_network_resilience.js && node --check 66_identity_chain_repair.js && npm run test:runtime-stability && npm run test:v500 && npm run test:v501 && npm run test:v502 && npm run test:v503 && npm run test:v504 && npm run test:v505 && npm run test:v506",
+    "test:v507": "node test_v507_learning_telemetry_consistency.js",
+    "verify:v507": "node --check 2_rapor.js && node --check 62_lab_premier_league.js && node --check 65_accounting_continuity.js && npm run test:runtime-stability && npm run test:v500 && npm run test:v501 && npm run test:v502 && npm run test:v503 && npm run test:v504 && npm run test:v505 && npm run test:v506 && npm run test:v507"
   },
   "dependencies": {
     "axios": "^1.13.2",

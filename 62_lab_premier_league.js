@@ -433,11 +433,19 @@ function summaryModel(activePositions = [], { force = false } = {}) {
 function compactTelegram(activePositions = []) {
   const model = summaryModel(activePositions);
   const a = model.aggregate;
-  return `🧬 <b>LAB PREMIER SANAL TESTİ</b>\n`
-    + `🏆 Premier LAB ${model.league.premierCount} | 🔥 Warm ${model.league.warmStartCount} | ⚡ Son5 ${model.league.recent5ProvisionalCount || 0} | ✅ İleri ${model.league.forwardVerifiedCount} | ⏳ Tarihsel ${model.league.historicalTestCount}\n`
-    + `📦 Açılan ${a.opened} | Aktif ${model.active.length} | Kapalı ${a.closed} | Başarı %${a.winRate.toFixed(2)}\n`
-    + `💎 Net ${a.net >= 0 ? '+' : ''}${a.net.toFixed(4)} | PF ${a.profitFactor >= 999 ? '∞' : a.profitFactor.toFixed(2)} | Exp ${a.expectancy >= 0 ? '+' : ''}${a.expectancy.toFixed(4)}\n`
-    + `🔒 Alt lig tek gölge sanal pozisyonla öğrenir ve Telegram verir; Premier kasasına girmez`;
+  return `🧬 <b>LAB PREMIER SANAL TESTİ</b>
+`
+    + `🏆 Premier LAB ${model.league.premierCount} | 🔥 Warm ${model.league.warmStartCount} | ⚡ Son5 ${model.league.recent5ProvisionalCount || 0} | ✅ İleri ${model.league.forwardVerifiedCount} | ⏳ Tarihsel ${model.league.historicalTestCount}
+`
+    + `📦 Açılan ${a.opened} | Aktif ${model.active.length} | Kapanan ${a.closed}
+`
+    + `✅ Kârlı/TP ${a.tp} | ❌ Zararlı/SL ${a.sl} | ⚖️ BE ${a.be} | Başarı %${a.winRate.toFixed(2)}
+`
+    + `💰 Brüt Kâr +${a.grossProfit.toFixed(4)} | 💸 Brüt Zarar -${a.grossLoss.toFixed(4)}
+`
+    + `💎 Net ${a.net >= 0 ? '+' : ''}${a.net.toFixed(4)} | PF ${a.profitFactor >= 999 ? '∞' : a.profitFactor.toFixed(2)} | Exp ${a.expectancy >= 0 ? '+' : ''}${a.expectancy.toFixed(4)}
+`
+    + `🔒 Bu kart yalnız Premier sonuçlarıdır; gölge ve GAP dahil değildir.`;
 }
 function telegram(model = null, limit = 9) {
   const data = model || summaryModel([]);

@@ -12,7 +12,7 @@
 
 const h = require('./1_hafiza.js');
 
-const VERSION = 'v5.0.5-ACCOUNTING-CONTINUITY';
+const VERSION = 'v5.0.7-LEARNING-TELEMETRY-CONSISTENCY';
 const CLASSIFICATION_MODEL = 'ACTIVE-BATCH-ONLY-v2';
 
 function n(value) {
@@ -214,9 +214,13 @@ function trackAtClose(pos = {}, options = {}) {
     st.current.closed += 1;
     if (restartGap) st.current.closedRestartGap += 1;
     if (scientific) st.current.closedScientific += 1;
-    if (track === 'REAL') st.current.closedReal += 1;
-    else if (track === 'LAB_PREMIER') st.current.closedPremier += 1;
-    else if (track === 'LAB_SHADOW') st.current.closedShadow += 1;
+    // GAP closures reconcile the position ledger, but they are not scientific
+    // Premier/Shadow learning evidence.
+    if (scientific) {
+      if (track === 'REAL') st.current.closedReal += 1;
+      else if (track === 'LAB_PREMIER') st.current.closedPremier += 1;
+      else if (track === 'LAB_SHADOW') st.current.closedShadow += 1;
+    }
   } else {
     // Old migration positions stay outside the forward ledger. Their actual
     // observed closures are counted separately and never guessed.

@@ -155,45 +155,39 @@ function kisalt(metin, limit = TELEGRAM_GUVENLI_LIMIT) {
 function learningEvolutionOzetMetni(s = {}) {
     try {
         const model = learningValidation.buildLearningValidationModel();
-        const opened = Number(s.toplamAcilanEmir || 0);
-        const closed = Number(model.kapanan || 0);
+        const historicalOpened = Number(s.toplamAcilanEmir || 0);
+        const historicalClosed = Number(model.kapanan || 0);
         const observed = Number(model.learningScore?.toplamDna || 0);
         const ready = Number(model.learningScore?.yeterliDna || 0);
         const leagueSizes = model.dnaLeague?.leagueSizes || {};
         const labLeague = labPremier.build({ persist: false });
-
-        if (!learningEvolutionBaseline) {
-            learningEvolutionBaseline = { opened, closed, observed, ready };
-        }
-
-        const dOpened = opened - learningEvolutionBaseline.opened;
-        const dClosed = closed - learningEvolutionBaseline.closed;
+        const continuity = accountingContinuity.snapshot(h.state.aktifPozisyonlar || []);
+        const current = continuity.current || {};
+        const premierOpened = Number(current.openedPremier || 0);
+        const shadowOpened = Number(current.openedShadow || 0);
+        const premierClosed = Number(current.closedPremier || 0);
+        const shadowClosed = Number(current.closedShadow || 0);
+        const learningOpened = premierOpened + shadowOpened;
+        const learningClosed = premierClosed + shadowClosed;
+        const learningActive = Number(continuity.active?.premier || 0) + Number(continuity.active?.shadow || 0);
+        if (!learningEvolutionBaseline) learningEvolutionBaseline = { observed, ready };
         const dObserved = observed - learningEvolutionBaseline.observed;
         const dReady = ready - learningEvolutionBaseline.ready;
         const delta = n => `${n >= 0 ? '+' : ''}${n}`;
-
-        const continuity = accountingContinuity.snapshot(h.state.aktifPozisyonlar || []);
-        let text = `🧠 <b>ÖĞRENME DEVAM EDİYOR</b>
-`;
-        text += `📦 Geçmiş sayaç: Açılış ${opened} (${delta(dOpened)}) | Bilimsel kapanış ${closed} (${delta(dClosed)})
-`;
-        text += `🧩 Tarihsel belirsiz fark: ${Number(continuity.legacy.classifiedDifference || 0)} | Kapanış gibi yazılmaz
-`;
-        text += `🛡️ Migration Gap: Yüklenen ${Number(continuity.legacy.activeAtMigration || 0)} | Kapanan ${Number(continuity.migrationBatchClosed || 0)} | Aktif ${Number(continuity.legacyActive || 0)} | Mutabakat ${continuity.migrationBatchDifference >= 0 ? '+' : ''}${continuity.migrationBatchDifference} ${continuity.migrationBatchReconciled ? '✅' : '⚠️'}
-`;
-        text += `ℹ️ Eski Restart Gap telemetrisi: ${Number(continuity.legacy.restartGapHistoricalCounter || 0)} | Kümülatif bilgi; migration kapanışı değildir
-`;
-        text += `🧾 v5.0.5 kesin defter: Açılan ${Number(continuity.current.opened || 0)} | Kapanan ${Number(continuity.current.closed || 0)} | Aktif ${Number(continuity.trackedActive || 0)} | Mutabakat ${continuity.difference >= 0 ? '+' : ''}${continuity.difference} ${continuity.reconciled ? '✅' : '⚠️'}
-`;
-        text += `🎯 Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT
-`;
-        text += `🧬 DNA: Hazır ${ready} (${delta(dReady)}) / Gözlenen ${observed} (${delta(dObserved)})
-`;
-        text += `🗺️ Family Hafıza: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)} | Emir yetkisi yok
-`;
-        text += `🧬 LAB Ligi: 🏆 Premier ${Number(labLeague.premierCount || 0)} | ✅ İleri doğrulanmış ${Number(labLeague.forwardVerifiedCount || 0)} | 🥈 Gölge ${Number(labLeague.championshipCount || 0)}
-`;
-        text += `<i>Parantez içi değişim bu bot çalışmasından itibaren.</i>`;
+        let text = `🧠 <b>ÖĞRENME DEVAM EDİYOR</b>\n`;
+        text += `📦 Toplam yeni öğrenme (Premier + Gölge, GAP hariç): Açılan ${learningOpened} | Kapanan ${learningClosed} | Aktif ${learningActive}\n`;
+        text += `🏆 Premier kanıtı: Açılan ${premierOpened} | Kapanan ${premierClosed} | Aktif ${Number(continuity.active?.premier || 0)}\n`;
+        text += `👻 Gölge kanıtı: Açılan ${shadowOpened} | Kapanan ${shadowClosed} | Aktif ${Number(continuity.active?.shadow || 0)}\n`;
+        text += `📚 Tarihsel öğrenme arşivi: Açılış ${historicalOpened} | Bilimsel kapanış ${historicalClosed}\n`;
+        text += `🧬 DNA: Hazır ${ready} (${delta(dReady)}) / Gözlenen ${observed} (${delta(dObserved)})\n`;
+        text += `🎯 Tarihsel sonuç: Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT\n`;
+        text += `🗺️ Family Hafıza: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)} | Emir yetkisi yok\n`;
+        text += `🧬 LAB Ligi: 🏆 Premier ${Number(labLeague.premierCount || 0)} | ✅ İleri doğrulanmış ${Number(labLeague.forwardVerifiedCount || 0)} | 🥈 Gölge ${Number(labLeague.championshipCount || 0)}\n`;
+        text += `\n🛡️ <b>GAP / MUHASEBE DURUMU — ÖĞRENMEYE DAHİL DEĞİL</b>\n`;
+        text += `Migration Gap: Yüklenen ${Number(continuity.legacy.activeAtMigration || 0)} | Kapanan ${Number(continuity.migrationBatchClosed || 0)} | Aktif ${Number(continuity.legacyActive || 0)} | Mutabakat ${continuity.migrationBatchDifference >= 0 ? '+' : ''}${continuity.migrationBatchDifference} ${continuity.migrationBatchReconciled ? '✅' : '⚠️'}\n`;
+        text += `Restart Gap aktif ${Number(continuity.active?.restartGap || 0)} | Eski telemetri ${Number(continuity.legacy.restartGapHistoricalCounter || 0)}\n`;
+        text += `Kesin pozisyon defteri: Açılan ${Number(current.opened || 0)} | Kapanan ${Number(current.closed || 0)} | Aktif ${Number(continuity.trackedActive || 0)} | Mutabakat ${continuity.difference >= 0 ? '+' : ''}${continuity.difference} ${continuity.reconciled ? '✅' : '⚠️'}\n`;
+        text += `<i>Premier/Gölge sayaçları kalıcı kesin defterdir; yeniden başlatmada sıfırlanmaz ve GAP’a dönüştürülmez.</i>`;
         return text;
     } catch (err) {
         return `🧠 <b>Öğrenme:</b> aktif | Ayrıntılı sayaç hazırlanıyor.`;

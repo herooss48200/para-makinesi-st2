@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'IDENTITY-CHAIN-REPAIR',
-    kod: 'AWS Candidate v5.0.6-IDENTITY-CHAIN-REPAIR',
-    botSurumu: '5.0.6-IDENTITY-CHAIN-REPAIR',
+    kodAdi: 'LEARNING-TELEMETRY-CONSISTENCY',
+    kod: 'AWS Candidate v5.0.7-LEARNING-TELEMETRY-CONSISTENCY',
+    botSurumu: '5.0.7-LEARNING-TELEMETRY-CONSISTENCY',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '20.07.2026',
     ortam: { emirModu: 'SANAL' }
