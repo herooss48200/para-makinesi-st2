@@ -289,10 +289,11 @@ const m = {
             `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[LAB GÖLGE ÖĞRENME]</b>' : '🏆 <b>[LAB PREMIER SANAL POZİSYON]</b>'}\n` +
             (yeniPozisyon.labPremierDecision?.upperLayerIncluded ? `💎 <b>LAB PREMIER İŞLEMİ</b> | ${yeniPozisyon.labPremierDecision.proofLevel}\n` : `🌱 LAB Championship/Development — tek gölge sanal pozisyon | Telegram açık | üst kasa dışı öğrenme\n`) +
             `🔀 ${symbol} (${yon})\n` +
+            (yeniPozisyon.labPremierDecision?.reverseExecution ? `🔁 Ters Premier kaynağı: ${yeniPozisyon.labPremierDecision.sourceLabDnaLabel || 'LAB #YOK'} ${yeniPozisyon.labPremierDecision.sourceSignalSide || ''} → ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} ${yon}\n` : '') +
             `🪪 ${yeniPozisyon.realOrderReadiness?.dnaLabel || yeniPozisyon.dnaLabel || 'DNA #YOK'}\n` +
             `🧩 ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
             `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
-            `🏆 LAB Lig: ${yeniPozisyon.labPremierDecision?.labLeague || 'DEVELOPMENT'} | Kanıt: ${yeniPozisyon.labPremierDecision?.proofLevel || 'LEARNING'}\n` +
+            `🏆 LAB Lig: ${yeniPozisyon.labPremierDecision?.labLeague || 'DEVELOPMENT'} | Grup: ${yeniPozisyon.labPremierDecision?.premierTrack || 'LAB_LEAGUE'} | Kanıt: ${yeniPozisyon.labPremierDecision?.proofLevel || 'LEARNING'}\n` +
             `🧬 Family: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} (yalnız hafıza/audit)\n` +
             `🎯 Atanan Exit: ${yeniPozisyon.executionExitAssignment?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.executionExitAssignment?.activeForPosition ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
             `📊 Exit Kanıtı: N${Number(yeniPozisyon.executionExitAssignment?.samples || 0)} | Beat %${Number(yeniPozisyon.executionExitAssignment?.beatRate || 0).toFixed(1)} | PF ${Number(yeniPozisyon.executionExitAssignment?.profitFactor || 0).toFixed(2)} | Net ${Number(yeniPozisyon.executionExitAssignment?.netUsdt || 0).toFixed(4)}\n` +
@@ -361,8 +362,8 @@ const m = {
             const slOrani = (ayarlar.sabitStopYuzdesi || 1.5) / 100;
             const tpYuzdesi = ayarlar.stopTakipModu === 'KADEME' ? (ayarlar.maxTpYuzdesi || 10) : (ayarlar.sabitTpYuzdesi || 0.4);
             const tpOrani = tpYuzdesi / 100;
-            const sl = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 - slOrani) : canliFiyat * (1 + slOrani));
-            const tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
+            let sl = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 - slOrani) : canliFiyat * (1 + slOrani));
+            let tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
 
             // Sanal ve gerçek emir aynı DNA + rejim + exit kimliğini kullanır; lig yalnız gerçek emir kapısında engeldir.
             const hazirKimlik = {
@@ -375,12 +376,22 @@ const m = {
                 console.log(`⛔ [ENTRY_ABORT:IDENTITY_CHAIN] ${symbol} ${yon} | ${err.code || 'IDENTITY_CHAIN_ERROR'} | ${err.message}`);
                 return false;
             }
+            const islemYonu = String(hazirKimlik.yon || yon).toUpperCase();
+            if (islemYonu !== yon) {
+                sl = fiyatKlip(symbol, islemYonu === 'LONG' ? canliFiyat * (1 - slOrani) : canliFiyat * (1 + slOrani));
+                tp = fiyatKlip(symbol, islemYonu === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
+                hazirKimlik.sl = sl;
+                hazirKimlik.tp = tp;
+                hazirKimlik.girisAnalizi = { ...(hazirKimlik.girisAnalizi || {}), originalSignalSide: yon, reverseExecutionSide: islemYonu };
+                console.log(`🔁 [TERS PREMIER YÖNÜ] ${symbol} ${yon} sinyali → ${islemYonu} sanal yürütme | ${hazirKimlik.labPremierDecision?.sourceLabDnaLabel || 'LAB #YOK'} → ${hazirKimlik.labPremierDecision?.labDnaLabel || 'LAB #YOK'}`);
+            }
             const ortakKarar = hazirKimlik.realOrderReadiness;
             const labGercekKarar = ayarlar.sanalEmirModu ? null : hazirKimlik.labPremierDecision;
 
             if (ayarlar.sanalEmirModu) {
-                console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${yon}`);
-                return await m.sanalPozisyonKaydet(symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi, hazirKimlik);
+                console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${islemYonu}`);
+                const etkinAnaliz = islemYonu === yon ? girisAnalizi : { ...(girisAnalizi || {}), originalSignalSide: yon, reverseExecutionSide: islemYonu };
+                return await m.sanalPozisyonKaydet(symbol, islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision, etkinAnaliz, hazirKimlik);
             }
 
             if (!ortakKarar.allowed || !labGercekKarar?.realTradingAuthorized) {
@@ -500,6 +511,7 @@ const m = {
             const gercekTelegramGonderildi = await h.telegramMesajGonder(
                 `🚀 <b>[POZİSYON AÇILDI]</b>\n` +
                 `🔀 ${symbol} (${yon})\n` +
+            (yeniPozisyon.labPremierDecision?.reverseExecution ? `🔁 Ters Premier kaynağı: ${yeniPozisyon.labPremierDecision.sourceLabDnaLabel || 'LAB #YOK'} ${yeniPozisyon.labPremierDecision.sourceSignalSide || ''} → ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} ${yon}\n` : '') +
                 `🪪 ${yeniPozisyon.dnaLabel || 'DNA #YOK'} | ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
                 `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
                 `📦 Miktar: ${guvenliMiktar}\n` +

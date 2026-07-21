@@ -595,13 +595,22 @@ const ayarlar = {
     labPremierTelegramTopAday: 9,
     labPremierRaporHerKapanis: 5,
     labPremierModelCacheMs: 30000,
-    labPremierExperimentId: 'LAB-PREMIER-TRUE-LEAGUE-2026-07-19',
+    labPremierExperimentId: 'LAB-PREMIER-DYNAMIC-LEAGUE-2026-07-21',
+    labPremierCanliTopTarihsel: 6,
     labPremierTarihselTestAktif: true,
     // v5.0.10: Güçlü giriş DNA, özel Exit beklerken mevcut kademe ile Premier sanal teste katılır.
     labPremierEntryProvenFallbackAktif: true,
     labPremierIleriDogrulamaZorunlu: false,
     labPremierChampionshipUstKatmanAktif: false,
     labPremierGercekEmirYetkisi: false,
+
+    // v5.1.0 - Sistematik kaybeden LAB aynı sinyalde yalnız sanal ters yön testi açar.
+    labReversePremierAktif: true,
+    labReverseMinOrnek: 10,
+    labReverseShadowMinOrnek: 5,
+    labReverseMaxBasari: 35,
+    labReverseMaxNet: 0,
+    labReverseMaxPF: 1,
     familyLeagueEmirYetkisiAktif: false,
 
     // v4.0 Adaptive Trading League - nihai üç günlük gözlem katmanı.

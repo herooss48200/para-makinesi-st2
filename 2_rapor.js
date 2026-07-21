@@ -197,7 +197,8 @@ function learningEvolutionOzetMetni(s = {}) {
         text += `🧬 DNA: Hazır ${ready} (${delta(dReady)}) / Gözlenen ${observed} (${delta(dObserved)})\n`;
         text += `🎯 Tarihsel sonuç: Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT\n`;
         text += `🗺️ Family Hafıza: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)} | Emir yetkisi yok\n`;
-        text += `🧬 LAB Ligi: 🏆 Premier ${Number(labLeague.premierCount || 0)} | ✅ İleri doğrulanmış ${Number(labLeague.forwardVerifiedCount || 0)} | 🥈 Gölge ${Number(labLeague.championshipCount || 0)}\n`;
+        text += `🧬 LAB Ligi: 🥇 Tarihsel ${Number(labLeague.historicalPositiveCount || 0)} | 🟡 Son5 ${Number(labLeague.recent5ProvisionalCount || 0)} | 🔁 Ters ${Number(labLeague.reversePremierCount || 0)} | 👻 Lig ${Number(labLeague.labLeagueCount || 0)}\n`;
+        text += `🏃 Kâra yakın ${Number(labLeague.nearProfitCount || 0)} | Ters gölge ${Number(labLeague.reverseShadowCount || 0)} | ✅ İleri ${Number(labLeague.forwardVerifiedCount || 0)}\n`;
         text += `\n🛡️ <b>GAP / MUHASEBE DURUMU — ÖĞRENMEYE DAHİL DEĞİL</b>\n`;
         text += `Migration Gap: Yüklenen ${Number(continuity.legacy.activeAtMigration || 0)} | Kapanan ${Number(continuity.migrationBatchClosed || 0)} | Aktif ${Number(continuity.legacyActive || 0)} | Mutabakat ${continuity.migrationBatchDifference >= 0 ? '+' : ''}${continuity.migrationBatchDifference} ${continuity.migrationBatchReconciled ? '✅' : '⚠️'}\n`;
         text += `Restart Gap aktif ${Number(continuity.active?.restartGap || 0)} | Eski telemetri ${Number(continuity.legacy.restartGapHistoricalCounter || 0)}\n`;
@@ -246,31 +247,37 @@ function canliRaporMetniOlustur() {
 
     let mesaj = '';
 
-    mesaj += `📊 <b>PARA MAKİNESİ CANLI PORTFÖY</b>\n`;
-    mesaj += `🕒 ${saat} | ${mod}\n`;
-    mesaj += `━━━━━━━━━━━━━━━━━━\n`;
+    mesaj += `📊 <b>PARA MAKİNESİ CANLI PORTFÖY</b>
+`;
+    mesaj += `🕒 ${saat} | ${mod}
+`;
+    mesaj += `━━━━━━━━━━━━━━━━━━
+`;
     if (ayarlar.sanalEmirModu) {
+        // Premier seçimi, aday ilerlemesi ve Exit görünürlüğü en üst bloktur.
+        const leagueTestOzeti = labPremier.compactTelegram(tumAktifler);
+        mesaj += `${leagueTestOzeti}
+`;
+        mesaj += `
+━━━━━━━━━━━━━━━━━━
+`;
         mesaj += `📦 <b>Premier aktif:</b> ${aktifDagilim.premier} / ${ayarlar.maxPozisyonSayisi || '-'} | 🟢 ${longAktif} | 🔴 ${shortAktif}
 `;
         mesaj += `👻 <b>Gölge aktif:</b> ${aktifDagilim.shadow} | 🛡️ Restart Gap aktif: ${aktifDagilim.restartGap} | 📚 Toplam izlenen: ${aktifDagilim.total}
 `;
-    } else {
-        mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}
-`;
-        mesaj += `🟢 Long: ${longAktif} | 🔴 Short: ${shortAktif}
-`;
-    }
-    mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}\n`;
-    if (ayarlar.sanalEmirModu) {
-        const leagueTestOzeti = labPremier.compactTelegram(tumAktifler);
-        mesaj += `
-${leagueTestOzeti}
+        mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}
 `;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 ${learningEvolutionOzetMetni(s)}
 `;
     } else {
+        mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}
+`;
+        mesaj += `🟢 Long: ${longAktif} | 🔴 Short: ${shortAktif}
+`;
+        mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}
+`;
         const gercekOzet = premierObservation.realCompactTelegram(tumAktifler);
         mesaj += `
 ${gercekOzet}

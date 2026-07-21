@@ -1,9 +1,9 @@
 {
   "version": "v4.6.1-PERSISTENT-DNA-IDENTITY",
   "createdAt": "2026-07-19T08:09:04.735Z",
-  "updatedAt": "2026-07-19T12:26:51.929Z",
-  "nextId": 10,
-  "count": 9,
+  "updatedAt": "2026-07-21T13:21:41.374Z",
+  "nextId": 11,
+  "count": 10,
   "entries": {
     "YON=LONG|BTC=0000|COIN=0000": {
       "id": 1,
@@ -112,10 +112,23 @@
       "label": "DNA #9",
       "key": "YON=LONG|BTC=0010|COIN=0001",
       "aliases": [
-        "YON=LONG|BTC=0010|COIN=0001|BB=ORTA_ALT"
+        "YON=LONG|BTC=0010|COIN=0001|BB=ORTA_ALT",
+        "YON=LONG|BTC=0010|COIN=0001"
       ],
       "firstSeenAt": "2026-07-19T12:26:51.927Z",
       "lastSeenAt": "2026-07-19T12:26:51.927Z",
+      "firstSource": "HIERARCHY_LAB_PARENT",
+      "lastSource": "HIERARCHY_LAB_PARENT"
+    },
+    "YON=LONG|BTC=1110|COIN=1110": {
+      "id": 10,
+      "label": "DNA #10",
+      "key": "YON=LONG|BTC=1110|COIN=1110",
+      "aliases": [
+        "YON=LONG|BTC=1110|COIN=1110|BB=UST"
+      ],
+      "firstSeenAt": "2026-07-21T13:21:41.373Z",
+      "lastSeenAt": "2026-07-21T13:21:41.373Z",
       "firstSource": "HIERARCHY_LAB_PARENT",
       "lastSource": "HIERARCHY_LAB_PARENT"
     }
@@ -124,7 +137,7 @@
     "valid": true,
     "duplicateIds": [],
     "duplicateKeys": [],
-    "maxId": 9,
-    "nextId": 10
+    "maxId": 10,
+    "nextId": 11
   }
 }

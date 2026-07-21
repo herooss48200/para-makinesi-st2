@@ -18,7 +18,7 @@ const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const evidenceEngine = require('./63_universal_evidence_engine.js');
 const dnaEvolution = require('./38_dna_evolution_engine.js');
 
-const VERSION = 'v5.0.10-LAB-ENTRY-PROVEN-CANDIDATES';
+const VERSION = 'v5.1.0-DYNAMIC-LAB-LEAGUE-CANDIDATES';
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-champion-observation.json');
 const TRADES_FILE = path.join(DATA_DIR, 'lab-champion-trades.jsonl');
@@ -310,6 +310,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
   const exitModel = dynamicModel || dynamicExit.readModel() || null;
   const champions = [];
   const evidenceCandidates = [];
+  const allLabRows = [];
   const recentIndex = recentLabMetricsIndex();
   let strongSourceCount = 0;
 
@@ -350,8 +351,22 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
           && exit?.positive
           && forward.eligible
       ),
+      reversePremierCandidate: Boolean(
+        historical.total >= Math.max(1, num(ayarlar.labReverseMinOrnek, 10))
+          && historical.winRate <= num(ayarlar.labReverseMaxBasari, 35)
+          && historical.net < num(ayarlar.labReverseMaxNet, 0)
+          && historical.profitFactor < num(ayarlar.labReverseMaxPF, 1)
+      ),
+      reverseShadowCandidate: Boolean(
+        historical.total >= Math.max(1, num(ayarlar.labReverseShadowMinOrnek, 5))
+          && historical.total < Math.max(1, num(ayarlar.labReverseMinOrnek, 10))
+          && historical.winRate <= num(ayarlar.labReverseMaxBasari, 35)
+          && historical.net < num(ayarlar.labReverseMaxNet, 0)
+          && historical.profitFactor < num(ayarlar.labReverseMaxPF, 1)
+      ),
       realTradingAuthorized: false
     };
+    allLabRows.push(baseRow);
     if (baseRow.historicalCandidate) { strongSourceCount++; champions.push(baseRow); }
     if (baseRow.entryProvenCandidate || baseRow.warmStartCandidate) evidenceCandidates.push(baseRow);
   }
@@ -365,6 +380,7 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
     sourceClosed: migration.coverage.baseClosed,
     allLabDnaCount: Object.keys(blackboxSummary.exactComboStats || {}).length,
     allFullDnaCount: Object.keys(blackboxSummary.fullSignatureStats || {}).length,
+    allLabRows,
     coverage: migration.coverage,
     identityAudit: hierarchy.audit(),
     strongSourceCount,
@@ -377,6 +393,8 @@ function build({ summary = null, state = null, dynamicModel = null, persist = tr
     entryFallbackCandidateCount: evidenceCandidates.filter(x => x.entryProvenCandidate && !x.exit?.positive).length,
     recent5EntryCandidateCount: evidenceCandidates.filter(x => x.recent5EntryCandidate).length,
     recent5ProvisionalCandidateCount: evidenceCandidates.filter(x => x.recent5ProvisionalCandidate).length,
+    reversePremierCandidateCount: allLabRows.filter(x => x.reversePremierCandidate).length,
+    reverseShadowCandidateCount: allLabRows.filter(x => x.reverseShadowCandidate).length,
     evidenceCandidates: evidenceCandidates.sort((a,b) => b.evidence.confidence - a.evidence.confidence || b.historical.total - a.historical.total),
     policy: {
       familyIdsPreserved: true,

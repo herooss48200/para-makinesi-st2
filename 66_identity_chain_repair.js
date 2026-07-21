@@ -17,7 +17,7 @@ const dnaExitSelector = require('./43_dna_exit_selector.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const labPremier = require('./62_lab_premier_league.js');
 
-const VERSION = 'v5.0.6-IDENTITY-CHAIN-REPAIR';
+const VERSION = 'v5.1.0-DYNAMIC-LAB-IDENTITY-CHAIN';
 const ORDER = Object.freeze(['IDENTITY', 'LEAGUE', 'EXIT', 'BLACKBOX', 'TELEGRAM']);
 
 function chainError(code, detail = '') {
@@ -103,6 +103,16 @@ function createCoordinator(deps = {}) {
     labPremier: deps.labPremier || labPremier
   };
 
+  function uyumFromSignature(sig = {}) {
+    const btc = String(sig.btcBits || '').split('').filter(x => x === '1').length;
+    const coin = String(sig.coinBits || '').split('').filter(x => x === '1').length;
+    return {
+      btc: { uygun: btc, toplam: 4, metin: `${btc}/4` },
+      coin: { uygun: coin, toplam: 4, metin: `${coin}/4` },
+      toplam: { uygun: btc + coin, toplam: 8, metin: `${btc + coin}/8` }
+    };
+  }
+
   async function prepare(pos, { realMode = false } = {}) {
     if (!pos) throw chainError('IDENTITY_CHAIN_POSITION_YOK');
 
@@ -111,14 +121,39 @@ function createCoordinator(deps = {}) {
     pos.blackboxAcilis = snapshotDogrula(await d.blackbox.snapshotAl(pos.sym, pos.yon, 'ACILIS'));
 
     // 1) IDENTITY
-    const identities = d.dnaHierarchy.decoratePosition(pos, { source: 'V506_IDENTITY_CHAIN' });
+    let identities = d.dnaHierarchy.decoratePosition(pos, { source: 'V510_IDENTITY_CHAIN' });
     kimlikDogrula(pos, identities);
 
-    // 2) LEAGUE — Family ve LAB lig görüntüleri Exit seçilmeden önce dondurulur.
+    // 2) LEAGUE — önce sinyalin kendi LAB kimliği değerlendirilir.
     pos.dnaLeagueProfile = d.dnaLeague.attachToPosition(pos);
-    const labDecision = d.labPremier.evaluate(pos, { realMode });
+    let labDecision = d.labPremier.evaluate(pos, { realMode });
 
-    // 3) EXIT — mevcut selector ve readiness kuralları aynen kullanılır.
+    // Sistematik kaybeden LAB yalnız sanal modda aynı sinyalin ters yönüne çevrilir.
+    // İkinci pozisyon açılmaz; mevcut hazırlanmakta olan tek pozisyonun yönü ve kimliği yeniden bağlanır.
+    if (!realMode && labDecision?.reverseExecution) {
+      const sourceSnapshot = pos.blackboxAcilis;
+      pos.reversePremierSource = {
+        sourceSignalSide: pos.yon, sourceLabDnaId: identities.lab?.id || null,
+        sourceLabDnaLabel: identities.lab?.label || 'LAB #YOK', sourceLabKey: identities.lab?.key || '',
+        sourceStrategySignature: sourceSnapshot?.strategySignature ? { ...sourceSnapshot.strategySignature } : null
+      };
+      pos.originalSignalSide = pos.yon;
+      pos.yon = labDecision.executionSide;
+      sourceSnapshot.originalSignalSide = pos.originalSignalSide;
+      sourceSnapshot.reverseExecution = true;
+      sourceSnapshot.reverseSourceLabDnaLabel = labDecision.sourceLabDnaLabel;
+      sourceSnapshot.reverseSourceLabKey = labDecision.sourceLabKey;
+      sourceSnapshot.yon = pos.yon;
+      sourceSnapshot.strategySignature = d.blackbox.strategySignatureOlustur(pos.sym, pos.yon, sourceSnapshot.btc, sourceSnapshot.coin);
+      sourceSnapshot.uyum = uyumFromSignature(sourceSnapshot.strategySignature);
+
+      identities = d.dnaHierarchy.decoratePosition(pos, { source: 'V510_REVERSE_PREMIER_REBIND' });
+      kimlikDogrula(pos, identities);
+      pos.dnaLeagueProfile = d.dnaLeague.attachToPosition(pos);
+      labDecision = d.labPremier.bindReverseExecution(pos, labDecision);
+    }
+
+    // 3) EXIT — ters işlem dahil gerçek yürütme LAB kimliğinin güncel Exit'i seçilir.
     pos.exitPlanShadow = d.dnaExitSelector.attachToPosition(pos);
     d.realOrderBridge.evaluate(pos, { realMode });
     d.labPremier.applyToPosition(pos, labDecision);
@@ -135,14 +170,16 @@ function createCoordinator(deps = {}) {
       'labDnaId', 'labDnaLabel', 'labIdentityKey',
       'fullDnaId', 'fullDnaLabel', 'fullIdentityKey',
       'leagueShadowOnly', 'virtualAccountIncluded', 'labLeagueAtOpen',
-      'labProofLevelAtOpen', 'exitPlanActiveForVirtual'
+      'labProofLevelAtOpen', 'premierTrackAtOpen', 'exitPlanActiveForVirtual',
+      'originalSignalSide'
     ];
     for (const field of scalarFields) {
       if (Object.prototype.hasOwnProperty.call(source, field)) target[field] = source[field];
     }
     const objectFields = [
       'blackboxAcilis', 'dnaLeagueProfile', 'exitPlanShadow',
-      'realOrderReadiness', 'executionExitAssignment', 'labPremierDecision'
+      'realOrderReadiness', 'executionExitAssignment', 'labPremierDecision',
+      'reversePremierSource'
     ];
     for (const field of objectFields) {
       if (source[field]) target[field] = { ...source[field] };
