@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'REAL-ORDER-PREPARATION-STAGE1',
-    kod: 'AWS Candidate v5.2.2-FINAL-EVIDENCE-GATE',
-    botSurumu: '5.2.2-FINAL-EVIDENCE-GATE',
+    kodAdi: 'PREMIER-EVOLUTION-FINAL-PLUS',
+    kod: 'AWS Candidate v5.3.0-FINAL-PLUS',
+    botSurumu: '5.3.0-FINAL-PLUS',
     stratejiSurumu: '1.0.14',
     yayinTarihi: '22.07.2026',
     ortam: { emirModu: 'SANAL' }

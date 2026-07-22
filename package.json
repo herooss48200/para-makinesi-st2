@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-binance",
-  "version": "5.2.2",
+  "version": "5.3.0",
   "description": "AGROS v5.2.2: Recent-5 separate ledger plus evidence gate for Stop, BE, Exit Evolution and Premier promotion.",
   "main": "bot.js",
   "scripts": {
@@ -65,7 +65,9 @@
     "test:v521": "node test_v521_recent5_separate_shadow_ledger.js",
     "verify:v521": "node --check 62_lab_premier_league.js && node --check 2_rapor.js && node --check ayarlar.js && npm run test:v521",
     "test:v522": "node test_v522_final_evidence_gate.js",
-    "verify:v522": "node --check 67_real_order_preparation_intelligence.js && node --check 62_lab_premier_league.js && node --check 2_rapor.js && npm run test:v521 && npm run test:v522"
+    "verify:v522": "node --check 67_real_order_preparation_intelligence.js && node --check 62_lab_premier_league.js && node --check 2_rapor.js && npm run test:v521 && npm run test:v522",
+    "test:v530": "node test_v530_final_plus.js",
+    "verify:v530": "node --check 68_lab_lifecycle_evolution.js && node --check 62_lab_premier_league.js && node --check motor.js && node --check 4_pozisyon.js && node --check 2_rapor.js && npm run test:v530"
   },
   "dependencies": {
     "axios": "^1.13.2",

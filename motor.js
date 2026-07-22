@@ -1,4 +1,5 @@
 const ayarlar = require('./ayarlar.js');
+const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const h = require('./1_hafiza.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const analizMerkezi = require('./7_analiz_merkezi.js');
@@ -214,6 +215,9 @@ const m = {
             tpKademe: 0,
             sonTpSeviyesi: tp,
             breakevenAktif: false,
+            labLifecycleProfile: hazirKimlik?.labLifecycleProfile || null,
+            labBeTetikYuzde: hazirKimlik?.labLifecycleProfile?.beTriggerPct,
+            labBeTamponYuzde: hazirKimlik?.labLifecycleProfile?.beBufferPct,
             girisAnalizi
         };
         // v5.0.6: Eksiksiz Identity -> League -> Exit zinciri state kaydından ÖNCE kopyalanır.
@@ -376,9 +380,15 @@ const m = {
                 console.log(`⛔ [ENTRY_ABORT:IDENTITY_CHAIN] ${symbol} ${yon} | ${err.code || 'IDENTITY_CHAIN_ERROR'} | ${err.message}`);
                 return false;
             }
+            const yasamProfili = labLifecycle.apply(hazirKimlik);
+            const etkinStopYuzdesi = Number(yasamProfili?.stopPct || ayarlar.sabitStopYuzdesi || 1.5);
+            const etkinStopOrani = etkinStopYuzdesi / 100;
+            sl = fiyatKlip(symbol, String(hazirKimlik.yon || yon).toUpperCase() === 'LONG' ? canliFiyat * (1 - etkinStopOrani) : canliFiyat * (1 + etkinStopOrani));
+            hazirKimlik.sl = sl;
+            hazirKimlik.labLifecycleProfile = yasamProfili;
             const islemYonu = String(hazirKimlik.yon || yon).toUpperCase();
             if (islemYonu !== yon) {
-                sl = fiyatKlip(symbol, islemYonu === 'LONG' ? canliFiyat * (1 - slOrani) : canliFiyat * (1 + slOrani));
+                sl = fiyatKlip(symbol, islemYonu === 'LONG' ? canliFiyat * (1 - etkinStopOrani) : canliFiyat * (1 + etkinStopOrani));
                 tp = fiyatKlip(symbol, islemYonu === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
                 hazirKimlik.sl = sl;
                 hazirKimlik.tp = tp;

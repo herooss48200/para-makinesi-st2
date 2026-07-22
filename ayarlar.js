@@ -45,6 +45,14 @@ const ayarlar = {
     breakevenMinimumBeklemeSaniye: 0,
     // BE/BE+ sınıflandırması için fiyat hareketi bandı. Komisyon çevresindeki kapanışlar TP/SL istatistiğini bozmasın.
     breakevenSonucBandYuzde: 0.15,
+
+    // v5.3.0 FINAL PLUS — Her LAB DNA kendi Stop ve BE seviyesini fiyat yolu üzerinde öğrenir.
+    labLifecycleEvolutionAktif: true,
+    labLifecycleMinKapanis: 50,
+    labLifecycleOtomatikAktiflestirme: true,
+    labStopAdaylariYuzde: [0.8, 1.0, 1.2, 1.5, 1.8],
+    labBeTetikYuzde: 0.4,
+    labBeAdaylariYuzde: [0.08, 0.12, 0.18, 0.25, 0.40],
     izSurenStopTakipYuzdesi: 0.4,
     izSurenStopAktivasyon: 0.8,
     stopBildirimMinYuzde: 0.01,
@@ -584,8 +592,8 @@ const ayarlar = {
     evidenceWarmStartExitMinSamples: 5,
     evidenceWarmStartMinConfidence: 60, // yalnız sıralama/audit; sanal Premier için sert kapı değildir
     evidenceConfidenceGateAktif: false,
-    evidenceRecent5Aktif: true,
-    labRecent5UpperLayerAktif: false, // v5.2.1: Son-5 Premier kasasından ayrı gölge defterinde ölçülür
+    evidenceRecent5Aktif: false,
+    labRecent5UpperLayerAktif: false, // v5.3.0: Son-5 deney yolu kapatıldı
     evidenceRecentMinSamples: 5,
 
     // v4.8.0 - Family yalnız kalıcı piyasa hafızasıdır; gerçek lig yarışmacısı LAB DNA'dır.

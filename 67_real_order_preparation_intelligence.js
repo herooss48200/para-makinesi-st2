@@ -348,10 +348,8 @@ function buildPremierAnalysis(premierRows) {
   }
   return {
     groups: result,
-    recent5Decision: result.RECENT5.samples >= 10 && (result.RECENT5.netUsdt <= 0 || result.RECENT5.profitFactor <= 1)
-      ? 'KEEP_AS_SEPARATE_SHADOW_POOL'
-      : 'CONTINUE_PROVISIONAL_WITH_GUARD',
-    reason: 'Son-5 performansı Tarihsel Premier ile birleştirilmeden ayrı defterde ölçülmelidir.'
+    recent5Decision: 'REMOVED_v5.3.0',
+    reason: 'Son-5 lig yolu kaldırıldı; Championship → Premier terfisi izlenir.'
   };
 }
 
@@ -386,11 +384,6 @@ function buildEvidenceGate(report) {
       proposal: 'Seçilen Shadow Exit',
       metrics: { samples: report.exitEvolution.samples, netUsdt: report.exitEvolution.shadow.netUsdt, profitFactor: report.exitEvolution.shadow.profitFactor, deltaUsdt: report.exitEvolution.deltaUsdt },
       evidence: classifyEvidence({ samples: report.exitEvolution.samples, netUsdt: report.exitEvolution.shadow.netUsdt, profitFactor: report.exitEvolution.shadow.profitFactor, deltaUsdt: report.exitEvolution.deltaUsdt, independentForward: true, minSamples: 100 })
-    },
-    recent5: {
-      proposal: 'Son-5 üst Premier adayı',
-      metrics: { samples: recent5.samples, netUsdt: recent5.netUsdt, profitFactor: recent5.profitFactor, deltaUsdt: recent5.netUsdt },
-      evidence: classifyEvidence({ samples: recent5.samples, netUsdt: recent5.netUsdt, profitFactor: recent5.profitFactor, deltaUsdt: recent5.netUsdt, independentForward: true, minSamples: 20 })
     },
     autoApply: false,
     rule: 'READY yalnız bağımsız ileri kanıtta oluşur; sistem otomatik Trade Engine değişikliği yapmaz.'
@@ -430,14 +423,12 @@ function compactTelegram(report) {
     '',
     '🏆 <b>LİG FORMU</b>',
     `Tarihsel: N${premier.groups.HISTORICAL.samples} Net ${premier.groups.HISTORICAL.netUsdt >= 0 ? '+' : ''}${premier.groups.HISTORICAL.netUsdt} PF ${premier.groups.HISTORICAL.profitFactor}`,
-    `Son-5: N${premier.groups.RECENT5.samples} Net ${premier.groups.RECENT5.netUsdt >= 0 ? '+' : ''}${premier.groups.RECENT5.netUsdt} PF ${premier.groups.RECENT5.profitFactor}`,
-    `Karar: ${premier.recent5Decision}`,
+    `Championship → Premier: Son-5 yolu kaldırıldı; terfi tarihsel pozitif ekonomi ve LAB kanıtıyla yapılır`,
     '',
     '🚦 <b>KANIT KAPISI</b>',
     `${gate.stop.evidence.icon} ${gate.stop.proposal}: ${gate.stop.evidence.label}`,
     `${gate.be.evidence.icon} ${gate.be.proposal}: ${gate.be.evidence.label}`,
     `${gate.exitEvolution.evidence.icon} Exit Evolution: ${gate.exitEvolution.evidence.label}`,
-    `${gate.recent5.evidence.icon} Son-5: ${gate.recent5.evidence.label}`,
     '<i>READY olsa bile otomatik uygulanmaz; Trade Engine değişmez.</i>'
   ].join('\n');
 }
@@ -476,15 +467,13 @@ function createTextReport(report) {
     '',
     'PREMIER LEAGUE',
     `Tarihsel: N${premier.groups.HISTORICAL.samples} Net ${premier.groups.HISTORICAL.netUsdt} PF ${premier.groups.HISTORICAL.profitFactor}`,
-    `Son-5: N${premier.groups.RECENT5.samples} Net ${premier.groups.RECENT5.netUsdt} PF ${premier.groups.RECENT5.profitFactor}`,
     `Reverse: N${premier.groups.REVERSE.samples} Net ${premier.groups.REVERSE.netUsdt} PF ${premier.groups.REVERSE.profitFactor}`,
-    `Son-5 kararı: ${premier.recent5Decision}`,
+    `Championship → Premier: Son-5 kaldırıldı; tarihsel LAB ekonomisi izlenir`,
     '',
     'KANIT KAPISI',
     `${report.evidenceGate.stop.evidence.icon} ${report.evidenceGate.stop.proposal}: ${report.evidenceGate.stop.evidence.label} — ${report.evidenceGate.stop.evidence.reason}`,
     `${report.evidenceGate.be.evidence.icon} ${report.evidenceGate.be.proposal}: ${report.evidenceGate.be.evidence.label} — ${report.evidenceGate.be.evidence.reason}`,
     `${report.evidenceGate.exitEvolution.evidence.icon} Exit Evolution: ${report.evidenceGate.exitEvolution.evidence.label} — ${report.evidenceGate.exitEvolution.evidence.reason}`,
-    `${report.evidenceGate.recent5.evidence.icon} Son-5: ${report.evidenceGate.recent5.evidence.label} — ${report.evidenceGate.recent5.evidence.reason}`,
     '',
     'GÜVENLİK',
     'Bu modül yalnız analiz/raporlama yapar. Trade Engine, açık pozisyon stopları ve gerçek emir yetkisi değiştirilmez.'

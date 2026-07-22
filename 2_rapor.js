@@ -13,6 +13,7 @@ const labChampion = require('./61_lab_champion_engine.js');
 const labPremier = require('./62_lab_premier_league.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const realOrderPreparation = require('./67_real_order_preparation_intelligence.js');
+const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -201,7 +202,7 @@ function learningEvolutionOzetMetni(s = {}) {
         text += `🧬 DNA: Hazır ${ready} (${delta(dReady)}) / Gözlenen ${observed} (${delta(dObserved)})\n`;
         text += `🎯 Tarihsel sonuç: Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT\n`;
         text += `🗺️ Family Hafıza: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)} | Emir yetkisi yok\n`;
-        text += `🧬 LAB Ligi: 🥇 Tarihsel ${Number(labLeague.historicalPositiveCount || 0)} | 🟡 Son5 ${Number(labLeague.recent5ProvisionalCount || 0)} | 🔁 Ters ${Number(labLeague.reversePremierCount || 0)} | 👻 Lig ${Number(labLeague.labLeagueCount || 0)}\n`;
+        text += `🧬 LAB Ligi: 🥇 Premier ${Number(labLeague.historicalPositiveCount || 0)} | 🥈 Championship/LAB ${Number(labLeague.labLeagueCount || 0)} | 🔁 Ters ayrı defter ${Number(labLeague.reversePremierCount || 0)}\n`;
         text += `🏃 Kâra yakın ${Number(labLeague.nearProfitCount || 0)} | Ters gölge ${Number(labLeague.reverseShadowCount || 0)} | ✅ İleri ${Number(labLeague.forwardVerifiedCount || 0)}\n`;
         text += `\n🛡️ <b>GAP / MUHASEBE DURUMU — ÖĞRENMEYE DAHİL DEĞİL</b>\n`;
         text += `Migration Gap: Yüklenen ${Number(continuity.legacy.activeAtMigration || 0)} | Kapanan ${Number(continuity.migrationBatchClosed || 0)} | Aktif ${Number(continuity.legacyActive || 0)} | Mutabakat ${continuity.migrationBatchDifference >= 0 ? '+' : ''}${continuity.migrationBatchDifference} ${continuity.migrationBatchReconciled ? '✅' : '⚠️'}\n`;
@@ -260,8 +261,8 @@ function canliRaporMetniOlustur() {
     if (ayarlar.sanalEmirModu) {
         // Premier seçimi, aday ilerlemesi ve Exit görünürlüğü en üst bloktur.
         const leagueTestOzeti = labPremier.compactTelegram(tumAktifler);
-        mesaj += `${leagueTestOzeti}
-`;
+        const lifecycleOzeti = labLifecycle.report(6);
+        mesaj += `${leagueTestOzeti}\n\n${lifecycleOzeti}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 `;

@@ -1,6 +1,7 @@
 const h = require('./1_hafiza.js');
 const m = require('./motor.js');
 const ayarlar = require('./ayarlar.js');
+const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
@@ -999,6 +1000,11 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati
     });
+    try { labLifecycle.close(pos, {
+        net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
+        reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
+        restartGap: restartGap.isQuarantined(pos)
+    }); } catch (e) { console.log(`⚠️ [LAB LIFECYCLE] ${e.message}`); }
 
     const restartGapIslemi = restartGap.isQuarantined(pos);
     const exitMethodSummary = restartGapIslemi
@@ -1166,7 +1172,7 @@ function kademeliStopHesapla(pos, canliFiyat) {
     const eskiKademe = pos.tpKademe || 0;
     const beTetikKademe = Math.max(1, ayarlar.breakevenTetikKademe || 2);
     const geridenKademe = Math.max(1, ayarlar.kademeStopGeridenKademe || 2);
-    const beTamponYuzde = Math.max(0, ayarlar.breakevenTamponYuzde || 0);
+    const beTamponYuzde = Math.max(0, pos.labBeTamponYuzde ?? ayarlar.breakevenTamponYuzde ?? 0);
     const minBeklemeMs = Math.max(0, ayarlar.breakevenMinimumBeklemeSaniye || 0) * 1000;
     const pozisyonYasiMs = Date.now() - (pos.acilisZamani || pos.zaman || Date.now());
 
@@ -1220,8 +1226,8 @@ function klasikTrailingHesapla(pos, canliFiyat) {
 
     if (pos.yon === 'LONG') {
         const karYuzde = ((canliFiyat - pos.girisFiyati) / pos.girisFiyati) * 100;
-        if (karYuzde >= ayarlar.breakevenTetikYuzde && !pos.breakevenAktif) {
-            pos.sl = pos.girisFiyati * (1 + Math.max(0, ayarlar.breakevenTamponYuzde || 0) / 100);
+        if (karYuzde >= (pos.labBeTetikYuzde ?? ayarlar.breakevenTetikYuzde) && !pos.breakevenAktif) {
+            pos.sl = pos.girisFiyati * (1 + Math.max(0, pos.labBeTamponYuzde ?? ayarlar.breakevenTamponYuzde ?? 0) / 100);
             pos.breakevenAktif = true;
             pos.breakevenYeniAktif = true;
             guncellemeGerekli = true;
@@ -1235,8 +1241,8 @@ function klasikTrailingHesapla(pos, canliFiyat) {
         }
     } else {
         const karYuzde = ((pos.girisFiyati - canliFiyat) / pos.girisFiyati) * 100;
-        if (karYuzde >= ayarlar.breakevenTetikYuzde && !pos.breakevenAktif) {
-            pos.sl = pos.girisFiyati * (1 - Math.max(0, ayarlar.breakevenTamponYuzde || 0) / 100);
+        if (karYuzde >= (pos.labBeTetikYuzde ?? ayarlar.breakevenTetikYuzde) && !pos.breakevenAktif) {
+            pos.sl = pos.girisFiyati * (1 - Math.max(0, pos.labBeTamponYuzde ?? ayarlar.breakevenTamponYuzde ?? 0) / 100);
             pos.breakevenAktif = true;
             pos.breakevenYeniAktif = true;
             guncellemeGerekli = true;
