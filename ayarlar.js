@@ -1,5 +1,5 @@
 /**
- * PARA MAKİNESİ - AYARLAR SAYFASI
+ * AGROS ST2 - DENEYSEL AYARLAR SAYFASI
  * Strateji, pusu/tetik, risk, sanal emir ve raporlama ayarları.
  *
  * STRATEJİ ÖZETİ:

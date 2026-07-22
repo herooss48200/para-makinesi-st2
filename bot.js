@@ -1,4 +1,6 @@
 require('dotenv').config();
+const st2Identity = require('./0_st2_identity.js');
+const st2Runtime = st2Identity.assertRuntimeIdentity();
 const h = require('./1_hafiza.js');
 const p = require('./4_pozisyon.js');
 const piyasa = require('./3_piyasa.js');
@@ -16,7 +18,8 @@ let sonOzetLog = 0;
 let sonCanliRapor = 0;
 
 async function baslat() {
-    console.log('=== [PARA MAKİNESİ AUTOMATION SYSTEM] STARTING ===');
+    console.log('=== [AGROS ST2 EXPERIMENTAL SYSTEM] STARTING ===');
+    console.log(`🧪 Kimlik: ${st2Runtime.appName} | PM2 ${st2Runtime.pm2Name} | Data ${st2Runtime.dataDir}`);
     console.log(`🧩 Versiyon: ${versiyonBilgi.kisaOzet()}`);
 
     try {
@@ -53,7 +56,8 @@ async function baslat() {
         }
 
         const emirModu = ayarlar.sanalEmirModu ? 'SANAL EMİR MODU' : 'BINANCE EMİR MODU';
-        const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
+        const baslangicMesaji = `🚀 <b>AGROS ST2 DENEYSEL BOT AKTİF</b>\n\n` +
+            `🧬 Instance: ST2 | ST1'DEN TAMAMEN BAĞIMSIZ\n` +
             `🧪 Emir Modu: ${emirModu}\n` +
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
             `📊 Strateji: ${ayarlar.trendPeriyodu || ayarlar.superTrendPeriyodu || 'YOK'} trend + ${ayarlar.pusuPeriyodu} pusu + ${ayarlar.sniperPeriyodu} sniper\n` +

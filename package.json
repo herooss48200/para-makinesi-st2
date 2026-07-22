@@ -1,7 +1,7 @@
 {
-  "name": "para-makinesi-binance",
-  "version": "5.3.0",
-  "description": "AGROS v5.2.2: Recent-5 separate ledger plus evidence gate for Stop, BE, Exit Evolution and Premier promotion.",
+  "name": "para-makinesi-st2",
+  "version": "5.3.0-st2.1",
+  "description": "AGROS ST2 experimental strategy platform; identity-isolated from ST1 production.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -67,7 +67,10 @@
     "test:v522": "node test_v522_final_evidence_gate.js",
     "verify:v522": "node --check 67_real_order_preparation_intelligence.js && node --check 62_lab_premier_league.js && node --check 2_rapor.js && npm run test:v521 && npm run test:v522",
     "test:v530": "node test_v530_final_plus.js",
-    "verify:v530": "node --check 68_lab_lifecycle_evolution.js && node --check 62_lab_premier_league.js && node --check motor.js && node --check 4_pozisyon.js && node --check 2_rapor.js && npm run test:v530"
+    "verify:v530": "node --check 68_lab_lifecycle_evolution.js && node --check 62_lab_premier_league.js && node --check motor.js && node --check 4_pozisyon.js && node --check 2_rapor.js && npm run test:v530",
+    "identity:check": "node -e \"console.log(require('./0_st2_identity.js').assertRuntimeIdentity())\"",
+    "test:st2-identity": "node test_st2_identity_isolation.js",
+    "verify:st2": "node --check 0_st2_identity.js && node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check ecosystem.config.js && npm run test:st2-identity && npm run verify:v530"
   },
   "dependencies": {
     "axios": "^1.13.2",

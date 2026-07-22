@@ -252,7 +252,7 @@ function canliRaporMetniOlustur() {
 
     let mesaj = '';
 
-    mesaj += `📊 <b>PARA MAKİNESİ CANLI PORTFÖY</b>
+    mesaj += `📊 <b>AGROS ST2 CANLI PORTFÖY</b>
 `;
     mesaj += `🕒 ${saat} | ${mod}
 `;
