@@ -12,6 +12,9 @@ const realOrderReadiness = require('./50_real_order_readiness_bridge.js');
 const labChampion = require('./61_lab_champion_engine.js');
 const labPremier = require('./62_lab_premier_league.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
+const realOrderPreparation = require('./67_real_order_preparation_intelligence.js');
+const fs = require('fs');
+const path = require('path');
 
 const TELEGRAM_GUVENLI_LIMIT = 3600;
 let sonLearningValidationKapanan = null;
@@ -24,6 +27,7 @@ let sonExitVictoryReplay = null;
 let dnaKartlariIlkGonderim = false;
 let sonLabChampionKapanan = null;
 let sonLabPremierKapanan = null;
+let sonRealOrderPreparationMtime = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -493,6 +497,25 @@ async function exitVictoryVeDnaKartlariGonderGerekirse() {
     }
 }
 
+
+async function realOrderPreparationRaporuGonderGerekirse() {
+    if (ayarlar.realOrderPreparationIntelligenceAktif === false || ayarlar.realOrderPreparationTelegramAktif === false) return;
+    try {
+        const dataDir = path.join(__dirname, 'data');
+        const replayPath = path.join(dataDir, 'exit-replay-results.jsonl');
+        if (!fs.existsSync(replayPath)) return;
+        const mtime = fs.statSync(replayPath).mtimeMs;
+        if (sonRealOrderPreparationMtime !== null && mtime === sonRealOrderPreparationMtime) return;
+        sonRealOrderPreparationMtime = mtime;
+        const report = realOrderPreparation.run(dataDir, dataDir);
+        const mesaj = realOrderPreparation.compactTelegram(report);
+        if (mesaj) await h.telegramMesajGonder(mesaj);
+        console.log(`🧪 [REAL ORDER PREPARATION] Telegram | Replay ${report.sourceCounts.replay} | Stop aday %${report.stop.recommendation.candidateStopPct} | Son-5 ${report.premier.recent5Decision}`);
+    } catch (err) {
+        console.error('❌ [REAL ORDER PREPARATION RAPOR HATASI]:', err.message);
+    }
+}
+
 async function raporGonder(oneCikar = false) {
     if (raporZinciriCalisiyor) {
         console.warn('🛡️ [RAPOR GUARD] Önceki rapor zinciri sürüyor; çakışan çağrı atlandı.');
@@ -519,6 +542,8 @@ async function raporGonder(oneCikar = false) {
         ramTrace('Exit Evolution sonrası');
         await exitVictoryVeDnaKartlariGonderGerekirse();
         ramTrace('Exit Victory + DNA Cards sonrası');
+        await realOrderPreparationRaporuGonderGerekirse();
+        ramTrace('Gerçek emir hazırlığı sonrası');
         await labChampionRaporuGonderGerekirse();
         ramTrace('Lab Champion sonrası');
         await labPremierRaporuGonderGerekirse();
@@ -530,4 +555,4 @@ async function raporGonder(oneCikar = false) {
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse };

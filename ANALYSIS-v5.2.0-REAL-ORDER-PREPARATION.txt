@@ -1,0 +1,37 @@
+AGROS GERÇEK EMİR HAZIRLIĞI — AŞAMA 1 (v5.2.0-REAL-ORDER-PREPARATION-STAGE1)
+Üretim: 2026-07-22T08:08:47.490Z
+
+STOP INTELLIGENCE
+Gerçek: N1976 Net -165.602679 PF 0.694
+%1: Net -139.874973 PF 0.694 Δ 25.727706 | kesilen kazanan 147
+%1.2: Net -138.597242 PF 0.716 Δ 27.005437 | kesilen kazanan 70
+%1.5: Net -164.702165 PF 0.695 Δ 0.900514 | kesilen kazanan 0
+%1.8: FORWARD_OBSERVATION_REQUIRED
+Karar: SHADOW_TEST → %1.2
+
+BE INTELLIGENCE
+BE işlem: 79 | Gerçek Net -1.29897
+BE+ %0.12: ulaşan 53/79 Net -0.375347 Δ 0.923623
+BE+ %0.15: ulaşan 46/79 Net 0.249605 Δ 1.548575
+BE+ %0.18: ulaşan 43/79 Net 0.778995 Δ 2.077965
+BE+ %0.2: ulaşan 43/79 Net 1.207669 Δ 2.506639
+Karar: SHADOW_TEST → +%0.12
+
+EXIT INTELLIGENCE
+Replay algoritma 36 | Çekirdek 27 | Atanan 19
+Zaman bazlı atama: 189/277 (%68.23)
+Kullanılmayan çekirdek: 9
+Teşhis: Zaman bazlı Exit baskınlığı executor arızası değil; seçim/kanıt kapsamı ve fallback dağılımı incelenmelidir.
+
+EXIT EVOLUTION
+N227 | Gerçek Net -6.773822 PF 0.803
+Shadow Net -1.252679 PF 0.954 | Δ 5.521143 | Beat %47.14
+
+PREMIER LEAGUE
+Tarihsel: N27 Net 0.101677 PF 1.022
+Son-5: N23 Net -0.260688 PF 0.931
+Reverse: N0 Net 0 PF 0
+Son-5 kararı: KEEP_AS_SEPARATE_SHADOW_POOL
+
+GÜVENLİK
+Bu modül yalnız analiz/raporlama yapar. Trade Engine, açık pozisyon stopları ve gerçek emir yetkisi değiştirilmez.

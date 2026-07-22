@@ -1,10 +1,10 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'DYNAMIC-LAB-PREMIER-LEAGUE',
-    kod: 'AWS Candidate v5.1.0-DYNAMIC-LAB-PREMIER-LEAGUE',
-    botSurumu: '5.1.0-DYNAMIC-LAB-PREMIER-LEAGUE',
+    kodAdi: 'REAL-ORDER-PREPARATION-STAGE1',
+    kod: 'AWS Candidate v5.2.2-FINAL-EVIDENCE-GATE',
+    botSurumu: '5.2.2-FINAL-EVIDENCE-GATE',
     stratejiSurumu: '1.0.14',
-    yayinTarihi: '21.07.2026',
+    yayinTarihi: '22.07.2026',
     ortam: { emirModu: 'SANAL' }
 };
 function kisaOzet() { return `${versiyon.isim} ${versiyon.botSurumu} | ${versiyon.kodAdi} | Strateji ${versiyon.stratejiSurumu}`; }

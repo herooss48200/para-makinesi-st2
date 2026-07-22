@@ -19,7 +19,7 @@ const labChampion = require('./61_lab_champion_engine.js');
 const evidenceEngine = require('./63_universal_evidence_engine.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 
-const VERSION = 'v5.1.0-DYNAMIC-LAB-PREMIER-LEAGUE';
+const VERSION = 'v5.2.1-RECENT5-SEPARATE-SHADOW-LEDGER';
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-premier-observation.json');
 const MODEL_FILE = path.join(DATA_DIR, 'lab-premier-league-model.json');
@@ -151,11 +151,11 @@ function championTier(row) {
   }
   if (testEnabled && recentReady && (ownExitReady || fallbackEnabled)) {
     return {
-      league: 'PREMIER', premierTrack: TRACK.RECENT5, upperLayerIncluded: true,
-      proofLevel: ownExitReady ? 'RECENT5_PROVISIONAL_PREMIER' : 'RECENT5_ENTRY_PROVEN_FALLBACK',
+      league: 'CHAMPIONSHIP', premierTrack: TRACK.RECENT5, upperLayerIncluded: false,
+      proofLevel: ownExitReady ? 'RECENT5_SEPARATE_SHADOW' : 'RECENT5_SHADOW_FALLBACK',
       evidence, entryProven: true, exitValidated: ownExitReady, safeFallback: !ownExitReady,
       reverseExecution: false,
-      reason: ownExitReady ? 'Son 5 ekonomik kapanış pozitif + kendi LAB Exit' : 'Son 5 ekonomik kapanış pozitif; geçici kademe fallback'
+      reason: ownExitReady ? 'Son-5 form adayı; Premier kasasından ayrı gölge defterinde kendi LAB Exit ile ölçülür' : 'Son-5 form adayı; Premier kasasından ayrı gölge defterinde mevcut kademe ile ölçülür'
     };
   }
   if (testEnabled && reverseReady && fallbackEnabled) {
@@ -213,7 +213,7 @@ function build({ catalogue = null, persist = true, force = false } = {}) {
     .sort((a, b) => num(a.historical?.winRate) - num(b.historical?.winRate) || num(a.historical?.net) - num(b.historical?.net));
   const reverseShadow = rows.filter(x => x.premierTrack === TRACK.REVERSE_SHADOW)
     .sort((a, b) => num(a.historical?.winRate) - num(b.historical?.winRate));
-  const premier = [...historicalPremier, ...recent5Premier, ...reversePremier];
+  const premier = [...historicalPremier, ...reversePremier];
   const labLeague = rows.filter(x => !x.upperLayerIncluded);
   const nearProfit = labLeague.filter(nearProfitReady)
     .sort((a, b) => num(b.historical?.total) - num(a.historical?.total) || num(b.historical?.net) - num(a.historical?.net));
@@ -243,7 +243,7 @@ function build({ catalogue = null, persist = true, force = false } = {}) {
       reversePremierAdmission: 'N>=10 && WR<=35 && Net<0 && PF<1; execution side reversed',
       dynamicPromotionDemotion: true, learningMemoryReset: false, equalVirtualSize: true,
       universalEvidenceEngine: true, warmStartEnabled: ayarlar.evidenceWarmStartAktif !== false,
-      recent5PositiveAdmissionEnabled: ayarlar.evidenceRecent5Aktif !== false, confidenceIsRankingOnly: true,
+      recent5PositiveAdmissionEnabled: ayarlar.evidenceRecent5Aktif !== false, recent5SeparateShadowLedger: true, confidenceIsRankingOnly: true,
       premierSizeMultiplier: 1, championshipSizeMultiplier: 0,
       entryProvenFallbackEnabled: ayarlar.labPremierEntryProvenFallbackAktif !== false,
       ownLabExitRequiredForVirtualPremierAdmission: false, ownLabExitRequiredForRealTrading: true,
@@ -280,7 +280,7 @@ function evaluate(pos, { model = null, realMode = false } = {}) {
     labLeague: row ? tier.league : 'DEVELOPMENT', premierTrack: row ? tier.premierTrack : TRACK.LAB,
     proofLevel: row ? tier.proofLevel : 'LEARNING', admissionReason: row ? tier.reason : 'LAB giriş kanıtı oluşmadı',
     entryProven: Boolean(row && tier.entryProven), exitValidated: Boolean(row && tier.exitValidated), safeExitFallback: Boolean(row && tier.safeFallback),
-    upperLayerIncluded, virtualShadowOnly: !upperLayerIncluded, sizeMultiplier: upperLayerIncluded ? 1 : 0,
+    upperLayerIncluded, observationEligible: Boolean(upperLayerIncluded || tier.premierTrack === TRACK.RECENT5), virtualShadowOnly: !upperLayerIncluded, sizeMultiplier: upperLayerIncluded ? 1 : 0,
     historical: row?.historical || null, recent5: row?.recent5 || null, evidence: row?.evidence || null, forward: row?.forward || null,
     exit: reverseExecution ? null : (row?.exit || null), realTradingAuthorized: false, allowed: !realMode, reasons
   };
@@ -383,7 +383,7 @@ function ensureLabBucket(state, decision) {
 }
 function snapshot(pos) {
   if (!pos || pos.sanal === false || ayarlar.labPremierAktif === false) return null;
-  const decision = pos.labPremierDecision || applyToPosition(pos); if (!decision?.upperLayerIncluded) return null;
+  const decision = pos.labPremierDecision || applyToPosition(pos); if (!decision?.observationEligible && !decision?.upperLayerIncluded) return null;
   const observation = {
     version: VERSION, openedAt: new Date().toISOString(), symbol: pos.sym || '', side: pos.yon || '',
     sourceSignalSide: decision.sourceSignalSide || pos.yon || '', reverseExecution: Boolean(decision.reverseExecution),
@@ -393,10 +393,10 @@ function snapshot(pos) {
     exitAlgorithmId: decision.exitValidated ? (decision.exit?.algorithmId || 'ACTUAL') : 'ACTUAL',
     exitAlgorithmLabel: decision.exitValidated ? (decision.exit?.algorithmLabel || 'Mevcut Kademe Sistemi') : 'Mevcut Kademe Sistemi',
     exitAssignmentId: pos.executionExitAssignment?.assignmentId || null,
-    upperLayerIncluded: true, samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
+    upperLayerIncluded: Boolean(decision.upperLayerIncluded), observationPool: decision.premierTrack === TRACK.RECENT5 ? 'RECENT5_SHADOW' : 'PREMIER', samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
   };
   pos.labPremierObservation = observation;
-  const state = readState(); state.aggregate.opened++; state.aggregate.active++;
+  const state = readState(); if (decision.upperLayerIncluded) { state.aggregate.opened++; state.aggregate.active++; }
   const row = ensureLabBucket(state, decision); row.bucket.opened++; row.bucket.active++; row.lastUpdatedAt = observation.openedAt;
   state.updatedAt = observation.openedAt; writeState(state); return observation;
 }
@@ -413,7 +413,7 @@ function close(pos, result = {}) {
   const observation = pos?.labPremierObservation; if (!observation) return null;
   const net = num(result.net ?? result.netKarZarar); const commission = Math.max(0, num(result.commission ?? result.komisyon));
   const outcome = outcomeFrom(result); const closedAt = new Date().toISOString(); const state = readState();
-  applyClosed(state.aggregate, net, commission, outcome);
+  if (observation.upperLayerIncluded) applyClosed(state.aggregate, net, commission, outcome);
   const decision = pos.labPremierDecision || {
     labKey: observation.labKey, labDnaId: observation.labDnaId, labDnaLabel: observation.labDnaLabel,
     familyDnaLabel: observation.familyDnaLabel, proofLevel: observation.proofLevel, premierTrack: observation.premierTrack,
@@ -429,7 +429,7 @@ function close(pos, result = {}) {
     labDnaId: observation.labDnaId, labDnaLabel: observation.labDnaLabel, labKey: observation.labKey,
     familyDnaLabel: observation.familyDnaLabel, premierTrack: observation.premierTrack, proofLevel: observation.proofLevel,
     exitAlgorithmId: observation.exitAlgorithmId, exitAlgorithmLabel: observation.exitAlgorithmLabel,
-    outcome, net: round(net), commission: round(commission), samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
+    outcome, net: round(net), commission: round(commission), upperLayerIncluded: Boolean(observation.upperLayerIncluded), observationPool: observation.observationPool || (observation.premierTrack === TRACK.RECENT5 ? 'RECENT5_SHADOW' : 'PREMIER'), samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
   };
   state.lastTrades = [trade, ...state.lastTrades].slice(0, 150); state.updatedAt = closedAt; writeState(state); appendTrade(trade); return trade;
 }
@@ -485,9 +485,15 @@ function enrichCandidate(candidate, stateRows, league) {
 function groupMetrics(stateRows, track) {
   const b = blankBucket(); for (const row of stateRows.filter(x => x.premierTrack === track)) addBucket(b, row.bucket); return metrics(b);
 }
+function premierTrackAggregate(stateRows) {
+  const b = blankBucket();
+  for (const row of stateRows.filter(x => x.premierTrack === TRACK.HISTORICAL || x.premierTrack === TRACK.REVERSE)) addBucket(b, row.bucket);
+  return metrics(b);
+}
 function summaryModel(activePositions = [], { force = false } = {}) {
-  const state = readState(); const league = build({ persist: false, force }); const aggregate = metrics(state.aggregate);
-  const accounting = premierAccounting(activePositions, state.aggregate); const stateRows = Object.values(state.byLab || {});
+  const state = readState(); const league = build({ persist: false, force }); const stateRows = Object.values(state.byLab || {});
+  const aggregate = premierTrackAggregate(stateRows);
+  const accounting = premierAccounting(activePositions, aggregate);
   const historicalPremier = league.historicalPremier.map(x => enrichCandidate(x, stateRows, league));
   const recent5Premier = league.recent5Premier.map(x => enrichCandidate(x, stateRows, league));
   const reversePremier = league.reversePremier.map(x => enrichCandidate(x, stateRows, league));
@@ -521,13 +527,18 @@ function compactTelegramFromModel(model) {
   const changed = league.historicalPremier.filter(x => x.liveMetrics.closed || x.pendingExitChange).slice(0, 3);
   const shown = [...new Map([...changed, ...topHistorical].map(x => [x.labKey, x])).values()].slice(0, 7);
   let text = `🏆 <b>LAB PREMIER LİGİ</b>\n`;
-  text += `🥇 Tarihsel Pozitif ${league.historicalPositiveCount || 0} | 🟡 Son-5 Geçici ${league.recent5ProvisionalCount || 0} | 🔁 Ters Premier ${league.reversePremierCount || 0} | Toplam ${league.premierCount || 0}\n`;
+  text += `🥇 Tarihsel Premier ${league.historicalPositiveCount || 0} | 🔁 Ters Premier ${league.reversePremierCount || 0} | Üst toplam ${league.premierCount || 0}
+🟡 Son-5 ayrı gölge ${league.recent5ProvisionalCount || 0}\n`;
   text += `👻 LAB Ligi ${league.labLeagueCount || 0} | Kâra yakın ${league.nearProfitCount || 0} | Ters gölge ${league.reverseShadowCount || 0}\n`;
   if (shown.length) {
     text += `\n🥇 <b>TARİHSEL PREMIER — İLERLEME</b>\n`;
     text += shown.map(x => candidateLine(x)).join('\n');
   }
-  text += `\n\n🟡 <b>SON-5 HAVUZU</b>: ${league.recent5ProvisionalCount} LAB | Yeni N${recent.closed} Net ${signed(recent.net, 4)} | PF ${recent.profitFactor >= 999 ? '∞' : recent.profitFactor.toFixed(2)}\n`;
+  text += `\n\n🟡 <b>SON-5 AYRI GÖLGE DEFTERİ</b>: ${league.recent5ProvisionalCount} LAB
+📦 Açılan ${recent.opened} | Aktif ${recent.active} | Kapanan ${recent.closed}
+✅ TP ${recent.tp} | ❌ SL ${recent.sl} | ⚖️ BE ${recent.be} | Başarı %${recent.winRate.toFixed(2)}
+💰 Net ${signed(recent.net, 4)} | PF ${recent.profitFactor >= 999 ? '∞' : recent.profitFactor.toFixed(2)} | Exp ${signed(recent.expectancy, 4)}
+ℹ️ Premier aktif/net/PF hesabına dahil değildir\n`;
   if (league.recent5Premier.length) text += league.recent5Premier.slice(0, 3).map(x => candidateLine(x)).join('\n') + '\n';
   text += `🔁 <b>TERS PREMIER</b>: ${league.reversePremierCount} LAB | Yeni N${reverse.closed} Net ${signed(reverse.net, 4)} | PF ${reverse.profitFactor >= 999 ? '∞' : reverse.profitFactor.toFixed(2)}\n`;
   if (league.reversePremier.length) text += league.reversePremier.slice(0, 3).map(x => candidateLine(x, { reverse: true })).join('\n') + '\n';
@@ -556,7 +567,7 @@ function telegram(model = null, limit = 10) {
     text += league.historicalPremier.slice(0, limit).map(x => candidateLine(x)).join('\n');
   }
   if (league.recent5Premier.length) {
-    text += '\n\n🟡 <b>SON-5 GEÇİCİ PREMIER</b>\n';
+    text += '\n\n🟡 <b>SON-5 AYRI GÖLGE HAVUZU</b>\n';
     text += league.recent5Premier.slice(0, limit).map(x => candidateLine(x)).join('\n');
   }
   if (league.reversePremier.length) {

@@ -585,6 +585,7 @@ const ayarlar = {
     evidenceWarmStartMinConfidence: 60, // yalnız sıralama/audit; sanal Premier için sert kapı değildir
     evidenceConfidenceGateAktif: false,
     evidenceRecent5Aktif: true,
+    labRecent5UpperLayerAktif: false, // v5.2.1: Son-5 Premier kasasından ayrı gölge defterinde ölçülür
     evidenceRecentMinSamples: 5,
 
     // v4.8.0 - Family yalnız kalıcı piyasa hafızasıdır; gerçek lig yarışmacısı LAB DNA'dır.
@@ -603,6 +604,11 @@ const ayarlar = {
     labPremierIleriDogrulamaZorunlu: false,
     labPremierChampionshipUstKatmanAktif: false,
     labPremierGercekEmirYetkisi: false,
+
+    // v5.2.0 - Gerçek emir öncesi bilimsel Stop/BE/Exit/Shadow/Premier denetimi.
+    // Yalnız raporlama yapar; Trade Engine ve gerçek emir yetkisi değişmez.
+    realOrderPreparationIntelligenceAktif: true,
+    realOrderPreparationTelegramAktif: true,
 
     // v5.1.0 - Sistematik kaybeden LAB aynı sinyalde yalnız sanal ters yön testi açar.
     labReversePremierAktif: true,
