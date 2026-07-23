@@ -100,7 +100,7 @@ const ayarlar = {
     trendPeriyodu: '3m',
     superTrendPeriyodu: '3m',
     pusuPeriyodu: '15m',
-    sniperPeriyodu: '3m',
+    sniperPeriyodu: '1m',
     trendFiltresiAktif: true,
     trendFiltresiModu: 'ONAY', // ONAY: ST yönü işlem yönüyle aynı olmalı | BILGI: sadece log/risk etiketi
 
@@ -122,6 +122,11 @@ const ayarlar = {
     entryStrategyMode: 'ST2_RENKO', // ST1 | ST2_RENKO
     renkoKaynakPeriyodu: '15m',
     renkoAtrPeriod: 14,
+    renkoOnayPeriyodu: '1m',
+    renkoOnayAtrPeriod: 14,
+    renkoOnaySuperTrendPeriod: 10,
+    renkoOnaySuperTrendMultiplier: 3,
+    renkoAuditLogMs: 60000,
     renkoTetikYuzdesi: 0.05,
     maxPusuBeklemeTugla: 3,
 

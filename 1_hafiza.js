@@ -15,7 +15,7 @@ const state = {
     canliFiyatlar: {},
     yerelPusuHafizasi: {},
     pusuListesi: {},
-    st2Renko: { seriler: {}, pusular: {}, sonIslenenTugla: {}, boxSize: {} },
+    st2Renko: { seriler: {}, onaySerileri1m: {}, pusular: {}, sonIslenenTugla: {}, boxSize: {}, onayBoxSize1m: {}, audit: null },
     aktifPozisyonlar: [],
     alinanlar: [],
     aktifShortlar: [],

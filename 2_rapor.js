@@ -247,7 +247,8 @@ function canliRaporMetniOlustur() {
     const aktifler = ayarlar.sanalEmirModu
         ? aktifDagilim.premierPositions.filter(anaPremierPozisyonuMu)
         : aktifDagilim.realPositions;
-    const pusuDegerleri = Object.values(h.state.pusuListesi || {});
+    const pusuKaynagi = ayarlar.entryStrategyMode === 'ST2_RENKO' ? h.state.st2Renko?.pusular : h.state.pusuListesi;
+    const pusuDegerleri = Object.values(pusuKaynagi || {});
     const analizOzeti = h.state.analizOzeti || {};
 
     const tp = Number(s.tp || 0);
