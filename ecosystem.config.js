@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'para-makinesi-st2',
+      name: 'agros-st2',
       script: './bot.js',
       instances: 1,
       autorestart: true,
