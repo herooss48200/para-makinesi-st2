@@ -67,8 +67,8 @@ const state = {
     accountingContinuity: null
 };
 
-const TELEGRAM_CHAT_IDS = (process.env.TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const TELEGRAM_CHAT_IDS = (process.env.AGROS_ST2_TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);
+const TELEGRAM_TOKEN = process.env.AGROS_ST2_TELEGRAM_TOKEN;
 
 function yerelTelegramIstegiAt(path, veri) {
     return new Promise((resolve) => {

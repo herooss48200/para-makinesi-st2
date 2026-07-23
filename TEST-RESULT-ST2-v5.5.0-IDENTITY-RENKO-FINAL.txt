@@ -1,0 +1,23 @@
+AGROS ST2 v5.5.0 — Identity / PM2 / Telegram / Renko Final
+Date: 2026-07-23
+
+PASS
+- node test_st2_identity_isolation.js
+- node test_st2_renko_entry.js
+- node --check bot.js
+- node --check 1_hafiza.js
+- node --check ecosystem.config.js
+- node --check 70_deployment_fingerprint.js
+
+FIXED
+- package name/version identity
+- PM2 name agros-st2
+- cwd repository root
+- dedicated logs-st2 output/error files
+- explicit ST2 environment identity in PM2
+- ST2-only Telegram token/chat variables
+- ST2 deployment fingerprint version contract
+- test:st2-identity script and verify:st2 integration
+
+NOTE
+The complete inherited verification chain was started and progressed through v5.4.0 tests. The local tool environment could not finish npm dependency installation within its execution timeout, so the remaining inherited tests were not claimed as completed here.
