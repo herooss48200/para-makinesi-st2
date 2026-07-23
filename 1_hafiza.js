@@ -1,6 +1,4 @@
 require('dotenv').config();
-const st2Identity = require('./0_st2_identity.js');
-st2Identity.assertRuntimeIdentity();
 const Binance = require('binance-api-node').default;
 const https = require('https');
 const ayarlar = require('./ayarlar.js');
@@ -17,6 +15,7 @@ const state = {
     canliFiyatlar: {},
     yerelPusuHafizasi: {},
     pusuListesi: {},
+    st2Renko: { seriler: {}, pusular: {}, sonIslenenTugla: {}, boxSize: {} },
     aktifPozisyonlar: [],
     alinanlar: [],
     aktifShortlar: [],
@@ -68,8 +67,8 @@ const state = {
     accountingContinuity: null
 };
 
-const TELEGRAM_CHAT_IDS = (process.env.AGROS_ST2_TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);
-const TELEGRAM_TOKEN = process.env.AGROS_ST2_TELEGRAM_TOKEN;
+const TELEGRAM_CHAT_IDS = (process.env.TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 
 function yerelTelegramIstegiAt(path, veri) {
     return new Promise((resolve) => {
@@ -165,7 +164,7 @@ async function telegramMesajGonder(mesaj) {
     for (const chat_id of TELEGRAM_CHAT_IDS) {
         for (let idx = 0; idx < parcalar.length; idx++) {
             const parcaBaslik = parcalar.length > 1 ? `(${idx + 1}/${parcalar.length})\n` : '';
-            const text = parcaBaslik + st2Identity.telegramPrefixEkle(parcalar[idx]);
+            const text = parcaBaslik + parcalar[idx];
             try {
                 let sonuc = await yerelTelegramIstegiAt('sendMessage', {
                     chat_id,
@@ -200,7 +199,6 @@ async function telegramMesajGonder(mesaj) {
 }
 
 async function telegramMesajDuzenle(chat_id, message_id, mesaj) {
-    mesaj = st2Identity.telegramPrefixEkle(mesaj);
     try {
         return await yerelTelegramIstegiAt('editMessageText', {
             chat_id,
@@ -225,7 +223,6 @@ async function telegramMesajSil(chat_id, message_id) {
 }
 
 async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
-    mesaj = st2Identity.telegramPrefixEkle(mesaj);
     if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) return;
 
     const now = Date.now();

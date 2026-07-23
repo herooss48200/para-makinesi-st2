@@ -1,13 +1,11 @@
 const versiyon = {
-    isim: 'AGROS ST2',
-    instanceId: 'ST2',
-    repo: 'para-makinesi-st2',
-    kodAdi: 'ST2-IDENTITY-ISOLATION',
-    kod: 'Experimental Candidate v5.3.0-ST2.1',
-    botSurumu: '5.3.0-ST2.1',
-    stratejiSurumu: 'ST2-BASELINE-1.0.14',
-    yayinTarihi: '22.07.2026',
-    ortam: { emirModu: 'SANAL', rol: 'DENEYSEL' }
+    isim: 'Para Makinesi Binance',
+    kodAdi: 'ST2-RENKO-ENTRY',
+    kod: 'ST2 Candidate v5.5.0-ST2-RENKO-ENTRY',
+    botSurumu: '5.5.0-ST2-RENKO-ENTRY',
+    stratejiSurumu: '1.0.15',
+    yayinTarihi: '23.07.2026',
+    ortam: { emirModu: 'SANAL' }
 };
 function kisaOzet() { return `${versiyon.isim} ${versiyon.botSurumu} | ${versiyon.kodAdi} | Strateji ${versiyon.stratejiSurumu}`; }
 function telegramOzet() { const mod = versiyon.ortam?.emirModu || 'BILINMIYOR'; return `${versiyon.botSurumu} / ${versiyon.kodAdi} / ${mod}`; }

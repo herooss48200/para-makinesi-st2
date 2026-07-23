@@ -1,0 +1,19 @@
+AGROS ST1 v5.3.2 DNA Stop Evolution
+Tarih: 23.07.2026
+
+Komut:
+npm run verify:v532
+
+Sonuç:
+PASS — v5.3.0 FINAL PLUS regresyonu
+PASS — v5.3.1 canlı Premier raporu regresyonu
+PASS — v5.3.2 DNA Stop Evolution
+
+Doğrulanan sözleşmeler:
+- Stop N=5 otomatik atama
+- BE N=50 koruması
+- 7 seviyeli stop kataloğu
+- LAB/DNA bazlı ayrı öğrenme
+- Aktif emre öğrenilmiş stop bağlama
+- Stop değişim geçmişi
+- Restart-GAP öğrenme dışı

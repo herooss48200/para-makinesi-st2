@@ -14,6 +14,8 @@ const labPremier = require('./62_lab_premier_league.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const realOrderPreparation = require('./67_real_order_preparation_intelligence.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
+const operationIntelligence = require('./69_operation_intelligence_dashboard.js');
+const st1Certification = require('./71_st1_final_certification.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -29,6 +31,7 @@ let dnaKartlariIlkGonderim = false;
 let sonLabChampionKapanan = null;
 let sonLabPremierKapanan = null;
 let sonRealOrderPreparationMtime = null;
+let sonSt1CertificationSignature = null;
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -54,8 +57,9 @@ function pozisyonGiris(p) {
 
 function pozisyonFiyat(p) {
     const sembol = pozisyonSembol(p);
+    const canliFiyatlar = h.state.canliFiyatlar || {};
     return Number(
-        h.state.canliFiyatlar[sembol] ||
+        canliFiyatlar[sembol] ||
         p.sonFiyat ||
         p.anlikFiyat ||
         p.currentPrice ||
@@ -65,18 +69,23 @@ function pozisyonFiyat(p) {
 }
 
 function pozisyonKarYuzde(p) {
-    if (Number.isFinite(Number(p.anlikKarYuzde))) return Number(p.anlikKarYuzde);
-    if (Number.isFinite(Number(p.karYuzde))) return Number(p.karYuzde);
-    if (Number.isFinite(Number(p.pnlYuzde))) return Number(p.pnlYuzde);
-
+    // Canlı rapor sıralamasında kaynak doğruluğu önceliği:
+    // 1) state.canliFiyatlar + giriş fiyatı, 2) pozisyondaki son fiyat,
+    // 3) yalnız fiyat bulunamazsa önceden hesaplanmış PnL yüzdesi.
     const giris = pozisyonGiris(p);
     const fiyat = pozisyonFiyat(p);
     const yon = pozisyonYon(p);
 
-    if (!giris || !fiyat) return 0;
+    if (giris && fiyat) {
+        if (yon === 'SHORT') return ((giris - fiyat) / giris) * 100;
+        return ((fiyat - giris) / giris) * 100;
+    }
 
-    if (yon === 'SHORT') return ((giris - fiyat) / giris) * 100;
-    return ((fiyat - giris) / giris) * 100;
+    if (Number.isFinite(Number(p.anlikKarYuzde))) return Number(p.anlikKarYuzde);
+    if (Number.isFinite(Number(p.karYuzde))) return Number(p.karYuzde);
+    if (Number.isFinite(Number(p.pnlYuzde))) return Number(p.pnlYuzde);
+
+    return 0;
 }
 
 function pozisyonKorunanKar(p) {
@@ -96,6 +105,22 @@ function pozisyonKorunanKar(p) {
 
 function pozisyonKademe(p) {
     return p.tpKademe || p.kademe || p.sanalTpKademe || p.sonKademe || 0;
+}
+
+
+function anaPremierPozisyonuMu(p) {
+    if (!p || p.sanal === false) return false;
+    const karar = p.labPremierDecision || {};
+    const gozlem = p.labPremierObservation || {};
+    const track = String(karar.premierTrack || gozlem.premierTrack || p.premierTrackAtOpen || '').toUpperCase();
+    const havuz = String(gozlem.observationPool || '').toUpperCase();
+
+    if (track.includes('REVERSE') || track.includes('BOTTOM')) return false;
+    if (havuz && havuz !== 'PREMIER') return false;
+    return Boolean(
+        karar.upperLayerIncluded === true ||
+        gozlem.upperLayerIncluded === true
+    );
 }
 
 function pozisyonSatiri(p) {
@@ -220,7 +245,7 @@ function canliRaporMetniOlustur() {
     const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
     const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
     const aktifler = ayarlar.sanalEmirModu
-        ? aktifDagilim.premierPositions
+        ? aktifDagilim.premierPositions.filter(anaPremierPozisyonuMu)
         : aktifDagilim.realPositions;
     const pusuDegerleri = Object.values(h.state.pusuListesi || {});
     const analizOzeti = h.state.analizOzeti || {};
@@ -239,9 +264,10 @@ function canliRaporMetniOlustur() {
     const longPusu = pusuDegerleri.filter(x => String(x.yon || '').toUpperCase() === 'LONG').length;
     const shortPusu = pusuDegerleri.filter(x => String(x.yon || '').toUpperCase() === 'SHORT').length;
 
+    const listeLimiti = Math.min(10, aktifler.length);
     const sirali = [...aktifler].sort((a, b) => pozisyonKarYuzde(b) - pozisyonKarYuzde(a));
-    const enKarli = sirali.slice(0, 5);
-    const enRiskli = [...sirali].reverse().slice(0, 5);
+    const enKarli = sirali.slice(0, listeLimiti);
+    const enRiskli = [...sirali].reverse().slice(0, listeLimiti);
 
     // Eski genel muhasebenin son kapananları üst katman raporuna alınmaz.
     // Böylece öğrenme kapanışları gerçek emir veya lig testi listesine karışmaz.
@@ -252,7 +278,7 @@ function canliRaporMetniOlustur() {
 
     let mesaj = '';
 
-    mesaj += `📊 <b>AGROS ST2 CANLI PORTFÖY</b>
+    mesaj += `📊 <b>PARA MAKİNESİ CANLI PORTFÖY</b>
 `;
     mesaj += `🕒 ${saat} | ${mod}
 `;
@@ -260,13 +286,13 @@ function canliRaporMetniOlustur() {
 `;
     if (ayarlar.sanalEmirModu) {
         // Premier seçimi, aday ilerlemesi ve Exit görünürlüğü en üst bloktur.
-        const leagueTestOzeti = labPremier.compactTelegram(tumAktifler);
-        const lifecycleOzeti = labLifecycle.report(6);
-        mesaj += `${leagueTestOzeti}\n\n${lifecycleOzeti}\n`;
+        const operationOzeti = operationIntelligence.telegram(tumAktifler);
+        const lifecycleOzeti = labLifecycle.report(5);
+        mesaj += `${operationOzeti}\n\n${lifecycleOzeti}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 `;
-        mesaj += `📦 <b>Premier aktif:</b> ${aktifDagilim.premier} / ${ayarlar.maxPozisyonSayisi || '-'} | 🟢 ${longAktif} | 🔴 ${shortAktif}
+        mesaj += `📦 <b>Premier aktif:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'} | 🟢 ${longAktif} | 🔴 ${shortAktif}
 `;
         mesaj += `👻 <b>Gölge aktif:</b> ${aktifDagilim.shadow} | 🛡️ Restart Gap aktif: ${aktifDagilim.restartGap} | 📚 Toplam izlenen: ${aktifDagilim.total}
 `;
@@ -296,12 +322,12 @@ ${gercekOzet}
     }
 
 
-    mesaj += `\n🏆 <b>En Karlı 5</b>\n`;
+    mesaj += `\n🏆 <b>En Karlı Aktif Premier (${enKarli.length}/${aktifler.length}, maks. 10)</b>\n`;
     mesaj += enKarli.length
         ? enKarli.map(pozisyonSatiri).join('\n')
         : `Aktif pozisyon yok`;
 
-    mesaj += `\n\n⚠️ <b>En Riskli 5</b>\n`;
+    mesaj += `\n\n⚠️ <b>En Riskli Aktif Premier (${enRiskli.length}/${aktifler.length}, maks. 10)</b>\n`;
     mesaj += enRiskli.length
         ? enRiskli.map(pozisyonSatiri).join('\n')
         : `Aktif pozisyon yok`;
@@ -517,6 +543,32 @@ async function realOrderPreparationRaporuGonderGerekirse() {
     }
 }
 
+
+async function st1FinalCertificationRaporuGonderGerekirse() {
+    if (ayarlar.st1FinalCertificationTelegramAktif === false) return;
+    try {
+        const model = st1Certification.build(h.state.aktifPozisyonlar || []);
+        const signature = [
+            model.premier?.accounting?.closedScientific || 0,
+            model.premier?.trackMetrics?.bottomLong?.closed || 0,
+            model.premier?.trackMetrics?.bottomShort?.closed || 0,
+            model.premier?.trackMetrics?.reverse?.closed || 0,
+            model.premier?.reversePipeline?.opened || 0,
+            model.lifecycle?.stopChanged?.length || 0,
+            model.lifecycle?.beChanged?.length || 0,
+            model.audit?.assignmentStats?.ready || 0,
+            model.audit?.assignmentStats?.mismatch || 0
+        ].join('|');
+        if (sonSt1CertificationSignature !== null && signature === sonSt1CertificationSignature) return;
+        sonSt1CertificationSignature = signature;
+        const mesaj = st1Certification.telegram(model);
+        if (mesaj) await h.telegramMesajGonder(mesaj);
+        console.log(`🧾 [ST1 FINAL CERTIFICATION] Telegram | Skor ${model.score.toFixed(1)} | ${model.status} | İmza ${signature}`);
+    } catch (err) {
+        console.error('❌ [ST1 FINAL CERTIFICATION HATASI]:', err.message);
+    }
+}
+
 async function raporGonder(oneCikar = false) {
     if (raporZinciriCalisiyor) {
         console.warn('🛡️ [RAPOR GUARD] Önceki rapor zinciri sürüyor; çakışan çağrı atlandı.');
@@ -549,6 +601,8 @@ async function raporGonder(oneCikar = false) {
         ramTrace('Lab Champion sonrası');
         await labPremierRaporuGonderGerekirse();
         ramTrace('LAB Premier sonrası');
+        await st1FinalCertificationRaporuGonderGerekirse();
+        ramTrace('ST1 Final Certification sonrası');
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     } finally {
@@ -556,4 +610,4 @@ async function raporGonder(oneCikar = false) {
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse, st1FinalCertificationRaporuGonderGerekirse };

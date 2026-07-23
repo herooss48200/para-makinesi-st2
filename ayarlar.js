@@ -1,5 +1,5 @@
 /**
- * AGROS ST2 - DENEYSEL AYARLAR SAYFASI
+ * PARA MAKİNESİ - AYARLAR SAYFASI
  * Strateji, pusu/tetik, risk, sanal emir ve raporlama ayarları.
  *
  * STRATEJİ ÖZETİ:
@@ -46,13 +46,20 @@ const ayarlar = {
     // BE/BE+ sınıflandırması için fiyat hareketi bandı. Komisyon çevresindeki kapanışlar TP/SL istatistiğini bozmasın.
     breakevenSonucBandYuzde: 0.15,
 
-    // v5.3.0 FINAL PLUS — Her LAB DNA kendi Stop ve BE seviyesini fiyat yolu üzerinde öğrenir.
+    // v5.4.0 ST1 Bilimsel Denetim — LAB/lig bazlı hızlı fakat tarihsel hafızayı koruyan Stop + BE öğrenmesi.
     labLifecycleEvolutionAktif: true,
-    labLifecycleMinKapanis: 50,
+    labLifecycleMinKapanis: 5,
+    labStopMinKapanis: 5,
+    labBeMinKapanis: 5,
+    labLifecycleYenidenHesaplamaAdimi: 5,
+    labLifecycleDerinHesaplamaAdimi: 10,
+    labLifecycleGuncelPencere: 20,
+    labLifecycleGuncelAgirlik: 0.60,
+    labLifecycleMinSkorIyilesme: 0.0005,
     labLifecycleOtomatikAktiflestirme: true,
-    labStopAdaylariYuzde: [0.8, 1.0, 1.2, 1.5, 1.8],
-    labBeTetikYuzde: 0.4,
-    labBeAdaylariYuzde: [0.08, 0.12, 0.18, 0.25, 0.40],
+    labStopAdaylariYuzde: [0.8, 1.0, 1.2, 1.5, 1.8, 2.1, 2.4],
+    labBeTetikAdaylariYuzde: [0.30, 0.40, 0.60, 0.80],
+    labBeAdaylariYuzde: [0.08, 0.12, 0.16, 0.20, 0.25, 0.30],
     izSurenStopTakipYuzdesi: 0.4,
     izSurenStopAktivasyon: 0.8,
     stopBildirimMinYuzde: 0.01,
@@ -110,6 +117,13 @@ const ayarlar = {
     // Pusu süresi içinde fiyat kırılımı ve SuperTrend onayı hangi sırayla gelirse gelsin,
     // ikisi de tamamlandığı anda işlem açılır. Pusu sadece maxPusuBeklemeMum dolunca iptal edilir.
     pusuTetikSirasiSerbest: true,
+
+    // ST2 Renko giriş yolu. ST1 Trade Engine ve giriş sonrası katmanlar değişmez.
+    entryStrategyMode: 'ST2_RENKO', // ST1 | ST2_RENKO
+    renkoKaynakPeriyodu: '15m',
+    renkoAtrPeriod: 14,
+    renkoTetikYuzdesi: 0.05,
+    maxPusuBeklemeTugla: 3,
 
 
     // v2.1.13: Geç giriş koruması.
@@ -603,6 +617,8 @@ const ayarlar = {
     labPremierTelegramAktif: true,
     labPremierTelegramTopAday: 9,
     labPremierRaporHerKapanis: 5,
+    // v5.4.1 — Kısa ve kesilmeyen ST1 final bilimsel denetim mesajı.
+    st1FinalCertificationTelegramAktif: true,
     labPremierModelCacheMs: 30000,
     labPremierExperimentId: 'LAB-PREMIER-DYNAMIC-LEAGUE-2026-07-21',
     labPremierCanliTopTarihsel: 6,
@@ -625,6 +641,15 @@ const ayarlar = {
     labReverseMaxBasari: 35,
     labReverseMaxNet: 0,
     labReverseMaxPF: 1,
+
+    // v5.4.0 — Ana Premier'i etkilemeyen Bottom Premier LONG/SHORT bilimsel ligleri.
+    labBottomPremierAktif: true,
+    labBottomPremierKapasiteYon: 10,
+    labBottomPremierMinOrnek: 5,
+    labBottomPremierMaxNet: 0,
+    labBottomPremierMaxPF: 1,
+    labBottomPremierMaxExpectancy: 0,
+    labBottomPremierOwnExitAktif: true,
     familyLeagueEmirYetkisiAktif: false,
 
     // v4.0 Adaptive Trading League - nihai üç günlük gözlem katmanı.

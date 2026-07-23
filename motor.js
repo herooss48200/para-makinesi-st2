@@ -304,6 +304,7 @@ const m = {
             `🧭 Seçim Kapsamı: ${yeniPozisyon.executionExitAssignment?.scope || 'ACTUAL_FALLBACK'}\n` +
             `🔎 Seçim Sebebi: ${yeniPozisyon.executionExitAssignment?.reason || 'Güvenli kademe fallback'}\n` +
             `🔐 Plan Kimliği: ${yeniPozisyon.executionExitAssignment?.assignmentId || 'YOK'}\n` +
+            `🛡 Risk Profili [${yeniPozisyon.labLifecycleProfile?.scope || 'VARSAYILAN'}]: Stop %${Number(yeniPozisyon.labLifecycleProfile?.stopPct ?? ayarlar.sabitStopYuzdesi ?? 1.5).toFixed(2)} | BE %${Number(yeniPozisyon.labLifecycleProfile?.beTriggerPct ?? ayarlar.breakevenTetikYuzde ?? 0.4).toFixed(2)}/+%${Number(yeniPozisyon.labLifecycleProfile?.beBufferPct ?? ayarlar.breakevenTamponYuzde ?? 0.12).toFixed(2)} | N${Number(yeniPozisyon.labLifecycleProfile?.closed || 0)}\n` +
             `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
             `📦 Miktar: ${guvenliMiktar}\n` +
             `🛡️ Sanal SL: ${sl.toFixed(pPrecision)}\n` +
@@ -372,7 +373,8 @@ const m = {
             // Sanal ve gerçek emir aynı DNA + rejim + exit kimliğini kullanır; lig yalnız gerçek emir kapısında engeldir.
             const hazirKimlik = {
                 sym: symbol, yon, girisFiyati: canliFiyat, sl, tp, miktar: guvenliMiktar,
-                sanal: ayarlar.sanalEmirModu, acilisZamani: Date.now(), girisAnalizi
+                sanal: ayarlar.sanalEmirModu, acilisZamani: Date.now(),
+                entryStrategy: girisAnalizi?.entryStrategy || 'ST1', girisAnalizi
             };
             try {
                 await identityChain.prepare(hazirKimlik, { realMode: !ayarlar.sanalEmirModu });
@@ -492,6 +494,9 @@ const m = {
                 tpKademe: 0,
                 sonTpSeviyesi: tp,
                 breakevenAktif: false,
+                labLifecycleProfile: hazirKimlik?.labLifecycleProfile || null,
+                labBeTetikYuzde: hazirKimlik?.labLifecycleProfile?.beTriggerPct,
+                labBeTamponYuzde: hazirKimlik?.labLifecycleProfile?.beBufferPct,
                 girisAnalizi
             };
             identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
@@ -526,6 +531,7 @@ const m = {
                 `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
                 `📦 Miktar: ${guvenliMiktar}\n` +
                 `🛡️ Borsaya İletilen SL: ${sl.toFixed(pPrecision)}\n` +
+                `🧬 Risk Profili [${yeniPozisyon.labLifecycleProfile?.scope || 'VARSAYILAN'}]: Stop %${Number(yeniPozisyon.labLifecycleProfile?.stopPct ?? ayarlar.sabitStopYuzdesi ?? 1.5).toFixed(2)} | BE %${Number(yeniPozisyon.labLifecycleProfile?.beTriggerPct ?? ayarlar.breakevenTetikYuzde ?? 0.4).toFixed(2)}/+%${Number(yeniPozisyon.labLifecycleProfile?.beBufferPct ?? ayarlar.breakevenTamponYuzde ?? 0.12).toFixed(2)}\n` +
                 `🎯 Borsaya İletilen Final TP: ${tp.toFixed(pPrecision)}` +
                 realOrderBridge.telegramText(yeniPozisyon.realOrderReadiness) +
                 dnaExitSelector.openingText(yeniPozisyon.exitPlanShadow) +

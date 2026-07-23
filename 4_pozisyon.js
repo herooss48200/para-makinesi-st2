@@ -820,6 +820,7 @@ async function pusulariDenetleVeIslemAc() {
         const pusuDebug = pusuDebugMesaji(sym, pusu);
 
         const girisAnalizi = {
+            entryStrategy: 'ST1',
             symbol: sym,
             yon: pusu.yon,
             pusuPeriyodu: ayarlar.pusuPeriyodu,
@@ -966,7 +967,15 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         : 0;
     const duzeltilmisSebep = kapanisSebebiDuzenle(pos, sebep, kapanisFiyati);
 
-    const leagueShadowOnly = pos.leagueShadowOnly === true;
+    const kararTrack = String(pos?.labPremierDecision?.premierTrack || pos?.premierTrackAtOpen || '').toUpperCase();
+    const deneyTrack = ['REVERSE_PREMIER', 'BOTTOM_PREMIER_LONG', 'BOTTOM_PREMIER_SHORT'].includes(kararTrack);
+    // v5.3'ten kalan açık Reverse kayıtları upperLayerIncluded=true taşısa bile ana Premier PNL'ine karışmaz.
+    if (deneyTrack) {
+        pos.leagueShadowOnly = true;
+        pos.virtualAccountIncluded = false;
+        if (pos.labPremierDecision) { pos.labPremierDecision.upperLayerIncluded = false; pos.labPremierDecision.virtualShadowOnly = true; }
+    }
+    const leagueShadowOnly = pos.leagueShadowOnly === true || deneyTrack;
     if (!leagueShadowOnly) {
         h.state.basariOzeti.toplamKomisyon += toplamKomisyon;
         h.state.basariOzeti.netKarZarar += netKarZarar;
@@ -1170,7 +1179,12 @@ function kademeliStopHesapla(pos, canliFiyat) {
     if (ulasilanKademe <= 0) return false;
 
     const eskiKademe = pos.tpKademe || 0;
-    const beTetikKademe = Math.max(1, ayarlar.breakevenTetikKademe || 2);
+    // LAB yaşam profili oluştuysa öğrenilmiş BE tetik yüzdesi kademeye çevrilir.
+    // Profil yoksa çalışan ST1 davranışı (breakevenTetikKademe) aynen korunur.
+    const ogrenilmisBeTetik = Number(pos.labBeTetikYuzde);
+    const beTetikKademe = Number.isFinite(ogrenilmisBeTetik) && ogrenilmisBeTetik > 0
+        ? Math.max(1, Math.ceil(ogrenilmisBeTetik / adim))
+        : Math.max(1, ayarlar.breakevenTetikKademe || 2);
     const geridenKademe = Math.max(1, ayarlar.kademeStopGeridenKademe || 2);
     const beTamponYuzde = Math.max(0, pos.labBeTamponYuzde ?? ayarlar.breakevenTamponYuzde ?? 0);
     const minBeklemeMs = Math.max(0, ayarlar.breakevenMinimumBeklemeSaniye || 0) * 1000;

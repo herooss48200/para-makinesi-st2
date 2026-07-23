@@ -13,7 +13,3 @@ data/sanal-state.json
 backups/
 *.backup-*
 fix-sl.js
-
-# AGROS ST2 isolated PM2 logs
-logs-st2/*.log
-logs-st2/*.log.*

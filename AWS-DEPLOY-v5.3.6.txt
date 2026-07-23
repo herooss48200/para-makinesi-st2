@@ -1,0 +1,25 @@
+AGROS ST1 v5.3.6 AWS DEPLOY — CANLI DATA KORUNUR
+
+1) Mevcut klasörde data yedeği:
+   cd ~/apps/para-makinesi-binance
+   cp -a data ../data-backup-$(date +%Y%m%d-%H%M%S)
+
+2) Code-only ZIP'i bilgisayardan AWS'ye yükleyin ve uygulama klasörüne açın.
+   ZIP içinde data/ yoktur; canlı öğrenme dosyaları korunur.
+
+3) Doğrulama:
+   cd ~/apps/para-makinesi-binance
+   npm ci
+   npm run version:fingerprint
+   npm run verify:v536
+
+4) Sadece iki doğrulama da başarılıysa:
+   pm2 restart para-makinesi --update-env
+   pm2 flush
+   pm2 logs para-makinesi --lines 150
+
+Beklenen açılış sürümü:
+5.3.6-TELEGRAM-OPERATIONS-FINAL / TELEGRAM-OPERATIONS-FINAL / SANAL
+
+Beklenen Telegram başlığı:
+AGROS OPERASYON MERKEZİ — v5.3.6
