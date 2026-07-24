@@ -22,14 +22,15 @@ function storeHazirla() {
 
 function auditBaslat() {
     return {
-        zaman: Date.now(), sembol: 0, atrHazir: 0, renkoHazir: 0, yeniPattern: 0,
+        zaman: Date.now(), sembol: 0, atrHazir: 0, renkoHazir: 0, patternAday: 0, yeniPattern: 0, yeniPusu: 0,
         bbHazir: 0, bbLongTemas: 0, bbShortTemas: 0,
+        kaynakMumToplam: 0, renkoTuglaToplam: 0, renkoMin: null, renkoMax: 0,
         onay1mMumHazir: 0, onay1mAtrHazir: 0, onay1mRenkoHazir: 0,
         onay1mUp: 0, onay1mDown: 0, onay1mYetersiz: 0,
         longPusu: 0, shortPusu: 0, tetikBekleyen: 0,
         red: {
             ATR_YETERSIZ: 0, RENKO_YETERSIZ: 0, PATTERN_YOK: 0,
-            BB_YETERSIZ: 0, BB_TEMAS_YOK: 0, ONAY_1M_RENKO_YETERSIZ: 0
+            BB_YETERSIZ: 0, BB_GECERSIZ: 0, BB_TEMAS_YOK: 0, PUSU_SURESI_DOLDU: 0, ONAY_1M_RENKO_YETERSIZ: 0
         }
     };
 }
@@ -78,6 +79,7 @@ function patternPususuGuncelle(sym, bricks, bollinger, audit = null) {
     const longMatch = core.longPatternTespit(bricks);
     const shortMatch = core.shortPatternTespit(bricks);
     const candidates = [longMatch, shortMatch].filter(Boolean);
+    if (audit) audit.patternAday += candidates.length;
     if (!candidates.length) {
         if (audit) audit.red.PATTERN_YOK++;
         return null;
@@ -89,11 +91,13 @@ function patternPususuGuncelle(sym, bricks, bollinger, audit = null) {
         const signature = core.patternSignature(match);
         const mevcut = store.pusular[sym];
         if (mevcut?.patternSignature === signature) return mevcut;
+        if (!mevcut && store.sonPatternSignature[sym] === signature) continue;
 
         store.pusular[sym] = core.pusuOlustur(sym, match, scenario);
         store.sonPatternSignature[sym] = signature;
         if (audit) {
             audit.yeniPattern++;
+            audit.yeniPusu++;
             if (match.yon === 'LONG') { audit.bbLongTemas++; audit.longPusu++; }
             else { audit.bbShortTemas++; audit.shortPusu++; }
         }
@@ -102,6 +106,18 @@ function patternPususuGuncelle(sym, bricks, bollinger, audit = null) {
 
     if (audit) audit.red.BB_TEMAS_YOK++;
     return null;
+}
+
+function eskiPusuyuSuresiDolduysaSil(sym, bricks, audit = null) {
+    const store = storeHazirla();
+    const pusu = store.pusular[sym];
+    if (!pusu || !Array.isArray(bricks) || !bricks.length) return false;
+    const sonra = bricks.filter(b => Number(b.closeTime) > Number(pusu.sonKapaliTuglaZamani)).length;
+    const limit = Math.max(1, Number(ayarlar.maxPusuBeklemeTugla || 3));
+    if (sonra < limit) return false;
+    delete store.pusular[sym];
+    if (audit) audit.red.PUSU_SURESI_DOLDU++;
+    return true;
 }
 
 async function pusuDegerlendir(sym, onay1m = null) {
@@ -155,8 +171,8 @@ function auditLogla(audit) {
     if (now - Number(store.sonAuditLogZamani || 0) < Number(ayarlar.renkoAuditLogMs || 60000)) return;
     store.sonAuditLogZamani = now;
     const aktif = Object.values(store.pusular || {});
-    console.log(`🧱 [ST2 RENKO AUDIT] Sembol ${audit.sembol} | 15m ATR ${audit.atrHazir} | Renko ${audit.renkoHazir} | Yeni pattern ${audit.yeniPattern} | BB hazır ${audit.bbHazir} | BB temas L${audit.bbLongTemas}/S${audit.bbShortTemas} | 1m Renko ST ${audit.onay1mRenkoHazir} (UP ${audit.onay1mUp}/DOWN ${audit.onay1mDown}) | Yeni pusu L${audit.longPusu}/S${audit.shortPusu} | Aktif ${aktif.length}`);
-    console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | 1m ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ}`);
+    console.log(`🧱 [ST2 RENKO AUDIT] Sembol ${audit.sembol} | 15m ATR ${audit.atrHazir} | Renko ${audit.renkoHazir} (min ${audit.renkoMin ?? 0}/max ${audit.renkoMax}) | Pattern aday ${audit.patternAday} | Yeni pattern ${audit.yeniPattern} | BB hazır ${audit.bbHazir} | BB temas L${audit.bbLongTemas}/S${audit.bbShortTemas} | 1m Renko ST ${audit.onay1mRenkoHazir} (UP ${audit.onay1mUp}/DOWN ${audit.onay1mDown}) | Yeni pusu L${audit.longPusu}/S${audit.shortPusu} | Aktif ${aktif.length}`);
+    console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Pusu süresi doldu ${audit.red.PUSU_SURESI_DOLDU} | 1m ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ}`);
 }
 
 async function taraVeDegerlendir() {
@@ -166,17 +182,24 @@ async function taraVeDegerlendir() {
         if ((h.state.alinanlar || []).includes(sym) || (h.state.aktifShortlar || []).includes(sym)) continue;
         audit.sembol++;
         const candles = h.state.yerelPusuHafizasi?.[sym];
+        audit.kaynakMumToplam += Array.isArray(candles) ? candles.length : 0;
         const box = core.atr(candles, Number(ayarlar.renkoAtrPeriod || 14));
         if (!(box > 0)) { audit.red.ATR_YETERSIZ++; continue; }
         audit.atrHazir++;
         const bricks = core.renkoUret(candles, box);
+        audit.renkoTuglaToplam += bricks.length;
+        audit.renkoMin = audit.renkoMin === null ? bricks.length : Math.min(audit.renkoMin, bricks.length);
+        audit.renkoMax = Math.max(audit.renkoMax, bricks.length);
         if (bricks.length < 4) { audit.red.RENKO_YETERSIZ++; continue; }
         audit.renkoHazir++;
         store.seriler[sym] = bricks;
         store.boxSize[sym] = box;
 
-        const bb = m.hesaplaBollinger(bricks.map(x => x.close));
-        if (!bb?.upper?.length) { audit.red.BB_YETERSIZ++; continue; }
+        eskiPusuyuSuresiDolduysaSil(sym, bricks, audit);
+        const bbPeriod = Number(ayarlar.renkoBollingerPeriod || ayarlar.bollingerperiod || 20);
+        if (bricks.length < bbPeriod) { audit.red.BB_YETERSIZ++; continue; }
+        const bb = m.hesaplaBollinger(bricks.map(x => Number(x.close)));
+        if (!core.bollingerHazirMi(bb)) { audit.red.BB_GECERSIZ++; continue; }
         audit.bbHazir++;
         patternPususuGuncelle(sym, bricks, bb, audit);
         const onay1m = birDakikaRenkoSuperTrend(sym, audit);
@@ -192,7 +215,9 @@ module.exports = {
     tetikFiyati,
     storeHazirla,
     birDakikaRenkoSuperTrend,
+    bollingerHazirMi: core.bollingerHazirMi,
     bollingerSenaryosu,
+    eskiPusuyuSuresiDolduysaSil,
     patternPususuGuncelle,
     pusuDegerlendir,
     taraVeDegerlendir

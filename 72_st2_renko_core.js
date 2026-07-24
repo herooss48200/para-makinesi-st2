@@ -41,6 +41,17 @@ function renkoUret(mumlar, boxSize) {
     return bricks;
 }
 
+
+function bollingerHazirMi(bb) {
+    return Boolean(
+        bb && Array.isArray(bb.upper) && Array.isArray(bb.lower) &&
+        bb.upper.length && bb.lower.length &&
+        Number.isFinite(Number(bb.upper.at(-1))) &&
+        Number.isFinite(Number(bb.lower.at(-1))) &&
+        Number.isFinite(Number(bb.mid))
+    );
+}
+
 function renkKodu(bricks) {
     return bricks.map(b => b.color === 'GREEN' ? 'G' : 'R').join('');
 }
@@ -90,9 +101,10 @@ function shortPatternTespit(bricks) {
     const mirrored = bricks.map(b => ({ ...b, color: b.color === 'GREEN' ? 'RED' : 'GREEN' }));
     const longMatch = longPatternTespit(mirrored);
     if (!longMatch) return null;
+    const mirroredTail = mirrored.slice(-longMatch.patternLength);
     const originalBricks = bricks.slice(-longMatch.patternLength);
-    const refOffset = longMatch.referenceBrick.id - mirrored.at(-longMatch.patternLength).id;
-    const ref = originalBricks[Math.max(0, Math.min(originalBricks.length - 1, refOffset))];
+    const refOffset = mirroredTail.findIndex(b => b === longMatch.referenceBrick);
+    const ref = originalBricks[refOffset >= 0 ? refOffset : originalBricks.length - 1];
     return {
         ...longMatch,
         yon: 'SHORT',
@@ -153,6 +165,7 @@ function pusuOlustur(sym, match, scenario) {
 module.exports = {
     atr,
     renkoUret,
+    bollingerHazirMi,
     renkKodu,
     longPatternTespit,
     shortPatternTespit,

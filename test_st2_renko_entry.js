@@ -51,3 +51,22 @@ for (let i = 0; i < 30; i++) {
 assert(r.atr(candles, 14) > 0);
 assert(r.renkoUret(candles, 0.5).length > 0);
 console.log('✅ ST2 Renko 9-pattern + mirror SHORT contract tests passed');
+
+// Sprint 2: canlı BB derinliği ve sözleşme testi.
+const deepCandles = [];
+let deepClose = 100;
+for (let i = 0; i < 250; i++) {
+    const prev = deepClose;
+    deepClose += (i % 12 < 6 ? -0.35 : 0.42);
+    deepCandles.push({ open: prev, high: Math.max(prev, deepClose) + 0.08, low: Math.min(prev, deepClose) - 0.08, close: deepClose, closeTime: 10_000 + i });
+}
+const deepAtr = r.atr(deepCandles, 14);
+const deepBricks = r.renkoUret(deepCandles, deepAtr);
+assert(deepBricks.length >= 20, `250 mum BB(20) için yetersiz Renko üretti: ${deepBricks.length}`);
+const closes = deepBricks.slice(-20).map(x => x.close);
+const mid = closes.reduce((a, b) => a + b, 0) / closes.length;
+const sd = Math.sqrt(closes.reduce((a, b) => a + Math.pow(b - mid, 2), 0) / closes.length);
+const deepBb = { mid, upper: [mid + 2 * sd], lower: [mid - 2 * sd] };
+assert(r.bollingerHazirMi(deepBb), 'Renko Bollinger sözleşmesi hazır değil');
+assert.strictEqual(r.bollingerHazirMi({ mid: 100, upper: 101, lower: 99 }), false);
+console.log(`✅ ST2 Sprint 2 BB depth contract passed (${deepBricks.length} Renko bricks)`);

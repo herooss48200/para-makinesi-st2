@@ -122,6 +122,8 @@ const ayarlar = {
     entryStrategyMode: 'ST2_RENKO', // ST1 | ST2_RENKO
     renkoKaynakPeriyodu: '15m',
     renkoAtrPeriod: 14,
+    renkoKaynakMumLimiti: 250, // BB(20) için ATR-Renko tuğla derinliği
+    renkoBollingerPeriod: 20,
     renkoOnayPeriyodu: '1m',
     renkoOnayAtrPeriod: 14,
     renkoOnaySuperTrendPeriod: 10,

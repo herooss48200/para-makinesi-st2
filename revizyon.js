@@ -12,6 +12,12 @@ function mumDonustur(x) {
 }
 function sadeceKapanmisMumlar(mumlar) { const now=Date.now(); return (mumlar||[]).filter(x=>Number(x.closeTime)<=now).map(mumDonustur); }
 function superTrendOnayPeriyodu() { return ayarlar.superTrendPeriyodu || ayarlar.trendPeriyodu || ayarlar.sniperPeriyodu || '5m'; }
+function pusuKaynakPeriyodu() { return ayarlar.entryStrategyMode === 'ST2_RENKO' ? (ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu || '15m') : (ayarlar.pusuPeriyodu || '5m'); }
+function pusuMumLimiti() {
+    const normal = (ayarlar.bollingerperiod || 20) + 5;
+    if (ayarlar.entryStrategyMode !== 'ST2_RENKO') return normal;
+    return Math.max(normal, Number(ayarlar.renkoKaynakMumLimiti || 250));
+}
 function agAyar(label) { return { timeoutMs: ayarlar.binanceAgTimeoutMs || 15000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, label }; }
 async function mumCek(sym, interval, limit, label) {
     return ag.binanceMumlariCek(sym, interval, limit, agAyar(label));
@@ -27,7 +33,7 @@ async function derinGecmisiInsaEt() {
     const tumSemboller=[...(h.state.semboller || [])];
     const gecerli=[];
     const sonuclar=await sembolHavuzu(async sym=>{
-        const ham=await mumCek(sym, ayarlar.pusuPeriyodu || '5m', (ayarlar.bollingerperiod||20)+5, `START_CANDLE:${sym}`);
+        const ham=await mumCek(sym, pusuKaynakPeriyodu(), pusuMumLimiti(), `START_CANDLE:${sym}`);
         const kapanmis=sadeceKapanmisMumlar(ham);
         if(kapanmis.length >= (ayarlar.bollingerperiod||20)) { h.state.yerelPusuHafizasi[sym]=kapanmis; h.state.sonPusuMumZamani[sym]=kapanmis.at(-1).closeTime; gecerli.push(sym); }
     });
@@ -46,7 +52,7 @@ async function pusuVerileriniTazele() {
     try {
         let guncellenen=0, yeniMum=0;
         const sonuclar=await sembolHavuzu(async sym=>{
-            const ham=await mumCek(sym, ayarlar.pusuPeriyodu || '5m', (ayarlar.bollingerperiod||20)+5, `PUSU_CANDLE:${sym}`);
+            const ham=await mumCek(sym, pusuKaynakPeriyodu(), pusuMumLimiti(), `PUSU_CANDLE:${sym}`);
             const kapanmis=sadeceKapanmisMumlar(ham);
             if(kapanmis.length >= (ayarlar.bollingerperiod||20)) { const onceki=h.state.sonPusuMumZamani[sym]; const yeni=kapanmis.at(-1).closeTime; h.state.yerelPusuHafizasi[sym]=kapanmis; h.state.sonPusuMumZamani[sym]=yeni; guncellenen++; if(onceki && yeni!==onceki) yeniMum++; }
         });
