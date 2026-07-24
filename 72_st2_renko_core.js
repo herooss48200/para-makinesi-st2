@@ -20,22 +20,92 @@ function renkoUret(mumlar, boxSize) {
     if (!Array.isArray(mumlar) || !mumlar.length || !(boxSize > 0)) return [];
     const bricks = [];
     let close = Number(mumlar[0].close);
+    let trend = null;
     let id = 0;
     if (!Number.isFinite(close)) return [];
 
+    function ekle(yeniClose, color, candle) {
+        const open = close;
+        close = yeniClose;
+        trend = color === 'GREEN' ? 'UP' : 'DOWN';
+        bricks.push({
+            id: ++id,
+            open,
+            high: Math.max(open, close),
+            low: Math.min(open, close),
+            close,
+            color,
+            closeTime: candle.closeTime
+        });
+    }
+
+    // Kapanmış kaynak mumları kullanır. Standart Renko davranışına uygun olarak
+    // aynı yönde 1 kutu, ters yönde ise en az 2 kutu hareket zorunludur.
+    // Böylece tek kutuluk salınımın sahte ters tuğla/pattern üretmesi engellenir.
     for (let i = 1; i < mumlar.length; i++) {
         const candle = mumlar[i];
         const price = Number(candle.close);
         if (!Number.isFinite(price)) continue;
-        while (price >= close + boxSize) {
-            const open = close;
-            close += boxSize;
-            bricks.push({ id: ++id, open, high: close, low: open, close, color: 'GREEN', closeTime: candle.closeTime });
-        }
-        while (price <= close - boxSize) {
-            const open = close;
-            close -= boxSize;
-            bricks.push({ id: ++id, open, high: open, low: close, close, color: 'RED', closeTime: candle.closeTime });
+
+        let guard = 0;
+        while (guard++ < 10000) {
+            if (trend === 'UP') {
+                if (price >= close + boxSize) {
+                    ekle(close + boxSize, 'GREEN', candle);
+                    continue;
+                }
+                if (price <= close - (2 * boxSize)) {
+                    const previousClose = close;
+                    const yeniClose = previousClose - (2 * boxSize);
+                    close = yeniClose;
+                    trend = 'DOWN';
+                    bricks.push({
+                        id: ++id,
+                        open: previousClose - boxSize,
+                        high: previousClose - boxSize,
+                        low: yeniClose,
+                        close: yeniClose,
+                        color: 'RED',
+                        closeTime: candle.closeTime
+                    });
+                    continue;
+                }
+                break;
+            }
+
+            if (trend === 'DOWN') {
+                if (price <= close - boxSize) {
+                    ekle(close - boxSize, 'RED', candle);
+                    continue;
+                }
+                if (price >= close + (2 * boxSize)) {
+                    const previousClose = close;
+                    const yeniClose = previousClose + (2 * boxSize);
+                    close = yeniClose;
+                    trend = 'UP';
+                    bricks.push({
+                        id: ++id,
+                        open: previousClose + boxSize,
+                        high: yeniClose,
+                        low: previousClose + boxSize,
+                        close: yeniClose,
+                        color: 'GREEN',
+                        closeTime: candle.closeTime
+                    });
+                    continue;
+                }
+                break;
+            }
+
+            if (price >= close + boxSize) {
+                ekle(close + boxSize, 'GREEN', candle);
+                continue;
+            }
+            if (price <= close - boxSize) {
+                ekle(close - boxSize, 'RED', candle);
+                continue;
+            }
+            break;
         }
     }
     return bricks;
@@ -134,6 +204,99 @@ function tetikFiyati(pusu, pctValue) {
         : Number(pusu.referansSeviye) * (1 - pct);
 }
 
+function renkoBollingerSenaryosu(match, bollinger, boxSize, toleransTugla = 0.25) {
+    if (!match || !bollingerHazirMi(bollinger) || !(Number(boxSize) > 0)) {
+        return { senaryo: null, redSebep: 'RENKO_BB_VERISI_EKSIK' };
+    }
+
+    const last = match.bricks?.at(-1);
+    if (!last) return { senaryo: null, redSebep: 'SON_RENKO_TUGLASI_YOK' };
+
+    const altBand = Number(bollinger.lower.at(-1));
+    const ustBand = Number(bollinger.upper.at(-1));
+    const ortaBand = Number(bollinger.mid);
+    const toleransFiyat = Math.max(0, Number(toleransTugla || 0)) * Number(boxSize);
+    const bandGenisligiYuzde = ortaBand ? ((ustBand - altBand) / ortaBand) * 100 : 0;
+
+    const ortak = {
+        altBand,
+        ortaBand,
+        ustBand,
+        bandGenisligiYuzde,
+        toleransTugla: Math.max(0, Number(toleransTugla || 0)),
+        toleransFiyat,
+        sonTuglaId: last.id,
+        sonTuglaRengi: last.color,
+        sonTuglaOpen: Number(last.open),
+        sonTuglaHigh: Number(last.high),
+        sonTuglaLow: Number(last.low),
+        sonTuglaClose: Number(last.close),
+        sonTuglaZamani: last.closeTime,
+        patternId: match.patternId,
+        patternKodu: match.patternCode
+    };
+
+    if (match.yon === 'LONG') {
+        const renkUygun = last.color === 'RED' && Number(last.close) < Number(last.open);
+        const temas = Number(last.low) <= altBand + toleransFiyat;
+        const ortaAlt = Number(last.high) < ortaBand;
+        const bandFarkFiyat = Number(last.low) - altBand;
+        const bandFarkTugla = bandFarkFiyat / Number(boxSize);
+        if (renkUygun && temas && ortaAlt) {
+            return {
+                ...ortak,
+                senaryo: 'RENKO_KIRMIZI_ALT_BAND',
+                targetLevel: Number(last.high),
+                bandLevel: altBand,
+                bandFarkFiyat,
+                bandFarkTugla,
+                temas: true
+            };
+        }
+        return {
+            ...ortak,
+            senaryo: null,
+            targetLevel: 0,
+            bandLevel: altBand,
+            bandFarkFiyat,
+            bandFarkTugla,
+            temas: false,
+            redSebep: !renkUygun ? 'LONG_SON_TUGLA_KIRMIZI_DEGIL' : !temas ? 'LONG_ALT_BAND_TEMASI_YOK' : 'LONG_TUGLA_ORTA_BAND_ALTINDA_DEGIL'
+        };
+    }
+
+    if (match.yon === 'SHORT') {
+        const renkUygun = last.color === 'GREEN' && Number(last.close) > Number(last.open);
+        const temas = Number(last.high) >= ustBand - toleransFiyat;
+        const ortaUst = Number(last.low) > ortaBand;
+        const bandFarkFiyat = ustBand - Number(last.high);
+        const bandFarkTugla = bandFarkFiyat / Number(boxSize);
+        if (renkUygun && temas && ortaUst) {
+            return {
+                ...ortak,
+                senaryo: 'RENKO_YESIL_UST_BAND',
+                targetLevel: Number(last.low),
+                bandLevel: ustBand,
+                bandFarkFiyat,
+                bandFarkTugla,
+                temas: true
+            };
+        }
+        return {
+            ...ortak,
+            senaryo: null,
+            targetLevel: 0,
+            bandLevel: ustBand,
+            bandFarkFiyat,
+            bandFarkTugla,
+            temas: false,
+            redSebep: !renkUygun ? 'SHORT_SON_TUGLA_YESIL_DEGIL' : !temas ? 'SHORT_UST_BAND_TEMASI_YOK' : 'SHORT_TUGLA_ORTA_BAND_USTUNDE_DEGIL'
+        };
+    }
+
+    return { ...ortak, senaryo: null, redSebep: 'YON_GECERSIZ' };
+}
+
 function pusuOlustur(sym, match, scenario) {
     if (!match || !match.referenceBrick) throw new Error('ST2 Renko pusu için geçerli pattern eşleşmesi zorunludur.');
     return {
@@ -172,5 +335,6 @@ module.exports = {
     patternTespit,
     patternSignature,
     tetikFiyati,
+    renkoBollingerSenaryosu,
     pusuOlustur
 };

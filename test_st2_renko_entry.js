@@ -70,3 +70,32 @@ const deepBb = { mid, upper: [mid + 2 * sd], lower: [mid - 2 * sd] };
 assert(r.bollingerHazirMi(deepBb), 'Renko Bollinger sözleşmesi hazır değil');
 assert.strictEqual(r.bollingerHazirMi({ mid: 100, upper: 101, lower: 99 }), false);
 console.log(`✅ ST2 Sprint 2 BB depth contract passed (${deepBricks.length} Renko bricks)`);
+
+// v5.5.4: ST2-only Renko BB teması; orta/üst bölgedeki kırmızı tuğla LONG üretmemeli.
+const lowerTouchMatch = r.longPatternTespit([
+    b(101, 'RED'), b(102, 'RED'), b(103, 'RED'),
+    { ...b(104, 'RED'), open: 100, high: 100, low: 99, close: 99 }
+]);
+const strictBb = { mid: 102, upper: [105], lower: [99] };
+const lowerTouch = r.renkoBollingerSenaryosu(lowerTouchMatch, strictBb, 1, 0.25);
+assert.strictEqual(lowerTouch.senaryo, 'RENKO_KIRMIZI_ALT_BAND');
+assert.strictEqual(lowerTouch.temas, true);
+
+const middleRedMatch = r.longPatternTespit([
+    b(201, 'RED'), b(202, 'RED'), b(203, 'RED'),
+    { ...b(204, 'RED'), open: 104, high: 104, low: 103, close: 103 }
+]);
+const middleRed = r.renkoBollingerSenaryosu(middleRedMatch, strictBb, 1, 0.25);
+assert.strictEqual(middleRed.senaryo, null);
+assert(['LONG_ALT_BAND_TEMASI_YOK', 'LONG_TUGLA_ORTA_BAND_ALTINDA_DEGIL'].includes(middleRed.redSebep));
+
+// Tek kutuluk ters hareket standart Renko'da ters tuğla oluşturmamalı; iki kutuda oluşturmalı.
+const reversalCandles = [
+    { open: 100, high: 100, low: 100, close: 100, closeTime: 1 },
+    { open: 100, high: 102, low: 100, close: 102, closeTime: 2 },
+    { open: 102, high: 102, low: 101, close: 101, closeTime: 3 },
+    { open: 101, high: 101, low: 100, close: 100, closeTime: 4 }
+];
+const reversalBricks = r.renkoUret(reversalCandles, 1);
+assert.strictEqual(r.renkKodu(reversalBricks), 'GGR', `Beklenen GGR, gelen ${r.renkKodu(reversalBricks)}`);
+console.log('✅ ST2 Renko chart-consistency + strict BB touch tests passed');
