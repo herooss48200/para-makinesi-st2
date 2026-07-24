@@ -14,7 +14,7 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v5.5.9-ST2-RENKO-PATTERN-INTELLIGENCE-DASHBOARD';
+const VERSION = 'v5.5.9-fix.1-ST2-RENKO-RUNTIME-BINDING-PROOF';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-renko-entry-evolution.json');
 
@@ -30,7 +30,13 @@ const MIN_IMPROVEMENT = () => Math.max(0, Number(ayarlar.renkoGirisMinSkorIyiles
 function n(v,d=0){ const x=Number(v); return Number.isFinite(x)?x:d; }
 function r(v,d=6){ return Number(n(v).toFixed(d)); }
 function blankMetric(){ return { samples:0, triggered:0, tp:0, sl:0, be:0, net:0, grossProfit:0, grossLoss:0, recent:[] }; }
-function blank(){ return { version:VERSION, updatedAt:null, profiles:{} }; }
+function blank(){ return { version:VERSION, updatedAt:null, profiles:{}, bridge:{calls:0,accepted:0,skipped:{},last:null} }; }
+function bridgeMark(s,status,reason,pos){
+  s.bridge={calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null};
+  s.bridge.calls++;
+  if(status==='ACCEPTED') s.bridge.accepted++; else s.bridge.skipped[reason]=n(s.bridge.skipped[reason])+1;
+  s.bridge.last={at:new Date().toISOString(),status,reason,sym:pos?.sym||null,yon:pos?.yon||null,entryStrategy:pos?.girisAnalizi?.entryStrategy||null,patternCode:pos?.girisAnalizi?.patternKodu||null};
+}
 function ensure(){ if(!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR,{recursive:true}); }
 function read(){ ensure(); const x=io.readJsonBounded(STATE_FILE,null,{maxBytes:16*1024*1024}); return {...blank(),...(x||{}),profiles:{...(x?.profiles||{})}}; }
 function write(s){ ensure(); s.version=VERSION; s.updatedAt=new Date().toISOString(); io.writeJsonAtomic(STATE_FILE,s); return s; }
@@ -159,11 +165,20 @@ function replayCandidate(pos,result,pusu,brickDistance,points){
   return {triggered:true,entry:r(entry,12),exitPrice:r(exitPrice,12),exitReason,pct:r(pct,6),net:r(net,6),stopPct:r(risk.stopPct,4),beTriggerPct:r(risk.beTriggerPct,4),beBufferPct:r(risk.beBufferPct,4),exitAlgorithmId:exitPlan.id};
 }
 function close(pos,result={}){
-  if(ayarlar.renkoGirisOgrenmeAktif===false||pos?.girisAnalizi?.entryStrategy!=='ST2_RENKO'||result.restartGap===true||pos.restartGap===true) return null;
-  const ga=pos.girisAnalizi||{}; const yon=String(pos.yon||ga.yon||'').toUpperCase(); const patternCode=ga.patternKodu; if(!yon||!patternCode) return null;
-  const pusu={yon,referansSeviye:n(ga.referansSeviye),renkoBoxSize:n(ga.renkoBoxSize)}; if(!(pusu.referansSeviye>0&&pusu.renkoBoxSize>0)) return null;
-  const points=rawPath(pos,result); const exit=n(result.exitPrice||result.kapanisFiyati); if(!exit||!points.length) return null;
-  const s=read(); const profile=ensureProfile(s,yon,patternCode,ga.patternId); profile.closed++;
+  const s=read();
+  let skip=null;
+  if(ayarlar.renkoGirisOgrenmeAktif===false) skip='LEARNING_DISABLED';
+  else if(pos?.girisAnalizi?.entryStrategy!=='ST2_RENKO') skip='NOT_ST2_RENKO';
+  else if(result.restartGap===true||pos?.restartGap===true) skip='RESTART_GAP';
+  const ga=pos?.girisAnalizi||{}; const yon=String(pos?.yon||ga.yon||'').toUpperCase(); const patternCode=ga.patternKodu;
+  if(!skip&&(!yon||!patternCode)) skip='IDENTITY_MISSING';
+  const pusu={yon,referansSeviye:n(ga.referansSeviye),renkoBoxSize:n(ga.renkoBoxSize)};
+  if(!skip&&!(pusu.referansSeviye>0&&pusu.renkoBoxSize>0)) skip='RENKO_REFERENCE_MISSING';
+  const points=skip?[]:rawPath(pos,result); const exit=n(result.exitPrice||result.kapanisFiyati);
+  if(!skip&&(!exit||!points.length)) skip='PRICE_PATH_MISSING';
+  if(skip){ bridgeMark(s,'SKIPPED',skip,pos); write(s); return null; }
+  bridgeMark(s,'ACCEPTED','RECORDED',pos);
+  const profile=ensureProfile(s,yon,patternCode,ga.patternId); profile.closed++;
   profile.lastReplay={at:new Date().toISOString(),actualBrick:n(ga.renkoEntryBrickDistance,0.25),candidates:{}};
   for(const c of CANDIDATES()){
     const replay=replayCandidate(pos,result,pusu,c,points);
@@ -181,7 +196,7 @@ function close(pos,result={}){
   profile.lastUpdatedAt=new Date().toISOString(); write(s); return summaryProfile(profile);
 }
 function summaryProfile(p){ const candidates=Object.entries(p?.candidates||{}).map(([key,val])=>({brick:Number(key),...metric(val)})).sort((a,b)=>a.brick-b.brick); return {...p,candidates}; }
-function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(n(p.activeBrick)!==0.25) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,0.25)); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:0.25},total,profiles}; }
+function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(n(p.activeBrick)!==0.25) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,0.25)); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:0.25},total,profiles,bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
 function telegram(){
   const x=summary();
   const profiles=x.profiles.slice().sort((a,b)=>b.closed-a.closed);
@@ -213,6 +228,10 @@ function telegram(){
   t+=`📦 Pattern: ${profiles.length}/16 | Öğrenen: ${profiles.filter(p=>p.closed>0).length} | Olgun N${x.policy.firstAssign}+: ${matured.length}\n`;
   t+=`🏆 Premier şartını geçen: ${premierCount} | 0.25 dışı atama: ${x.total.assigned}\n`;
   t+=`📊 Bilimsel kapanış: ${x.total.closed}\n`;
+  const skippedTotal=Object.values(x.bridge?.skipped||{}).reduce((a,v)=>a+n(v),0);
+  const skipText=Object.entries(x.bridge?.skipped||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${k} ${v}`).join(' | ')||'YOK';
+  t+=`🔌 Kapanış köprüsü: Çağrı ${n(x.bridge?.calls)} | Kabul ${n(x.bridge?.accepted)} | Ret ${skippedTotal}\n`;
+  t+=`🧾 Ret nedenleri: ${skipText}\n`;
   t+=`✅ Başarılı ${success} | ❌ Başarısız ${fail} | ⚖️ BE ${be}\n`;
   t+=`WR %${decisive?(success/decisive*100).toFixed(1):'0.0'} | Net ${net>=0?'+':''}${net.toFixed(4)} | PF ${pf>=999?'999.00':pf.toFixed(2)}\n`;
   t+=`ℹ️ İlk atama N${x.policy.firstAssign}; Premier için N≥5 + Net>0 + PF>1 + Exp>0.\n`;

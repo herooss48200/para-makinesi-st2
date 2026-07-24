@@ -15,6 +15,7 @@ const REQUIRED = [
   'test_v557_st2_renko_entry_evolution.js',
   'test_v558_st2_renko_entry_price_path_replay.js',
   'test_v559_st2_renko_entry_dashboard.js',
+  'test_v559_fix1_st2_runtime_binding_proof.js',
   'test_v541_st1_final_certification.js'
 ];
 
@@ -28,8 +29,8 @@ function inspect(baseDir = __dirname) {
   const dashboard = fs.readFileSync(path.join(baseDir, '69_operation_intelligence_dashboard.js'), 'utf8');
   const certification = fs.readFileSync(path.join(baseDir, '71_st1_final_certification.js'), 'utf8');
   const errors = [];
-  if (pkg.version !== '5.5.9-st2.0') errors.push(`package.json version ${pkg.version}; beklenen 5.5.9-st2.0`);
-  if (String(version.botSurumu) !== '5.5.9-ST2-RENKO-PATTERN-INTELLIGENCE-DASHBOARD') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.5.9-ST2-RENKO-PATTERN-INTELLIGENCE-DASHBOARD`);
+  if (pkg.version !== '5.5.9-st2.1') errors.push(`package.json version ${pkg.version}; beklenen 5.5.9-st2.1`);
+  if (String(version.botSurumu) !== '5.5.9-fix.1-ST2-RENKO-RUNTIME-BINDING-PROOF') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.5.9-fix.1-ST2-RENKO-RUNTIME-BINDING-PROOF`);
   if (!pkg.scripts?.['verify:v540']) errors.push('verify:v540 script missing');
   if (!pkg.scripts?.['verify:v541']) errors.push('verify:v541 script missing');
   if (!pkg.scripts?.['verify:v542']) errors.push('verify:v542 script missing');
@@ -54,7 +55,7 @@ if (require.main === module) {
     console.error(result.errors.join('\n'));
     process.exitCode = 1;
   } else {
-    console.log('✅ AGROS ST2 v5.5.9 deployment fingerprint verified.');
+    console.log('✅ AGROS ST2 v5.5.9-fix.1 deployment fingerprint verified.');
   }
 }
 module.exports = { inspect };
