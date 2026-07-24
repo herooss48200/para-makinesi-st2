@@ -371,10 +371,16 @@ const m = {
             let tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
 
             // Sanal ve gerçek emir aynı DNA + rejim + exit kimliğini kullanır; lig yalnız gerçek emir kapısında engeldir.
+            const etkinEntryStrategy = girisAnalizi?.entryStrategy
+                || (ayarlar.entryStrategyMode === 'ST2_RENKO' ? 'ST2_RENKO' : 'ST1');
+            const etkinGirisAnalizi = {
+                ...(girisAnalizi || {}),
+                entryStrategy: etkinEntryStrategy
+            };
             const hazirKimlik = {
                 sym: symbol, yon, girisFiyati: canliFiyat, sl, tp, miktar: guvenliMiktar,
                 sanal: ayarlar.sanalEmirModu, acilisZamani: Date.now(),
-                entryStrategy: girisAnalizi?.entryStrategy || 'ST1', girisAnalizi
+                entryStrategy: etkinEntryStrategy, girisAnalizi: etkinGirisAnalizi
             };
             try {
                 await identityChain.prepare(hazirKimlik, { realMode: !ayarlar.sanalEmirModu });

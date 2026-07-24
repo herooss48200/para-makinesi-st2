@@ -14,7 +14,7 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v5.5.9-fix.1-ST2-RENKO-RUNTIME-BINDING-PROOF';
+const VERSION = 'v5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-renko-entry-evolution.json');
 
@@ -166,11 +166,22 @@ function replayCandidate(pos,result,pusu,brickDistance,points){
 }
 function close(pos,result={}){
   const s=read();
+  const snap=pos?.girisAnalizi?.pusuTuglasi||pos?.pusuTuglasi||{};
+  const ga={
+    ...(pos?.girisAnalizi||{}),
+    entryStrategy:pos?.girisAnalizi?.entryStrategy||pos?.entryStrategy||null,
+    patternId:pos?.girisAnalizi?.patternId||pos?.patternId||snap.patternId,
+    patternKodu:pos?.girisAnalizi?.patternKodu||pos?.patternKodu||snap.patternKodu,
+    referansSeviye:pos?.girisAnalizi?.referansSeviye||pos?.referansSeviye||snap.referansSeviye,
+    renkoBoxSize:pos?.girisAnalizi?.renkoBoxSize||pos?.renkoBoxSize||snap.renkoBoxSize,
+    renkoEntryBrickDistance:pos?.girisAnalizi?.renkoEntryBrickDistance||pos?.renkoEntryBrickDistance||0.25
+  };
+  pos.girisAnalizi=ga;
   let skip=null;
   if(ayarlar.renkoGirisOgrenmeAktif===false) skip='LEARNING_DISABLED';
-  else if(pos?.girisAnalizi?.entryStrategy!=='ST2_RENKO') skip='NOT_ST2_RENKO';
+  else if(ga.entryStrategy!=='ST2_RENKO') skip='NOT_ST2_RENKO';
   else if(result.restartGap===true||pos?.restartGap===true) skip='RESTART_GAP';
-  const ga=pos?.girisAnalizi||{}; const yon=String(pos?.yon||ga.yon||'').toUpperCase(); const patternCode=ga.patternKodu;
+  const yon=String(pos?.yon||ga.yon||'').toUpperCase(); const patternCode=ga.patternKodu;
   if(!skip&&(!yon||!patternCode)) skip='IDENTITY_MISSING';
   const pusu={yon,referansSeviye:n(ga.referansSeviye),renkoBoxSize:n(ga.renkoBoxSize)};
   if(!skip&&!(pusu.referansSeviye>0&&pusu.renkoBoxSize>0)) skip='RENKO_REFERENCE_MISSING';

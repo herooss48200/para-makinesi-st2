@@ -1015,6 +1015,20 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
         restartGap: restartGap.isQuarantined(pos)
     }); } catch (e) { console.log(`⚠️ [LAB LIFECYCLE] ${e.message}`); }
+    // ST2 kimliği eski/açık pozisyonlarda yalnız üst seviyede kalmış olabilir.
+    // Kapanış köprüsünden önce kimliği tek kanonik girisAnalizi nesnesinde tamamla.
+    const st2PusuSnapshot = pos?.girisAnalizi?.pusuTuglasi || pos?.pusuTuglasi || {};
+    const st2EntryStrategy = pos?.girisAnalizi?.entryStrategy || pos?.entryStrategy
+        || (ayarlar.entryStrategyMode === 'ST2_RENKO' ? 'ST2_RENKO' : 'ST1');
+    pos.girisAnalizi = {
+        ...(pos.girisAnalizi || {}),
+        entryStrategy: st2EntryStrategy,
+        patternId: pos?.girisAnalizi?.patternId || pos?.patternId || st2PusuSnapshot.patternId,
+        patternKodu: pos?.girisAnalizi?.patternKodu || pos?.patternKodu || st2PusuSnapshot.patternKodu,
+        referansSeviye: pos?.girisAnalizi?.referansSeviye || pos?.referansSeviye || st2PusuSnapshot.referansSeviye,
+        renkoBoxSize: pos?.girisAnalizi?.renkoBoxSize || pos?.renkoBoxSize || st2PusuSnapshot.renkoBoxSize,
+        renkoEntryBrickDistance: pos?.girisAnalizi?.renkoEntryBrickDistance || pos?.renkoEntryBrickDistance || 0.25
+    };
     try { renkoEntryEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
