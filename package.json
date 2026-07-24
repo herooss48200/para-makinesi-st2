@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "5.5.0-st2.0",
-  "description": "AGROS ST2 v5.5.0: ATR(14) Renko entry state machine derived from certified ST1 v5.4.2.",
+  "version": "5.5.2-st2.0",
+  "description": "AGROS ST2 v5.5.2: stable 15m ATR Renko 9-pattern entry + 1m ATR Renko SuperTrend timing.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",

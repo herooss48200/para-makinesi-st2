@@ -24,15 +24,15 @@ function inspect(baseDir = __dirname) {
   const dashboard = fs.readFileSync(path.join(baseDir, '69_operation_intelligence_dashboard.js'), 'utf8');
   const certification = fs.readFileSync(path.join(baseDir, '71_st1_final_certification.js'), 'utf8');
   const errors = [];
-  if (pkg.version !== '5.5.0-st2.0') errors.push(`package.json version ${pkg.version}; beklenen 5.5.0-st2.0`);
-  if (String(version.botSurumu) !== '5.5.0-ST2-RENKO-ENTRY') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.5.0-ST2-RENKO-ENTRY`);
+  if (pkg.version !== '5.5.2-st2.0') errors.push(`package.json version ${pkg.version}; beklenen 5.5.2-st2.0`);
+  if (String(version.botSurumu) !== '5.5.2-ST2-RENKO-9-PATTERN') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.5.2-ST2-RENKO-9-PATTERN`);
   if (!pkg.scripts?.['verify:v540']) errors.push('verify:v540 script missing');
   if (!pkg.scripts?.['verify:v541']) errors.push('verify:v541 script missing');
   if (!pkg.scripts?.['verify:v542']) errors.push('verify:v542 script missing');
   if (!report.includes("require('./69_operation_intelligence_dashboard.js')")) errors.push('2_rapor dashboard binding missing');
   if (!dashboard.includes('runtimeVersion.botSurumu')) errors.push('dynamic Telegram Operations Center version binding missing');
-  if (!dashboard.includes('Premier gözlem defteri')) errors.push('Premier report scope label missing');
-  if (!certification.includes('ST1 FİNAL BİLİMSEL DENETİM — v5.4.1')) errors.push('ST1 Final Certification signature missing');
+  if (!dashboard.includes('PREMIER KARAR VE FORM ÖZETİ')) errors.push('Premier report scope label missing');
+  if (!certification.includes('ST1 FİNAL BİLİMSEL DENETİM') || !certification.includes('v5.4.1')) errors.push('ST1 Final Certification signature missing');
   if (missing.length) errors.push(`missing files: ${missing.join(', ')}`);
   return {
     ok: errors.length === 0,
@@ -50,7 +50,7 @@ if (require.main === module) {
     console.error(result.errors.join('\n'));
     process.exitCode = 1;
   } else {
-    console.log('✅ AGROS ST2 v5.5.0 deployment fingerprint verified.');
+    console.log('✅ AGROS ST2 v5.5.2 deployment fingerprint verified.');
   }
 }
 module.exports = { inspect };

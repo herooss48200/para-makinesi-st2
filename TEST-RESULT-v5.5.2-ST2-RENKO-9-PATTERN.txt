@@ -1,0 +1,12 @@
+AGROS ST2 v5.5.2 TEST RESULT
+Date: 2026-07-24
+
+PASS: syntax check for every root JavaScript file
+PASS: ST2 identity isolation contract
+PASS: 8 LONG four-brick pattern mappings
+PASS: special LONG five-brick L09 mapping
+PASS: mirrored SHORT pattern mapping
+PASS: LONG/SHORT tolerance trigger calculation
+PASS: pattern DNA metadata binding
+
+FULL npm dependency-backed certification could not be rerun in the build container because the internal npm registry returned HTTP 503 while fetching ws-7.5.11.tgz. package-lock.json is preserved and AWS/local `npm ci` must be run before `npm run verify:st2`.
