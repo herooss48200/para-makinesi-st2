@@ -60,13 +60,50 @@ function renkoKanitiMetni(sym, pusu, target, price, st) {
         ...satirlar,
         `ℹ️ Binance kontrolü: aynı sembol, aynı ATR kutu ayarı ve aynı son kapanış zamanında renk/OHLC/BB temasını karşılaştır.`
     ].join('\n');
+
+}
+
+function yakinRedAdayiEkle(audit, sym, match, scenario, bricks, boxSize) {
+    if (!audit || !match || !scenario) return;
+    const fark = Number(scenario.bandFarkTugla);
+    if (!Number.isFinite(fark)) return;
+    const kayit = {
+        sym,
+        yon: match.yon,
+        patternId: match.patternId,
+        patternKodu: match.patternCode,
+        redSebep: scenario.redSebep || 'YOK',
+        bandFarkTugla: fark,
+        bandFarkFiyat: Number(scenario.bandFarkFiyat || 0),
+        boxSize: Number(boxSize || 0),
+        altBand: Number(scenario.altBand || 0),
+        ortaBand: Number(scenario.ortaBand || 0),
+        ustBand: Number(scenario.ustBand || 0),
+        toleransTugla: Number(scenario.toleransTugla || 0),
+        toleransFiyat: Number(scenario.toleransFiyat || 0),
+        sonTuglaLow: Number(scenario.sonTuglaLow || 0),
+        sonTuglaHigh: Number(scenario.sonTuglaHigh || 0),
+        sonTuglaClose: Number(scenario.sonTuglaClose || 0),
+        sonTuglaZamani: Number(scenario.sonTuglaZamani || 0),
+        tuglaDizisi: tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10)).map(x => x.renk).join('')
+    };
+    audit.yakinRedAdaylari.push(kayit);
+    audit.yakinRedAdaylari.sort((a, b) => Math.abs(a.bandFarkTugla) - Math.abs(b.bandFarkTugla));
+    if (audit.yakinRedAdaylari.length > Math.max(1, Number(ayarlar.renkoYakinRedKanitSayisi || 3))) {
+        audit.yakinRedAdaylari.length = Math.max(1, Number(ayarlar.renkoYakinRedKanitSayisi || 3));
+    }
+}
+
+function pusuOlusumKanitiMetni(sym, pusu) {
+    return renkoKanitiMetni(sym, pusu, tetikFiyati(pusu), Number(h.state.canliFiyatlar?.[sym] || 0), { trend: 'BEKLENIYOR' })
+        .replace('🧱 ST2 RENKO/BINANCE KARŞILAŞTIRMA KANITI', '🪤 ST2 RENKO PUSU/BINANCE PROOF');
 }
 
 function auditBaslat() {
     return {
         zaman: Date.now(), sembol: 0, atrHazir: 0, renkoHazir: 0, patternAday: 0, yeniPattern: 0, yeniPusu: 0,
         bbHazir: 0, bbLongTemas: 0, bbShortTemas: 0,
-        patternDagilimi: {}, sonTemasRedleri: {},
+        patternDagilimi: {}, sonTemasRedleri: {}, yakinRedAdaylari: [],
         kaynakMumToplam: 0, renkoTuglaToplam: 0, renkoMin: null, renkoMax: 0,
         onay1mMumHazir: 0, onay1mAtrHazir: 0, onay1mRenkoHazir: 0,
         onay1mUp: 0, onay1mDown: 0, onay1mYetersiz: 0,
@@ -137,6 +174,7 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, audit = null) {
         const scenario = bollingerSenaryosu(match, bollinger, boxSize);
         if (!scenario?.senaryo) {
             if (audit && scenario?.redSebep) {
+                yakinRedAdayiEkle(audit, sym, match, scenario, bricks, boxSize);
                 audit.sonTemasRedleri[scenario.redSebep] = Number(audit.sonTemasRedleri[scenario.redSebep] || 0) + 1;
                 if (scenario.redSebep === 'LONG_ALT_BAND_TEMASI_YOK') audit.red.LONG_ALT_BAND_TEMASI_YOK++;
                 else if (scenario.redSebep === 'SHORT_UST_BAND_TEMASI_YOK') audit.red.SHORT_UST_BAND_TEMASI_YOK++;
@@ -154,6 +192,12 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, audit = null) {
         store.pusular[sym].renkoBoxSize = Number(boxSize || 0);
         store.pusular[sym].renkoSonTuglaDizisi = match.bricks.map(b => b.color === 'GREEN' ? 'G' : 'R').join('');
         store.pusular[sym].renkoSon10Tugla = tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10));
+        const pusuKaniti = pusuOlusumKanitiMetni(sym, store.pusular[sym]);
+        store.pusular[sym].renkoPusuKanitMetni = pusuKaniti;
+        console.log(`\n${pusuKaniti}\n`);
+        if (ayarlar.renkoPusuKanitTelegram !== false) {
+            h.telegramMesajGonder(pusuKaniti).catch(e => console.log(`⚠️ [ST2 RENKO PROOF] Telegram gönderimi başarısız ${sym}: ${e.message}`));
+        }
         store.sonPatternSignature[sym] = signature;
         if (audit) {
             audit.yeniPattern++;
@@ -244,6 +288,9 @@ function auditLogla(audit) {
     console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu süresi doldu ${audit.red.PUSU_SURESI_DOLDU} | 1m ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ}`);
     const dagilim = Object.entries(audit.patternDagilimi || {}).sort().map(([k,v]) => `${k}:${v}`).join(' ') || 'YOK';
     console.log(`🧱 [ST2 RENKO PATTERN] ${dagilim}`);
+    for (const [i, x] of (audit.yakinRedAdaylari || []).entries()) {
+        console.log(`🔬 [ST2 RENKO YAKIN RED ${i + 1}] ${x.sym} ${x.yon} ${x.patternId} (${x.patternKodu}) | Sebep ${x.redSebep} | Band farkı ${x.bandFarkTugla.toFixed(4)} tuğla (${fiyatFormatla(x.bandFarkFiyat)}) | Tol ${x.toleransTugla.toFixed(2)} | Box ${fiyatFormatla(x.boxSize)} | BB A/O/U ${fiyatFormatla(x.altBand)}/${fiyatFormatla(x.ortaBand)}/${fiyatFormatla(x.ustBand)} | Son L/H/C ${fiyatFormatla(x.sonTuglaLow)}/${fiyatFormatla(x.sonTuglaHigh)}/${fiyatFormatla(x.sonTuglaClose)} | T ${zamanFormatla(x.sonTuglaZamani)} | Dizi ${x.tuglaDizisi || 'YOK'}`);
+    }
 }
 
 async function taraVeDegerlendir() {
