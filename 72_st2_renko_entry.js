@@ -20,6 +20,48 @@ function storeHazirla() {
     return store;
 }
 
+
+function fiyatFormatla(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return 'YOK';
+    return Math.abs(n) >= 1 ? n.toFixed(8) : n.toPrecision(10);
+}
+
+function zamanFormatla(ts) {
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return 'YOK';
+    return new Date(n).toISOString();
+}
+
+function tuglaKaniti(bricks, limit = 10) {
+    return (Array.isArray(bricks) ? bricks.slice(-Math.max(1, limit)) : []).map(b => ({
+        id: Number(b.id || 0),
+        renk: b.color === 'GREEN' ? 'G' : 'R',
+        open: Number(b.open), high: Number(b.high), low: Number(b.low), close: Number(b.close),
+        closeTime: Number(b.closeTime || 0)
+    }));
+}
+
+function renkoKanitiMetni(sym, pusu, target, price, st) {
+    const bb = pusu?.renkoBb || {};
+    const bricks = Array.isArray(pusu?.renkoSon10Tugla) ? pusu.renkoSon10Tugla : [];
+    const dizi = bricks.map(b => b.renk).join('');
+    const satirlar = bricks.map(b =>
+        `#${b.id} ${b.renk} O:${fiyatFormatla(b.open)} H:${fiyatFormatla(b.high)} L:${fiyatFormatla(b.low)} C:${fiyatFormatla(b.close)} T:${zamanFormatla(b.closeTime)}`
+    );
+    return [
+        `🧱 ST2 RENKO/BINANCE KARŞILAŞTIRMA KANITI`,
+        `🪙 ${sym} | Yön ${pusu?.yon || 'YOK'} | Pattern ${pusu?.patternId || 'YOK'} (${pusu?.patternKodu || 'YOK'})`,
+        `⏱️ Kaynak ${ayarlar.renkoKaynakPeriyodu || '15m'} kapanmış mum | ATR(${Number(ayarlar.renkoAtrPeriod || 14)}) | Box ${fiyatFormatla(pusu?.renkoBoxSize)}`,
+        `📊 BB: Alt ${fiyatFormatla(bb.altBand)} | Orta ${fiyatFormatla(bb.ortaBand)} | Üst ${fiyatFormatla(bb.ustBand)}`,
+        `📐 Band farkı: ${fiyatFormatla(bb.bandFarkFiyat)} fiyat / ${Number(bb.bandFarkTugla || 0).toFixed(4)} tuğla | Tolerans ${Number(bb.toleransTugla || 0).toFixed(2)} tuğla (${fiyatFormatla(bb.toleransFiyat)}) | Temas ${bb.temas ? 'TRUE ✅' : 'FALSE ❌'}`,
+        `🎯 Referans ${fiyatFormatla(pusu?.referansSeviye)} | Tetik ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${st?.trend || 'YOK'}`,
+        `🧬 Son ${bricks.length} tuğla: ${dizi || 'YOK'}`,
+        ...satirlar,
+        `ℹ️ Binance kontrolü: aynı sembol, aynı ATR kutu ayarı ve aynı son kapanış zamanında renk/OHLC/BB temasını karşılaştır.`
+    ].join('\n');
+}
+
 function auditBaslat() {
     return {
         zaman: Date.now(), sembol: 0, atrHazir: 0, renkoHazir: 0, patternAday: 0, yeniPattern: 0, yeniPusu: 0,
@@ -111,6 +153,7 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, audit = null) {
         store.pusular[sym].renkoBb = { ...scenario };
         store.pusular[sym].renkoBoxSize = Number(boxSize || 0);
         store.pusular[sym].renkoSonTuglaDizisi = match.bricks.map(b => b.color === 'GREEN' ? 'G' : 'R').join('');
+        store.pusular[sym].renkoSon10Tugla = tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10));
         store.sonPatternSignature[sym] = signature;
         if (audit) {
             audit.yeniPattern++;
@@ -153,6 +196,9 @@ async function pusuDegerlendir(sym, onay1m = null) {
     // Tetik ve 1m Renko ST aynı değerlendirme anında geçerli olmalıdır; eski onay latch edilmez.
     if (!fiyatUygun || !stUygun) return false;
 
+    const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, st);
+    console.log(`\n${renkoKanit}\n`);
+
     const girisAnalizi = {
         entryStrategy: 'ST2_RENKO',
         pusuPeriyodu: ayarlar.renkoKaynakPeriyodu || '15m',
@@ -176,6 +222,9 @@ async function pusuDegerlendir(sym, onay1m = null) {
         renkoBb: pusu.renkoBb || null,
         renkoBbTemasToleransTugla: Number(ayarlar.renkoBbTemasToleransTugla ?? 0.25),
         renkoSonTuglaDizisi: pusu.renkoSonTuglaDizisi || pusu.patternKodu,
+        renkoSon10Tugla: pusu.renkoSon10Tugla || [],
+        renkoKanitMetni: renkoKanit,
+        pusuDebug: renkoKanit,
         renkoOnayBoxSize1m: store.onayBoxSize1m?.[sym] || 0,
         pusuTuglasi: { ...pusu }
     };

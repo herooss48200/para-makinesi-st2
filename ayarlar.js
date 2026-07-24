@@ -125,6 +125,7 @@ const ayarlar = {
     renkoKaynakMumLimiti: 250, // BB(20) için ATR-Renko tuğla derinliği
     renkoBollingerPeriod: 20,
     renkoBbTemasToleransTugla: 0.25, // ST2-only: band yaklaşımı en fazla çeyrek Renko tuğlası
+    renkoKanitTuglaSayisi: 10,
     renkoOnayPeriyodu: '1m',
     renkoOnayAtrPeriod: 14,
     renkoOnaySuperTrendPeriod: 10,

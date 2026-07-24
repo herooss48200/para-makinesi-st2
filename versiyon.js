@@ -1,9 +1,9 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY',
-    kod: 'ST2 Candidate v5.5.4-ST2-RENKO-CHART-CONSISTENCY',
-    botSurumu: '5.5.4-ST2-RENKO-CHART-CONSISTENCY',
-    stratejiSurumu: '1.0.16',
+    kod: 'ST2 Candidate v5.5.5-ST2-RENKO-BINANCE-AUDIT',
+    botSurumu: '5.5.5-ST2-RENKO-BINANCE-AUDIT',
+    stratejiSurumu: '1.0.17',
     yayinTarihi: '24.07.2026',
     ortam: { emirModu: 'SANAL' }
 };
