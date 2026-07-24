@@ -2,6 +2,7 @@ const h = require('./1_hafiza.js');
 const m = require('./motor.js');
 const ayarlar = require('./ayarlar.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
+const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
@@ -1014,6 +1015,11 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
         restartGap: restartGap.isQuarantined(pos)
     }); } catch (e) { console.log(`⚠️ [LAB LIFECYCLE] ${e.message}`); }
+    try { renkoEntryEvolution.close(pos, {
+        net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
+        reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
+        restartGap: restartGap.isQuarantined(pos)
+    }); } catch (e) { console.log(`⚠️ [ST2 ENTRY EVOLUTION] ${e.message}`); }
 
     const restartGapIslemi = restartGap.isQuarantined(pos);
     const exitMethodSummary = restartGapIslemi

@@ -4,10 +4,16 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const m = require('./motor.js');
 const core = require('./72_st2_renko_core.js');
+const entryEvolution = require('./73_st2_renko_entry_evolution.js');
+
+function aktifTuglaMesafesi(pusu) {
+    return entryEvolution.activeFor(pusu?.yon, pusu?.patternKodu);
+}
 
 function tetikFiyati(pusu) {
-    return core.tetikFiyati(pusu, ayarlar.renkoTetikYuzdesi ?? ayarlar.tetikYuzdesi ?? 0);
+    return entryEvolution.targetPrice(pusu, aktifTuglaMesafesi(pusu));
 }
+
 
 function storeHazirla() {
     const store = h.state.st2Renko || (h.state.st2Renko = {});
@@ -251,7 +257,8 @@ async function pusuDegerlendir(sym, onay1m = null) {
         hedefFiyati: pusu.referansSeviye,
         tetikFiyati: target,
         tetikYuzdesiAyar: Number(ayarlar.renkoTetikYuzdesi || 0),
-        tetikModu: 'RENKO_PATTERN_REFERANS_BUFFER',
+        renkoEntryBrickDistance: aktifTuglaMesafesi(pusu),
+        tetikModu: 'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE',
         girisFiyati: price,
         superTrendYonu: st.trend,
         stKaynak: '1m_RENKO',
@@ -331,6 +338,7 @@ async function taraVeDegerlendir() {
 module.exports = {
     ...core,
     tetikFiyati,
+    aktifTuglaMesafesi,
     storeHazirla,
     birDakikaRenkoSuperTrend,
     bollingerHazirMi: core.bollingerHazirMi,

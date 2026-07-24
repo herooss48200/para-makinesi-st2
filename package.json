@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-st2",
-  "version": "5.5.6-st2.0",
+  "version": "5.5.9-st2.0",
   "description": "AGROS ST2 v5.5.0: ATR(14) Renko entry state machine derived from certified ST1 v5.4.2.",
   "main": "bot.js",
   "scripts": {
@@ -89,8 +89,13 @@
     "test:v542": "node test_v542_report_consistency_fix.js",
     "verify:v542": "node --check 69_operation_intelligence_dashboard.js && node --check 70_deployment_fingerprint.js && node --check versiyon.js && npm run verify:v541 && npm run test:v542",
     "test:st2-renko": "node test_st2_renko_entry.js",
-    "verify:st2": "npm run test:st2-identity && node --check 72_st2_renko_core.js && node --check 72_st2_renko_entry.js && node --check test_st2_renko_entry.js && npm run test:st2-renko && npm run verify:v542",
-    "test:st2-identity": "node test_st2_identity_isolation.js"
+    "verify:st2": "npm run test:st2-identity && node --check 72_st2_renko_core.js && node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check test_st2_renko_entry.js && node --check test_v557_st2_renko_entry_evolution.js && npm run test:st2-renko && npm run test:v557 && npm run verify:v542",
+    "test:st2-identity": "node test_st2_identity_isolation.js",
+    "test:v557": "node test_v557_st2_renko_entry_evolution.js",
+    "test:v558": "node test_v558_st2_renko_entry_price_path_replay.js",
+    "verify:v558": "node --check 73_st2_renko_entry_evolution.js && npm run test:v557 && npm run test:v558 && node 70_deployment_fingerprint.js",
+    "test:v559": "node test_v559_st2_renko_entry_dashboard.js",
+    "verify:v559": "node --check 73_st2_renko_entry_evolution.js && npm run test:v557 && npm run test:v558 && npm run test:v559 && node 70_deployment_fingerprint.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

@@ -133,7 +133,15 @@ const ayarlar = {
     renkoOnaySuperTrendPeriod: 10,
     renkoOnaySuperTrendMultiplier: 3,
     renkoAuditLogMs: 60000,
-    renkoTetikYuzdesi: 0.05,
+    renkoTetikYuzdesi: 0.05, // legacy; aktif tetik artık tuğla mesafesi evriminden gelir
+    renkoGirisOgrenmeAktif: true,
+    renkoGirisOtomatikAktiflestirme: true,
+    renkoGirisAdayTugla: [0.25, 0.50, 0.75, 1.00, 1.25, 1.50],
+    renkoGirisIlkAtamaKapanis: 3,
+    renkoGirisYenidenHesaplamaAdimi: 5,
+    renkoGirisGuncelPencere: 10,
+    renkoGirisGuncelAgirlik: 0.65,
+    renkoGirisMinSkorIyilesme: 0.005,
     maxPusuBeklemeTugla: 3,
 
 
