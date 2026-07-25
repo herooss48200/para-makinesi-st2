@@ -1,0 +1,73 @@
+{
+  "version": "v5.6.3-CLEAN-SCIENTIFIC-RESET-PERSISTENT-LEARNING",
+  "updatedAt": "2026-07-25T20:13:50.897Z",
+  "profiles": {},
+  "processedIds": {},
+  "bridge": {
+    "calls": 1,
+    "accepted": 0,
+    "skipped": {
+      "NOT_ST2_RENKO": 1
+    },
+    "last": {
+      "at": "2026-07-25T20:13:50.896Z",
+      "status": "SKIPPED",
+      "reason": "NOT_ST2_RENKO",
+      "sym": "OLDUSDT",
+      "yon": "LONG",
+      "entryStrategy": "ST1",
+      "patternCode": null
+    }
+  },
+  "decisionChain": {
+    "entry": {
+      "assigned": 0,
+      "applied": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "unknown": 0,
+      "missing": 0
+    },
+    "stop": {
+      "assigned": 0,
+      "applied": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "unknown": 0,
+      "missing": 0
+    },
+    "be": {
+      "assigned": 0,
+      "applied": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "unknown": 0,
+      "missing": 0
+    },
+    "exit": {
+      "assigned": 0,
+      "applied": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "unknown": 0,
+      "missing": 0
+    },
+    "last": null
+  },
+  "health": {
+    "stateStatus": "EMPTY",
+    "ledgerStatus": "EMPTY",
+    "stateRecords": 0,
+    "ledgerRecords": 0,
+    "lastSuccessfulSaveAt": "2026-07-25T20:13:50.897Z",
+    "lastAcceptedTradeId": 0,
+    "loadedAfterRestart": 0,
+    "duplicateRejects": 0,
+    "restartGapRejects": 0,
+    "otherRejects": 1,
+    "saveErrors": 0,
+    "loadErrors": 0,
+    "backupRecoveries": 0,
+    "ledgerRebuilds": 0
+  }
+}

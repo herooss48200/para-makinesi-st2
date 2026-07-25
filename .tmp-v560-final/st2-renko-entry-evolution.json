@@ -1,6 +1,6 @@
 {
-  "version": "v5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING",
-  "updatedAt": "2026-07-25T07:26:52.538Z",
+  "version": "v5.6.3-CLEAN-SCIENTIFIC-RESET-PERSISTENT-LEARNING",
+  "updatedAt": "2026-07-25T20:13:56.017Z",
   "profiles": {
     "LONG|RRRR": {
       "key": "LONG|RRRR",
@@ -24,7 +24,7 @@
           "recent": [
             {
               "net": 0,
-              "at": 1784964412537
+              "at": 1785010436013
             }
           ]
         },
@@ -40,7 +40,7 @@
           "recent": [
             {
               "net": 0,
-              "at": 1784964412537
+              "at": 1785010436013
             }
           ]
         },
@@ -56,7 +56,7 @@
           "recent": [
             {
               "net": 0,
-              "at": 1784964412537
+              "at": 1785010436013
             }
           ]
         },
@@ -72,7 +72,7 @@
           "recent": [
             {
               "net": 0,
-              "at": 1784964412537
+              "at": 1785010436013
             }
           ]
         },
@@ -88,7 +88,7 @@
           "recent": [
             {
               "net": 0,
-              "at": 1784964412537
+              "at": 1785010436013
             }
           ]
         },
@@ -104,14 +104,18 @@
           "recent": [
             {
               "net": 0,
-              "at": 1784964412537
+              "at": 1785010436013
             }
           ]
         }
       },
       "history": [],
+      "renkoSequence": "RRRR",
+      "renkoBb": null,
+      "renkoSuperTrend": null,
       "lastReplay": {
-        "at": "2026-07-25T07:26:52.536Z",
+        "at": "2026-07-25T20:13:56.012Z",
+        "tradeId": "fd631aea57fbc98506931eff",
         "actualBrick": 0.75,
         "candidates": {
           "0.25": {
@@ -188,7 +192,14 @@
           }
         }
       },
-      "lastUpdatedAt": "2026-07-25T07:26:52.537Z"
+      "lastUpdatedAt": "2026-07-25T20:13:56.013Z"
+    }
+  },
+  "processedIds": {
+    "fd631aea57fbc98506931eff": {
+      "at": "2026-07-25T20:13:56.013Z",
+      "sym": "FINALUSDT",
+      "pattern": "RRRR"
     }
   },
   "bridge": {
@@ -196,7 +207,7 @@
     "accepted": 1,
     "skipped": {},
     "last": {
-      "at": "2026-07-25T07:26:52.535Z",
+      "at": "2026-07-25T20:13:56.011Z",
       "status": "ACCEPTED",
       "reason": "RECORDED",
       "sym": "FINALUSDT",
@@ -211,36 +222,56 @@
       "applied": 1,
       "matched": 1,
       "mismatched": 0,
-      "unknown": 0
+      "unknown": 0,
+      "missing": 0
     },
     "stop": {
       "assigned": 1,
       "applied": 1,
       "matched": 1,
       "mismatched": 0,
-      "unknown": 0
+      "unknown": 0,
+      "missing": 0
     },
     "be": {
       "assigned": 1,
       "applied": 1,
       "matched": 1,
       "mismatched": 0,
-      "unknown": 0
+      "unknown": 0,
+      "missing": 0
     },
     "exit": {
       "assigned": 1,
       "applied": 1,
       "matched": 1,
       "mismatched": 0,
-      "unknown": 0
+      "unknown": 0,
+      "missing": 0
     },
     "last": {
-      "at": "2026-07-25T07:26:52.536Z",
+      "at": "2026-07-25T20:13:56.012Z",
       "key": "exit",
       "detail": {
         "assignedExit": "ACTUAL",
         "appliedExit": "Sanal TP"
       }
     }
+  },
+  "health": {
+    "stateStatus": "HEALTHY",
+    "ledgerStatus": "HEALTHY",
+    "stateRecords": 1,
+    "ledgerRecords": 1,
+    "lastSuccessfulSaveAt": "2026-07-25T20:13:56.017Z",
+    "lastAcceptedTradeId": "fd631aea57fbc98506931eff",
+    "loadedAfterRestart": 0,
+    "duplicateRejects": 0,
+    "restartGapRejects": 0,
+    "otherRejects": 0,
+    "saveErrors": 0,
+    "loadErrors": 0,
+    "backupRecoveries": 0,
+    "ledgerRebuilds": 0
   }
 }

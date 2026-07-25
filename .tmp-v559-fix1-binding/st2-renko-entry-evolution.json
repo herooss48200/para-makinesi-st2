@@ -1,6 +1,6 @@
 {
-  "version": "v5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING",
-  "updatedAt": "2026-07-25T07:26:47.879Z",
+  "version": "v5.6.3-CLEAN-SCIENTIFIC-RESET-PERSISTENT-LEARNING",
+  "updatedAt": "2026-07-25T20:13:50.917Z",
   "profiles": {
     "LONG|RRGG": {
       "key": "LONG|RRGG",
@@ -24,7 +24,7 @@
           "recent": [
             {
               "net": 1.492537,
-              "at": 1784964407878
+              "at": 1785010430912
             }
           ]
         },
@@ -40,7 +40,7 @@
           "recent": [
             {
               "net": 0.990099,
-              "at": 1784964407878
+              "at": 1785010430912
             }
           ]
         },
@@ -56,7 +56,7 @@
           "recent": [
             {
               "net": 0.492611,
-              "at": 1784964407878
+              "at": 1785010430912
             }
           ]
         },
@@ -72,12 +72,12 @@
           "recent": [
             {
               "net": 0,
-              "at": 1784964407879
+              "at": 1785010430912
             }
           ]
         },
         "1.25": {
-          "samples": 0,
+          "samples": 1,
           "triggered": 0,
           "tp": 0,
           "sl": 0,
@@ -88,7 +88,7 @@
           "recent": []
         },
         "1.50": {
-          "samples": 0,
+          "samples": 1,
           "triggered": 0,
           "tp": 0,
           "sl": 0,
@@ -100,8 +100,12 @@
         }
       },
       "history": [],
+      "renkoSequence": "RRGG",
+      "renkoBb": null,
+      "renkoSuperTrend": null,
       "lastReplay": {
-        "at": "2026-07-25T07:26:47.878Z",
+        "at": "2026-07-25T20:13:50.911Z",
+        "tradeId": "3c5a70e0e0c3a8341ba6b1ca",
         "actualBrick": 0.25,
         "candidates": {
           "0.25": {
@@ -162,7 +166,14 @@
           }
         }
       },
-      "lastUpdatedAt": "2026-07-25T07:26:47.879Z"
+      "lastUpdatedAt": "2026-07-25T20:13:50.912Z"
+    }
+  },
+  "processedIds": {
+    "3c5a70e0e0c3a8341ba6b1ca": {
+      "at": "2026-07-25T20:13:50.912Z",
+      "sym": "TESTUSDT",
+      "pattern": "RRGG"
     }
   },
   "bridge": {
@@ -172,7 +183,7 @@
       "NOT_ST2_RENKO": 1
     },
     "last": {
-      "at": "2026-07-25T07:26:47.877Z",
+      "at": "2026-07-25T20:13:50.909Z",
       "status": "ACCEPTED",
       "reason": "RECORDED",
       "sym": "TESTUSDT",
@@ -187,36 +198,56 @@
       "applied": 1,
       "matched": 1,
       "mismatched": 0,
-      "unknown": 0
+      "unknown": 0,
+      "missing": 0
     },
     "stop": {
       "assigned": 1,
       "applied": 0,
       "matched": 0,
       "mismatched": 0,
-      "unknown": 1
+      "unknown": 1,
+      "missing": 1
     },
     "be": {
       "assigned": 1,
       "applied": 0,
       "matched": 1,
       "mismatched": 0,
-      "unknown": 0
+      "unknown": 0,
+      "missing": 1
     },
     "exit": {
       "assigned": 1,
       "applied": 0,
       "matched": 0,
       "mismatched": 0,
-      "unknown": 1
+      "unknown": 1,
+      "missing": 1
     },
     "last": {
-      "at": "2026-07-25T07:26:47.877Z",
+      "at": "2026-07-25T20:13:50.910Z",
       "key": "exit",
       "detail": {
         "assignedExit": "ACTUAL",
         "appliedExit": null
       }
     }
+  },
+  "health": {
+    "stateStatus": "HEALTHY",
+    "ledgerStatus": "HEALTHY",
+    "stateRecords": 1,
+    "ledgerRecords": 1,
+    "lastSuccessfulSaveAt": "2026-07-25T20:13:50.917Z",
+    "lastAcceptedTradeId": "3c5a70e0e0c3a8341ba6b1ca",
+    "loadedAfterRestart": 0,
+    "duplicateRejects": 0,
+    "restartGapRejects": 0,
+    "otherRejects": 1,
+    "saveErrors": 0,
+    "loadErrors": 0,
+    "backupRecoveries": 0,
+    "ledgerRebuilds": 0
   }
 }
