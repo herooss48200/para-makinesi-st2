@@ -257,11 +257,29 @@ function st2AnaRaporOgrenmeOzeti() {
     const t = evo.total || {};
     const b = evo.bridge || {};
     const ret = Object.values(b.skipped || {}).reduce((a, v) => a + Number(v || 0), 0);
+    const dagilim = {};
+    for (const profil of evo.profiles || []) {
+        const brick = Number(profil.activeBrick || evo.policy?.defaultBrick || 0.75).toFixed(2);
+        dagilim[brick] = Number(dagilim[brick] || 0) + 1;
+    }
+    const dagilimMetni = Object.entries(dagilim)
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map(([brick, adet]) => `${brick}→${adet}`)
+        .join(' | ') || 'YOK';
+    const sonDegisim = (evo.profiles || [])
+        .map(p => ({ p, ts: Date.parse(p.lastChangeAt || p.updatedAt || 0) || 0 }))
+        .sort((a, b) => b.ts - a.ts)[0]?.p;
+    const sonDegisimMetni = sonDegisim?.lastChange
+        ? `${sonDegisim.yon || ''} ${sonDegisim.patternKodu || sonDegisim.patternId || ''} | ${Number(sonDegisim.lastChange.from).toFixed(2)} → ${Number(sonDegisim.lastChange.to).toFixed(2)}`
+        : 'YOK';
     return [
         `🧠 <b>ENTRY EVOLUTION</b>`,
         `Pattern ${Number(t.profiles || 0)}/16 | Bilimsel kapanış ${Number(t.closed || 0)} | Öğrenilmiş giriş ${Number(t.assigned || 0)}`,
+        `✅ Başarılı ${Number(t.tp || 0)} | ❌ Başarısız ${Number(t.sl || 0)} | ⚖️ BE ${Number(t.be || 0)} | Net ${Number(t.net || 0) >= 0 ? '+' : ''}${Number(t.net || 0).toFixed(4)}`,
+        `🎯 Aktif giriş dağılımı: ${dagilimMetni}`,
+        `🔄 Son giriş değişimi: ${sonDegisimMetni}`,
         `Köprü: Çağrı ${Number(b.calls || 0)} | Kabul ${Number(b.accepted || 0)} | Ret ${ret}`,
-        `📨 0.25–1.50 replay ve Pattern ayrıntıları ikinci bölümde.`
+        `📨 Ayrıntılı 0.25–1.50 replay raporu ayrıca gönderilir.`
     ].join('\n');
 }
 
@@ -312,8 +330,14 @@ function canliRaporMetniOlustur() {
 `;
     if (ayarlar.sanalEmirModu) {
         // Premier seçimi, aday ilerlemesi ve Exit görünürlüğü en üst bloktur.
-        const operationOzeti = operationIntelligence.telegram(tumAktifler);
+        const operationModel = operationIntelligence.build(tumAktifler);
+        const operationOzeti = operationIntelligence.telegram(tumAktifler, operationModel);
         mesaj += `${operationOzeti}\n`;
+        const premierSonuc = operationModel.model?.aggregate || {};
+        const golgeSonuc = renkoEntryEvolution.summary().total || {};
+        mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
+        mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
+        mesaj += `👻 Gölge/LAB: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -597,10 +621,21 @@ async function st1FinalCertificationRaporuGonderGerekirse() {
 async function st2EntryEvolutionDetayiGonderGerekirse(oneCikar = false) {
     if (ayarlar.entryStrategyMode !== 'ST2_RENKO') return;
     const x = renkoEntryEvolution.summary();
-    const imza = `${Number(x.total?.closed || 0)}|${Number(x.total?.profiles || 0)}|${Number(x.total?.assigned || 0)}|${x.updatedAt || ''}`;
+    const imza = `${Number(x.total?.closed || 0)}|${Number(x.total?.profiles || 0)}|${Number(x.total?.assigned || 0)}|${x.bridge?.last?.at || ''}`;
     if (!oneCikar && sonSt2EntryEvolutionDetayImzasi === imza) return;
-    sonSt2EntryEvolutionDetayImzasi = imza;
-    await h.telegramMesajGonder(renkoEntryEvolution.telegram());
+    try {
+        const sonuclar = await h.telegramMesajGonder(renkoEntryEvolution.telegram());
+        const liste = Array.isArray(sonuclar) ? sonuclar : [];
+        const basarili = liste.length > 0 && liste.every(x => x?.sonuc?.ok === true);
+        if (!basarili) {
+            console.error(`❌ [ST2 ENTRY EVOLUTION TELEGRAM] Ayrıntılı rapor doğrulanamadı; sonraki turda yeniden denenecek | Parça ${liste.length}`);
+            return;
+        }
+        sonSt2EntryEvolutionDetayImzasi = imza;
+        console.log(`✅ [ST2 ENTRY EVOLUTION TELEGRAM] Ayrıntılı rapor gönderildi | Bilimsel kapanış ${Number(x.total?.closed || 0)} | Parça ${liste.length}`);
+    } catch (err) {
+        console.error(`❌ [ST2 ENTRY EVOLUTION TELEGRAM] ${err.message}`);
+    }
 }
 
 async function raporGonder(oneCikar = false) {

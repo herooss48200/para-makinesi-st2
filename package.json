@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-st2",
-  "version": "5.6.3-clean-scientific-reset-persistent-learning",
+  "version": "5.6.3-fix.1-live-report-pusu-visibility",
   "description": "AGROS ST2 v5.5.0: ATR(14) Renko entry state machine derived from certified ST1 v5.4.2.",
   "main": "bot.js",
   "scripts": {
