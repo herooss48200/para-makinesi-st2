@@ -14,7 +14,7 @@ const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING';
+const VERSION = 'v5.6.1-ST2-RENKO-HISTORICAL-ENTRY-RECOVERY';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-renko-entry-evolution.json');
 
@@ -40,14 +40,54 @@ function bridgeMark(s,status,reason,pos){
   s.bridge.last={at:new Date().toISOString(),status,reason,sym:pos?.sym||null,yon:pos?.yon||null,entryStrategy:pos?.girisAnalizi?.entryStrategy||null,patternCode:pos?.girisAnalizi?.patternKodu||null};
 }
 function ensure(){ if(!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR,{recursive:true}); }
-function read(){ ensure(); const x=io.readJsonBounded(STATE_FILE,null,{maxBytes:16*1024*1024}); return {...blank(),...(x||{}),profiles:{...(x?.profiles||{})}}; }
+function stateProfileWeight(x){
+  const profiles=Object.values(x?.profiles||{});
+  return profiles.reduce((sum,p)=>sum+Math.max(n(p?.closed),...Object.values(p?.candidates||{}).map(m=>n(m?.samples,n(m?.triggered)))),0);
+}
+function legacyStateFiles(){
+  const dirs=[
+    process.env.AGROS_ST2_LEGACY_DATA_DIR,
+    process.env.AGROS_LEGACY_DATA_DIR,
+    path.join(__dirname,'data'),
+    path.join(process.cwd(),'data'),
+    path.join(path.dirname(__dirname),'data'),
+    path.join(path.dirname(DATA_DIR),'data'),
+    path.join(path.dirname(DATA_DIR),'data-st2'),
+    path.join(path.dirname(DATA_DIR),'st2-data')
+  ].filter(Boolean).map(x=>path.resolve(x));
+  const names=['st2-renko-entry-evolution.json','st2_renko_entry_evolution.json','renko-entry-evolution.json'];
+  return [...new Set(dirs.flatMap(d=>names.map(name=>path.join(d,name))))].filter(f=>f!==path.resolve(STATE_FILE));
+}
+function recoverHistoricalState(current){
+  if(stateProfileWeight(current)>0) return current;
+  let best=null,bestFile=null,bestWeight=0;
+  for(const file of legacyStateFiles()){
+    if(!fs.existsSync(file)) continue;
+    const candidate=io.readJsonBounded(file,null,{maxBytes:16*1024*1024});
+    const weight=stateProfileWeight(candidate);
+    if(weight>bestWeight){best=candidate;bestFile=file;bestWeight=weight;}
+  }
+  if(!best) return current;
+  const recovered={...blank(),...best,profiles:{...(best.profiles||{})}};
+  recovered.recovery={at:new Date().toISOString(),source:bestFile,profiles:Object.keys(recovered.profiles).length,weight:bestWeight};
+  write(recovered);
+  return recovered;
+}
+function read(){
+  ensure();
+  const x=io.readJsonBounded(STATE_FILE,null,{maxBytes:16*1024*1024});
+  const current={...blank(),...(x||{}),profiles:{...(x?.profiles||{})}};
+  return recoverHistoricalState(current);
+}
 function write(s){ ensure(); s.version=VERSION; s.updatedAt=new Date().toISOString(); io.writeJsonAtomic(STATE_FILE,s); return s; }
 function profileKey(yon, patternCode){ return `${String(yon||'').toUpperCase()}|${String(patternCode||'').toUpperCase()}`; }
 function recentMetric(arr=[]){ const out=blankMetric(); for(const x of arr){ add(out,n(x?.net),false); } return out; }
 function metric(raw={}){
   const m={...blankMetric(),...raw,recent:Array.isArray(raw.recent)?raw.recent.slice(-RECENT_WINDOW()):[]};
+  // Eski state'lerde samples yalnız tetiklenen sayısıydı; geriye uyumlu biçimde en az triggered kadar koru.
+  m.samples=Math.max(n(m.samples),n(m.triggered));
   m.pf=m.grossLoss>0?m.grossProfit/m.grossLoss:(m.grossProfit>0?999:0);
-  m.expectancy=m.samples?m.net/m.samples:0;
+  m.expectancy=m.triggered?m.net/m.triggered:0;
   m.winRate=(m.tp+m.sl)>0?(m.tp/(m.tp+m.sl))*100:0;
   const rm=recentMetric(m.recent); rm.pf=rm.grossLoss>0?rm.grossProfit/rm.grossLoss:(rm.grossProfit>0?999:0); rm.expectancy=rm.samples?rm.net/rm.samples:0;
   const rw=rm.samples?RECENT_WEIGHT():0, hw=1-rw;
@@ -57,8 +97,13 @@ function metric(raw={}){
   m.score=m.weightedExpectancy + Math.max(0,m.weightedPf-1)*0.01;
   return m;
 }
+function observe(m,triggered,net=0){
+  m.samples=n(m.samples)+1;
+  if(!triggered) return;
+  add(m,net);
+}
 function add(m,net,pushRecent=true){
-  m.samples=n(m.samples)+1; m.triggered=n(m.triggered)+1; m.net=n(m.net)+net;
+  m.triggered=n(m.triggered)+1; m.net=n(m.net)+net;
   if(net>0.000001){m.tp=n(m.tp)+1;m.grossProfit=n(m.grossProfit)+net;}
   else if(net<-0.000001){m.sl=n(m.sl)+1;m.grossLoss=n(m.grossLoss)+Math.abs(net);}
   else m.be=n(m.be)+1;
@@ -75,12 +120,12 @@ function targetPrice(pusu,brickDistance){ const ref=n(pusu?.referansSeviye); con
 function shouldEvaluate(p){ return p.closed>=FIRST_ASSIGN() && (p.lastEvaluationClosed===0 || p.closed-p.lastEvaluationClosed>=RECALC_STEP()); }
 function choose(p){
   const rows=Object.entries(p.candidates||{}).map(([key,val])=>({key,...metric(val)}));
-  const eligible=rows.filter(x=>x.samples>=FIRST_ASSIGN()&&x.net>0&&x.pf>1&&x.expectancy>0&&x.weightedExpectancy>0)
+  const eligible=rows.filter(x=>x.triggered>=FIRST_ASSIGN()&&x.net>0&&x.pf>1&&x.expectancy>0&&x.weightedExpectancy>0)
     .sort((a,b)=>b.net-a.net||b.score-a.score||b.weightedExpectancy-a.weightedExpectancy||Number(a.key)-Number(b.key));
   const best=eligible[0]||null; const current=rows.find(x=>x.key===n(p.activeBrick,0.25).toFixed(2))||null;
   if(!best) return {ready:false,best:null,current,reason:`N${FIRST_ASSIGN()}_VE_POZITIF_NET_BEKLENIYOR`};
   if(best.key===n(p.activeBrick,0.25).toFixed(2)) return {ready:false,best,current,reason:'MEVCUT_GIRIS_ZATEN_EN_COK_NET_KAZANDIRIYOR'};
-  if(current&&current.samples>=FIRST_ASSIGN()&&best.score<=current.score+MIN_IMPROVEMENT()) return {ready:false,best,current,reason:'FARK_ANLAMLI_DEGIL'};
+  if(current&&current.triggered>=FIRST_ASSIGN()&&best.score<=current.score+MIN_IMPROVEMENT()) return {ready:false,best,current,reason:'FARK_ANLAMLI_DEGIL'};
   return {ready:true,best,current,reason:'EN_YUKSEK_NET_GUNCEL_AGIRLIKLI'};
 }
 function rawPath(pos,result={}){
@@ -230,8 +275,7 @@ function close(pos,result={}){
   for(const c of CANDIDATES()){
     const replay=replayCandidate(pos,result,pusu,c,points);
     profile.lastReplay.candidates[c.toFixed(2)]=replay;
-    if(!replay.triggered) continue;
-    add(profile.candidates[c.toFixed(2)],replay.net);
+    observe(profile.candidates[c.toFixed(2)],replay.triggered,replay.net);
   }
   if(shouldEvaluate(profile)){
     const pick=choose(profile); profile.lastEvaluationClosed=profile.closed; profile.lastDecision=pick.reason;
@@ -243,7 +287,7 @@ function close(pos,result={}){
   profile.lastUpdatedAt=new Date().toISOString(); write(s); return summaryProfile(profile);
 }
 function summaryProfile(p){ const candidates=Object.entries(p?.candidates||{}).map(([key,val])=>({brick:Number(key),...metric(val)})).sort((a,b)=>a.brick-b.brick); return {...p,candidates}; }
-function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(Math.abs(n(p.activeBrick,DEFAULT_BRICK())-DEFAULT_BRICK())>1e-9) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,DEFAULT_BRICK())); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:DEFAULT_BRICK()},total,profiles,decisionChain:{entry:{...blankAudit(),...(s?.decisionChain?.entry||{})},stop:{...blankAudit(),...(s?.decisionChain?.stop||{})},be:{...blankAudit(),...(s?.decisionChain?.be||{})},exit:{...blankAudit(),...(s?.decisionChain?.exit||{})},last:s?.decisionChain?.last||null},bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
+function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(Math.abs(n(p.activeBrick,DEFAULT_BRICK())-DEFAULT_BRICK())>1e-9) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,DEFAULT_BRICK())); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:DEFAULT_BRICK()},recovery:s.recovery||null,total,profiles,decisionChain:{entry:{...blankAudit(),...(s?.decisionChain?.entry||{})},stop:{...blankAudit(),...(s?.decisionChain?.stop||{})},be:{...blankAudit(),...(s?.decisionChain?.be||{})},exit:{...blankAudit(),...(s?.decisionChain?.exit||{})},last:s?.decisionChain?.last||null},bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
 function telegram(){
   const x=summary();
   const profiles=x.profiles.slice().sort((a,b)=>b.closed-a.closed);
@@ -268,13 +312,15 @@ function telegram(){
     const key=brick.toFixed(2); let samples=0,triggered=0,tp=0,sl=0,beCount=0,netSum=0,gpSum=0,glSum=0;
     for(const p of profiles){ const m=metric(p.candidates?.find?.(c=>c.brick===brick)||p.candidates?.[key]||{}); samples+=n(m.samples);triggered+=n(m.triggered);tp+=n(m.tp);sl+=n(m.sl);beCount+=n(m.be);netSum+=n(m.net);gpSum+=n(m.grossProfit);glSum+=n(m.grossLoss); }
     const missed=Math.max(0,profiles.reduce((a,p)=>a+n(p.closed),0)-triggered);
-    return {brick,samples,triggered,missed,tp,sl,be:beCount,net:netSum,pf:glSum>0?gpSum/glSum:(gpSum>0?999:0)};
+    const decisive=tp+sl;
+    return {brick,samples,triggered,missed,tp,sl,be:beCount,net:netSum,pf:glSum>0?gpSum/glSum:(gpSum>0?999:0),wr:decisive?tp/decisive*100:0,expectancy:triggered?netSum/triggered:0};
   });
 
   let t=`\n\n🧠 <b>ST2 RENKO GİRİŞ EVRİMİ</b>\n━━━━━━━━━━━━━━━━━━\n`;
   t+=`📦 Pattern: ${profiles.length}/16 | Öğrenen: ${profiles.filter(p=>p.closed>0).length} | Olgun N${x.policy.firstAssign}+: ${matured.length}\n`;
   t+=`🏆 Premier şartını geçen: ${premierCount} | Varsayılan ${x.policy.defaultBrick.toFixed(2)} dışı öğrenilmiş atama: ${x.total.assigned}\n`;
   t+=`📊 Bilimsel kapanış: ${x.total.closed}\n`;
+  if(x.recovery) t+=`♻️ Tarihsel hafıza kurtarıldı: ${n(x.recovery.profiles)} pattern | Kaynak ${path.basename(x.recovery.source||'YOK')}\n`;
   const skippedTotal=Object.values(x.bridge?.skipped||{}).reduce((a,v)=>a+n(v),0);
   const skipText=Object.entries(x.bridge?.skipped||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${k} ${v}`).join(' | ')||'YOK';
   t+=`🔌 Kapanış köprüsü: Çağrı ${n(x.bridge?.calls)} | Kabul ${n(x.bridge?.accepted)} | Ret ${skippedTotal}\n`;
@@ -297,7 +343,8 @@ function telegram(){
 
   t+=`\n🧪 <b>PRICE-PATH REPLAY — GİRİŞ KARŞILAŞTIRMASI</b>\n`;
   for(const r0 of replayRows){
-    t+=`${r0.brick.toFixed(2)} | Tetik ${r0.triggered} | Kaçan ${r0.missed} | ✅${r0.tp} ❌${r0.sl} ⚖️${r0.be} | Net ${r0.net>=0?'+':''}${r0.net.toFixed(4)} | PF ${r0.pf>=999?'999.00':r0.pf.toFixed(2)}\n`;
+    const triggerRate=r0.samples?r0.triggered/r0.samples*100:0;
+    t+=`${r0.brick.toFixed(2)} | Tetik ${r0.triggered}/${r0.samples} (%${triggerRate.toFixed(1)}) | ✅${r0.tp} ❌${r0.sl} ⚖️${r0.be} | WR %${r0.wr.toFixed(1)} | Net ${r0.net>=0?'+':''}${r0.net.toFixed(4)} | PF ${r0.pf>=999?'999.00':r0.pf.toFixed(2)} | Exp ${r0.expectancy>=0?'+':''}${r0.expectancy.toFixed(4)}\n`;
   }
 
   const allPatterns=activeRows.slice().sort((a,b)=>b.p.closed-a.p.closed||b.cur.net-a.cur.net||a.p.key.localeCompare(b.p.key));
@@ -326,8 +373,9 @@ function telegram(){
       t+=`\n<b>${r0.p.yon} ${r0.p.patternCode}</b> | Aktif ${n(r0.p.activeBrick,x.policy.defaultBrick).toFixed(2)} | N${r0.p.closed}\n`;
       const rows=r0.p.candidates.slice().sort((a,b)=>a.brick-b.brick);
       for(const c of rows){
-        const marker=Math.abs(c.brick-n(r0.p.activeBrick,x.policy.defaultBrick))<1e-9?'✅ AKTİF':(n(c.samples)<FIRST_ASSIGN()?'⚪ VERİ AZ':(n(c.net)>0&&n(c.pf)>1&&n(c.expectancy)>0?'🟢 UYGUN':'🔴 ZAYIF'));
-        t+=`${c.brick.toFixed(2)} | N${n(c.samples)} | ✅${n(c.tp)} ❌${n(c.sl)} ⚖️${n(c.be)} | Net ${n(c.net)>=0?'+':''}${n(c.net).toFixed(4)} | PF ${n(c.pf).toFixed(2)} | ${marker}\n`;
+        const marker=Math.abs(c.brick-n(r0.p.activeBrick,x.policy.defaultBrick))<1e-9?'✅ AKTİF':(n(c.triggered)<FIRST_ASSIGN()?'⚪ VERİ AZ':(n(c.net)>0&&n(c.pf)>1&&n(c.expectancy)>0?'🟢 UYGUN':'🔴 ZAYIF'));
+        const triggerRate=n(c.samples)?n(c.triggered)/n(c.samples)*100:0;
+        t+=`${c.brick.toFixed(2)} | Tetik ${n(c.triggered)}/${n(c.samples)} (%${triggerRate.toFixed(1)}) | ✅${n(c.tp)} ❌${n(c.sl)} ⚖️${n(c.be)} | WR %${n(c.winRate).toFixed(1)} | Net ${n(c.net)>=0?'+':''}${n(c.net).toFixed(4)} | PF ${n(c.pf).toFixed(2)} | ${marker}\n`;
       }
       const h=Array.isArray(r0.p.history)&&r0.p.history[0];
       if(h) t+=`🔄 Son değişim: ${n(h.from).toFixed(2)} → ${n(h.to).toFixed(2)} | ${h.reason} | N${n(h.closed)}\n`;
@@ -342,4 +390,4 @@ function telegram(){
   return t;
 }
 
-module.exports={VERSION,STATE_FILE,CANDIDATES,DEFAULT_BRICK,FIRST_ASSIGN,RECALC_STEP,RECENT_WINDOW,RECENT_WEIGHT,profileKey,targetPrice,activeFor,close,summary,telegram,metric,choose,replayCandidate,frozenRisk,frozenExit};
+module.exports={VERSION,STATE_FILE,legacyStateFiles,recoverHistoricalState,CANDIDATES,DEFAULT_BRICK,FIRST_ASSIGN,RECALC_STEP,RECENT_WINDOW,RECENT_WEIGHT,profileKey,targetPrice,activeFor,close,summary,telegram,metric,choose,replayCandidate,frozenRisk,frozenExit};

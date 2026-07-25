@@ -1,0 +1,13 @@
+cd ~/apps/para-makinesi-st2
+unzip -o AGROS-ST2-v5.6.1-RENKO-HISTORICAL-ENTRY-RECOVERY.zip
+npm run verify:v561
+pm2 restart agros-st2 --update-env
+pm2 save
+pm2 logs agros-st2 --lines 120
+
+Beklenen rapor:
+- Sürüm: 5.6.1-ST2-RENKO-HISTORICAL-ENTRY-RECOVERY
+- Adaylar: 0.25 / 0.50 / 0.75 / 1.00 / 1.25 / 1.50
+- PRICE-PATH satırları: Tetik x/y, WR, Net, PF, Exp
+- Eski state bulunduysa: Tarihsel hafıza kurtarıldı
+- Aynı aktif pusu için yalnız ilk Telegram bildirimi
