@@ -1,0 +1,27 @@
+AGROS ST2 v5.6.3 TEST RESULT
+Date: 2026-07-25
+
+PASSED:
+- npm run verify:v563
+- v5.5.7 Entry Evolution regression
+- v5.5.8 Price-Path Replay regression
+- v5.5.9 Telegram dashboard regression
+- v5.5.9-fix.1 runtime close bridge
+- v5.5.9-fix.2 identity close binding
+- v5.6.0 decision chain regression
+- v5.6.1 recovery regression
+- v5.6.2 recovery sprint regression
+- v5.6.3 persistent learning contract
+- Full top-level JavaScript node --check sweep
+
+v5.6.3 contract coverage:
+1 clean-state creation, 2 first scientific close, 3 first Pattern, 4 Restart GAP reject,
+5 duplicate reject, 6 atomic state, 7 restart continuity, 8 .bak recovery,
+9 ledger rebuild, 10 empty-overwrite block, 11 six-level replay,
+12 decision-chain counters, 13 Telegram N0 text, 14 candidate/scientific separation,
+15 state/ledger reconciliation, 16 syntax, 17 v5.5.7-v5.6.2 regressions.
+
+NOTE:
+The legacy monolithic `npm run check` was started after dependency installation was requested,
+but the environment command timed out before producing a completion result. It is not claimed as passed.
+The release gate used for this package is `npm run verify:v563`, which completed successfully.

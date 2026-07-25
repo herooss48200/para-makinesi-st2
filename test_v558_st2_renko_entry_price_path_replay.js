@@ -10,7 +10,7 @@ ayarlar.sabitStopYuzdesi = 1.5;
 ayarlar.breakevenTetikYuzde = 0.4;
 ayarlar.breakevenTamponYuzde = 0.12;
 const evo = require('./73_st2_renko_entry_evolution.js');
-try { fs.unlinkSync(evo.STATE_FILE); } catch {}
+for(const f of [evo.STATE_FILE,evo.BACKUP_FILE,evo.LEDGER_FILE]) try { fs.unlinkSync(f); } catch {}
 function pos(){ return {
   sanal:true, sym:'TESTUSDT', yon:'LONG', girisFiyati:100.5, pozisyonDegeri:100,
   girisAnalizi:{entryStrategy:'ST2_RENKO',patternKodu:'RGRR',patternId:'L03',referansSeviye:100,renkoBoxSize:2,renkoEntryBrickDistance:0.25},
@@ -31,11 +31,11 @@ assert.strictEqual(replay025.exitReason,'STOP');
 assert(replay025.net < 0);
 assert.strictEqual(replay050.triggered,true);
 assert(replay050.net > 0);
-for(let i=0;i<3;i++) evo.close(pos(),{exitPrice:103,commission:0,restartGap:false,closeTs:6000});
+for(let i=0;i<3;i++){ const px=pos(); px.id=`V558-${i}`; evo.close(px,{exitPrice:103,commission:0,restartGap:false,closeTs:6000}); }
 const p=evo.summary().profiles.find(x=>x.key==='LONG|RGRR');
 assert(p && p.closed===3);
 assert.strictEqual(p.activeBrick,0.5,'0.25 stop olurken 0.50 daha sonra tetiklenip kârlı olduğu için seçilmelidir');
 assert.strictEqual(p.lastReplay.candidates['0.25'].exitReason,'STOP');
 assert(p.lastReplay.candidates['0.50'].net>0);
-try { fs.unlinkSync(evo.STATE_FILE); } catch {}
+for(const f of [evo.STATE_FILE,evo.BACKUP_FILE,evo.LEDGER_FILE]) try { fs.unlinkSync(f); } catch {}
 console.log('✅ v5.5.8 price-path replay passed | 0.25 STOP, 0.50 later trigger + positive result');

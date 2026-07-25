@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-st2",
-  "version": "5.6.2-st2-recovery-sprint",
+  "version": "5.6.3-clean-scientific-reset-persistent-learning",
   "description": "AGROS ST2 v5.5.0: ATR(14) Renko entry state machine derived from certified ST1 v5.4.2.",
   "main": "bot.js",
   "scripts": {
@@ -103,7 +103,10 @@
     "test:v561": "node test_v561_st2_renko_historical_entry_recovery.js",
     "verify:v561": "node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check test_v561_st2_renko_historical_entry_recovery.js && npm run test:v557 && npm run test:v558 && npm run test:v559 && npm run test:v559fix1 && npm run test:v559fix2 && npm run test:v560 && npm run test:v561",
     "test:v562": "node test_v562_st2_recovery_sprint.js",
-    "verify:v562": "node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check test_v562_st2_recovery_sprint.js && npm run verify:v561 && npm run test:v562"
+    "verify:v562": "node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check test_v562_st2_recovery_sprint.js && npm run verify:v561 && npm run test:v562",
+    "reset:st2-science": "node scripts_st2_clean_reset.js",
+    "test:v563": "node test_v563_persistent_learning.js",
+    "verify:v563": "node --check 73_st2_renko_entry_evolution.js && node --check scripts_st2_clean_reset.js && npm run test:v563 && npm run verify:v562"
   },
   "dependencies": {
     "axios": "^1.13.2",

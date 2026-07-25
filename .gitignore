@@ -13,3 +13,12 @@ data/sanal-state.json
 backups/
 *.backup-*
 fix-sl.js
+
+# AGROS ST2 live runtime data
+data/
+logs/
+logs-st2/
+*.log
+.env
+.env.*
+node_modules/

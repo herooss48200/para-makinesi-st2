@@ -9,7 +9,7 @@ ayarlar.renkoGirisIlkAtamaKapanis = 3;
 ayarlar.renkoGirisYenidenHesaplamaAdimi = 5;
 ayarlar.renkoGirisOtomatikAktiflestirme = true;
 const evo = require('./73_st2_renko_entry_evolution.js');
-try { fs.unlinkSync(evo.STATE_FILE); } catch {}
+for(const f of [evo.STATE_FILE,evo.BACKUP_FILE,evo.LEDGER_FILE]) try { fs.unlinkSync(f); } catch {}
 assert.deepStrictEqual(evo.CANDIDATES(), [0.25,0.5,0.75,1,1.25,1.5]);
 assert.strictEqual(evo.activeFor('LONG','RGRR'), 0.75);
 assert.strictEqual(evo.targetPrice({yon:'LONG',referansSeviye:100,renkoBoxSize:2},0.75),101.5);
@@ -25,5 +25,5 @@ assert(p && p.closed===3);
 assert.strictEqual(p.activeBrick,0.25,'Replay kanıtı daha güçlü olduğunda varsayılan 0.75 yerine 0.25 öğrenilebilmelidir');
 assert(sum.policy.firstAssign===3 && sum.policy.recalcStep===5);
 assert(evo.telegram().includes('İlk atama N3'));
-try { fs.unlinkSync(evo.STATE_FILE); } catch {}
+for(const f of [evo.STATE_FILE,evo.BACKUP_FILE,evo.LEDGER_FILE]) try { fs.unlinkSync(f); } catch {}
 console.log('✅ ST2 Renko Entry Evolution passed | varsayılan 0.75, 6 seviye replay, N3 ilk atama, her N5 yeniden hesaplama');
