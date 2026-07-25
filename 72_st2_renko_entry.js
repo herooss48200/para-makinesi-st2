@@ -21,6 +21,7 @@ function storeHazirla() {
     store.onaySerileri1m ||= {};
     store.pusular ||= {};
     store.sonPatternSignature ||= {};
+    store.pusuTelegramBildirimleri ||= {};
     store.boxSize ||= {};
     store.onayBoxSize1m ||= {};
     return store;
@@ -201,8 +202,16 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, audit = null) {
         const pusuKaniti = pusuOlusumKanitiMetni(sym, store.pusular[sym]);
         store.pusular[sym].renkoPusuKanitMetni = pusuKaniti;
         console.log(`\n${pusuKaniti}\n`);
-        if (ayarlar.renkoPusuKanitTelegram !== false) {
-            h.telegramMesajGonder(pusuKaniti).catch(e => console.log(`⚠️ [ST2 RENKO PROOF] Telegram gönderimi başarısız ${sym}: ${e.message}`));
+
+        // Pusu Telegram kanıtı yalnız aynı sembol + Pattern imzasının ilk oluşumunda gönderilir.
+        // Pusu tetiklenip silinse veya taramada tekrar oluşturulsa bile aynı imza yeniden bildirilmez.
+        const bildirimAnahtari = `${sym}|${signature}`;
+        const dahaOnceBildirildi = Boolean(store.pusuTelegramBildirimleri[bildirimAnahtari]);
+        if (!dahaOnceBildirildi) {
+            store.pusuTelegramBildirimleri[bildirimAnahtari] = Date.now();
+            if (ayarlar.renkoPusuKanitTelegram !== false) {
+                h.telegramMesajGonder(pusuKaniti).catch(e => console.log(`⚠️ [ST2 RENKO PROOF] Telegram gönderimi başarısız ${sym}: ${e.message}`));
+            }
         }
         store.sonPatternSignature[sym] = signature;
         if (audit) {

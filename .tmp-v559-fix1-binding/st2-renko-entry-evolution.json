@@ -1,0 +1,222 @@
+{
+  "version": "v5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING",
+  "updatedAt": "2026-07-25T07:26:47.879Z",
+  "profiles": {
+    "LONG|RRGG": {
+      "key": "LONG|RRGG",
+      "yon": "LONG",
+      "patternCode": "RRGG",
+      "patternId": "L1",
+      "activeBrick": 0.75,
+      "previousBrick": null,
+      "closed": 1,
+      "lastEvaluationClosed": 0,
+      "candidates": {
+        "0.25": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 1,
+          "sl": 0,
+          "be": 0,
+          "net": 1.492537,
+          "grossProfit": 1.492537,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 1.492537,
+              "at": 1784964407878
+            }
+          ]
+        },
+        "0.50": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 1,
+          "sl": 0,
+          "be": 0,
+          "net": 0.990099,
+          "grossProfit": 0.990099,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0.990099,
+              "at": 1784964407878
+            }
+          ]
+        },
+        "0.75": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 1,
+          "sl": 0,
+          "be": 0,
+          "net": 0.492611,
+          "grossProfit": 0.492611,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0.492611,
+              "at": 1784964407878
+            }
+          ]
+        },
+        "1.00": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 0,
+          "sl": 0,
+          "be": 1,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0,
+              "at": 1784964407879
+            }
+          ]
+        },
+        "1.25": {
+          "samples": 0,
+          "triggered": 0,
+          "tp": 0,
+          "sl": 0,
+          "be": 0,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": []
+        },
+        "1.50": {
+          "samples": 0,
+          "triggered": 0,
+          "tp": 0,
+          "sl": 0,
+          "be": 0,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": []
+        }
+      },
+      "history": [],
+      "lastReplay": {
+        "at": "2026-07-25T07:26:47.878Z",
+        "actualBrick": 0.25,
+        "candidates": {
+          "0.25": {
+            "triggered": true,
+            "entry": 100.5,
+            "exitPrice": 102,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 1.492537,
+            "net": 1.492537,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "0.50": {
+            "triggered": true,
+            "entry": 101,
+            "exitPrice": 102,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 0.990099,
+            "net": 0.990099,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "0.75": {
+            "triggered": true,
+            "entry": 101.5,
+            "exitPrice": 102,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 0.492611,
+            "net": 0.492611,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "1.00": {
+            "triggered": true,
+            "entry": 102,
+            "exitPrice": 102,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 0,
+            "net": 0,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "1.25": {
+            "triggered": false,
+            "reason": "TETIKLENMEDI"
+          },
+          "1.50": {
+            "triggered": false,
+            "reason": "TETIKLENMEDI"
+          }
+        }
+      },
+      "lastUpdatedAt": "2026-07-25T07:26:47.879Z"
+    }
+  },
+  "bridge": {
+    "calls": 2,
+    "accepted": 1,
+    "skipped": {
+      "NOT_ST2_RENKO": 1
+    },
+    "last": {
+      "at": "2026-07-25T07:26:47.877Z",
+      "status": "ACCEPTED",
+      "reason": "RECORDED",
+      "sym": "TESTUSDT",
+      "yon": "LONG",
+      "entryStrategy": "ST2_RENKO",
+      "patternCode": "RRGG"
+    }
+  },
+  "decisionChain": {
+    "entry": {
+      "assigned": 1,
+      "applied": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "unknown": 0
+    },
+    "stop": {
+      "assigned": 1,
+      "applied": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "unknown": 1
+    },
+    "be": {
+      "assigned": 1,
+      "applied": 0,
+      "matched": 1,
+      "mismatched": 0,
+      "unknown": 0
+    },
+    "exit": {
+      "assigned": 1,
+      "applied": 0,
+      "matched": 0,
+      "mismatched": 0,
+      "unknown": 1
+    },
+    "last": {
+      "at": "2026-07-25T07:26:47.877Z",
+      "key": "exit",
+      "detail": {
+        "assignedExit": "ACTUAL",
+        "appliedExit": null
+      }
+    }
+  }
+}

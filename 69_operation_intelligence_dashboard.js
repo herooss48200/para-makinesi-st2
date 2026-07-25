@@ -47,8 +47,8 @@ function telegram(activePositions=[], prebuilt=null){
   const d=prebuilt||build(activePositions); const m=d.model; const a=m.aggregate||{}; const r=m.trackMetrics?.reverse||{}; const l=m.league||{}; const ac=m.accounting||{};
   const displayVersion = runtimeVersion.botSurumu || runtimeVersion.kod || VERSION;
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
-  t+=`💰 Premier: Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)} | N${n(a.closed)}\n`;
-  t+=`☠️ Reverse: Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)} | Exp ${signed(r.expectancy,4)} | N${n(r.closed)}\n`;
+  t+=`💰 Premier: N${n(a.closed)} | ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
+  t+=`☠️ Reverse: N${n(r.closed)} | ✅${n(r.tp)} ❌${n(r.sl)} ⚖️${n(r.be)} | WR %${(n(r.tp)+n(r.sl))?((n(r.tp)/(n(r.tp)+n(r.sl)))*100).toFixed(1):'0.0'} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)} | Exp ${signed(r.expectancy,4)}\n`;
   t+=`🏆 Ligler: Premier ${n(l.historicalPositiveCount)} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
   t+=`📦 Premier gözlem defteri: Bilimsel aktif ${n(ac.activeScientific)} | Premier GAP aktif ${n(ac.activeGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;

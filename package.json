@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-st2",
-  "version": "5.5.9-st2.2",
+  "version": "5.6.0-st2-final",
   "description": "AGROS ST2 v5.5.0: ATR(14) Renko entry state machine derived from certified ST1 v5.4.2.",
   "main": "bot.js",
   "scripts": {
@@ -97,7 +97,9 @@
     "test:v559": "node test_v559_st2_renko_entry_dashboard.js",
     "verify:v559": "node --check motor.js && node --check 4_pozisyon.js && node --check 73_st2_renko_entry_evolution.js && npm run test:v557 && npm run test:v558 && npm run test:v559 && npm run test:v559fix1 && npm run test:v559fix2 && node 70_deployment_fingerprint.js",
     "test:v559fix1": "node test_v559_fix1_st2_runtime_binding_proof.js",
-    "test:v559fix2": "node test_v559_fix2_st2_identity_close_binding.js"
+    "test:v559fix2": "node test_v559_fix2_st2_identity_close_binding.js",
+    "test:v560": "node test_v560_st2_final_sprint.js",
+    "verify:v560": "node --check 2_rapor.js && node --check 4_pozisyon.js && node --check 69_operation_intelligence_dashboard.js && node --check 73_st2_renko_entry_evolution.js && npm run test:v557 && npm run test:v558 && npm run test:v559 && npm run test:v559fix1 && npm run test:v559fix2 && npm run test:v560"
   },
   "dependencies": {
     "axios": "^1.13.2",

@@ -137,6 +137,7 @@ const ayarlar = {
     renkoGirisOgrenmeAktif: true,
     renkoGirisOtomatikAktiflestirme: true,
     renkoGirisAdayTugla: [0.25, 0.50, 0.75, 1.00, 1.25, 1.50],
+    renkoGirisVarsayilanTugla: 0.75,
     renkoGirisIlkAtamaKapanis: 3,
     renkoGirisYenidenHesaplamaAdimi: 5,
     renkoGirisGuncelPencere: 10,

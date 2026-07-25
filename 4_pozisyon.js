@@ -1027,7 +1027,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         patternKodu: pos?.girisAnalizi?.patternKodu || pos?.patternKodu || st2PusuSnapshot.patternKodu,
         referansSeviye: pos?.girisAnalizi?.referansSeviye || pos?.referansSeviye || st2PusuSnapshot.referansSeviye,
         renkoBoxSize: pos?.girisAnalizi?.renkoBoxSize || pos?.renkoBoxSize || st2PusuSnapshot.renkoBoxSize,
-        renkoEntryBrickDistance: pos?.girisAnalizi?.renkoEntryBrickDistance || pos?.renkoEntryBrickDistance || 0.25
+        renkoEntryBrickDistance: pos?.girisAnalizi?.renkoEntryBrickDistance || pos?.renkoEntryBrickDistance || Number(ayarlar.renkoGirisVarsayilanTugla || 0.75)
     };
     try { renkoEntryEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,

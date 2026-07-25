@@ -3,7 +3,7 @@
 /**
  * AGROS ST2 Renko Entry Evolution
  * - Her yön + son-4 pattern için bağımsız giriş tuğla mesafesi öğrenir.
- * - Başlangıç 0.25 tuğladır.
+ * - Yeni Pattern başlangıcı 0.75 tuğladır; öğrenilmiş Pattern kendi aktif mesafesini korur.
  * - İlk seçim 3 karşılaştırılabilir kapanışta yapılır.
  * - Sonraki değerlendirme her 5 yeni kapanışta yapılır.
  * - Tarih korunur; son pencere daha yüksek ağırlık taşır.
@@ -26,11 +26,13 @@ const RECALC_STEP = () => Math.max(1, Number(ayarlar.renkoGirisYenidenHesaplamaA
 const RECENT_WINDOW = () => Math.max(3, Number(ayarlar.renkoGirisGuncelPencere || 10));
 const RECENT_WEIGHT = () => Math.min(0.9, Math.max(0.5, Number(ayarlar.renkoGirisGuncelAgirlik || 0.65)));
 const MIN_IMPROVEMENT = () => Math.max(0, Number(ayarlar.renkoGirisMinSkorIyilesme || 0.005));
+const DEFAULT_BRICK = () => { const v=Number(ayarlar.renkoGirisVarsayilanTugla); return Number.isFinite(v)&&v>0?v:0.75; };
 
 function n(v,d=0){ const x=Number(v); return Number.isFinite(x)?x:d; }
 function r(v,d=6){ return Number(n(v).toFixed(d)); }
 function blankMetric(){ return { samples:0, triggered:0, tp:0, sl:0, be:0, net:0, grossProfit:0, grossLoss:0, recent:[] }; }
-function blank(){ return { version:VERSION, updatedAt:null, profiles:{}, bridge:{calls:0,accepted:0,skipped:{},last:null} }; }
+function blankAudit(){ return {assigned:0,applied:0,matched:0,mismatched:0,unknown:0}; }
+function blank(){ return { version:VERSION, updatedAt:null, profiles:{}, bridge:{calls:0,accepted:0,skipped:{},last:null}, decisionChain:{entry:blankAudit(),stop:blankAudit(),be:blankAudit(),exit:blankAudit(),last:null} }; }
 function bridgeMark(s,status,reason,pos){
   s.bridge={calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null};
   s.bridge.calls++;
@@ -64,11 +66,11 @@ function add(m,net,pushRecent=true){
 }
 function ensureProfile(s,yon,patternCode,patternId){
   const key=profileKey(yon,patternCode); let p=s.profiles[key];
-  if(!p) p=s.profiles[key]={key,yon:String(yon).toUpperCase(),patternCode:String(patternCode).toUpperCase(),patternId:patternId||'',activeBrick:0.25,previousBrick:null,closed:0,lastEvaluationClosed:0,candidates:{},history:[]};
+  if(!p) p=s.profiles[key]={key,yon:String(yon).toUpperCase(),patternCode:String(patternCode).toUpperCase(),patternId:patternId||'',activeBrick:DEFAULT_BRICK(),previousBrick:null,closed:0,lastEvaluationClosed:0,candidates:{},history:[]};
   for(const c of CANDIDATES()){ const k=c.toFixed(2); p.candidates[k]||=blankMetric(); }
   return p;
 }
-function activeFor(yon,patternCode){ const s=read(); return n(s.profiles[profileKey(yon,patternCode)]?.activeBrick,0.25); }
+function activeFor(yon,patternCode){ const s=read(); return n(s.profiles[profileKey(yon,patternCode)]?.activeBrick,DEFAULT_BRICK()); }
 function targetPrice(pusu,brickDistance){ const ref=n(pusu?.referansSeviye); const box=n(pusu?.renkoBoxSize); if(!(ref>0&&box>0)) return 0; return String(pusu.yon).toUpperCase()==='SHORT'?ref-(brickDistance*box):ref+(brickDistance*box); }
 function shouldEvaluate(p){ return p.closed>=FIRST_ASSIGN() && (p.lastEvaluationClosed===0 || p.closed-p.lastEvaluationClosed>=RECALC_STEP()); }
 function choose(p){
@@ -164,6 +166,39 @@ function replayCandidate(pos,result,pusu,brickDistance,points){
   const pct=pnlPct(yon,entry,exitPrice), net=value*(pct/100)-commission;
   return {triggered:true,entry:r(entry,12),exitPrice:r(exitPrice,12),exitReason,pct:r(pct,6),net:r(net,6),stopPct:r(risk.stopPct,4),beTriggerPct:r(risk.beTriggerPct,4),beBufferPct:r(risk.beBufferPct,4),exitAlgorithmId:exitPlan.id};
 }
+function auditMark(s,key,{assigned=false,applied=false,matched=null,detail=null}={}){
+  s.decisionChain={entry:blankAudit(),stop:blankAudit(),be:blankAudit(),exit:blankAudit(),...(s.decisionChain||{})};
+  const a=s.decisionChain[key]={...blankAudit(),...(s.decisionChain[key]||{})};
+  if(assigned) a.assigned++;
+  if(applied) a.applied++;
+  if(matched===true) a.matched++;
+  else if(matched===false) a.mismatched++;
+  else a.unknown++;
+  s.decisionChain.last={at:new Date().toISOString(),key,detail};
+}
+function auditDecisionChain(s,pos,result,ga,pusu,points){
+  const entryBrick=n(ga.renkoEntryBrickDistance,DEFAULT_BRICK());
+  const target=targetPrice(pusu,entryBrick), actual=n(pos?.girisFiyati||pos?.entryPrice);
+  const entryAssigned=target>0, entryApplied=actual>0;
+  const entryTol=Math.max(n(pusu.renkoBoxSize)*0.20, target*0.0005);
+  auditMark(s,'entry',{assigned:entryAssigned,applied:entryApplied,matched:entryAssigned&&entryApplied?Math.abs(actual-target)<=entryTol:null,detail:{assignedBrick:entryBrick,target,actual}});
+
+  const stopPct=Math.max(0.01,n(pos?.labLifecycleProfile?.stopPct,n(ayarlar.sabitStopYuzdesi,1.5)));
+  const assignedStop=actual>0?(String(pos?.yon).toUpperCase()==='SHORT'?actual*(1+stopPct/100):actual*(1-stopPct/100)):0;
+  const appliedStop=n(pos?.initialSl||pos?.ilkSl||pos?.sanalIlkStop||pos?.sl);
+  const stopTol=Math.max(actual*0.0005,1e-9);
+  auditMark(s,'stop',{assigned:assignedStop>0,applied:appliedStop>0,matched:assignedStop>0&&appliedStop>0?Math.abs(assignedStop-appliedStop)<=stopTol:null,detail:{stopPct,assignedStop,appliedStop}});
+
+  const beAssigned=Number.isFinite(Number(pos?.labLifecycleProfile?.beTriggerPct??ayarlar.breakevenTetikYuzde));
+  const beApplied=pos?.breakevenAktif===true||/BAŞABAŞ|KOMİSYON|KÂR KORUMA|KAR KORUMA/i.test(String(result?.reason||''));
+  auditMark(s,'be',{assigned:beAssigned,applied:beApplied,matched:beAssigned?true:null,detail:{triggerPct:n(pos?.labLifecycleProfile?.beTriggerPct,n(ayarlar.breakevenTetikYuzde)),bufferPct:n(pos?.labLifecycleProfile?.beBufferPct,n(ayarlar.breakevenTamponYuzde)),activated:beApplied}});
+
+  const assignedExit=pos?.executionExitAssignment?.algorithmId||pos?.exitPlanShadow?.selectedAlgorithmId||'ACTUAL';
+  const appliedExit=pos?.dynamicExitApplied?.algorithmId||pos?.dynamicExitApplied?.selectedAlgorithmId||pos?.dynamicExitApplied?.reason||result?.reason||null;
+  const exitWasAssigned=Boolean(assignedExit), exitWasApplied=Boolean(appliedExit);
+  const exitMatched=assignedExit==='ACTUAL'?exitWasApplied:(exitWasApplied&&String(appliedExit).toUpperCase().includes(String(assignedExit).toUpperCase()));
+  auditMark(s,'exit',{assigned:exitWasAssigned,applied:exitWasApplied,matched:exitWasAssigned&&exitWasApplied?exitMatched:null,detail:{assignedExit,appliedExit}});
+}
 function close(pos,result={}){
   const s=read();
   const snap=pos?.girisAnalizi?.pusuTuglasi||pos?.pusuTuglasi||{};
@@ -174,7 +209,7 @@ function close(pos,result={}){
     patternKodu:pos?.girisAnalizi?.patternKodu||pos?.patternKodu||snap.patternKodu,
     referansSeviye:pos?.girisAnalizi?.referansSeviye||pos?.referansSeviye||snap.referansSeviye,
     renkoBoxSize:pos?.girisAnalizi?.renkoBoxSize||pos?.renkoBoxSize||snap.renkoBoxSize,
-    renkoEntryBrickDistance:pos?.girisAnalizi?.renkoEntryBrickDistance||pos?.renkoEntryBrickDistance||0.25
+    renkoEntryBrickDistance:pos?.girisAnalizi?.renkoEntryBrickDistance||pos?.renkoEntryBrickDistance||DEFAULT_BRICK()
   };
   pos.girisAnalizi=ga;
   let skip=null;
@@ -189,8 +224,9 @@ function close(pos,result={}){
   if(!skip&&(!exit||!points.length)) skip='PRICE_PATH_MISSING';
   if(skip){ bridgeMark(s,'SKIPPED',skip,pos); write(s); return null; }
   bridgeMark(s,'ACCEPTED','RECORDED',pos);
+  auditDecisionChain(s,pos,result,ga,pusu,points);
   const profile=ensureProfile(s,yon,patternCode,ga.patternId); profile.closed++;
-  profile.lastReplay={at:new Date().toISOString(),actualBrick:n(ga.renkoEntryBrickDistance,0.25),candidates:{}};
+  profile.lastReplay={at:new Date().toISOString(),actualBrick:n(ga.renkoEntryBrickDistance,DEFAULT_BRICK()),candidates:{}};
   for(const c of CANDIDATES()){
     const replay=replayCandidate(pos,result,pusu,c,points);
     profile.lastReplay.candidates[c.toFixed(2)]=replay;
@@ -207,13 +243,13 @@ function close(pos,result={}){
   profile.lastUpdatedAt=new Date().toISOString(); write(s); return summaryProfile(profile);
 }
 function summaryProfile(p){ const candidates=Object.entries(p?.candidates||{}).map(([key,val])=>({brick:Number(key),...metric(val)})).sort((a,b)=>a.brick-b.brick); return {...p,candidates}; }
-function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(n(p.activeBrick)!==0.25) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,0.25)); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:0.25},total,profiles,bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
+function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(Math.abs(n(p.activeBrick,DEFAULT_BRICK())-DEFAULT_BRICK())>1e-9) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,DEFAULT_BRICK())); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:DEFAULT_BRICK()},total,profiles,decisionChain:{entry:{...blankAudit(),...(s?.decisionChain?.entry||{})},stop:{...blankAudit(),...(s?.decisionChain?.stop||{})},be:{...blankAudit(),...(s?.decisionChain?.be||{})},exit:{...blankAudit(),...(s?.decisionChain?.exit||{})},last:s?.decisionChain?.last||null},bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
 function telegram(){
   const x=summary();
   const profiles=x.profiles.slice().sort((a,b)=>b.closed-a.closed);
   const matured=profiles.filter(p=>p.closed>=FIRST_ASSIGN());
   const activeRows=profiles.map(p=>{
-    const cur=p.candidates.find(c=>c.brick===n(p.activeBrick,0.25))||metric({});
+    const cur=p.candidates.find(c=>c.brick===n(p.activeBrick,DEFAULT_BRICK()))||metric({});
     const premier=p.closed>=5&&n(cur.net)>0&&n(cur.pf)>1&&n(cur.expectancy)>0;
     return {p,cur,premier};
   });
@@ -237,7 +273,7 @@ function telegram(){
 
   let t=`\n\n🧠 <b>ST2 RENKO GİRİŞ EVRİMİ</b>\n━━━━━━━━━━━━━━━━━━\n`;
   t+=`📦 Pattern: ${profiles.length}/16 | Öğrenen: ${profiles.filter(p=>p.closed>0).length} | Olgun N${x.policy.firstAssign}+: ${matured.length}\n`;
-  t+=`🏆 Premier şartını geçen: ${premierCount} | 0.25 dışı atama: ${x.total.assigned}\n`;
+  t+=`🏆 Premier şartını geçen: ${premierCount} | Varsayılan ${x.policy.defaultBrick.toFixed(2)} dışı öğrenilmiş atama: ${x.total.assigned}\n`;
   t+=`📊 Bilimsel kapanış: ${x.total.closed}\n`;
   const skippedTotal=Object.values(x.bridge?.skipped||{}).reduce((a,v)=>a+n(v),0);
   const skipText=Object.entries(x.bridge?.skipped||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${k} ${v}`).join(' | ')||'YOK';
@@ -245,7 +281,19 @@ function telegram(){
   t+=`🧾 Ret nedenleri: ${skipText}\n`;
   t+=`✅ Başarılı ${success} | ❌ Başarısız ${fail} | ⚖️ BE ${be}\n`;
   t+=`WR %${decisive?(success/decisive*100).toFixed(1):'0.0'} | Net ${net>=0?'+':''}${net.toFixed(4)} | PF ${pf>=999?'999.00':pf.toFixed(2)}\n`;
-  t+=`ℹ️ İlk atama N${x.policy.firstAssign}; Premier için N≥5 + Net>0 + PF>1 + Exp>0.\n`;
+  const dist={}; for(const r0 of activeRows){ const k=n(r0.p.activeBrick,x.policy.defaultBrick).toFixed(2); dist[k]=n(dist[k])+1; }
+  t+=`🎯 Aktif giriş dağılımı: ${Object.entries(dist).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v])=>`${k}→${v}`).join(' | ')||'YOK'}
+`;
+  t+=`ℹ️ İlk atama N${x.policy.firstAssign}; Premier için N≥5 + Net>0 + PF>1 + Exp>0.
+`;
+  t+=`
+🔗 <b>KARAR ZİNCİRİ — ATANAN / UYGULANAN</b>
+`;
+  for(const [key,label] of [['entry','🎯 Giriş'],['stop','🛡 Stop'],['be','⚖️ BE'],['exit','🏁 Exit']]){
+    const a=x.decisionChain[key]||{}; const base=Math.max(1,n(a.assigned)); const rate=n(a.matched)/base*100;
+    t+=`${label}: Atanan ${n(a.assigned)} | Uygulanan ${n(a.applied)} | Uyum ${n(a.matched)}/${n(a.assigned)} (%${rate.toFixed(1)})${n(a.mismatched)>0?` | Uyumsuz ${n(a.mismatched)} ❌`:' ✅'}
+`;
+  }
 
   t+=`\n🧪 <b>PRICE-PATH REPLAY — GİRİŞ KARŞILAŞTIRMASI</b>\n`;
   for(const r0 of replayRows){
@@ -260,7 +308,7 @@ function telegram(){
     const wr0=decided?(n(r0.cur.tp)/decided*100):0;
     const exp0=n(r0.cur.expectancy);
     const state=r0.premier?'🟢':(r0.p.closed>=5?'🔴':'🟡');
-    t+=`${state} ${r0.p.yon} ${r0.p.patternCode} | G ${n(r0.p.activeBrick,0.25).toFixed(2)} | N${r0.p.closed} | ✅${n(r0.cur.tp)} ❌${n(r0.cur.sl)} ⚖️${n(r0.cur.be)} | WR %${wr0.toFixed(1)} | PF ${n(r0.cur.pf).toFixed(2)} | Exp ${exp0>=0?'+':''}${exp0.toFixed(4)} | Net ${n(r0.cur.net)>=0?'+':''}${n(r0.cur.net).toFixed(4)}\n`;
+    t+=`${state} ${r0.p.yon} ${r0.p.patternCode} | G ${n(r0.p.activeBrick,x.policy.defaultBrick).toFixed(2)} | N${r0.p.closed} | ✅${n(r0.cur.tp)} ❌${n(r0.cur.sl)} ⚖️${n(r0.cur.be)} | WR %${wr0.toFixed(1)} | PF ${n(r0.cur.pf).toFixed(2)} | Exp ${exp0>=0?'+':''}${exp0.toFixed(4)} | Net ${n(r0.cur.net)>=0?'+':''}${n(r0.cur.net).toFixed(4)}\n`;
   }
 
   const best=activeRows.filter(r=>r.p.closed>0).sort((a,b)=>b.cur.net-a.cur.net||b.cur.pf-a.cur.pf).slice(0,5);
@@ -268,17 +316,17 @@ function telegram(){
   if(!best.length) t+=`⏳ Henüz kapanan ST2 Renko işlemi yok.\n`;
   for(const r0 of best){
     const status=r0.premier?'🟢 PREMIER':(r0.p.closed>=5?'🔴 ŞART DIŞI':`🟡 N${r0.p.closed}/5`);
-    t+=`${r0.p.yon} ${r0.p.patternCode} | Giriş ${n(r0.p.activeBrick,0.25).toFixed(2)} | N${r0.p.closed} | ✅${n(r0.cur.tp)} ❌${n(r0.cur.sl)} ⚖️${n(r0.cur.be)} | Net ${n(r0.cur.net)>=0?'+':''}${n(r0.cur.net).toFixed(4)} | PF ${n(r0.cur.pf).toFixed(2)} | ${status}\n`;
+    t+=`${r0.p.yon} ${r0.p.patternCode} | Giriş ${n(r0.p.activeBrick,x.policy.defaultBrick).toFixed(2)} | N${r0.p.closed} | ✅${n(r0.cur.tp)} ❌${n(r0.cur.sl)} ⚖️${n(r0.cur.be)} | Net ${n(r0.cur.net)>=0?'+':''}${n(r0.cur.net).toFixed(4)} | PF ${n(r0.cur.pf).toFixed(2)} | ${status}\n`;
   }
 
   const proof=best.slice(0,3);
   if(proof.length){
     t+=`\n🔬 <b>PATTERN'E ÖZEL REPLAY KANITI</b>\n`;
     for(const r0 of proof){
-      t+=`\n<b>${r0.p.yon} ${r0.p.patternCode}</b> | Aktif ${n(r0.p.activeBrick,0.25).toFixed(2)} | N${r0.p.closed}\n`;
+      t+=`\n<b>${r0.p.yon} ${r0.p.patternCode}</b> | Aktif ${n(r0.p.activeBrick,x.policy.defaultBrick).toFixed(2)} | N${r0.p.closed}\n`;
       const rows=r0.p.candidates.slice().sort((a,b)=>a.brick-b.brick);
       for(const c of rows){
-        const marker=Math.abs(c.brick-n(r0.p.activeBrick,0.25))<1e-9?'✅ AKTİF':(n(c.samples)<FIRST_ASSIGN()?'⚪ VERİ AZ':(n(c.net)>0&&n(c.pf)>1&&n(c.expectancy)>0?'🟢 UYGUN':'🔴 ZAYIF'));
+        const marker=Math.abs(c.brick-n(r0.p.activeBrick,x.policy.defaultBrick))<1e-9?'✅ AKTİF':(n(c.samples)<FIRST_ASSIGN()?'⚪ VERİ AZ':(n(c.net)>0&&n(c.pf)>1&&n(c.expectancy)>0?'🟢 UYGUN':'🔴 ZAYIF'));
         t+=`${c.brick.toFixed(2)} | N${n(c.samples)} | ✅${n(c.tp)} ❌${n(c.sl)} ⚖️${n(c.be)} | Net ${n(c.net)>=0?'+':''}${n(c.net).toFixed(4)} | PF ${n(c.pf).toFixed(2)} | ${marker}\n`;
       }
       const h=Array.isArray(r0.p.history)&&r0.p.history[0];
@@ -294,4 +342,4 @@ function telegram(){
   return t;
 }
 
-module.exports={VERSION,STATE_FILE,CANDIDATES,FIRST_ASSIGN,RECALC_STEP,RECENT_WINDOW,RECENT_WEIGHT,profileKey,targetPrice,activeFor,close,summary,telegram,metric,choose,replayCandidate,frozenRisk,frozenExit};
+module.exports={VERSION,STATE_FILE,CANDIDATES,DEFAULT_BRICK,FIRST_ASSIGN,RECALC_STEP,RECENT_WINDOW,RECENT_WEIGHT,profileKey,targetPrice,activeFor,close,summary,telegram,metric,choose,replayCandidate,frozenRisk,frozenExit};

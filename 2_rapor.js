@@ -186,8 +186,8 @@ function kisalt(metin, limit = TELEGRAM_GUVENLI_LIMIT) {
 function learningEvolutionOzetMetni(s = {}) {
     try {
         const model = learningValidation.buildLearningValidationModel();
-        const historicalOpened = Number(s.toplamAcilanEmir || 0);
-        const historicalClosed = Number(model.kapanan || 0);
+        let historicalOpened = 0;
+        let historicalClosed = 0;
         const observed = Number(model.learningScore?.toplamDna || 0);
         const ready = Number(model.learningScore?.yeterliDna || 0);
         const leagueSizes = model.dnaLeague?.leagueSizes || {};
@@ -205,6 +205,8 @@ function learningEvolutionOzetMetni(s = {}) {
         const shadowActive = Number(shadowPartition.activeScientific ?? continuity.active?.shadow ?? 0);
         const learningOpened = premierOpened + shadowOpened;
         const learningClosed = premierClosed + shadowClosed;
+        historicalOpened = learningOpened;
+        historicalClosed = learningClosed;
         const learningActive = premierActive + shadowActive;
         const learningGapClosed = Number(premierPartition.closedGap || 0) + Number(shadowPartition.closedGap || 0);
         const learningGapActive = Number(premierPartition.activeGap || 0) + Number(shadowPartition.activeGap || 0);
@@ -227,10 +229,11 @@ function learningEvolutionOzetMetni(s = {}) {
         text += `📚 Tarihsel öğrenme arşivi: Açılış ${historicalOpened} | Bilimsel kapanış ${historicalClosed}\n`;
         text += `🧬 DNA: Hazır ${ready} (${delta(dReady)}) / Gözlenen ${observed} (${delta(dObserved)})\n`;
         text += `🎯 Tarihsel sonuç: Başarı %${yuzde(model.winRate)} | Exp ${model.expectancy >= 0 ? '+' : ''}${sayi(model.expectancy, 4)} | Net ${model.netKasa >= 0 ? '+' : ''}${sayi(model.netKasa, 2)} USDT\n`;
-        const bilimselTp = (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.tp || x.bucket?.tp || 0), 0);
-        const bilimselSl = (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.sl || x.bucket?.sl || 0), 0);
-        const bilimselBe = (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.be || x.bucket?.be || 0), 0);
-        const bilimselNet = (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.net || x.bucket?.net || 0), 0);
+        const renkoScience = ayarlar.entryStrategyMode === 'ST2_RENKO' ? renkoEntryEvolution.summary().total : null;
+        const bilimselTp = renkoScience ? Number(renkoScience.tp || 0) : (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.tp || x.bucket?.tp || 0), 0);
+        const bilimselSl = renkoScience ? Number(renkoScience.sl || 0) : (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.sl || x.bucket?.sl || 0), 0);
+        const bilimselBe = renkoScience ? Number(renkoScience.be || 0) : (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.be || x.bucket?.be || 0), 0);
+        const bilimselNet = renkoScience ? Number(renkoScience.net || 0) : (labLeague.allCandidates || []).reduce((a, x) => a + Number(x.liveMetrics?.net || x.bucket?.net || 0), 0);
         const bilimselKararli = bilimselTp + bilimselSl;
         text += `✅ Bilimsel sonuç: Başarılı ${bilimselTp} | Başarısız ${bilimselSl} | BE ${bilimselBe} | WR %${bilimselKararli ? ((bilimselTp / bilimselKararli) * 100).toFixed(1) : '0.0'} | Net ${bilimselNet >= 0 ? '+' : ''}${bilimselNet.toFixed(4)}\n`;
         text += `🏆 Premier çıkış şartı: Aynı LAB için N≥5, Net>0, PF>1 ve Expectancy>0\n`;

@@ -1,0 +1,246 @@
+{
+  "version": "v5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING",
+  "updatedAt": "2026-07-25T07:26:52.538Z",
+  "profiles": {
+    "LONG|RRRR": {
+      "key": "LONG|RRRR",
+      "yon": "LONG",
+      "patternCode": "RRRR",
+      "patternId": "L01",
+      "activeBrick": 0.75,
+      "previousBrick": null,
+      "closed": 1,
+      "lastEvaluationClosed": 0,
+      "candidates": {
+        "0.25": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 0,
+          "sl": 0,
+          "be": 1,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0,
+              "at": 1784964412537
+            }
+          ]
+        },
+        "0.50": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 0,
+          "sl": 0,
+          "be": 1,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0,
+              "at": 1784964412537
+            }
+          ]
+        },
+        "0.75": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 0,
+          "sl": 0,
+          "be": 1,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0,
+              "at": 1784964412537
+            }
+          ]
+        },
+        "1.00": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 0,
+          "sl": 0,
+          "be": 1,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0,
+              "at": 1784964412537
+            }
+          ]
+        },
+        "1.25": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 0,
+          "sl": 0,
+          "be": 1,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0,
+              "at": 1784964412537
+            }
+          ]
+        },
+        "1.50": {
+          "samples": 1,
+          "triggered": 1,
+          "tp": 0,
+          "sl": 0,
+          "be": 1,
+          "net": 0,
+          "grossProfit": 0,
+          "grossLoss": 0,
+          "recent": [
+            {
+              "net": 0,
+              "at": 1784964412537
+            }
+          ]
+        }
+      },
+      "history": [],
+      "lastReplay": {
+        "at": "2026-07-25T07:26:52.536Z",
+        "actualBrick": 0.75,
+        "candidates": {
+          "0.25": {
+            "triggered": true,
+            "entry": 100.5,
+            "exitPrice": 103,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 2.487562,
+            "net": 0,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "0.50": {
+            "triggered": true,
+            "entry": 101,
+            "exitPrice": 103,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 1.980198,
+            "net": 0,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "0.75": {
+            "triggered": true,
+            "entry": 101.5,
+            "exitPrice": 103,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 1.477833,
+            "net": 0,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "1.00": {
+            "triggered": true,
+            "entry": 102,
+            "exitPrice": 103,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 0.980392,
+            "net": 0,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "1.25": {
+            "triggered": true,
+            "entry": 102.5,
+            "exitPrice": 103,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 0.487805,
+            "net": 0,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          },
+          "1.50": {
+            "triggered": true,
+            "entry": 103,
+            "exitPrice": 103,
+            "exitReason": "ACTUAL_CLOSE",
+            "pct": 0,
+            "net": 0,
+            "stopPct": 1.5,
+            "beTriggerPct": 0.4,
+            "beBufferPct": 0.12,
+            "exitAlgorithmId": "ACTUAL"
+          }
+        }
+      },
+      "lastUpdatedAt": "2026-07-25T07:26:52.537Z"
+    }
+  },
+  "bridge": {
+    "calls": 1,
+    "accepted": 1,
+    "skipped": {},
+    "last": {
+      "at": "2026-07-25T07:26:52.535Z",
+      "status": "ACCEPTED",
+      "reason": "RECORDED",
+      "sym": "FINALUSDT",
+      "yon": "LONG",
+      "entryStrategy": "ST2_RENKO",
+      "patternCode": "RRRR"
+    }
+  },
+  "decisionChain": {
+    "entry": {
+      "assigned": 1,
+      "applied": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "unknown": 0
+    },
+    "stop": {
+      "assigned": 1,
+      "applied": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "unknown": 0
+    },
+    "be": {
+      "assigned": 1,
+      "applied": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "unknown": 0
+    },
+    "exit": {
+      "assigned": 1,
+      "applied": 1,
+      "matched": 1,
+      "mismatched": 0,
+      "unknown": 0
+    },
+    "last": {
+      "at": "2026-07-25T07:26:52.536Z",
+      "key": "exit",
+      "detail": {
+        "assignedExit": "ACTUAL",
+        "appliedExit": "Sanal TP"
+      }
+    }
+  }
+}

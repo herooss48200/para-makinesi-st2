@@ -11,7 +11,7 @@ ayarlar.renkoGirisOtomatikAktiflestirme = true;
 const evo = require('./73_st2_renko_entry_evolution.js');
 try { fs.unlinkSync(evo.STATE_FILE); } catch {}
 assert.deepStrictEqual(evo.CANDIDATES(), [0.25,0.5,0.75,1,1.25,1.5]);
-assert.strictEqual(evo.activeFor('LONG','RGRR'), 0.25);
+assert.strictEqual(evo.activeFor('LONG','RGRR'), 0.75);
 assert.strictEqual(evo.targetPrice({yon:'LONG',referansSeviye:100,renkoBoxSize:2},0.75),101.5);
 assert.strictEqual(evo.targetPrice({yon:'SHORT',referansSeviye:100,renkoBoxSize:2},1.25),97.5);
 function pos(exit){ return {
@@ -22,8 +22,8 @@ function pos(exit){ return {
 for (let i=0;i<3;i++) evo.close(pos(),{exitPrice:103,commission:0,restartGap:false});
 const sum=evo.summary(); const p=sum.profiles.find(x=>x.key==='LONG|RGRR');
 assert(p && p.closed===3);
-assert.strictEqual(p.activeBrick,0.25,'En yüksek net, daha erken 0.25 girişte kalmalı');
+assert.strictEqual(p.activeBrick,0.25,'Replay kanıtı daha güçlü olduğunda varsayılan 0.75 yerine 0.25 öğrenilebilmelidir');
 assert(sum.policy.firstAssign===3 && sum.policy.recalcStep===5);
 assert(evo.telegram().includes('İlk atama N3'));
 try { fs.unlinkSync(evo.STATE_FILE); } catch {}
-console.log('✅ v5.5.7 ST2 Renko Entry Evolution passed | 6 seviye, N3 ilk atama, her N5 yeniden hesaplama, güncel ağırlıklı hafıza');
+console.log('✅ ST2 Renko Entry Evolution passed | varsayılan 0.75, 6 seviye replay, N3 ilk atama, her N5 yeniden hesaplama');

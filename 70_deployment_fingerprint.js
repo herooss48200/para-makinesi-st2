@@ -17,6 +17,7 @@ const REQUIRED = [
   'test_v559_st2_renko_entry_dashboard.js',
   'test_v559_fix1_st2_runtime_binding_proof.js',
   'test_v559_fix2_st2_identity_close_binding.js',
+  'test_v560_st2_final_sprint.js',
   'test_v541_st1_final_certification.js'
 ];
 
@@ -30,8 +31,8 @@ function inspect(baseDir = __dirname) {
   const dashboard = fs.readFileSync(path.join(baseDir, '69_operation_intelligence_dashboard.js'), 'utf8');
   const certification = fs.readFileSync(path.join(baseDir, '71_st1_final_certification.js'), 'utf8');
   const errors = [];
-  if (pkg.version !== '5.5.9-st2.2') errors.push(`package.json version ${pkg.version}; beklenen 5.5.9-st2.2`);
-  if (String(version.botSurumu) !== '5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.5.9-fix.2-ST2-RENKO-IDENTITY-CLOSE-BINDING`);
+  if (pkg.version !== '5.6.0-st2-final') errors.push(`package.json version ${pkg.version}; beklenen 5.6.0-st2-final`);
+  if (String(version.botSurumu) !== '5.6.0-ST2-FINAL-DECISION-CHAIN') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.6.0-ST2-FINAL-DECISION-CHAIN`);
   if (!pkg.scripts?.['verify:v540']) errors.push('verify:v540 script missing');
   if (!pkg.scripts?.['verify:v541']) errors.push('verify:v541 script missing');
   if (!pkg.scripts?.['verify:v542']) errors.push('verify:v542 script missing');
@@ -56,7 +57,7 @@ if (require.main === module) {
     console.error(result.errors.join('\n'));
     process.exitCode = 1;
   } else {
-    console.log('✅ AGROS ST2 v5.5.9-fix.2 deployment fingerprint verified.');
+    console.log('✅ AGROS ST2 v5.6.0 final deployment fingerprint verified.');
   }
 }
 module.exports = { inspect };
