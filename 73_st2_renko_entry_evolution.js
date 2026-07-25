@@ -59,17 +59,27 @@ function legacyStateFiles(){
   return [...new Set(dirs.flatMap(d=>names.map(name=>path.join(d,name))))].filter(f=>f!==path.resolve(STATE_FILE));
 }
 function recoverHistoricalState(current){
-  if(stateProfileWeight(current)>0) return current;
-  let best=null,bestFile=null,bestWeight=0;
+  const currentWeight=stateProfileWeight(current);
+  let best=null,bestFile=null,bestWeight=currentWeight;
   for(const file of legacyStateFiles()){
     if(!fs.existsSync(file)) continue;
     const candidate=io.readJsonBounded(file,null,{maxBytes:16*1024*1024});
     const weight=stateProfileWeight(candidate);
     if(weight>bestWeight){best=candidate;bestFile=file;bestWeight=weight;}
   }
+  // Yeni state dosyasında birkaç kapanış bulunması, daha dolu tarihsel hafızanın
+  // görünmez kalmasına neden olmamalı. Yalnız kesin olarak daha güçlü kaynak seçilir.
   if(!best) return current;
   const recovered={...blank(),...best,profiles:{...(best.profiles||{})}};
-  recovered.recovery={at:new Date().toISOString(),source:bestFile,profiles:Object.keys(recovered.profiles).length,weight:bestWeight};
+  // Yeni runtime telemetrisi tarihsel profil verisini ezmesin; sayaçlar birleştirilir.
+  recovered.bridge={
+    calls:Math.max(n(best?.bridge?.calls),n(current?.bridge?.calls)),
+    accepted:Math.max(n(best?.bridge?.accepted),n(current?.bridge?.accepted)),
+    skipped:{...(best?.bridge?.skipped||{}),...(current?.bridge?.skipped||{})},
+    last:current?.bridge?.last||best?.bridge?.last||null
+  };
+  recovered.decisionChain={...blank().decisionChain,...(best?.decisionChain||{}),...(current?.decisionChain||{})};
+  recovered.recovery={at:new Date().toISOString(),source:bestFile,profiles:Object.keys(recovered.profiles).length,weight:bestWeight,replacedWeight:currentWeight};
   write(recovered);
   return recovered;
 }

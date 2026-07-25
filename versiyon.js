@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY',
-    kod: 'ST2 Candidate v5.6.1-ST2-RENKO-HISTORICAL-ENTRY-RECOVERY',
-    botSurumu: '5.6.1-ST2-RENKO-HISTORICAL-ENTRY-RECOVERY',
+    kod: 'ST2 Candidate v5.6.2-ST2-RECOVERY-SPRINT',
+    botSurumu: '5.6.2-ST2-RECOVERY-SPRINT',
     stratejiSurumu: '1.0.20',
     yayinTarihi: '25.07.2026',
     ortam: { emirModu: 'SANAL' }

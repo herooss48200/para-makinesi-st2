@@ -27,6 +27,7 @@ let sonDnaLeagueTransferKapanisi = null;
 let sonPremierObservationKapanan = null;
 let learningEvolutionBaseline = null;
 let raporZinciriCalisiyor = false;
+let sonSt2EntryEvolutionDetayImzasi = null;
 let sonExitVictoryReplay = null;
 let dnaKartlariIlkGonderim = false;
 let sonLabChampionKapanan = null;
@@ -166,20 +167,14 @@ function sonKapananSatiri(islem) {
 function kisalt(metin, limit = TELEGRAM_GUVENLI_LIMIT) {
     const text = String(metin || '');
     if (text.length <= limit) return text;
-
-    // HTML etiketlerinin ortasında kesilen mesaj Telegram tarafından reddedilir.
-    // Uzun canlı raporu önce düz metne çevirip sonra güvenli sınırda kesiyoruz.
-    const duzMetin = text
+    // Canlı panel hiçbir zaman yarım HTML veya güvenlik uyarısı üretmez.
+    // Ayrıntılı bilimsel bölüm ayrı Telegram mesajında gönderilir.
+    return text
         .replace(/<\/?pre>/g, '')
         .replace(/<\/?b>/g, '')
         .replace(/<\/?i>/g, '')
         .replace(/<[^>]*>/g, '')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&');
-
-    return duzMetin.slice(0, limit - 90) +
-        `\n\n⚠️ Rapor güvenlik nedeniyle kısaltıldı.`;
+        .slice(0, limit);
 }
 
 
@@ -240,7 +235,11 @@ function learningEvolutionOzetMetni(s = {}) {
         text += `🗺️ Family Hafıza: 🏆 ${Number(leagueSizes.premier || 0)} | 🥈 ${Number(leagueSizes.championship || 0)} | 🌱 ${Number(leagueSizes.development || 0)} | 📚 ${Number(leagueSizes.historical || 0)} | Emir yetkisi yok\n`;
         text += `🧬 LAB Ligi: 🥇 Premier ${Number(labLeague.historicalPositiveCount || 0)} | 🥈 Championship/LAB ${Number(labLeague.labLeagueCount || 0)} | 🔁 Ters ayrı defter ${Number(labLeague.reversePremierCount || 0)}\n`;
         text += `🏃 Kâra yakın ${Number(labLeague.nearProfitCount || 0)} | Ters gölge ${Number(labLeague.reverseShadowCount || 0)} | ✅ İleri ${Number(labLeague.forwardVerifiedCount || 0)}\n`;
-        if (ayarlar.entryStrategyMode === 'ST2_RENKO') text += renkoEntryEvolution.telegram();
+        if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
+            const evo = renkoEntryEvolution.summary();
+            text += `🧠 Entry Evolution: Pattern ${Number(evo.total?.profiles || 0)} | Bilimsel kapanış ${Number(evo.total?.closed || 0)} | Öğrenilmiş giriş ${Number(evo.total?.assigned || 0)}\n`;
+            text += `📨 0.25–1.50 replay ve Pattern ayrıntıları ikinci bölümde gönderilir.\n`;
+        }
         text += `\n🛡️ <b>GAP / MUHASEBE DURUMU — ÖĞRENMEYE DAHİL DEĞİL</b>\n`;
         text += `Migration Gap: Yüklenen ${Number(continuity.legacy.activeAtMigration || 0)} | Kapanan ${Number(continuity.migrationBatchClosed || 0)} | Aktif ${Number(continuity.legacyActive || 0)} | Mutabakat ${continuity.migrationBatchDifference >= 0 ? '+' : ''}${continuity.migrationBatchDifference} ${continuity.migrationBatchReconciled ? '✅' : '⚠️'}\n`;
         text += `Restart Gap aktif ${Number(continuity.active?.restartGap || 0)} | Eski telemetri ${Number(continuity.legacy.restartGapHistoricalCounter || 0)}\n`;
@@ -250,6 +249,20 @@ function learningEvolutionOzetMetni(s = {}) {
     } catch (err) {
         return `🧠 <b>Öğrenme:</b> aktif | Ayrıntılı sayaç hazırlanıyor.`;
     }
+}
+
+
+function st2AnaRaporOgrenmeOzeti() {
+    const evo = renkoEntryEvolution.summary();
+    const t = evo.total || {};
+    const b = evo.bridge || {};
+    const ret = Object.values(b.skipped || {}).reduce((a, v) => a + Number(v || 0), 0);
+    return [
+        `🧠 <b>ENTRY EVOLUTION</b>`,
+        `Pattern ${Number(t.profiles || 0)}/16 | Bilimsel kapanış ${Number(t.closed || 0)} | Öğrenilmiş giriş ${Number(t.assigned || 0)}`,
+        `Köprü: Çağrı ${Number(b.calls || 0)} | Kabul ${Number(b.accepted || 0)} | Ret ${ret}`,
+        `📨 0.25–1.50 replay ve Pattern ayrıntıları ikinci bölümde.`
+    ].join('\n');
 }
 
 function canliRaporMetniOlustur() {
@@ -300,8 +313,7 @@ function canliRaporMetniOlustur() {
     if (ayarlar.sanalEmirModu) {
         // Premier seçimi, aday ilerlemesi ve Exit görünürlüğü en üst bloktur.
         const operationOzeti = operationIntelligence.telegram(tumAktifler);
-        const lifecycleOzeti = labLifecycle.report(5);
-        mesaj += `${operationOzeti}\n\n${lifecycleOzeti}\n`;
+        mesaj += `${operationOzeti}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -313,7 +325,7 @@ function canliRaporMetniOlustur() {
 `;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
-${learningEvolutionOzetMetni(s)}
+${ayarlar.entryStrategyMode === 'ST2_RENKO' ? st2AnaRaporOgrenmeOzeti() : learningEvolutionOzetMetni(s)}
 `;
     } else {
         mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}
@@ -582,6 +594,15 @@ async function st1FinalCertificationRaporuGonderGerekirse() {
     }
 }
 
+async function st2EntryEvolutionDetayiGonderGerekirse(oneCikar = false) {
+    if (ayarlar.entryStrategyMode !== 'ST2_RENKO') return;
+    const x = renkoEntryEvolution.summary();
+    const imza = `${Number(x.total?.closed || 0)}|${Number(x.total?.profiles || 0)}|${Number(x.total?.assigned || 0)}|${x.updatedAt || ''}`;
+    if (!oneCikar && sonSt2EntryEvolutionDetayImzasi === imza) return;
+    sonSt2EntryEvolutionDetayImzasi = imza;
+    await h.telegramMesajGonder(renkoEntryEvolution.telegram());
+}
+
 async function raporGonder(oneCikar = false) {
     if (raporZinciriCalisiyor) {
         console.warn('🛡️ [RAPOR GUARD] Önceki rapor zinciri sürüyor; çakışan çağrı atlandı.');
@@ -596,6 +617,7 @@ async function raporGonder(oneCikar = false) {
         } else if (oneCikar) {
             await h.telegramMesajGonder(mesaj);
         }
+        await st2EntryEvolutionDetayiGonderGerekirse(oneCikar);
 
         const ramTrace = (etiket) => {
             const m = memorySafeIo.ramMb();
@@ -623,4 +645,4 @@ async function raporGonder(oneCikar = false) {
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse, st1FinalCertificationRaporuGonderGerekirse };
+module.exports = { raporGonder, canliRaporMetniOlustur, st2EntryEvolutionDetayiGonderGerekirse, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse, st1FinalCertificationRaporuGonderGerekirse };

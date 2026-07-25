@@ -32,8 +32,8 @@ function inspect(baseDir = __dirname) {
   const dashboard = fs.readFileSync(path.join(baseDir, '69_operation_intelligence_dashboard.js'), 'utf8');
   const certification = fs.readFileSync(path.join(baseDir, '71_st1_final_certification.js'), 'utf8');
   const errors = [];
-  if (pkg.version !== '5.6.1-st2-renko-historical-entry-recovery') errors.push(`package.json version ${pkg.version}; beklenen 5.6.1-st2-renko-historical-entry-recovery`);
-  if (String(version.botSurumu) !== '5.6.1-ST2-RENKO-HISTORICAL-ENTRY-RECOVERY') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.6.1-ST2-RENKO-HISTORICAL-ENTRY-RECOVERY`);
+  if (pkg.version !== '5.6.2-st2-recovery-sprint') errors.push(`package.json version ${pkg.version}; beklenen 5.6.2-st2-recovery-sprint`);
+  if (String(version.botSurumu) !== '5.6.2-ST2-RECOVERY-SPRINT') errors.push(`versiyon.js ${version.botSurumu}; beklenen 5.6.2-ST2-RECOVERY-SPRINT`);
   if (!pkg.scripts?.['verify:v540']) errors.push('verify:v540 script missing');
   if (!pkg.scripts?.['verify:v541']) errors.push('verify:v541 script missing');
   if (!pkg.scripts?.['verify:v542']) errors.push('verify:v542 script missing');
@@ -58,7 +58,7 @@ if (require.main === module) {
     console.error(result.errors.join('\n'));
     process.exitCode = 1;
   } else {
-    console.log('✅ AGROS ST2 v5.6.1 historical entry recovery deployment fingerprint verified.');
+    console.log('✅ AGROS ST2 v5.6.2 recovery sprint deployment fingerprint verified.');
   }
 }
 module.exports = { inspect };
