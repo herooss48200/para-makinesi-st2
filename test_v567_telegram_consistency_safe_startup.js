@@ -6,7 +6,7 @@ const close=fs.readFileSync('4_pozisyon.js','utf8');
 const bot=fs.readFileSync('bot.js','utf8');
 assert(league.includes("RENKO: 'RENKO_PATTERN_PREMIER'"));
 assert(league.includes('[TRACK.HISTORICAL, TRACK.RENKO].includes'));
-assert(report.includes('Renko Premier Pattern'));
+assert(report.includes('Öğrenilmiş Premier Pattern'));
 assert(report.includes('Kapanan Premier N'));
 assert(!report.includes('Selection Intelligence 2.0 bu sürümde'));
 assert(close.includes("ayarlar.entryStrategyMode !== 'ST2_RENKO' && !restartGapIslemi"));

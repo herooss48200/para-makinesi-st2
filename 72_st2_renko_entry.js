@@ -216,7 +216,12 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, audit = null) {
                 if (!baslangicPusuOzetiGonderildi) {
                     baslangicPusuKuyrugu.push({ sym, yon: match.yon, patternId: match.patternId, patternKodu: match.patternKodu, pusuKaniti });
                 } else {
-                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${match.patternId} (${match.patternKodu})\nBB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
+                    const patternId = String(match.patternId || 'PATTERN').trim();
+                    const patternKodu = String(match.patternKodu || '').trim();
+                    const patternEtiketi = patternKodu && !/^(undefined|null|nan)$/i.test(patternKodu)
+                        ? `${patternId} (${patternKodu})`
+                        : patternId;
+                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\nBB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
                     h.telegramMesajGonder(kisaMesaj).catch(e => console.log(`⚠️ [ST2 RENKO YENİ PUSU] Telegram gönderimi başarısız ${sym}: ${e.message}`));
                 }
             }

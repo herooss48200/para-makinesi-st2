@@ -48,15 +48,18 @@ function telegram(activePositions=[], prebuilt=null){
   const d=prebuilt||build(activePositions); const m=d.model; const a=m.aggregate||{}; const r=m.trackMetrics?.reverse||{}; const l=m.league||{}; const ac=m.accounting||{};
   const displayVersion = runtimeVersion.botSurumu || runtimeVersion.kod || VERSION;
   const renko = renkoEntryEvolution.summary();
-  const renkoPremierPatterns = Number(renko.total?.premier || (renko.profiles||[]).filter(x=>x.premier).length || 0);
+  const renkoPremierPatterns = (renko.profiles || []).filter(p => {
+    const cur = (p.candidates || []).find(x => Math.abs(n(x.brick) - n(p.activeBrick)) < 1e-9) || {};
+    return n(p.closed) >= 5 && n(cur.net) > 0 && n(cur.pf) > 1 && n(cur.expectancy) > 0;
+  }).length;
   const livePremier = (activePositions||[]).filter(p=>p?.labPremierObservation?.upperLayerIncluded===true || p?.labPremierDecision?.upperLayerIncluded===true).length;
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
-  t+=`🧬 Renko Premier Pattern ${renkoPremierPatterns} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
+  t+=`🧬 Öğrenilmiş Premier Pattern ${renkoPremierPatterns} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
   t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
   if(n(r.opened)||n(r.active)||n(r.closed)||d.candidates.length){
     t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;
   }
-  t+=`🏆 Ligler: Premier Pattern ${renkoPremierPatterns} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
+  t+=`🏆 Ligler: Öğrenilmiş Premier ${renkoPremierPatterns} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
   t+=`📦 Premier gözlem defteri: Bilimsel aktif ${n(ac.activeScientific)} | Premier GAP aktif ${n(ac.activeGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;
   const top=d.premier.slice(0,5);

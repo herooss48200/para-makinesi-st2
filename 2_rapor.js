@@ -166,8 +166,16 @@ function sonKapananSatiri(islem) {
     return `${sembol} ${yonText}${sonuc} ${net >= 0 ? '+' : ''}${sayi(net, 2)} USDT`;
 }
 
+function telegramGuvenliMetin(metin) {
+    return String(metin || '')
+        .replace(/\((?:undefined|null|NaN)\)/gi, '')
+        .replace(/\b(?:undefined|null|NaN)\b/gi, '-')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/[ \t]{2,}/g, ' ');
+}
+
 function kisalt(metin, limit = TELEGRAM_GUVENLI_LIMIT) {
-    const text = String(metin || '');
+    const text = telegramGuvenliMetin(metin);
     if (text.length <= limit) return text;
     // Canlı panel hiçbir zaman yarım HTML veya güvenlik uyarısı üretmez.
     // Ayrıntılı bilimsel bölüm ayrı Telegram mesajında gönderilir.
@@ -239,7 +247,7 @@ function learningEvolutionOzetMetni(s = {}) {
         text += `🏃 Kâra yakın ${Number(labLeague.nearProfitCount || 0)} | Ters gölge ${Number(labLeague.reverseShadowCount || 0)} | ✅ İleri ${Number(labLeague.forwardVerifiedCount || 0)}\n`;
         if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
             const evo = renkoEntryEvolution.summary();
-            text += `🧠 Entry Evolution: Pattern ${Number(evo.total?.profiles || 0)} | Bilimsel kapanış ${Number(evo.total?.closed || 0)} | Öğrenilmiş giriş ${Number(evo.total?.assigned || 0)}\n`;
+            text += `🧠 Entry Evolution: Pattern ${Number(evo.total?.profiles || 0)} | Bilimsel kapanış ${Number(evo.total?.closed || 0)} | Varsayılan dışı atama ${Number(evo.total?.assigned || 0)}\n`;
             text += `📨 0.25–1.50 replay ve Pattern ayrıntıları ikinci bölümde gönderilir.\n`;
         }
         text += `\n🛡️ <b>GAP / MUHASEBE DURUMU — ÖĞRENMEYE DAHİL DEĞİL</b>\n`;
@@ -276,7 +284,7 @@ function st2AnaRaporOgrenmeOzeti() {
         : 'YOK';
     return [
         `🧠 <b>ENTRY EVOLUTION</b>`,
-        `Pattern ${Number(t.profiles || 0)}/16 | Bilimsel kapanış ${Number(t.closed || 0)} | Öğrenilmiş giriş ${Number(t.assigned || 0)}`,
+        `Pattern ${Number(t.profiles || 0)}/16 | Bilimsel kapanış ${Number(t.closed || 0)} | Varsayılan dışı atama ${Number(t.assigned || 0)}`,
         `✅ Başarılı ${Number(t.tp || 0)} | ❌ Başarısız ${Number(t.sl || 0)} | ⚖️ BE ${Number(t.be || 0)} | Net ${Number(t.net || 0) >= 0 ? '+' : ''}${Number(t.net || 0).toFixed(4)}`,
         `🎯 Aktif giriş dağılımı: ${dagilimMetni}`,
         `🔄 Son giriş değişimi: ${sonDegisimMetni}`,
@@ -343,7 +351,7 @@ function canliRaporMetniOlustur() {
             return Number(p.closed)>=5&&Number(cur.net)>0&&Number(cur.pf)>1&&Number(cur.expectancy)>0;
         }).length;
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
-        mesaj += `🧬 Renko tarihsel Premier pattern: ${renkoPremierPattern} | Canlı Premier pozisyon: ${aktifler.length}\n`;
+        mesaj += `🧬 Öğrenilmiş Premier Pattern: ${renkoPremierPattern} | Canlı Premier pozisyon: ${aktifler.length}\n`;
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
         mesaj += `👻 Gölge/LAB: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
         mesaj += `
@@ -388,6 +396,9 @@ ${gercekOzet}
     mesaj += enRiskli.length
         ? enRiskli.map(pozisyonSatiri).join('\n')
         : `Aktif pozisyon yok`;
+    if (aktifler.length > 0 && aktifler.length <= 4) {
+        mesaj += `\n<i>Aktif Premier sayısı az olduğu için aynı pozisyonlar kâr ve risk sırasıyla gösterilir.</i>`;
+    }
 
     if (sonKapananlar.length) {
         mesaj += `\n\n📌 <b>Son Kapanan 5</b>\n`;
