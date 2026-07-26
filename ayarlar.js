@@ -419,7 +419,7 @@ const ayarlar = {
     // Telegram editMessageText eski mesajı aşağı taşımaz. Bu süre dolunca eski ana tablo silinir ve yeni tablo en alta gönderilir.
     canliRaporYenidenGondermeMs: 180000,
     canliRaporEskiMesajiSil: true,
-    telegramStopGuncellemeMesaji: true,
+    telegramStopGuncellemeMesaji: false,
 
     // ========================================
     // SİSTEM VE VERİ TARAMA
@@ -676,6 +676,17 @@ const ayarlar = {
     adaptiveTradingLeagueAktif: true,
     adaptiveTradingLeagueTelegramAktif: true,
     adaptiveTradingLeagueRaporHerKapanis: 10,
+
+
+    // v5.6.4 — Pattern bazlı Renko Exit Evolution.
+    renkoCikisEvolutionAktif: true,
+    renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
+    renkoCikisVarsayilanTugla: 1.00,
+    renkoCikisIlkAtamaKapanis: 3,
+    telegramIslemAcilisMesaji: false,
+    telegramPusuMesaji: false,
+    telegramRenkoDevralmaMesaji: true,
+    manuelKapanisYenidenGirisKilidiMs: 3600000,
 
     // v3.11.2 Exit Evolution Telegram Dashboard:
     exitEvolutionDashboardAktif: true,

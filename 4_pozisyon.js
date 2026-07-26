@@ -3,6 +3,7 @@ const m = require('./motor.js');
 const ayarlar = require('./ayarlar.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
+const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const exitOptimizer = require('./15_exit_optimizer_foundation.js');
@@ -1034,6 +1035,11 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
         restartGap: restartGap.isQuarantined(pos)
     }); } catch (e) { console.log(`⚠️ [ST2 ENTRY EVOLUTION] ${e.message}`); }
+    try { renkoExitEvolution.close(pos, {
+        net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
+        reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
+        restartGap: restartGap.isQuarantined(pos)
+    }); } catch (e) { console.log(`⚠️ [ST2 EXIT EVOLUTION] ${e.message}`); }
 
     const restartGapIslemi = restartGap.isQuarantined(pos);
     const exitMethodSummary = restartGapIslemi
@@ -1365,13 +1371,20 @@ async function izSurmeyiGuncelle() {
         const sanalPozisyon = ayarlar.sanalEmirModu || pos.sanal;
         analizMerkezi.journeyGuncelle(pos, canliFiyat);
         exitOptimizer.tickGuncelle(pos, canliFiyat);
+        renkoExitEvolution.assign(pos);
         const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
 
         if (sanalPozisyon) {
             // v4.2.1: Kanıtlı DNA exit planı sanal testte aktif uygulanır.
             // Plan yoksa/desteklenmiyorsa mevcut kademe sistemi güvenli fallback olarak devam eder.
             const dynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
-            if (dynamicKarar.close) {
+            const renkoKarar = ayarlar.renkoCikisEvolutionAktif === true ? renkoExitEvolution.update(pos, canliFiyat) : { active:false };
+            if (renkoKarar.justActivated && ayarlar.telegramRenkoDevralmaMesaji === true && !pos.renkoExitTakeoverNotified) {
+                await h.telegramMesajGonder(renkoExitEvolution.takeoverText(pos));
+                pos.renkoExitTakeoverNotified = true;
+                kaliciHafiza.kaydet('renko-exit-devraldi');
+            }
+            if (!renkoKarar.active && dynamicKarar.close) {
                 if (pos.kapanisIsleniyor) continue;
                 pos.kapanisIsleniyor = true;
                 pos.dynamicExitApplied = dynamicKarar;
@@ -1387,7 +1400,7 @@ async function izSurmeyiGuncelle() {
 
             const dynamicAktif = dynamicKarar.active === true;
             const oncekiSl = pos.sl;
-            const guncellendi = dynamicAktif ? false : trailingHesapla(pos, canliFiyat);
+            const guncellendi = renkoKarar.active ? Boolean(renkoKarar.changed) : (dynamicAktif ? false : trailingHesapla(pos, canliFiyat));
             if (guncellendi) {
                 pos.sl = m.fiyatKlip(pos.sym, pos.sl);
                 exitOptimizer.stopKaydet(pos, oncekiSl, pos.sl, canliFiyat, { kaynak: 'SANAL' });
@@ -1426,12 +1439,40 @@ async function izSurmeyiGuncelle() {
         const borsaPoz = borsaPozisyonlar.find(p => p.symbol === pos.sym);
         const borsaMiktar = borsaPoz ? Math.abs(parseFloat(borsaPoz.positionAmt)) : 0;
 
+        if (borsaMiktar === 0) {
+            if (pos.kapanisIsleniyor) continue;
+            pos.kapanisIsleniyor = true;
+            pos.manualExternalClose = true;
+            pos.manualCloseLockUntil = Date.now() + Number(ayarlar.manuelKapanisYenidenGirisKilidiMs || 3600000);
+            h.state.manualCloseLocks = h.state.manualCloseLocks || {};
+            h.state.manualCloseLocks[`${pos.sym}|${pos.yon}`] = pos.manualCloseLockUntil;
+            try {
+                const acikEmirler = await h.client.futuresOpenOrders({ symbol: pos.sym }).catch(() => []);
+                for (const emir of acikEmirler || []) await h.client.futuresCancelOrder({ symbol: pos.sym, orderId: emir.orderId }).catch(() => {});
+                h.state.aktifPozisyonlar.splice(i, 1);
+                pozisyonListelerindenSil(pos);
+                await kapanisRaporla(pos, canliFiyat, 'MANUAL_EXTERNAL_CLOSE');
+                kaliciHafiza.kaydet('manuel-external-close');
+                await rapor.raporGonder(true);
+            } catch (err) {
+                pos.kapanisIsleniyor = false;
+                console.error(`❌ [MANUEL KAPANIŞ UZLAŞTIRMA] ${pos.sym} ${pos.yon} | ${err.message}`);
+            }
+            continue;
+        }
+
         // v4.2.6: Üst gerçek emir katmanı, yalnız ayrıca etkinleştirildiğinde ve
         // pozisyon Premier kapısından geçmişse aynı güncel DNA exit planını uygular.
         // Kapanıştan önce eski koruma emirleri iptal edilir; ardından reduce-only market kapanış yapılır.
         if (borsaMiktar > 0) {
             const realDynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
-            if (realDynamicKarar.close) {
+            const realRenkoKarar = ayarlar.renkoCikisEvolutionAktif === true ? renkoExitEvolution.update(pos, canliFiyat) : { active:false };
+            if (realRenkoKarar.justActivated && ayarlar.telegramRenkoDevralmaMesaji === true && !pos.renkoExitTakeoverNotified) {
+                await h.telegramMesajGonder(renkoExitEvolution.takeoverText(pos));
+                pos.renkoExitTakeoverNotified = true;
+                kaliciHafiza.kaydet('renko-exit-devraldi-gercek');
+            }
+            if (!realRenkoKarar.active && realDynamicKarar.close) {
                 if (pos.kapanisIsleniyor) continue;
                 pos.kapanisIsleniyor = true;
                 try {
@@ -1472,7 +1513,7 @@ async function izSurmeyiGuncelle() {
         }
 
         const oncekiSl = pos.sl;
-        const guncellemeGerekli = trailingHesapla(pos, canliFiyat);
+        const guncellemeGerekli = (typeof realRenkoKarar !== 'undefined' && realRenkoKarar.active) ? Boolean(realRenkoKarar.changed) : trailingHesapla(pos, canliFiyat);
 
         if (guncellemeGerekli) {
             try {
@@ -1508,6 +1549,7 @@ async function izSurmeyiGuncelle() {
 }
 
 async function pusuRaporuGonder() {
+    if (ayarlar.telegramPusuMesaji !== true) return;
     const now = Date.now();
     // v3.0.2 FIX: Pusu raporu Telegram'ı kirletmesin.
     // Ayar aktifse bot açılışından sonraki ilk dolu pusu raporu gönderilir, sonra susar.

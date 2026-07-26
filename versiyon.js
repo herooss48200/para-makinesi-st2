@@ -1,10 +1,10 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ST2-RENKO-ENTRY',
-    kod: 'AGROS ST2 v5.6.3 — CLEAN SCIENTIFIC RESET & PERSISTENT LEARNING',
-    botSurumu: '5.6.3-fix.1-LIVE-REPORT-PUSU-VISIBILITY',
+    kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
+    kod: 'AGROS ST2 v5.6.4 — RENKO EXIT EVOLUTION & MANUAL SAFETY',
+    botSurumu: '5.6.4-RENKO-EXIT-MANUAL-SAFETY',
     stratejiSurumu: '1.0.21',
-    yayinTarihi: '25.07.2026',
+    yayinTarihi: '26.07.2026',
     ortam: { emirModu: 'SANAL' }
 };
 function kisaOzet() { return `${versiyon.isim} ${versiyon.botSurumu} | ${versiyon.kodAdi} | Strateji ${versiyon.stratejiSurumu}`; }

@@ -1,4 +1,5 @@
 const ayarlar = require('./ayarlar.js');
+const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const h = require('./1_hafiza.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
@@ -191,6 +192,11 @@ const m = {
     },
 
     sanalPozisyonKaydet: async (symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi = null, hazirKimlik = null) => {
+        const manualLockUntil = Number(h.state.manualCloseLocks?.[`${symbol}|${yon}`] || 0);
+        if (manualLockUntil > Date.now()) {
+            console.log(`🖐️ [MANUEL KAPANIŞ KİLİDİ] ${symbol} ${yon} | ${new Date(manualLockUntil).toISOString()} tarihine kadar yeniden giriş yok`);
+            return false;
+        }
         const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
         if (!izin.uygun) {
             console.log(`🛡️ [SANAL EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
@@ -220,6 +226,7 @@ const m = {
             labBeTamponYuzde: hazirKimlik?.labLifecycleProfile?.beBufferPct,
             girisAnalizi
         };
+        renkoExitEvolution.assign(yeniPozisyon);
         // v5.0.6: Eksiksiz Identity -> League -> Exit zinciri state kaydından ÖNCE kopyalanır.
         // Snapshot/kimlik eksikse anonim pozisyon hiçbir zaman aktif state'e giremez.
         identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
@@ -289,7 +296,7 @@ const m = {
               (girisAnalizi.sniperDebug ? `\n\n${girisAnalizi.sniperDebug}` : '')
             : '';
 
-        const telegramGonderildi = await h.telegramMesajGonder(
+        const telegramGonderildi = ayarlar.telegramIslemAcilisMesaji === true ? await h.telegramMesajGonder(
             `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[LAB GÖLGE ÖĞRENME]</b>' : '🏆 <b>[LAB PREMIER SANAL POZİSYON]</b>'}\n` +
             (yeniPozisyon.labPremierDecision?.upperLayerIncluded ? `💎 <b>LAB PREMIER İŞLEMİ</b> | ${yeniPozisyon.labPremierDecision.proofLevel}\n` : `🌱 LAB Championship/Development — tek gölge sanal pozisyon | Telegram açık | üst kasa dışı öğrenme\n`) +
             `🔀 ${symbol} (${yon})\n` +
@@ -316,7 +323,7 @@ const m = {
         ).then(() => true).catch(err => {
             console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`);
             return false;
-        });
+        }) : false;
         if (telegramGonderildi && yeniPozisyon.identityChainAudit?.completed?.includes('BLACKBOX')) {
             identityChain.markStage(yeniPozisyon, 'TELEGRAM');
         }
@@ -328,6 +335,11 @@ const m = {
 
     pozisyonAc: async (symbol, yon, canliFiyat, girisAnalizi = null) => {
         try {
+            const manualLockUntil = Number(h.state.manualCloseLocks?.[`${symbol}|${yon}`] || 0);
+            if (manualLockUntil > Date.now()) {
+                console.log(`🖐️ [MANUEL KAPANIŞ KİLİDİ] ${symbol} ${yon} | ${new Date(manualLockUntil).toISOString()} tarihine kadar yeniden giriş yok`);
+                return false;
+            }
             const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
             if (!izin.uygun) {
                 console.log(`🛡️ [EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
@@ -505,6 +517,7 @@ const m = {
                 labBeTamponYuzde: hazirKimlik?.labLifecycleProfile?.beBufferPct,
                 girisAnalizi
             };
+            renkoExitEvolution.assign(yeniPozisyon);
             identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
             identityChain.assertPrepared(yeniPozisyon);
             premierObservation.snapshot(yeniPozisyon);
@@ -529,7 +542,7 @@ const m = {
             h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
             kaliciHafiza.yeniEmirSay();
 
-            const gercekTelegramGonderildi = await h.telegramMesajGonder(
+            const gercekTelegramGonderildi = ayarlar.telegramIslemAcilisMesaji === true ? await h.telegramMesajGonder(
                 `🚀 <b>[POZİSYON AÇILDI]</b>\n` +
                 `🔀 ${symbol} (${yon})\n` +
             (yeniPozisyon.labPremierDecision?.reverseExecution ? `🔁 Ters Premier kaynağı: ${yeniPozisyon.labPremierDecision.sourceLabDnaLabel || 'LAB #YOK'} ${yeniPozisyon.labPremierDecision.sourceSignalSide || ''} → ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} ${yon}\n` : '') +
@@ -546,7 +559,7 @@ const m = {
             ).then(() => true).catch(err => {
                 console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`);
                 return false;
-            });
+            }) : false;
             if (gercekTelegramGonderildi && yeniPozisyon.identityChainAudit?.completed?.includes('BLACKBOX')) {
                 identityChain.markStage(yeniPozisyon, 'TELEGRAM');
             }
