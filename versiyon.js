@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
-    kod: 'AGROS ST2 v5.6.6 — RENKO PREMIER BINDING & CLEAN TELEGRAM',
-    botSurumu: '5.6.6-RENKO-PREMIER-BINDING-CLEAN-TELEGRAM',
+    kod: 'AGROS ST2 v5.6.7 — TELEGRAM CONSISTENCY & SAFE STARTUP',
+    botSurumu: '5.6.7-TELEGRAM-CONSISTENCY-SAFE-STARTUP',
     stratejiSurumu: '1.0.21',
     yayinTarihi: '26.07.2026',
     ortam: { emirModu: 'SANAL' }

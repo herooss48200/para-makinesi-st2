@@ -1,0 +1,16 @@
+const assert=require('assert');
+const fs=require('fs');
+const league=fs.readFileSync('62_lab_premier_league.js','utf8');
+const report=fs.readFileSync('69_operation_intelligence_dashboard.js','utf8');
+const close=fs.readFileSync('4_pozisyon.js','utf8');
+const bot=fs.readFileSync('bot.js','utf8');
+assert(league.includes("RENKO: 'RENKO_PATTERN_PREMIER'"));
+assert(league.includes('[TRACK.HISTORICAL, TRACK.RENKO].includes'));
+assert(report.includes('Renko Premier Pattern'));
+assert(report.includes('Kapanan Premier N'));
+assert(!report.includes('Selection Intelligence 2.0 bu sürümde'));
+assert(close.includes("ayarlar.entryStrategyMode !== 'ST2_RENKO' && !restartGapIslemi"));
+assert(bot.includes("ayarlar.entryStrategyMode !== 'ST2_RENKO' && blackbox.istatistikDakikaRaporGerekli"));
+assert(bot.indexOf('kaliciHafiza.yukle()') < bot.indexOf('acikPozisyonlariBorsadanDevral()'));
+assert(bot.includes("require('./74_st2_safe_startup.js')"));
+console.log('✅ v5.6.7 Telegram consistency + Renko Premier accounting + safe startup passed');

@@ -33,7 +33,8 @@ const TRACK = Object.freeze({
   REVERSE_SHADOW: 'REVERSE_SHADOW',
   BOTTOM_LONG: 'BOTTOM_PREMIER_LONG',
   BOTTOM_SHORT: 'BOTTOM_PREMIER_SHORT',
-  LAB: 'LAB_LEAGUE'
+  LAB: 'LAB_LEAGUE',
+  RENKO: 'RENKO_PATTERN_PREMIER'
 });
 
 function num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
@@ -69,9 +70,12 @@ function normalizeState(raw) {
   out.reverseAudit = { evaluated: 0, bound: 0, opened: 0, identityMismatch: 0, last: [], ...(raw?.reverseAudit || {}) };
   out.reverseAudit.last = Array.isArray(out.reverseAudit.last) ? out.reverseAudit.last.slice(0, 50) : [];
   // v5.3 ters işlemleri yanlışlıkla ana aggregate'e yazılmış olabilir.
-  // Ana Premier kasası her okumada yalnız HISTORICAL_POSITIVE satırlarından yeniden kurulur.
+  // Ana Premier kasası her okumada kanonik üst katman satırlarından yeniden kurulur.
+  // ST2 Renko Premier, HISTORICAL_POSITIVE ile aynı sanal üst kasa içinde izlenir; Reverse ayrı kalır.
   const historicalAggregate = blankBucket();
-  for (const row of Object.values(out.byLab)) if (row?.premierTrack === TRACK.HISTORICAL) addBucket(historicalAggregate, row.bucket || {});
+  for (const row of Object.values(out.byLab)) {
+    if ([TRACK.HISTORICAL, TRACK.RENKO].includes(row?.premierTrack)) addBucket(historicalAggregate, row.bucket || {});
+  }
   if (Object.values(out.byLab).some(row => row?.premierTrack)) out.aggregate = historicalAggregate;
   return out;
 }
@@ -456,7 +460,7 @@ function snapshot(pos) {
     upperLayerIncluded: Boolean(decision.upperLayerIncluded), observationPool: decision.premierTrack === TRACK.REVERSE ? 'REVERSE_SEPARATE_LEDGER' : 'PREMIER', samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
   };
   pos.labPremierObservation = observation;
-  const state = readState(); if (decision.upperLayerIncluded && decision.premierTrack === TRACK.HISTORICAL) { state.aggregate.opened++; state.aggregate.active++; }
+  const state = readState(); if (decision.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO].includes(decision.premierTrack)) { state.aggregate.opened++; state.aggregate.active++; }
   if (decision.premierTrack === TRACK.REVERSE) { state.reverseAudit.opened = num(state.reverseAudit.opened) + 1; state.reverseAudit.last = [{ at: observation.openedAt, stage: 'OPENED', symbol: pos.sym || '', sourceLabKey: decision.sourceLabKey, targetLabKey: decision.labKey }, ...(state.reverseAudit.last || [])].slice(0, 50); }
   const row = ensureLabBucket(state, decision); row.bucket.opened++; row.bucket.active++; row.lastUpdatedAt = observation.openedAt;
   state.updatedAt = observation.openedAt; writeState(state); return observation;
@@ -474,7 +478,7 @@ function close(pos, result = {}) {
   const observation = pos?.labPremierObservation; if (!observation) return null;
   const net = num(result.net ?? result.netKarZarar); const commission = Math.max(0, num(result.commission ?? result.komisyon));
   const outcome = outcomeFrom(result); const closedAt = new Date().toISOString(); const state = readState();
-  if (observation.upperLayerIncluded && observation.premierTrack === TRACK.HISTORICAL) applyClosed(state.aggregate, net, commission, outcome);
+  if (observation.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO].includes(observation.premierTrack)) applyClosed(state.aggregate, net, commission, outcome);
   const decision = pos.labPremierDecision || {
     labKey: observation.labKey, labDnaId: observation.labDnaId, labDnaLabel: observation.labDnaLabel,
     familyDnaLabel: observation.familyDnaLabel, proofLevel: observation.proofLevel, premierTrack: observation.premierTrack,

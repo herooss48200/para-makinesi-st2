@@ -4,6 +4,7 @@
  */
 const VERSION = 'v5.4.2-REPORT-CONSISTENCY-FIX';
 const runtimeVersion = require('./versiyon.js');
+const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,v))}
 function signed(v,d=2){const x=n(v);return `${x>=0?'+':''}${x.toFixed(d)}`}
@@ -35,9 +36,9 @@ function build(activePositions=[]){
 }
 function commentary(d){
   const lines=[]; const p=d.model.aggregate||{}; const r=d.model.trackMetrics?.reverse||{};
-  lines.push(n(p.net)>0&&n(p.profitFactor)>1?'✅ Premier ekonomisi pozitif.':'⚠️ Premier ekonomisi henüz pozitif kanıt üretmiyor.');
-  if(n(r.closed)===0)lines.push('☠️ Negative League ters gölge için ilk bilimsel kapanışlar bekleniyor.');
-  else lines.push(n(r.net)>0&&n(r.profitFactor)>1?'✅ Negative League ters gölge pozitif ekonomi üretiyor.':'⚠️ Negative League ters gölge henüz pozitif değil.');
+  if(n(p.closed)===0) lines.push('⏳ İlk Premier bilimsel kapanışları bekleniyor.');
+  else lines.push(n(p.net)>0&&n(p.profitFactor)>1?'✅ Premier sonuç ekonomisi pozitif.':'⚠️ Premier sonuç ekonomisi henüz pozitif değil.');
+  if(n(r.closed)>0) lines.push(n(r.net)>0&&n(r.profitFactor)>1?'✅ Negative League ters gölge pozitif ekonomi üretiyor.':'⚠️ Negative League ters gölge henüz pozitif değil.');
   if(d.changes.reverseCandidates)lines.push(`🔥 ${d.changes.reverseCandidates} Reverse Premier adayı kanıt kapısını geçti.`);
   if(d.changes.exitChanges)lines.push(`🎯 ${d.changes.exitChanges} Premier yeni işlemde güncel Exit alacak.`);
   if(d.changes.stopReady||d.changes.beReady)lines.push(`🧬 Yaşam kanıtı: Stop ${d.changes.stopReady} | BE ${d.changes.beReady} hazır.`);
@@ -46,23 +47,34 @@ function commentary(d){
 function telegram(activePositions=[], prebuilt=null){
   const d=prebuilt||build(activePositions); const m=d.model; const a=m.aggregate||{}; const r=m.trackMetrics?.reverse||{}; const l=m.league||{}; const ac=m.accounting||{};
   const displayVersion = runtimeVersion.botSurumu || runtimeVersion.kod || VERSION;
+  const renko = renkoEntryEvolution.summary();
+  const renkoPremierPatterns = Number(renko.total?.premier || (renko.profiles||[]).filter(x=>x.premier).length || 0);
+  const livePremier = (activePositions||[]).filter(p=>p?.labPremierObservation?.upperLayerIncluded===true || p?.labPremierDecision?.upperLayerIncluded===true).length;
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
-  t+=`💰 Premier: N${n(a.closed)} | ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
-  t+=`☠️ Reverse: N${n(r.closed)} | ✅${n(r.tp)} ❌${n(r.sl)} ⚖️${n(r.be)} | WR %${(n(r.tp)+n(r.sl))?((n(r.tp)/(n(r.tp)+n(r.sl)))*100).toFixed(1):'0.0'} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)} | Exp ${signed(r.expectancy,4)}\n`;
-  t+=`🏆 Ligler: Premier ${n(l.historicalPositiveCount)} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
+  t+=`🧬 Renko Premier Pattern ${renkoPremierPatterns} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
+  t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
+  if(n(r.opened)||n(r.active)||n(r.closed)||d.candidates.length){
+    t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;
+  }
+  t+=`🏆 Ligler: Premier Pattern ${renkoPremierPatterns} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
   t+=`📦 Premier gözlem defteri: Bilimsel aktif ${n(ac.activeScientific)} | Premier GAP aktif ${n(ac.activeGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;
-  t+='\n🏆 <b>PREMIER KARAR VE FORM ÖZETİ</b>\n';
-  const top=d.premier.slice(0,5); t+=top.length?top.map(x=>`${x.labDnaLabel} | Skor ${x.selectionI2.score} | ${x.form} | Yeni N${n(x.liveMetrics?.closed)} Net${signed(x.liveMetrics?.net)}`).join('\n'):'⏳ Premier adayı yok.';
-  t+='\n\n☠️ <b>NEGATIVE LEAGUE SONUÇ DEFTERİ</b>\n';
-  t+=`Açılan ${n(r.opened)} | Aktif ${n(r.active)} | Kapanan ${n(r.closed)} | TP ${n(r.tp)} SL ${n(r.sl)} BE ${n(r.be)}\n`;
-  t+=`Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)} | Exp ${signed(r.expectancy,4)} | Reverse aday ${d.candidates.length}\n`;
-  if(d.candidates.length)t+=d.candidates.slice(0,5).map(x=>`🔥 ${x.sourceLabDnaLabel||x.labDnaLabel} → ${x.reverseTargetLabDnaLabel||x.executionSide} | N${n(x.liveMetrics?.closed)} Net${signed(x.liveMetrics?.net)} PF${pf(x.liveMetrics?.profitFactor)}`).join('\n')+'\n';
-  t+='\n📈 <b>BUGÜN DEĞİŞENLER / ÖĞRENME</b>\n';
-  t+=`📈 Güçlenen ${d.changes.strengthening} | 📉 Zayıflayan ${d.changes.weakening} | 🎯 Exit değişecek ${d.changes.exitChanges}\n`;
-  t+=`🛡 Stop hazır ${d.changes.stopReady} | 💰 BE hazır ${d.changes.beReady} | 🔁 Reverse aday ${d.changes.reverseCandidates}\n`;
-  t+='\n🧠 <b>AGROS YORUMU</b>\n'+commentary(d).join('\n');
-  t+='\n\n🔒 Selection Intelligence 2.0 bu sürümde açıklama/sıralama katmanıdır; Trade Engine karar kapısını değiştirmez.';
+  const top=d.premier.slice(0,5);
+  if(top.length){
+    t+='\n🏆 <b>PREMIER KARAR VE FORM ÖZETİ</b>\n';
+    t+=top.map(x=>`${x.labDnaLabel} | Skor ${x.selectionI2.score} | ${x.form} | Yeni N${n(x.liveMetrics?.closed)} Net${signed(x.liveMetrics?.net)}`).join('\n');
+  }
+  if(d.candidates.length){
+    t+='\n\n☠️ <b>NEGATIVE LEAGUE / REVERSE ADAYLARI</b>\n';
+    t+=d.candidates.slice(0,5).map(x=>`🔥 ${x.sourceLabDnaLabel||x.labDnaLabel} → ${x.reverseTargetLabDnaLabel||x.executionSide} | N${n(x.liveMetrics?.closed)} Net${signed(x.liveMetrics?.net)} PF${pf(x.liveMetrics?.profitFactor)}`).join('\n');
+  }
+  const changeTotal=Object.values(d.changes).reduce((sum,x)=>sum+n(x),0);
+  if(changeTotal){
+    t+='\n\n📈 <b>DEĞİŞENLER / ÖĞRENME</b>\n';
+    t+=`📈 Güçlenen ${d.changes.strengthening} | 📉 Zayıflayan ${d.changes.weakening} | 🎯 Exit ${d.changes.exitChanges}\n`;
+    t+=`🛡 Stop ${d.changes.stopReady} | 💰 BE ${d.changes.beReady} | 🔁 Reverse ${d.changes.reverseCandidates}\n`;
+  }
+  const yorum=commentary(d); if(yorum.length)t+='\n\n🧠 <b>AGROS YORUMU</b>\n'+yorum.join('\n');
   return t;
 }
 module.exports={VERSION,componentScore,build,commentary,telegram};

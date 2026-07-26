@@ -20,9 +20,11 @@ async function baslat() {
     console.log(`🧩 Versiyon: ${versiyonBilgi.kisaOzet()}`);
 
     try {
+        kaliciHafiza.yukle();
+        const safeStartup = require('./74_st2_safe_startup.js');
+        safeStartup.verifyOrThrow();
         await piyasa.sembolleriYukle();
         await piyasa.acikPozisyonlariBorsadanDevral();
-        kaliciHafiza.yukle();
         accountingContinuity.initializeMigration();
         kaliciHafiza.kaydet('accounting-continuity-migration');
         await revizyon.derinGecmisiInsaEt();
@@ -102,7 +104,7 @@ async function baslat() {
                 // Ayarlanan dakikada bir Telegram'a ayrı mesaj olarak düşer; canlı raporu düzenlemez/silmez.
                 try {
                     const blackbox = require('./8_blackbox.js');
-                    if (blackbox.istatistikDakikaRaporGerekli && blackbox.istatistikDakikaRaporGerekli()) {
+                    if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && blackbox.istatistikDakikaRaporGerekli && blackbox.istatistikDakikaRaporGerekli()) {
                         await h.telegramMesajGonder(blackbox.telegramIstatistikRaporMetni());
                         kaliciHafiza.kaydet('blackbox-dakika-istatistik-raporu-gonderildi');
                     }

@@ -1147,7 +1147,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     // v2.5.1: Her N kapanışta bir ayrı BlackBox istatistik raporu gönder.
     // Canlı rapor içinde özet var; bu rapor ise Telegram'da kaçırılmayacak ayrı analiz mesajıdır.
     try {
-        if (!restartGapIslemi && blackbox.istatistikRaporGerekli && blackbox.istatistikRaporGerekli()) {
+        if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && !restartGapIslemi && blackbox.istatistikRaporGerekli && blackbox.istatistikRaporGerekli()) {
             await h.telegramMesajGonder(blackbox.telegramIstatistikRaporMetni());
             kaliciHafiza.kaydet('blackbox-istatistik-raporu-gonderildi');
         }
