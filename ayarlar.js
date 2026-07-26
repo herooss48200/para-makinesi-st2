@@ -127,7 +127,7 @@ const ayarlar = {
     renkoBbTemasToleransTugla: 0.25, // ST2-only: band yaklaşımı en fazla çeyrek Renko tuğlası
     renkoKanitTuglaSayisi: 10,
     renkoYakinRedKanitSayisi: 3,
-    renkoPusuKanitTelegram: true,
+    renkoPusuKanitTelegram: true, // yalnız kısa açılış özeti + kısa yeni pusu; ayrıntılı proof yalnız log
     renkoOnayPeriyodu: '1m',
     renkoOnayAtrPeriod: 14,
     renkoOnaySuperTrendPeriod: 10,

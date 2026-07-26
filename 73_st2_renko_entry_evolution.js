@@ -326,6 +326,17 @@ function close(pos,result={}){
   const out=applyAccepted(s,pos,result,tradeId,true); const lc=countLedger(); s.health.ledgerRecords=lc.rows; s.health.ledgerStatus=lc.invalid?'DEGRADED':'HEALTHY'; write(s); return out;
 }
 function summaryProfile(p){ const candidates=Object.entries(p?.candidates||{}).map(([key,val])=>({brick:Number(key),...metric(val)})).sort((a,b)=>a.brick-b.brick); return {...p,candidates}; }
+
+function premierFor(yon,pattern){
+  const s=summary();
+  const k=profileKey(yon,pattern);
+  const p=s.profiles.find(x=>x.key===k);
+  if(!p) return {premier:false,reason:'PROFILE_MISSING',patternKey:k,closed:0};
+  const cur=p.candidates.find(x=>Math.abs(n(x.brick)-n(p.activeBrick,DEFAULT_BRICK()))<1e-9)||metric(blankMetric());
+  const premier=n(p.closed)>=5&&n(cur.net)>0&&n(cur.pf)>1&&n(cur.expectancy)>0;
+  return {premier,reason:premier?'ENTRY_EVOLUTION_PREMIER':'ENTRY_EVOLUTION_NOT_READY',patternKey:k,closed:n(p.closed),activeBrick:n(p.activeBrick,DEFAULT_BRICK()),net:n(cur.net),pf:n(cur.pf),expectancy:n(cur.expectancy)};
+}
+
 function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(Math.abs(n(p.activeBrick,DEFAULT_BRICK())-DEFAULT_BRICK())>1e-9) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,DEFAULT_BRICK())); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,health:{...blankHealth(),...(s.health||{})},bridge:s.bridge,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:DEFAULT_BRICK()},recovery:s.recovery||null,total,profiles,decisionChain:{entry:{...blankAudit(),...(s?.decisionChain?.entry||{})},stop:{...blankAudit(),...(s?.decisionChain?.stop||{})},be:{...blankAudit(),...(s?.decisionChain?.be||{})},exit:{...blankAudit(),...(s?.decisionChain?.exit||{})},last:s?.decisionChain?.last||null},bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
 function telegram(){
   const x=summary();
@@ -430,4 +441,4 @@ function telegram(){
   return t;
 }
 
-module.exports={VERSION,STATE_FILE,BACKUP_FILE,LEDGER_FILE,blank,read,write,rebuildFromLedger,deterministicId,legacyStateFiles,recoverHistoricalState,CANDIDATES,DEFAULT_BRICK,FIRST_ASSIGN,RECALC_STEP,RECENT_WINDOW,RECENT_WEIGHT,profileKey,targetPrice,activeFor,close,summary,telegram,metric,choose,replayCandidate,frozenRisk,frozenExit};
+module.exports={VERSION,STATE_FILE,BACKUP_FILE,LEDGER_FILE,blank,read,write,rebuildFromLedger,deterministicId,legacyStateFiles,recoverHistoricalState,CANDIDATES,DEFAULT_BRICK,FIRST_ASSIGN,RECALC_STEP,RECENT_WINDOW,RECENT_WEIGHT,profileKey,targetPrice,activeFor,premierFor,close,summary,telegram,metric,choose,replayCandidate,frozenRisk,frozenExit};

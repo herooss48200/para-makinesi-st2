@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "5.6.4",
-  "description": "AGROS ST2 v5.6.4: persistent Renko Entry + safe-start Renko Exit Evolution and manual Binance reconciliation.",
+  "version": "5.6.6",
+  "description": "AGROS ST2 v5.6.5: scientific tick precision, non-zero monotonic stop safety, no-op persistence guard.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -108,7 +108,11 @@
     "test:v563": "node test_v563_persistent_learning.js",
     "verify:v563": "node --check 73_st2_renko_entry_evolution.js && node --check scripts_st2_clean_reset.js && npm run test:v563 && npm run verify:v562",
     "test:v564": "node test_v564_st2_renko_exit_manual_safety.js",
-    "verify:v564": "node --check 74_st2_renko_exit_evolution.js && node --check motor.js && node --check 4_pozisyon.js && node --check 2_rapor.js && npm run test:v564 && npm run verify:v563"
+    "verify:v564": "node --check 74_st2_renko_exit_evolution.js && node --check motor.js && node --check 4_pozisyon.js && node --check 2_rapor.js && npm run test:v564 && npm run verify:v563",
+    "test:v565": "node test_v565_renko_exit_safety_final.js",
+    "verify:v565": "node --check motor.js && node --check 4_pozisyon.js && node --check 74_st2_renko_exit_evolution.js && npm run test:v565 && npm run test:v564",
+    "test:v566": "node test_v566_renko_premier_binding_clean_telegram.js",
+    "verify:v566": "node --check motor.js && node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check 74_st2_renko_exit_evolution.js && npm run test:v566 && npm run test:v565 && npm run test:v564"
   },
   "dependencies": {
     "axios": "^1.13.2",

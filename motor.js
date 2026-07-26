@@ -1,5 +1,6 @@
 const ayarlar = require('./ayarlar.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
+const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const h = require('./1_hafiza.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
@@ -18,9 +19,17 @@ const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const identityChain = require('./66_identity_chain_repair.js');
 
 function ondalikSayisi(step) {
-    const s = String(step);
+    const n = Number(step);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    const s = String(n).toLowerCase();
+    if (s.includes('e-')) {
+        const [mantissa, exponentText] = s.split('e-');
+        const exponent = Number(exponentText) || 0;
+        const mantissaDecimals = (mantissa.split('.')[1] || '').replace(/0+$/, '').length;
+        return exponent + mantissaDecimals;
+    }
     if (!s.includes('.')) return 0;
-    return s.replace(/0+$/, '').split('.')[1]?.length || 0;
+    return (s.split('.')[1] || '').replace(/0+$/, '').length;
 }
 
 function miktarKlip(sym, miktar) {
@@ -93,12 +102,16 @@ function miktarRedLoglaVePusuyuTemizle(symbol, yon, detay) {
 }
 
 function fiyatKlip(sym, fiyat) {
+    const ham = Number(fiyat);
+    if (!Number.isFinite(ham) || ham <= 0) return 0;
     const kural = h.state.basamaklar[sym];
-    if (!kural) return Number(fiyat.toFixed(4));
-    const tick = kural.tickSize || Math.pow(10, -kural.pricePrecision);
-    const precision = ondalikSayisi(tick);
-    const duzeltilmis = Math.round(fiyat / tick) * tick;
-    return Number(duzeltilmis.toFixed(precision));
+    if (!kural) return Number(ham.toFixed(8));
+    const tick = Number(kural.tickSize) || Math.pow(10, -Number(kural.pricePrecision || 8));
+    if (!Number.isFinite(tick) || tick <= 0) return Number(ham.toFixed(Math.max(0, Number(kural.pricePrecision || 8))));
+    const precision = Math.max(ondalikSayisi(tick), Number(kural.pricePrecision || 0));
+    const duzeltilmis = Math.round(ham / tick) * tick;
+    const sonuc = Number(duzeltilmis.toFixed(Math.min(12, precision)));
+    return Number.isFinite(sonuc) && sonuc > 0 ? sonuc : 0;
 }
 
 const m = {
@@ -240,7 +253,27 @@ const m = {
         try { exitOptimizer.pozisyonBaslat(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] EXIT_INIT_ERROR ${symbol} ${yon} | ${e.message}`); }
         const karar = yeniPozisyon.realOrderReadiness;
         // Önceden dondurulan LAB kararı yeniden uygulanır; yeni karar/kimlik üretilmez.
-        const labKarar = labPremier.applyToPosition(yeniPozisyon, yeniPozisyon.labPremierDecision);
+        let labKarar = labPremier.applyToPosition(yeniPozisyon, yeniPozisyon.labPremierDecision);
+        // ST2 Renko Entry Evolution Premier köprüsü: ikinci emir açmaz; aynı sanal pozisyonu
+        // yalnız Renko bilimsel üst kasasında sınıflandırır. Gerçek emir/Trade Engine yetkisi değişmez.
+        if (girisAnalizi?.entryStrategy === 'ST2_RENKO') {
+            const renkoPremier = renkoEntryEvolution.premierFor(yon, girisAnalizi.patternKodu);
+            yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_RENKO_ENTRY_EVOLUTION' };
+            if (renkoPremier.premier) {
+                labKarar = {
+                    ...(labKarar || {}),
+                    labLeague: 'PREMIER', premierTrack: 'RENKO_PATTERN_PREMIER', proofLevel: 'RENKO_ENTRY_EVOLUTION_PREMIER',
+                    upperLayerIncluded: true, virtualShadowOnly: false, observationEligible: true,
+                    reason: `ST2 Renko ${renkoPremier.patternKey} | N${renkoPremier.closed} | Net ${renkoPremier.net.toFixed(4)} | PF ${renkoPremier.pf.toFixed(2)} | Exp ${renkoPremier.expectancy.toFixed(4)}`
+                };
+                yeniPozisyon.labPremierDecision = labKarar;
+                yeniPozisyon.labLeagueAtOpen = 'PREMIER';
+                yeniPozisyon.premierTrackAtOpen = 'RENKO_PATTERN_PREMIER';
+                yeniPozisyon.labProofLevelAtOpen = 'RENKO_ENTRY_EVOLUTION_PREMIER';
+                yeniPozisyon.leagueShadowOnly = false;
+                console.log(`🏆 [ST2 RENKO PREMIER BINDING] ${symbol} ${yon} | ${renkoPremier.patternKey} | N${renkoPremier.closed} Net ${renkoPremier.net.toFixed(4)} PF ${renkoPremier.pf.toFixed(2)} Exp ${renkoPremier.expectancy.toFixed(4)}`);
+            }
+        }
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         // Eski Family Premier gözlemi yeni pozisyonlarda üst katman değildir; yalnız açık eski pozisyonların kapanış uyumu korunur.
         try { if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] PREMIER_OBSERVATION_ERROR ${symbol} ${yon} | ${e.message}`); }

@@ -1350,6 +1350,22 @@ async function stopGuncellemeMesajiGonder(pos, oncekiSl, yeniSl, canliFiyat, san
     pos.sonStopBildirimZamani = Date.now();
 }
 
+function guvenliStopUygula(pos, oncekiSl, adaySl) {
+    const onceki = Number(oncekiSl);
+    const aday = Number(adaySl);
+    if (!Number.isFinite(onceki) || onceki <= 0) return { applied: false, reason: 'ONCEKI_STOP_GECERSIZ', value: onceki };
+    if (!Number.isFinite(aday) || aday <= 0) return { applied: false, reason: 'ADAY_STOP_GECERSIZ', value: onceki };
+    const klipli = m.fiyatKlip(pos.sym, aday);
+    if (!Number.isFinite(klipli) || klipli <= 0) return { applied: false, reason: 'KLIP_SONRASI_STOP_GECERSIZ', value: onceki };
+    const tick = Number(h.state.basamaklar[pos.sym]?.tickSize) || Math.pow(10, -(h.state.basamaklar[pos.sym]?.pricePrecision ?? 8));
+    const epsilon = Math.max(Number.EPSILON, tick / 2);
+    const iyilesiyor = pos.yon === 'LONG' ? klipli > onceki + epsilon : klipli < onceki - epsilon;
+    if (!iyilesiyor) return { applied: false, reason: Math.abs(klipli - onceki) <= epsilon ? 'NO_OP' : 'MONOTON_STOP_KORUMASI', value: onceki };
+    pos.sl = klipli;
+    pos.renkoExitSafetyRejectReason = null;
+    return { applied: true, reason: 'APPLIED', value: klipli };
+}
+
 async function izSurmeyiGuncelle() {
     if (h.state.aktifPozisyonlar.length === 0) return;
 
@@ -1399,18 +1415,29 @@ async function izSurmeyiGuncelle() {
             }
 
             const dynamicAktif = dynamicKarar.active === true;
-            const oncekiSl = pos.sl;
-            const guncellendi = renkoKarar.active ? Boolean(renkoKarar.changed) : (dynamicAktif ? false : trailingHesapla(pos, canliFiyat));
-            if (guncellendi) {
-                pos.sl = m.fiyatKlip(pos.sym, pos.sl);
-                exitOptimizer.stopKaydet(pos, oncekiSl, pos.sl, canliFiyat, { kaynak: 'SANAL' });
-                console.log(`🧪 [SANAL STOP GÜNCELLENDİ] ${pos.sym} ${pos.yon} | ${oncekiSl.toFixed(pPrecision)} → ${pos.sl.toFixed(pPrecision)}`);
-                if (stopBildirimGerekli(pos, oncekiSl, pos.sl, canliFiyat)) {
-                    await stopGuncellemeMesajiGonder(pos, oncekiSl, pos.sl, canliFiyat, true);
-                    await rapor.raporGonder(true);
+            const oncekiSl = Number(pos.sl);
+            const hamGuncellendi = renkoKarar.active ? Boolean(renkoKarar.changed) : (dynamicAktif ? false : trailingHesapla(pos, canliFiyat));
+            if (hamGuncellendi) {
+                const adaySl = Number(pos.sl);
+                pos.sl = oncekiSl;
+                const safety = guvenliStopUygula(pos, oncekiSl, adaySl);
+                if (!safety.applied) {
+                    pos.renkoExitSafetyRejectReason = safety.reason;
+                    if (safety.reason !== 'NO_OP' && pos.renkoExitLastSafetyLog !== safety.reason) {
+                        console.warn(`🛡️ [RENKO STOP REDDEDİLDİ] ${pos.sym} ${pos.yon} | ${safety.reason} | Önceki ${oncekiSl} | Aday ${adaySl}`);
+                        pos.renkoExitLastSafetyLog = safety.reason;
+                    }
+                } else {
+                    pos.renkoExitLastSafetyLog = null;
+                    exitOptimizer.stopKaydet(pos, oncekiSl, pos.sl, canliFiyat, { kaynak: 'SANAL' });
+                    console.log(`🧪 [SANAL STOP GÜNCELLENDİ] ${pos.sym} ${pos.yon} | ${oncekiSl.toFixed(pPrecision)} → ${pos.sl.toFixed(pPrecision)}`);
+                    if (stopBildirimGerekli(pos, oncekiSl, pos.sl, canliFiyat)) {
+                        await stopGuncellemeMesajiGonder(pos, oncekiSl, pos.sl, canliFiyat, true);
+                        await rapor.raporGonder(true);
+                    }
+                    pos.breakevenYeniAktif = false;
+                    kaliciHafiza.kaydet('sanal-stop-guncellendi');
                 }
-                pos.breakevenYeniAktif = false;
-                kaliciHafiza.kaydet('sanal-stop-guncellendi');
             }
 
             const kapanis = sanalKapanisKontrol(pos, canliFiyat);

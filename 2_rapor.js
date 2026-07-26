@@ -336,8 +336,14 @@ function canliRaporMetniOlustur() {
         const operationOzeti = operationIntelligence.telegram(tumAktifler, operationModel);
         mesaj += `${operationOzeti}\n`;
         const premierSonuc = operationModel.model?.aggregate || {};
-        const golgeSonuc = renkoEntryEvolution.summary().total || {};
+        const entryEvolutionModel = renkoEntryEvolution.summary();
+        const golgeSonuc = entryEvolutionModel.total || {};
+        const renkoPremierPattern = (entryEvolutionModel.profiles || []).filter(p => {
+            const cur=(p.candidates||[]).find(x=>Math.abs(Number(x.brick)-Number(p.activeBrick))<1e-9)||{};
+            return Number(p.closed)>=5&&Number(cur.net)>0&&Number(cur.pf)>1&&Number(cur.expectancy)>0;
+        }).length;
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
+        mesaj += `🧬 Renko tarihsel Premier pattern: ${renkoPremierPattern} | Canlı Premier pozisyon: ${aktifler.length}\n`;
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
         mesaj += `👻 Gölge/LAB: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
         mesaj += `
@@ -643,13 +649,13 @@ async function st2EntryEvolutionDetayiGonderGerekirse(oneCikar = false) {
 
 async function st2ExitEvolutionDetayiGonderGerekirse(oneCikar = false) {
     if (ayarlar.entryStrategyMode !== 'ST2_RENKO' || ayarlar.renkoCikisEvolutionAktif !== true) return;
-    const x = renkoExitEvolution.summary();
+    const x = renkoExitEvolution.summary(h.state.aktifPozisyonlar || []);
     const totalClosed = x.profiles.reduce((a,p)=>a+Number(p.closed||0),0);
     const imza = `${totalClosed}|${x.profiles.length}|${x.state.updatedAt||''}`;
     if (!oneCikar && sonSt2ExitEvolutionDetayImzasi === imza) return;
-    if (!oneCikar && totalClosed === 0) return;
+    // Sıfır kapanışta da atama/fallback görünürlüğü korunur.
     try {
-        const sonuclar = await h.telegramMesajGonder(renkoExitEvolution.telegram());
+        const sonuclar = await h.telegramMesajGonder(renkoExitEvolution.telegram(h.state.aktifPozisyonlar || []));
         const liste = Array.isArray(sonuclar) ? sonuclar : [];
         if (!(liste.length > 0 && liste.every(x => x?.sonuc?.ok === true))) return;
         sonSt2ExitEvolutionDetayImzasi = imza;
