@@ -1,8 +1,0 @@
-AGROS v5.2.0 TEST RESULT
-Date: 2026-07-22
-PASS: node --check 67_real_order_preparation_intelligence.js
-PASS: node --check 2_rapor.js
-PASS: node --check ayarlar.js
-PASS: node --check versiyon.js
-PASS: npm run test:v520
-NOTE: Full v5.1.0 regression suite could not be executed in this container because dependency installation timed out before dotenv was installed.

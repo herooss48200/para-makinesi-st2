@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "instanceId": "ST2",
-  "appName": "AGROS ST2",
-  "packageName": "para-makinesi-st2",
-  "repository": "para-makinesi-st2",
-  "dataDirectory": "data",
-  "logDirectory": "logs-st2"
-}

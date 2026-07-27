@@ -708,25 +708,11 @@ async function raporGonder(oneCikar = false) {
         await st2EntryEvolutionDetayiGonderGerekirse(oneCikar);
         await st2ExitEvolutionDetayiGonderGerekirse(oneCikar);
 
-        const ramTrace = (etiket) => {
-            const m = memorySafeIo.ramMb();
-            console.log(`🧠 [RAM TRACE] ${etiket} | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);
-        };
-        ramTrace('Rapor zinciri başlangıç');
-        await learningValidationRaporuGonderGerekirse();
-        ramTrace('Learning Validation sonrası');
-        await exitEvolutionDashboardGonderGerekirse();
-        ramTrace('Exit Evolution sonrası');
-        await exitVictoryVeDnaKartlariGonderGerekirse();
-        ramTrace('Exit Victory + DNA Cards sonrası');
-        await realOrderPreparationRaporuGonderGerekirse();
-        ramTrace('Gerçek emir hazırlığı sonrası');
-        await labChampionRaporuGonderGerekirse();
-        ramTrace('Lab Champion sonrası');
-        await labPremierRaporuGonderGerekirse();
-        ramTrace('LAB Premier sonrası');
-        await st1FinalCertificationRaporuGonderGerekirse();
-        ramTrace('ST2 Final Certification sonrası');
+        // v6.2.0 CLEAN CORE: Eski ST1/LAB türev panelleri Telegram zincirinden tamamen ayrıldı.
+        // Bu modüller geriye dönük runtime bağımlılıkları için kaynakta bulunabilir; ancak rapor,
+        // Premier/Shadow kararı, Entry/Exit Evolution veya N3 terfisi üzerinde yetkileri yoktur.
+        const m = memorySafeIo.ramMb();
+        console.log(`🧠 [ST2 CLEAN REPORT] Yalnız Premier/Shadow + Entry/Exit/Renko + Global Historical | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     } finally {

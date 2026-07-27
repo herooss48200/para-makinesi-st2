@@ -1,6 +1,0 @@
-cd ~/apps/para-makinesi-st2
-git pull origin main
-npm test
-pm2 restart agros-st2 --update-env
-pm2 save
-grep -nE "6\\.1\\.5|ST2 HISTORICAL ENTRY GATE|PREMIER|SHADOW|RENKO ÇIKIŞ YÖNETİMİ|ERROR|Unhandled|uncaught" logs-st2/agros-st2-out.log logs-st2/agros-st2-error.log | tail -300

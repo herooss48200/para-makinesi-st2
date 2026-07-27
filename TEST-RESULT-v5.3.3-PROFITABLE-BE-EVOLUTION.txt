@@ -1,9 +1,0 @@
-AGROS ST1 v5.3.3 Profitable BE Evolution
-
-Beklenen doğrulama:
-- v5.3.0 FINAL PLUS regresyonu
-- v5.3.1 canlı Premier raporu
-- v5.3.2 DNA Stop Evolution regresyonu
-- v5.3.3 Profitable BE Evolution
-
-Komut: npm run verify:v533
