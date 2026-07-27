@@ -8,7 +8,7 @@
 const adaptive = require('./76_st2_adaptive_dna_entry.js');
 const crypto = require('crypto');
 
-const VERSION = 'v6.3.2-EXACT-DNA-PREMIER-INTELLIGENCE';
+const VERSION = 'v6.3.3-EXACT-DNA-LIVE-OBSERVABILITY';
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function r(v,d=4){return Number(n(v).toFixed(d));}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,n(v)));}
@@ -125,8 +125,9 @@ function telegram(limit=10){
   for(const p of reg.profiles.slice(0,limit)){
     const c=p.context,d=p.decision,cf=p.confidence,e=p.expectation,ev=p.evolution,near=p.nearest?.[0];
     const hist=d.historical||null, id=shortId(p.key), reason=statusReason(p);
+    const league=adaptive.positiveEvidence(hist,adaptive.HISTORICAL_PREMIER_MIN_N())?'PREMIER':'SHADOW';
     t+=`
-🧬 <b>DNA ${id} | ${c.yon} ${c.pattern}</b> | Güven ${cf.score}/100 ${cf.grade}
+🧬 <b>DNA ${id} | ${c.yon} ${c.pattern}</b> | Güven ${cf.score}/100 | Lig ${league} | Güven sınıfı ${cf.grade}
 `+
       `🔑 Exact ${id} | RBB=${c.rbb} | RBBW=${c.rbbw} | RENKO6=${c.renko6}
 `+

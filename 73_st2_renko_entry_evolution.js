@@ -15,7 +15,7 @@ const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 
-const VERSION = 'v5.6.3-CLEAN-SCIENTIFIC-RESET-PERSISTENT-LEARNING';
+const VERSION = 'v6.3.3-FINAL-OBSERVABILITY-AUDIT-RECONCILIATION';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-renko-entry-evolution.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -135,6 +135,15 @@ function read(){
   let current=hydrate(x||blank());
   if(process.env.AGROS_ST2_LEGACY_DATA_DIR) current=recoverHistoricalState(current);
   current.health={...current.health,...Object.fromEntries(Object.entries(base).map(([k,v])=>[k,n(current.health[k])+v]))};
+  // v6.3.3: v6.3.2 öncesindeki mutlak fiyat eşitliği denetimi, canlı fiyatın tetik seviyesini
+  // yönsel olarak geçerek açılmasını yanlış biçimde "eşleşmeyen" sayıyordu. Öğrenme kayıtları
+  // korunur; yalnız eski audit sayacı ayrı bir legacy snapshot'a taşınır ve yeni yönsel audit sıfırdan başlar.
+  const legacyEntry=current?.decisionChain?.entry||{};
+  if(n(legacyEntry.mismatched)>0 && Object.keys(legacyEntry.reasons||{}).length===0 && !current.legacyEntryAuditV632){
+    current.legacyEntryAuditV632={...legacyEntry,migratedAt:new Date().toISOString(),reason:'PRE_V632_ABSOLUTE_PRICE_MATCH_AUDIT'};
+    current.decisionChain.entry=blankAudit();
+    recovered=true;
+  }
   const lc=countLedger(); current.health.ledgerRecords=lc.rows; current.health.ledgerStatus=!fs.existsSync(LEDGER_FILE)?'EMPTY':(lc.invalid?'DEGRADED':'HEALTHY'); current.health.stateStatus=stateWeight(current)>0?'HEALTHY':'EMPTY'; current.health.loadedAfterRestart=Object.keys(current.processedIds).length;
   if(recovered) current=safeWrite(current,{allowEmpty:true});
   return current;
@@ -338,7 +347,7 @@ function premierFor(sourceOrYon,pattern){
   catch(e) { return {premier:false,reason:`ADAPTIVE_PREMIER_ERROR:${e.message}`,patternKey:profileKey(typeof sourceOrYon==='object'?sourceOrYon?.yon:sourceOrYon,pattern),closed:0,activeBrick:DEFAULT_BRICK(),net:0,pf:0,expectancy:0}; }
 }
 
-function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(Math.abs(n(p.activeBrick,DEFAULT_BRICK())-DEFAULT_BRICK())>1e-9) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,DEFAULT_BRICK())); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,health:{...blankHealth(),...(s.health||{})},bridge:s.bridge,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:DEFAULT_BRICK()},recovery:s.recovery||null,total,profiles,decisionChain:{entry:{...blankAudit(),...(s?.decisionChain?.entry||{})},stop:{...blankAudit(),...(s?.decisionChain?.stop||{})},be:{...blankAudit(),...(s?.decisionChain?.be||{})},exit:{...blankAudit(),...(s?.decisionChain?.exit||{})},last:s?.decisionChain?.last||null},bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
+function summary(){ const s=read(); const profiles=Object.values(s.profiles||{}).map(summaryProfile); const total={profiles:profiles.length,closed:0,tp:0,sl:0,be:0,net:0,assigned:0}; for(const p of profiles){ total.closed+=n(p.closed); if(Math.abs(n(p.activeBrick,DEFAULT_BRICK())-DEFAULT_BRICK())>1e-9) total.assigned++; const cur=p.candidates.find(x=>x.brick===n(p.activeBrick,DEFAULT_BRICK())); if(cur){total.tp+=n(cur.tp);total.sl+=n(cur.sl);total.be+=n(cur.be);total.net+=n(cur.net);} } return {version:VERSION,health:{...blankHealth(),...(s.health||{})},bridge:s.bridge,policy:{candidates:CANDIDATES(),firstAssign:FIRST_ASSIGN(),recalcStep:RECALC_STEP(),recentWindow:RECENT_WINDOW(),recentWeight:RECENT_WEIGHT(),defaultBrick:DEFAULT_BRICK()},recovery:s.recovery||null,total,profiles,decisionChain:{entry:{...blankAudit(),...(s?.decisionChain?.entry||{})},stop:{...blankAudit(),...(s?.decisionChain?.stop||{})},be:{...blankAudit(),...(s?.decisionChain?.be||{})},exit:{...blankAudit(),...(s?.decisionChain?.exit||{})},last:s?.decisionChain?.last||null,legacyEntryAuditV632:s?.legacyEntryAuditV632||null},bridge:{calls:n(s?.bridge?.calls),accepted:n(s?.bridge?.accepted),skipped:{...(s?.bridge?.skipped||{})},last:s?.bridge?.last||null}}; }
 function telegram(){
   const x=summary();
   const profiles=x.profiles.slice().sort((a,b)=>b.closed-a.closed);
@@ -407,6 +416,10 @@ function telegram(){
   t+=`
 🔗 <b>KARAR ZİNCİRİ — ATANAN / UYGULANAN</b>
 `;
+  if(x.decisionChain?.legacyEntryAuditV632){
+    const la=x.decisionChain.legacyEntryAuditV632;
+    t+=`ℹ️ Eski giriş audit ayrıştırıldı: Atanan ${n(la.assigned)} | Eski eşleşen ${n(la.matched)} | Eski şüpheli ${n(la.mismatched)} | Yeni yönsel audit yalnız v6.3.3 sonrası kapanışlarla dolar.\n`;
+  }
   for(const [key,label] of [['entry','🎯 Giriş'],['stop','🛡 Stop'],['be','⚖️ BE'],['exit','🏁 Exit']]){
     const a=x.decisionChain[key]||{};
     if(n(a.assigned)===0) t+=`${label}: Atanan 0 | Uygulanan 0 | Henüz doğrulanmış örnek yok | Eksik veri ${n(a.missing)}\n`;

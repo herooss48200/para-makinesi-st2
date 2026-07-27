@@ -15,5 +15,5 @@ ok(motor.includes('[EXACT-CONTEXT PREMIER SANAL POZİSYON]'),'open Premier title
 ok(motor.includes('[EXACT-CONTEXT SHADOW ÖĞRENME]'),'open Shadow title missing');
 ok(close.includes('[EXACT-CONTEXT PREMIER SANAL POZİSYON KAPANDI]'),'close Premier title missing');
 ok(close.includes('[EXACT-CONTEXT SHADOW ÖĞRENME KAPANDI]'),'close Shadow title missing');
-ok(version.includes('6.3.2-EXACT-DNA-PREMIER-SHADOW-RECONCILIATION'),'current version missing');
+ok(/6\.3\.[2-9]-/.test(version),'current version missing');
 console.log('✅ v6.2.2 exact-context compatibility passed under v6.3.2');

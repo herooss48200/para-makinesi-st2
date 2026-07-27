@@ -322,6 +322,16 @@ function canliRaporMetniOlustur() {
 
     const longPusu = pusuDegerleri.filter(x => String(x.yon || '').toUpperCase() === 'LONG').length;
     const shortPusu = pusuDegerleri.filter(x => String(x.yon || '').toUpperCase() === 'SHORT').length;
+    const pusuDnaDagilimi = {premier:0,shadow:0,unknown:0,reasons:{}};
+    for (const pusu of pusuDegerleri) {
+        try {
+            const gate = adaptiveDnaEntry.gateDecision(pusu, Number(pusu?.renkoEntryBrickDistance || 0.75));
+            if (gate.executionMode === 'PREMIER') pusuDnaDagilimi.premier++;
+            else pusuDnaDagilimi.shadow++;
+            const reason=gate.reason||'UNKNOWN'; pusuDnaDagilimi.reasons[reason]=(pusuDnaDagilimi.reasons[reason]||0)+1;
+        } catch (_) { pusuDnaDagilimi.unknown++; }
+    }
+    const aktifShadowlar = tumAktifler.filter(p => p?.leagueShadowOnly === true && !p?.restartGap && !p?.restartRecovered);
 
     const listeLimiti = Math.min(10, aktifler.length);
     const sirali = [...aktifler].sort((a, b) => pozisyonKarYuzde(b) - pozisyonKarYuzde(a));
@@ -367,6 +377,13 @@ function canliRaporMetniOlustur() {
 `;
         mesaj += `🎯 <b>Aktif Pusu:</b> ${pusuDegerleri.length} | 🟢 ${longPusu} | 🔴 ${shortPusu}
 `;
+        mesaj += `🧬 <b>Pusu DNA adayı:</b> 🏆 Premier ${pusuDnaDagilimi.premier} | 👻 Shadow ${pusuDnaDagilimi.shadow} | ❓ Eksik ${pusuDnaDagilimi.unknown}
+`;
+        if (aktifShadowlar.length) {
+            const shadowRows=aktifShadowlar.slice(0,3).map(p=>`${pozisyonSembol(p)} ${pozisyonYon(p)} | Exact ${String(p?.renkoPremierDecision?.dnaKey||'YOK').slice(0,10)} | ${p?.renkoPremierDecision?.reason||'SHADOW'} | N3 ${Number(p?.renkoPremierDecision?.liveN||0)}/3`);
+            mesaj += `👻 <b>Aktif Shadow kanıtı:</b> ${shadowRows.join(' || ')}${aktifShadowlar.length>3?` | +${aktifShadowlar.length-3} kayıt`:''}
+`;
+        }
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 ${ayarlar.entryStrategyMode === 'ST2_RENKO' ? st2AnaRaporOgrenmeOzeti() : learningEvolutionOzetMetni(s)}

@@ -1,0 +1,14 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const report=fs.readFileSync('2_rapor.js','utf8');
+const entry=fs.readFileSync('73_st2_renko_entry_evolution.js','utf8');
+const dna=fs.readFileSync('77_st2_pattern_dna_intelligence.js','utf8');
+const version=require('./versiyon.js');
+assert.ok(String(version.VERSIYON||version.version||version.surum||'').includes('6.3.3') || JSON.stringify(version).includes('6.3.3'));
+assert.ok(report.includes('Pusu DNA adayı'));
+assert.ok(report.includes('Aktif Shadow kanıtı'));
+assert.ok(entry.includes('legacyEntryAuditV632'));
+assert.ok(entry.includes('PRE_V632_ABSOLUTE_PRICE_MATCH_AUDIT'));
+assert.ok(dna.includes('Lig ${league} | Güven sınıfı ${cf.grade}'));
+console.log('✅ v6.3.3 final observability + audit reconciliation passed');
