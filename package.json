@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.2.0-st2-legacy-isolation-clean-premier-shadow-core",
+  "version": "6.2.1-telegram-resilience-29-coin-ready",
   "description": "AGROS ST2 v6.2.0: clean Renko exact-context Premier/Shadow core; legacy ST1/LAB Telegram and decision surfaces isolated; Trade Engine unchanged.",
   "main": "bot.js",
   "scripts": {
@@ -149,7 +149,8 @@
     "test:v616": "node test_v616_final_operations_safety.js",
     "verify:v616": "node --check bot.js && node --check 2_rapor.js && node --check 4_pozisyon.js && node --check 73_st2_renko_entry_evolution.js && node --check 78_st2_global_historical_reconciliation.js && node --check versiyon.js && npm run test:v616 && npm run verify:v615",
     "test:v620": "node test_v620_legacy_isolation_clean_core.js",
-    "verify:v620": "node --check 2_rapor.js && node --check versiyon.js && node test_v620_legacy_isolation_clean_core.js && node test_v616_final_operations_safety.js && node test_v615_premier_shadow_n3_cycle.js && node test_v614_historical_context_entry_gate.js && node test_v613_global_historical_completion.js"
+    "verify:v620": "node --check 2_rapor.js && node --check versiyon.js && node test_v620_legacy_isolation_clean_core.js && node test_v616_final_operations_safety.js && node test_v615_premier_shadow_n3_cycle.js && node test_v614_historical_context_entry_gate.js && node test_v613_global_historical_completion.js",
+    "test:v621": "node test_v621_telegram_resilience_29_coin_ready.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

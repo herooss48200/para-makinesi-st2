@@ -1,0 +1,9 @@
+git pull origin main
+npm run test:v621
+npm run test:v620
+node test_v616_final_operations_safety.js
+node test_v615_premier_shadow_n3_cycle.js
+node test_v614_historical_context_entry_gate.js
+node test_v613_global_historical_completion.js
+pm2 reload ecosystem.config.js --only agros-st2 --update-env
+pm2 save

@@ -15,4 +15,4 @@ g=a.gateDecision(bad,0.75);assert.equal(g.action,'BLOCK');assert.equal(g.reason,
 // same context last-3 live winner switches active entry
 const c=a.contextFrom(good),key=a.dnaKey(c);const st=a.blank();st.dnaProfiles[key]={key,patternKey:a.patternKey(c),context:c,closes:[0,1,2].map(i=>({tradeId:'x'+i,candidates:{'0.50':{net:0.01,triggered:true},'1.00':{net:0.30,triggered:true}}})),changes:[]};a.save(st);
 g=a.gateDecision(good,0.75);assert.equal(g.action,'ALLOW');assert.equal(g.brick,1.00);assert.equal(g.reason,'LIVE_LAST3_WINNER');
-console.log('✅ v6.1.4 historical context entry gate passed | 30/30 + ALLOW/BLOCK + live N3 leader');
+console.log('✅ v6.1.4 historical context entry gate passed | 29/29 + ALLOW/BLOCK + live N3 leader');

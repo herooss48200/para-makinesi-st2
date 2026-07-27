@@ -70,7 +70,15 @@ const state = {
 const TELEGRAM_CHAT_IDS = (process.env.AGROS_ST2_TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);
 const TELEGRAM_TOKEN = process.env.AGROS_ST2_TELEGRAM_TOKEN;
 
-function yerelTelegramIstegiAt(path, veri) {
+const TELEGRAM_TIMEOUT_MS = Math.max(12000, Number(process.env.AGROS_ST2_TELEGRAM_TIMEOUT_MS || 30000));
+const TELEGRAM_RETRY_COUNT = Math.max(0, Math.min(3, Number(process.env.AGROS_ST2_TELEGRAM_RETRY_COUNT || 2)));
+const TELEGRAM_MIN_INTERVAL_MS = Math.max(100, Number(process.env.AGROS_ST2_TELEGRAM_MIN_INTERVAL_MS || 400));
+let telegramKuyruk = Promise.resolve();
+let telegramSonIstekZamani = 0;
+
+function bekle(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+function telegramHamIstegiAt(path, veri) {
     return new Promise((resolve) => {
         if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
             resolve({ ok: false, description: 'Telegram bilgileri eksik' });
@@ -83,10 +91,11 @@ function yerelTelegramIstegiAt(path, veri) {
             port: 443,
             path: `/bot${TELEGRAM_TOKEN}/${path}`,
             method: 'POST',
-            timeout: 12000,
+            timeout: TELEGRAM_TIMEOUT_MS,
             headers: {
                 'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(postData)
+                'Content-Length': Buffer.byteLength(postData),
+                'Connection': 'keep-alive'
             }
         };
 
@@ -95,23 +104,48 @@ function yerelTelegramIstegiAt(path, veri) {
             res.on('data', (chunk) => body += chunk);
             res.on('end', () => {
                 try {
-                    resolve(JSON.parse(body));
+                    const parsed = JSON.parse(body);
+                    if (!parsed.ok && res.statusCode >= 500) parsed.transient = true;
+                    resolve(parsed);
                 } catch (e) {
-                    resolve({ ok: false, raw: body });
+                    resolve({ ok: false, raw: body, statusCode: res.statusCode, transient: res.statusCode >= 500 });
                 }
             });
         });
 
-        req.setTimeout(12000, () => req.destroy(new Error('TELEGRAM_TIMEOUT:12000ms')));
-
-        req.on('error', (err) => {
-            console.error(`❌ Telegram HTTP Hatası: ${err.message}`);
-            resolve({ ok: false, description: err.message });
-        });
-
+        req.setTimeout(TELEGRAM_TIMEOUT_MS, () => req.destroy(new Error(`TELEGRAM_TIMEOUT:${TELEGRAM_TIMEOUT_MS}ms`)));
+        req.on('error', (err) => resolve({ ok: false, description: err.message, transient: true }));
         req.write(postData);
         req.end();
     });
+}
+
+async function telegramDayanikliIstegiAt(path, veri) {
+    let son = null;
+    for (let deneme = 0; deneme <= TELEGRAM_RETRY_COUNT; deneme++) {
+        const gecen = Date.now() - telegramSonIstekZamani;
+        if (gecen < TELEGRAM_MIN_INTERVAL_MS) await bekle(TELEGRAM_MIN_INTERVAL_MS - gecen);
+        telegramSonIstekZamani = Date.now();
+        son = await telegramHamIstegiAt(path, veri);
+        if (son?.ok) return son;
+
+        const aciklama = String(son?.description || son?.raw || '');
+        const rateLimited = aciklama.includes('Too Many Requests') || Number(son?.error_code) === 429;
+        const transient = son?.transient === true || aciklama.includes('TIMEOUT') || aciklama.includes('ECONNRESET') || aciklama.includes('EAI_AGAIN') || rateLimited;
+        if (!transient || deneme >= TELEGRAM_RETRY_COUNT) break;
+        const retryAfterMs = Math.max(1000, Number(son?.parameters?.retry_after || 0) * 1000, 1000 * (deneme + 1));
+        console.log(`⚠️ Telegram geçici hata; yeniden denenecek ${deneme + 1}/${TELEGRAM_RETRY_COUNT} | ${aciklama || 'geçici hata'}`);
+        await bekle(retryAfterMs);
+    }
+    if (!son?.ok) console.error(`❌ Telegram HTTP Hatası: ${son?.description || son?.raw || 'bilinmeyen hata'}`);
+    return son || { ok: false, description: 'Telegram yanıtı alınamadı' };
+}
+
+function yerelTelegramIstegiAt(path, veri) {
+    const is = () => telegramDayanikliIstegiAt(path, veri);
+    const sonuc = telegramKuyruk.then(is, is);
+    telegramKuyruk = sonuc.catch(() => null);
+    return sonuc;
 }
 
 function telegramMetniParcala(mesaj, limit = 3900) {

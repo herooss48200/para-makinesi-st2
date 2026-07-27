@@ -8,7 +8,7 @@ const path = require('path');
 const trainer = require('./75_st2_historical_renko_training.js');
 const reconciliation = require('./78_st2_global_historical_reconciliation.js');
 
-const VERSION = 'v6.1.3-GLOBAL-HISTORICAL-WORKER-COMPLETION';
+const VERSION = 'v6.2.1-GLOBAL-HISTORICAL-29-COIN-WORKER';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const RUNTIME_FILE = path.join(DATA_DIR, 'st2-global-historical-runtime.json');
 let running = false;
@@ -38,7 +38,7 @@ async function trainMissing(){
       if(typeof trainer[fn]!=='function')throw new Error(`TRAINER_EXPORT_MISSING:${fn}`);
     }
     const canonicalSymbols=Array.isArray(reconciliation.SYMBOLS)&&reconciliation.SYMBOLS.length?reconciliation.SYMBOLS:trainer.DEFAULT_SYMBOLS;
-    if(!Array.isArray(canonicalSymbols)||canonicalSymbols.length!==reconciliation.COINS.length)throw new Error('CANONICAL_30_COIN_POOL_INVALID');
+    if(!Array.isArray(canonicalSymbols)||canonicalSymbols.length!==reconciliation.COINS.length)throw new Error('CANONICAL_COIN_POOL_INVALID');
     let state=trainer.load();
     const ready=new Set(Object.keys(state.symbols||{}).filter(s=>n(state.symbols[s]?.signals)>0));
     const targets=canonicalSymbols.filter(s=>!ready.has(s));

@@ -1,0 +1,17 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const h=fs.readFileSync('./1_hafiza.js','utf8');
+const r=fs.readFileSync('./78_st2_global_historical_reconciliation.js','utf8');
+const rt=fs.readFileSync('./79_st2_global_historical_runtime.js','utf8');
+assert(h.includes('AGROS_ST2_TELEGRAM_TIMEOUT_MS || 30000'));
+assert(h.includes('AGROS_ST2_TELEGRAM_RETRY_COUNT || 2'));
+assert(h.includes('telegramKuyruk'));
+assert(h.includes('TELEGRAM_MIN_INTERVAL_MS'));
+assert(!r.includes("'PEPE'"));
+const m=r.match(/const COINS=\[(.*?)\];/s);
+assert(m);
+const coins=Function(`return [${m[1]}]`)();
+assert.strictEqual(coins.length,29);
+assert(rt.includes('CANONICAL_COIN_POOL_INVALID'));
+console.log('✅ v6.2.1 Telegram resilience + accepted 29-coin historical readiness passed');

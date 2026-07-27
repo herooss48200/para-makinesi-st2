@@ -2,7 +2,7 @@ const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
     kod: 'AGROS ST2 v6.2.0 — LEGACY ISOLATION & CLEAN PREMIER/SHADOW CORE',
-    botSurumu: '6.2.0-LEGACY-ISOLATION-CLEAN-PREMIER-SHADOW-CORE',
+    botSurumu: '6.2.1-TELEGRAM-RESILIENCE-29-COIN-READY',
     stratejiSurumu: '1.0.21',
     yayinTarihi: '27.07.2026',
     ortam: { emirModu: 'SANAL' }
