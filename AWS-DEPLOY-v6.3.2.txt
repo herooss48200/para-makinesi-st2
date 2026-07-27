@@ -1,0 +1,8 @@
+AGROS ST2 v6.3.2
+1) git pull origin main
+2) npm install
+3) npm test
+4) pm2 restart agros-st2 --update-env
+5) pm2 save
+6) pm2 logs agros-st2 --lines 250
+Beklenen loglar: HISTORICAL_EXACT_DNA_PREMIER, EXACT_DNA_UNSEEN_SHADOW, ST2 RENKO PREMIER BINDING, ST2 CONTEXT SHADOW BINDING.

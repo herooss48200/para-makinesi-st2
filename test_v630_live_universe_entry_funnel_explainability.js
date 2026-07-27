@@ -16,12 +16,14 @@ assert.ok(entrySrc.includes('const ok = await m.pozisyonAc'));
 assert.ok(entrySrc.includes('if (!fiyatUygun || !stUygun) return false'));
 
 const dnaSrc=fs.readFileSync('./77_st2_pattern_dna_intelligence.js','utf8');
-for(const key of ['shortId','EXACT_TARIHSEL_YOK','CANLI_N3_BEKLENIYOR','MINIMUM_N_EKSIK','GUVEN_ESIGI_ALTI','YALNIZ REFERANS/SHADOW']) assert.ok(dnaSrc.includes(key),key);
+for(const key of ['shortId','EXACT_DNA_UNSEEN_SHADOW','LIVE_N3_BEKLENIYOR','MINIMUM_N_EKSIK_SHADOW','HISTORICAL_EXACT_PREMIER_READY','En yakın DNA Premier yetkisi YOK']) assert.ok(dnaSrc.includes(key),key);
 
 const evoSrc=fs.readFileSync('./73_st2_renko_entry_evolution.js','utf8');
 assert.ok(evoSrc.includes('Seçim gerekçesi'));
 assert.ok(evoSrc.includes('Premier kanıtı'));
-assert.ok(evoSrc.includes('Politika: önce Net'));
+assert.ok(evoSrc.includes('Politika: Net lider aday olur'));
+assert.ok(evoSrc.includes('TETIK_YONU_DOGRU'));
+assert.ok(evoSrc.includes('Neden:')); 
 
 const motorSrc=fs.readFileSync('./motor.js','utf8');
 const gateIndex=motorSrc.indexOf('const gate = adaptiveDnaEntry.gateDecision');

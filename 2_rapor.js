@@ -20,6 +20,7 @@ const operationIntelligence = require('./69_operation_intelligence_dashboard.js'
 const st1Certification = require('./71_st1_final_certification.js');
 const winningIntelligence = require('./75_st2_winning_intelligence.js');
 const adaptiveDnaIntelligence = require('./77_st2_pattern_dna_intelligence.js');
+const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 const globalHistoricalReconciliation = require('./78_st2_global_historical_reconciliation.js');
 const fs = require('fs');
 const path = require('path');
@@ -350,12 +351,11 @@ function canliRaporMetniOlustur() {
         const premierSonuc = operationModel.model?.aggregate || {};
         const entryEvolutionModel = renkoEntryEvolution.summary();
         const golgeSonuc = entryEvolutionModel.total || {};
-        const renkoPremierPattern = (entryEvolutionModel.profiles || []).filter(p => {
-            const cur=(p.candidates||[]).find(x=>Math.abs(Number(x.brick)-Number(p.activeBrick))<1e-9)||{};
-            return Number(p.closed)>=5&&Number(cur.net)>0&&Number(cur.pf)>1&&Number(cur.expectancy)>0;
-        }).length;
+        const adaptiveSummary = adaptiveDnaEntry.summary();
+        const renkoPremierPattern = Number(adaptiveSummary.health?.historicalPremierProfiles || 0);
+        const renkoShadowDna = Math.max(0, Number(adaptiveSummary.health?.historicalProfiles || 0) - renkoPremierPattern);
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
-        mesaj += `🧬 Öğrenilmiş exact-context Premier: ${renkoPremierPattern} | Canlı Premier pozisyon: ${aktifler.length}\n`;
+        mesaj += `🧬 Tarihsel exact Premier: ${renkoPremierPattern} | Exact Shadow/izleme: ${renkoShadowDna} | Canlı Premier pozisyon: ${aktifler.length}\n`;
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
         mesaj += `🧪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Replay Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
         mesaj += `

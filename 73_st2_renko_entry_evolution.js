@@ -35,7 +35,7 @@ const DEFAULT_BRICK = () => { const v=Number(ayarlar.renkoGirisVarsayilanTugla);
 function n(v,d=0){ const x=Number(v); return Number.isFinite(x)?x:d; }
 function r(v,d=6){ return Number(n(v).toFixed(d)); }
 function blankMetric(){ return { samples:0, triggered:0, tp:0, sl:0, be:0, net:0, grossProfit:0, grossLoss:0, recent:[] }; }
-function blankAudit(){ return {assigned:0,applied:0,matched:0,mismatched:0,unknown:0,missing:0}; }
+function blankAudit(){ return {assigned:0,applied:0,matched:0,mismatched:0,unknown:0,missing:0,reasons:{}}; }
 function blankHealth(){ return {stateStatus:'EMPTY',ledgerStatus:'EMPTY',stateRecords:0,ledgerRecords:0,lastSuccessfulSaveAt:null,lastAcceptedTradeId:null,loadedAfterRestart:0,duplicateRejects:0,restartGapRejects:0,otherRejects:0,saveErrors:0,loadErrors:0,backupRecoveries:0,ledgerRebuilds:0}; }
 function blank(){ return { version:VERSION, updatedAt:null, profiles:{}, processedIds:{}, bridge:{calls:0,accepted:0,skipped:{},last:null}, decisionChain:{entry:blankAudit(),stop:blankAudit(),be:blankAudit(),exit:blankAudit(),last:null}, health:blankHealth() }; }
 function bridgeMark(s,status,reason,pos){
@@ -271,7 +271,7 @@ function replayCandidate(pos,result,pusu,brickDistance,points){
   const pct=pnlPct(yon,entry,exitPrice), net=value*(pct/100)-commission;
   return {triggered:true,entry:r(entry,12),exitPrice:r(exitPrice,12),exitReason,pct:r(pct,6),net:r(net,6),stopPct:r(risk.stopPct,4),beTriggerPct:r(risk.beTriggerPct,4),beBufferPct:r(risk.beBufferPct,4),exitAlgorithmId:exitPlan.id};
 }
-function auditMark(s,key,{assigned=false,applied=false,matched=null,detail=null}={}){
+function auditMark(s,key,{assigned=false,applied=false,matched=null,reason=null,detail=null}={}){
   s.decisionChain={entry:blankAudit(),stop:blankAudit(),be:blankAudit(),exit:blankAudit(),...(s.decisionChain||{})};
   const a=s.decisionChain[key]={...blankAudit(),...(s.decisionChain[key]||{})};
   if(assigned) a.assigned++;
@@ -280,14 +280,18 @@ function auditMark(s,key,{assigned=false,applied=false,matched=null,detail=null}
   if(matched===true) a.matched++;
   else if(matched===false) a.mismatched++;
   else a.unknown++;
-  s.decisionChain.last={at:new Date().toISOString(),key,detail};
+  if(reason) a.reasons[reason]=n(a.reasons[reason])+1;
+  s.decisionChain.last={at:new Date().toISOString(),key,reason,detail};
 }
 function auditDecisionChain(s,pos,result,ga,pusu,points){
   const entryBrick=n(ga.renkoEntryBrickDistance,DEFAULT_BRICK());
   const target=targetPrice(pusu,entryBrick), actual=n(pos?.girisFiyati||pos?.entryPrice);
   const entryAssigned=target>0, entryApplied=actual>0;
+  const side=String(pos?.yon||pusu?.yon||'').toUpperCase();
   const entryTol=Math.max(n(pusu.renkoBoxSize)*0.20, target*0.0005);
-  auditMark(s,'entry',{assigned:entryAssigned,applied:entryApplied,matched:entryAssigned&&entryApplied?Math.abs(actual-target)<=entryTol:null,detail:{assignedBrick:entryBrick,target,actual}});
+  const directionMatched=entryAssigned&&entryApplied?(side==='SHORT'?actual<=target+entryTol:actual>=target-entryTol):null;
+  const entryReason=!entryAssigned?'ATAMA_EKSIK':!entryApplied?'UYGULAMA_EKSIK':directionMatched?'TETIK_YONU_DOGRU':'TETIK_YONU_TERSI';
+  auditMark(s,'entry',{assigned:entryAssigned,applied:entryApplied,matched:directionMatched,reason:entryReason,detail:{assignedBrick:entryBrick,target,actual,side,tolerance:entryTol}});
 
   const stopPct=Math.max(0.01,n(pos?.labLifecycleProfile?.stopPct,n(ayarlar.sabitStopYuzdesi,1.5)));
   const assignedStop=actual>0?(String(pos?.yon).toUpperCase()==='SHORT'?actual*(1+stopPct/100):actual*(1-stopPct/100)):0;
@@ -406,7 +410,7 @@ function telegram(){
   for(const [key,label] of [['entry','🎯 Giriş'],['stop','🛡 Stop'],['be','⚖️ BE'],['exit','🏁 Exit']]){
     const a=x.decisionChain[key]||{};
     if(n(a.assigned)===0) t+=`${label}: Atanan 0 | Uygulanan 0 | Henüz doğrulanmış örnek yok | Eksik veri ${n(a.missing)}\n`;
-    else { const rate=n(a.matched)/n(a.assigned)*100; t+=`${label}: Atanan ${n(a.assigned)} | Uygulanan ${n(a.applied)} | Eşleşen ${n(a.matched)} | Eşleşmeyen ${n(a.mismatched)} | Bilinmeyen ${n(a.unknown)} | Eksik veri ${n(a.missing)} | Uyum %${rate.toFixed(1)}\n`; }
+    else { const rate=n(a.matched)/n(a.assigned)*100; t+=`${label}: Atanan ${n(a.assigned)} | Uygulanan ${n(a.applied)} | Eşleşen ${n(a.matched)} | Eşleşmeyen ${n(a.mismatched)} | Bilinmeyen ${n(a.unknown)} | Eksik veri ${n(a.missing)} | Uyum %${rate.toFixed(1)}\n`; const reasons=Object.entries(a.reasons||{}).sort((x,y)=>n(y[1])-n(x[1])).map(([k,v])=>`${k} ${v}`).join(' | '); if(reasons)t+=`   ↳ Neden: ${reasons}\n`; }
   }
 
   t+=`\n🧪 <b>PRICE-PATH REPLAY — GİRİŞ KARŞILAŞTIRMASI</b>\n`;
@@ -453,7 +457,9 @@ function telegram(){
       const leader=eligibleRows[0]||null;
       const active=rows.find(c=>Math.abs(n(c.brick)-n(r0.p.activeBrick,x.policy.defaultBrick))<1e-9)||null;
       const premierChecks=`N ${n(r0.p.closed)>=5?'✅':'❌'} | Net ${n(r0.cur.net)>0?'✅':'❌'} | PF ${n(r0.cur.pf)>1?'✅':'❌'} | Exp ${n(r0.cur.expectancy)>0?'✅':'❌'}`;
-      t+=`🧾 Seçim gerekçesi: ${leader?`Lider ${n(leader.brick).toFixed(2)} Net ${n(leader.net)>=0?'+':''}${n(leader.net).toFixed(4)} / Skor ${n(leader.score).toFixed(4)}`:'Pozitif ve yeterli aday yok'} | Aktif ${active?n(active.brick).toFixed(2):'YOK'} | Politika: önce Net, sonra güncel-ağırlıklı skor/PF/Exp\n`;
+      const selectionState=leader&&active&&Math.abs(n(leader.brick)-n(active.brick))>1e-9?`Liderden farklı aktif korunuyor: ${r0.p.lastDecision||'FARK_ANLAMLI_DEGIL / değerlendirme periyodu bekleniyor'}`:'Aktif giriş mevcut liderle uyumlu';
+      t+=`🧾 Seçim gerekçesi: ${leader?`Replay lideri ${n(leader.brick).toFixed(2)} Net ${n(leader.net)>=0?'+':''}${n(leader.net).toFixed(4)} / Skor ${n(leader.score).toFixed(4)}`:'Pozitif ve yeterli aday yok'} | Aktif ${active?n(active.brick).toFixed(2):'YOK'} | ${selectionState}\n`;
+      t+=`⚙️ Politika: Net lider aday olur; aktif değişim yalnız yeniden-hesaplama adımında ve minimum skor/üstünlük eşiği aşılırsa yapılır.\n`;
       t+=`🏆 Premier kanıtı: ${premierChecks}\n`;
     }
   }

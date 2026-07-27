@@ -9,10 +9,10 @@ for(let i=0;i<6;i++)ev.push({type:'HISTORICAL_SIGNAL',yon:'SHORT',patternCode:'G
 fs.writeFileSync(path.join(tmp,'st2-historical-training-ledger.jsonl'),ev.map(JSON.stringify).join('\n')+'\n');
 const a=require('./76_st2_adaptive_dna_entry.js');
 const good={yon:'LONG',girisAnalizi:{entryStrategy:'ST2_RENKO',patternKodu:'RRRR',renkoSonTuglaDizisi:'GRRRRR',renkoBb:{zone:'ALT',widthRegime:'NORMAL'},atrRegime:'NORMAL',trend20:'UP',session:'ASYA'}};
-let g=a.gateDecision(good,0.75);assert.equal(g.action,'ALLOW');assert.equal(g.brick,0.50);assert.equal(g.reason,'HISTORICAL_CONTEXT_WINNER');
+let g=a.gateDecision(good,0.75);assert.equal(g.action,'ALLOW');assert.equal(g.brick,0.50);assert.equal(g.reason,'HISTORICAL_EXACT_DNA_PREMIER');
 const bad={yon:'SHORT',girisAnalizi:{entryStrategy:'ST2_RENKO',patternKodu:'GGGG',renkoSonTuglaDizisi:'RGGGGG',renkoBb:{zone:'UST',widthRegime:'NORMAL'},atrRegime:'NORMAL',trend20:'DOWN',session:'ABD'}};
-g=a.gateDecision(bad,0.75);assert.equal(g.action,'BLOCK');assert.equal(g.reason,'HISTORICAL_CONTEXT_LOSER');
+g=a.gateDecision(bad,0.75);assert.equal(g.action,'OBSERVE');assert.equal(g.executionMode,'SHADOW');assert.equal(g.reason,'HISTORICAL_EXACT_DNA_NEGATIVE_SHADOW');
 // same context last-3 live winner switches active entry
 const c=a.contextFrom(good),key=a.dnaKey(c);const st=a.blank();st.dnaProfiles[key]={key,patternKey:a.patternKey(c),context:c,closes:[0,1,2].map(i=>({tradeId:'x'+i,candidates:{'0.50':{net:0.01,triggered:true},'1.00':{net:0.30,triggered:true}}})),changes:[]};a.save(st);
 g=a.gateDecision(good,0.75);assert.equal(g.action,'ALLOW');assert.equal(g.brick,1.00);assert.equal(g.reason,'LIVE_LAST3_WINNER');
-console.log('✅ v6.1.4 historical context entry gate passed | 29/29 + ALLOW/BLOCK + live N3 leader');
+console.log('✅ v6.1.4 historical context entry gate passed | 29/29 + PREMIER/SHADOW + live N3 leader');
