@@ -9,6 +9,7 @@ const versiyonBilgi = require('./versiyon.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const binanceAg = require('./64_binance_network_resilience.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
+const globalHistoricalRuntime = require('./79_st2_global_historical_runtime.js');
 binanceAg.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
 
 let donguCalisiyor = false;
@@ -28,6 +29,9 @@ async function baslat() {
         accountingContinuity.initializeMigration();
         kaliciHafiza.kaydet('accounting-continuity-migration');
         await revizyon.derinGecmisiInsaEt();
+
+        const historicalRuntimeStatus = globalHistoricalRuntime.activate();
+        console.log(`🌍 [GLOBAL HISTORICAL RUNTIME] ${historicalRuntimeStatus.activation} | Coin ${historicalRuntimeStatus.readyCoins}/${historicalRuntimeStatus.coins} | Sinyal ${historicalRuntimeStatus.signals} | Pattern ${historicalRuntimeStatus.patterns} | Mutabakat ${historicalRuntimeStatus.reconciliationOk ? 'OK' : 'BEKLIYOR'}`);
 
         // v4.0.1: Yeni katmanların gerçekten yüklendiğini düşük maliyetli biçimde doğrula.
         // Ağır DNA/exit geçmişi başlangıçta yeniden hesaplanmaz; kayıtlı modeller kullanılır.
