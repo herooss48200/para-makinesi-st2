@@ -221,12 +221,13 @@ const m = {
             const fallbackBrick = Number(girisAnalizi.renkoEntryBrickDistance || 0.75);
             const gate = adaptiveDnaEntry.gateDecision({ symbol, sym: symbol, yon, girisAnalizi, ...girisAnalizi }, fallbackBrick);
             girisAnalizi.historicalEntryGate = gate;
-            if (!gate.allow) {
-                console.log(`⛔ [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | ${gate.action} | ${gate.reason} | Coin ${gate.completion.ready}/${gate.completion.total} | ${gate.context.yon}|${gate.context.pattern}|RBB=${gate.context.rbb}|RBBW=${gate.context.rbbw}|RENKO6=${gate.context.renko6}`);
-                return false;
-            }
             girisAnalizi.renkoEntryBrickDistance = gate.brick;
-            console.log(`✅ [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | ALLOW | ${gate.reason} | Giriş ${gate.brick.toFixed(2)} | N${Number(gate.evidence?.n||0)} Net ${Number(gate.evidence?.net||0).toFixed(4)} PF ${Number(gate.evidence?.pf||0).toFixed(2)} Exp ${Number(gate.evidence?.expectancy||0).toFixed(4)}`);
+            girisAnalizi.historicalExecutionMode = gate.executionMode;
+            if (gate.allow) {
+                console.log(`✅ [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | PREMIER | ${gate.reason} | Giriş ${gate.brick.toFixed(2)} | N${Number(gate.evidence?.n||0)} Net ${Number(gate.evidence?.net||0).toFixed(4)} PF ${Number(gate.evidence?.pf||0).toFixed(2)} Exp ${Number(gate.evidence?.expectancy||0).toFixed(4)}`);
+            } else {
+                console.log(`👻 [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | SHADOW | ${gate.action} | ${gate.reason} | Coin ${gate.completion.ready}/${gate.completion.total} | Giriş ${gate.brick.toFixed(2)}`);
+            }
         }
 
         const sanalId = `SANAL-${Date.now()}-${h.state.sanalEmirSayaci++}`;
@@ -270,8 +271,19 @@ const m = {
         // ST2 Renko Entry Evolution Premier köprüsü: ikinci emir açmaz; aynı sanal pozisyonu
         // yalnız Renko bilimsel üst kasasında sınıflandırır. Gerçek emir/Trade Engine yetkisi değişmez.
         if (girisAnalizi?.entryStrategy === 'ST2_RENKO') {
-            const renkoPremier = renkoEntryEvolution.premierFor({ ...yeniPozisyon, ...girisAnalizi, girisAnalizi });
-            yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_RENKO_ENTRY_EVOLUTION' };
+            const gate = girisAnalizi.historicalEntryGate || adaptiveDnaEntry.gateDecision({ ...yeniPozisyon, ...girisAnalizi, girisAnalizi }, Number(girisAnalizi.renkoEntryBrickDistance || 0.75));
+            const renkoPremier = {
+                premier: gate.allow === true,
+                reason: gate.reason,
+                patternKey: `${gate.context?.yon || yon}|${gate.context?.pattern || girisAnalizi.patternKodu || 'UNKNOWN'}`,
+                dnaKey: adaptiveDnaEntry.dnaKey(gate.context || adaptiveDnaEntry.contextFrom(girisAnalizi)),
+                source: gate.decision?.source || gate.evidence?.source || 'NONE',
+                closed: Number(gate.evidence?.n || 0),
+                activeBrick: Number(gate.brick || girisAnalizi.renkoEntryBrickDistance || 0.75),
+                net: Number(gate.evidence?.net || 0), pf: Number(gate.evidence?.pf || 0), expectancy: Number(gate.evidence?.expectancy || 0),
+                executionMode: gate.executionMode
+            };
+            yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_HISTORICAL_CONTEXT_GATE' };
             if (renkoPremier.premier) {
                 labKarar = {
                     ...(labKarar || {}),
@@ -285,6 +297,17 @@ const m = {
                 yeniPozisyon.labProofLevelAtOpen = 'HISTORICAL_ADAPTIVE_RENKO_PREMIER';
                 yeniPozisyon.leagueShadowOnly = false;
                 console.log(`🏆 [ST2 RENKO PREMIER BINDING] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${renkoPremier.source} | N${renkoPremier.closed} Giriş ${renkoPremier.activeBrick.toFixed(2)} Net ${renkoPremier.net.toFixed(4)} PF ${renkoPremier.pf.toFixed(2)} Exp ${renkoPremier.expectancy.toFixed(4)}`);
+            } else {
+                labKarar = {
+                    ...(labKarar || {}), labLeague: 'DEVELOPMENT', premierTrack: 'HISTORICAL_CONTEXT_SHADOW',
+                    proofLevel: renkoPremier.reason, upperLayerIncluded: false, virtualShadowOnly: true,
+                    observationEligible: true, reason: `ST2 Shadow ${renkoPremier.patternKey} | ${renkoPremier.reason} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`
+                };
+                yeniPozisyon.labPremierDecision = labKarar;
+                yeniPozisyon.labLeagueAtOpen = 'DEVELOPMENT';
+                yeniPozisyon.premierTrackAtOpen = 'HISTORICAL_CONTEXT_SHADOW';
+                yeniPozisyon.leagueShadowOnly = true;
+                console.log(`👻 [ST2 CONTEXT SHADOW BINDING] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${renkoPremier.reason} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
             }
         }
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);

@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('fs'); const path=require('path'); const crypto=require('crypto');
 const ayarlar=require('./ayarlar.js'); const io=require('./53_memory_safe_io.js');
-const VERSION='v5.6.6-ST2-RENKO-PREMIER-BINDING-CLEAN-TELEGRAM';
+const VERSION='v6.1.5-SAFE-START-RENKO-TRAIL-TAKEOVER';
 const DATA_DIR=process.env.AGROS_DATA_DIR?path.resolve(process.env.AGROS_DATA_DIR):path.join(__dirname,'data');
 const STATE_FILE=path.join(DATA_DIR,'st2-renko-exit-evolution.json'); const BACKUP_FILE=`${STATE_FILE}.bak`; const LEDGER_FILE=path.join(DATA_DIR,'st2-renko-exit-evolution-ledger.jsonl');
 const CANDIDATES=()=> (ayarlar.renkoCikisAdayTugla||[0.5,0.75,1,1.25,1.5,1.75,2]).map(Number).filter(x=>x>0).sort((a,b)=>a-b);
@@ -28,7 +28,7 @@ function update(pos,price){assign(pos);const a=pos.renkoExitAssignment;if(!first
  const changed=pos.yon==='LONG'?effective>old:effective<old;if(changed){pos.sl=effective;pos.renkoExitAppliedTrailBricks=n(a.assignedTrailBricks);}
  return {active:true,justActivated:!pos.renkoExitTakeoverNotified,changed,candidate,effective,trail:n(a.assignedTrailBricks)};
 }
-function takeoverText(pos){const a=pos.renkoExitAssignment||assign(pos);return `🏁 <b>RENKO ÇIKIŞ YÖNETİMİ DEVREDE</b>\n\n🔀 ${pos.sym} (${pos.yon})\n🧩 Pattern: ${pos.girisAnalizi?.patternKodu||'YOK'}\n📥 Atanan giriş: ${n(pos.girisAnalizi?.renkoEntryBrickDistance,0).toFixed(2)} tuğla\n🏁 Açılışta atanan çıkış: ${n(a.assignedTrailBricks).toFixed(2)} tuğla\n🛡️ İlk kâr koruma stopu: ${n(pos.renkoExitFirstProtectionStop,pos.sl)}\n🔄 Önceki exit: SHADOW\n🧠 Yeni yönetim: RENKO EXIT EVOLUTION`;}
+function takeoverText(pos){const a=pos.renkoExitAssignment||assign(pos);return `🏁 <b>RENKO ÇIKIŞ YÖNETİMİ DEVREDE</b>\n\n🔀 ${pos.sym} (${pos.yon})\n🧩 Pattern: ${pos.girisAnalizi?.patternKodu||'YOK'}\n📥 Atanan giriş: ${n(pos.girisAnalizi?.renkoEntryBrickDistance,0).toFixed(2)} tuğla\n🧱 Güvenli başlangıç sonrası Renko takip: ${n(a.assignedTrailBricks).toFixed(2)} tuğla\n🛡️ İlk kâr koruma stopu: ${n(pos.renkoExitFirstProtectionStop,pos.sl)}\n🔄 Önceki exit: SHADOW\n🧠 Yeni yönetim: RENKO EXIT EVOLUTION`;}
 function closeId(pos,result){return String(pos?.closeId||pos?.tradeId||pos?.sanalOrderId||pos?.borsaOrderId||crypto.createHash('sha1').update([pos?.sym,pos?.yon,pos?.acilisZamani,result?.exitPrice,result?.reason].join('|')).digest('hex'));}
 function replay(path,yon,entry,box,trail,activationPrice){let peak=activationPrice,exit=null,mfe=0;for(const row of path||[]){const p=n(row.price);if(!p)continue;const pnl=yon==='LONG'?(p-entry)/entry*100:(entry-p)/entry*100;mfe=Math.max(mfe,pnl);peak=yon==='LONG'?Math.max(peak,p):Math.min(peak,p);const stop=yon==='LONG'?peak-box*trail:peak+box*trail;if((yon==='LONG'&&p<=stop)||(yon==='SHORT'&&p>=stop)){exit=stop;break;}}if(exit==null)exit=n((path||[]).at(-1)?.price,activationPrice);const pct=yon==='LONG'?(exit-entry)/entry*100:(entry-exit)/entry*100;return {pct,mfe,capture:mfe>0?Math.max(0,Math.min(100,pct/mfe*100)):0};}
 function close(pos,result={}){const s=read(),id=closeId(pos,result);if(s.processedIds[id]){s.health.duplicate++;write(s);return {accepted:false,reason:'DUPLICATE'};}if(result.restartGap){s.health.restartGap++;write(s);return {accepted:false,reason:'RESTART_GAP'};}if(/MANUAL_EXTERNAL_CLOSE|MANUAL_OVERRIDE/i.test(String(result.reason||''))){s.health.manualExcluded++;s.processedIds[id]={at:new Date().toISOString(),manual:true};write(s);return {accepted:false,reason:'MANUAL_EXCLUDED'};}
