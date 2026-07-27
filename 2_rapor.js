@@ -18,6 +18,8 @@ const realOrderPreparation = require('./67_real_order_preparation_intelligence.j
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const operationIntelligence = require('./69_operation_intelligence_dashboard.js');
 const st1Certification = require('./71_st1_final_certification.js');
+const winningIntelligence = require('./75_st2_winning_intelligence.js');
+const adaptiveDnaIntelligence = require('./77_st2_pattern_dna_intelligence.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -134,14 +136,14 @@ function pozisyonSatiri(p) {
     const korunan = pozisyonKorunanKar(p);
     const kademe = pozisyonKademe(p);
 
-    let satir = `${sembol} ${yon} ${kar >= 0 ? '+' : ''}%${yuzde(kar)}`;
+    let satir = `${sembol} ${yon} Anlık ${kar >= 0 ? '+' : ''}%${yuzde(kar)}`;
 
     if (korunan !== null) {
         satir += ` | SL ${korunan >= 0 ? '+' : ''}%${yuzde(korunan)}`;
     }
 
     if (kademe) {
-        satir += ` | K${kademe}`;
+        satir += ` | K${kademe}${kademe === 1 ? ' koruma aktif' : ''}`;
     }
 
     return satir;
@@ -366,6 +368,10 @@ function canliRaporMetniOlustur() {
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 ${ayarlar.entryStrategyMode === 'ST2_RENKO' ? st2AnaRaporOgrenmeOzeti() : learningEvolutionOzetMetni(s)}
+`;
+        if (ayarlar.entryStrategyMode === 'ST2_RENKO') mesaj += `
+
+${winningIntelligence.telegram()}
 `;
     } else {
         mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}
@@ -650,8 +656,18 @@ async function st2EntryEvolutionDetayiGonderGerekirse(oneCikar = false) {
             console.error(`❌ [ST2 ENTRY EVOLUTION TELEGRAM] Ayrıntılı rapor doğrulanamadı; sonraki turda yeniden denenecek | Parça ${liste.length}`);
             return;
         }
+        const intelligence = adaptiveDnaIntelligence.registry();
+        if (Array.isArray(intelligence.profiles) && intelligence.profiles.length > 0) {
+            const dnaSonuclar = await h.telegramMesajGonder(adaptiveDnaIntelligence.telegram(8));
+            const dnaListe = Array.isArray(dnaSonuclar) ? dnaSonuclar : [];
+            const dnaBasarili = dnaListe.length > 0 && dnaListe.every(x => x?.sonuc?.ok === true);
+            if (!dnaBasarili) {
+                console.error(`❌ [ADAPTIVE DNA INTELLIGENCE TELEGRAM] Rapor doğrulanamadı; sonraki turda yeniden denenecek | Parça ${dnaListe.length}`);
+                return;
+            }
+        }
         sonSt2EntryEvolutionDetayImzasi = imza;
-        console.log(`✅ [ST2 ENTRY EVOLUTION TELEGRAM] Ayrıntılı rapor gönderildi | Bilimsel kapanış ${Number(x.total?.closed || 0)} | Parça ${liste.length}`);
+        console.log(`✅ [ST2 ENTRY EVOLUTION TELEGRAM] Ayrıntılı rapor + DNA intelligence gönderildi | Bilimsel kapanış ${Number(x.total?.closed || 0)} | Parça ${liste.length}`);
     } catch (err) {
         console.error(`❌ [ST2 ENTRY EVOLUTION TELEGRAM] ${err.message}`);
     }

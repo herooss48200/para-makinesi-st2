@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
+const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 
 const VERSION = 'v5.6.3-CLEAN-SCIENTIFIC-RESET-PERSISTENT-LEARNING';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
@@ -312,6 +313,7 @@ function applyAccepted(s,pos,result,tradeId,markBridge=true){
   const profile=ensureProfile(s,yon,patternCode,ga.patternId); profile.renkoSequence=ga.renkoSonTuglaDizisi||snap.renkoSonTuglaDizisi||patternCode; profile.renkoBb=ga.renkoBb||snap.renkoBb||null; profile.renkoSuperTrend=ga.renkoSuperTrend||pos?.renkoSuperTrend||null; profile.closed++;
   profile.lastReplay={at:new Date().toISOString(),tradeId,actualBrick:n(ga.renkoEntryBrickDistance,DEFAULT_BRICK()),candidates:{}};
   for(const c of CANDIDATES()){ const replay=replayCandidate(pos,result,pusu,c,points); profile.lastReplay.candidates[c.toFixed(2)]=replay; observe(profile.candidates[c.toFixed(2)],replay.triggered,replay.net); }
+  try { profile.lastAdaptiveDnaDecision=adaptiveDnaEntry.observe(pos,result,profile.lastReplay.candidates,tradeId); } catch(e) { profile.lastAdaptiveDnaError=e.message; }
   if(shouldEvaluate(profile)){ const pick=choose(profile); profile.lastEvaluationClosed=profile.closed; profile.lastDecision=pick.reason; if(pick.ready&&ayarlar.renkoGirisOtomatikAktiflestirme!==false){ profile.previousBrick=profile.activeBrick; profile.activeBrick=Number(pick.best.key); profile.changedAt=new Date().toISOString(); profile.history.unshift({at:profile.changedAt,from:profile.previousBrick,to:profile.activeBrick,closed:profile.closed,net:r(pick.best.net),pf:r(pick.best.pf),expectancy:r(pick.best.expectancy),reason:pick.reason}); profile.history=profile.history.slice(0,50); } }
   profile.lastUpdatedAt=new Date().toISOString(); s.processedIds[tradeId]={at:profile.lastUpdatedAt,sym:pos?.sym||null,pattern:patternCode}; s.health.lastAcceptedTradeId=tradeId; s.health.stateRecords=Object.keys(s.processedIds).length; return summaryProfile(profile);
 }
@@ -378,6 +380,26 @@ function telegram(){
   t+=`🧾 Ret nedenleri: ${skipText}\n`;
   t+=`✅ Başarılı ${success} | ❌ Başarısız ${fail} | ⚖️ BE ${be}\n`;
   t+=`WR %${decisive?(success/decisive*100).toFixed(1):'0.0'} | Net ${net>=0?'+':''}${net.toFixed(4)} | PF ${pf>=999?'999.00':pf.toFixed(2)}\n`;
+
+  const failedPatterns=activeRows
+    .filter(r=>n(r.cur.sl)>0)
+    .sort((a,b)=>n(b.cur.sl)-n(a.cur.sl)||n(a.cur.net)-n(b.cur.net)||a.p.key.localeCompare(b.p.key));
+  t+=`
+❌ <b>BAŞARISIZ PATTERN DAĞILIMI</b> — Toplam ${fail}
+`;
+  if(!failedPatterns.length) t+=`✅ Aktif giriş sonuçlarında başarısız pattern yok.
+`;
+  for(const r0 of failedPatterns){
+    const decided0=n(r0.cur.tp)+n(r0.cur.sl);
+    const wr0=decided0?(n(r0.cur.tp)/decided0*100):0;
+    const status0=r0.premier?'🟢 PREMIER':(r0.p.closed>=5?'🔴 ŞART DIŞI':`🟡 N${r0.p.closed}/5`);
+    t+=`${r0.p.yon} ${r0.p.patternCode} | Giriş ${n(r0.p.activeBrick,x.policy.defaultBrick).toFixed(2)} | N${n(r0.p.closed)} | ✅${n(r0.cur.tp)} ❌${n(r0.cur.sl)} ⚖️${n(r0.cur.be)} | WR %${wr0.toFixed(1)} | Net ${n(r0.cur.net)>=0?'+':''}${n(r0.cur.net).toFixed(4)} | PF ${n(r0.cur.pf).toFixed(2)} | ${status0}
+`;
+  }
+  const failedCheck=failedPatterns.reduce((a,r)=>a+n(r.cur.sl),0);
+  t+=`🧮 Başarısız mutabakatı: ${fail} = ${failedPatterns.map(r=>`${r.p.yon} ${r.p.patternCode} ${n(r.cur.sl)}`).join(' + ')||'0'} | Fark ${fail-failedCheck>=0?'+':''}${fail-failedCheck} ${fail===failedCheck?'✅':'⚠️'}
+`;
+
   const dist={}; for(const r0 of activeRows){ const k=n(r0.p.activeBrick,x.policy.defaultBrick).toFixed(2); dist[k]=n(dist[k])+1; }
   t+=`🎯 Aktif giriş dağılımı: ${Object.entries(dist).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v])=>`${k}→${v}`).join(' | ')||'YOK'}
 `;

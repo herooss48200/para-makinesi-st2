@@ -475,9 +475,32 @@ function applyClosed(bucket, net, commission, outcome) {
   if (outcome === 'TP') bucket.tp++; else if (outcome === 'BE') bucket.be++; else bucket.sl++;
 }
 function close(pos, result = {}) {
-  const observation = pos?.labPremierObservation; if (!observation) return null;
+  let observation = pos?.labPremierObservation;
+  // v5.6.9: Açılış kararı Premier olduğu halde eski/restart kaydında snapshot eksikse
+  // kapanışı sessizce kaybetme. Açılışta dondurulan kimlikten kanonik gözlem üret.
+  if (!observation) {
+    const d = pos?.labPremierDecision || null;
+    const track = String(d?.premierTrack || pos?.premierTrackAtOpen || '').toUpperCase();
+    const isMainPremier = d?.upperLayerIncluded === true && [TRACK.HISTORICAL, TRACK.RENKO].includes(track);
+    if (!isMainPremier) return null;
+    observation = {
+      version: VERSION, openedAt: pos?.acilisZamani ? new Date(pos.acilisZamani).toISOString() : new Date().toISOString(),
+      symbol: pos?.sym || '', side: pos?.yon || '', sourceSignalSide: d?.sourceSignalSide || pos?.yon || '',
+      reverseExecution: false, sourceLabDnaLabel: d?.sourceLabDnaLabel || null, sourceLabKey: d?.sourceLabKey || null,
+      labDnaId: d?.labDnaId, labDnaLabel: d?.labDnaLabel, labKey: d?.labKey, familyDnaLabel: d?.familyDnaLabel,
+      proofLevel: d?.proofLevel || pos?.labProofLevelAtOpen || 'FORWARD', premierTrack: track, labLeague: d?.labLeague || pos?.labLeagueAtOpen || 'PREMIER',
+      exitAlgorithmId: pos?.executionExitAssignment?.algorithmId || 'ACTUAL',
+      exitAlgorithmLabel: pos?.executionExitAssignment?.label || 'Mevcut Kademe Sistemi',
+      exitAssignmentId: pos?.executionExitAssignment?.assignmentId || null, upperLayerIncluded: true,
+      observationPool: 'PREMIER', samePosition: true, secondOrderCreated: false, realTradingAuthorized: false, recoveredAtClose: true
+    };
+    pos.labPremierObservation = observation;
+  }
   const net = num(result.net ?? result.netKarZarar); const commission = Math.max(0, num(result.commission ?? result.komisyon));
   const outcome = outcomeFrom(result); const closedAt = new Date().toISOString(); const state = readState();
+  const closeId = String(pos?.closeId || result?.closeId || pos?.tradeId || pos?.sanalOrderId || `${observation.symbol}|${observation.side}|${observation.openedAt}`);
+  state.recentClosedIds = Array.isArray(state.recentClosedIds) ? state.recentClosedIds : [];
+  if (state.recentClosedIds.includes(closeId)) return null;
   if (observation.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO].includes(observation.premierTrack)) applyClosed(state.aggregate, net, commission, outcome);
   const decision = pos.labPremierDecision || {
     labKey: observation.labKey, labDnaId: observation.labDnaId, labDnaLabel: observation.labDnaLabel,
@@ -496,6 +519,7 @@ function close(pos, result = {}) {
     exitAlgorithmId: observation.exitAlgorithmId, exitAlgorithmLabel: observation.exitAlgorithmLabel,
     outcome, net: round(net), commission: round(commission), upperLayerIncluded: Boolean(observation.upperLayerIncluded), observationPool: observation.observationPool || (observation.premierTrack === TRACK.REVERSE ? 'REVERSE_SEPARATE_LEDGER' : 'PREMIER'), samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
   };
+  state.recentClosedIds = [closeId, ...state.recentClosedIds].slice(0, 2000);
   state.lastTrades = [trade, ...state.lastTrades].slice(0, 150); state.updatedAt = closedAt; writeState(state); appendTrade(trade); return trade;
 }
 function activeRows(activePositions = []) {

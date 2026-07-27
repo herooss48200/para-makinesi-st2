@@ -695,4 +695,9 @@ const ayarlar = {
     exitEvolutionDashboardMinDnaOrnek: 10,
 };
 
+
+// v5.9.0 Adaptive Pattern DNA Entry: son-3 canlı replay lideri için anlamlı üstünlük kapıları.
+ayarlar.renkoDnaSon3MinNetFarki = Number(process.env.AGROS_RENKO_DNA_LAST3_MIN_NET_EDGE || 0.10);
+ayarlar.renkoDnaSon3MinOransalFark = Number(process.env.AGROS_RENKO_DNA_LAST3_MIN_RELATIVE_EDGE || 0.15);
+
 module.exports = ayarlar;

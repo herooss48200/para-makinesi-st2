@@ -5,13 +5,20 @@ const ayarlar = require('./ayarlar.js');
 const m = require('./motor.js');
 const core = require('./72_st2_renko_core.js');
 const entryEvolution = require('./73_st2_renko_entry_evolution.js');
+const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 
 let baslangicPusuOzetiGonderildi = false;
 let baslangicPusuKuyrugu = [];
 
-function aktifTuglaMesafesi(pusu) {
-    return entryEvolution.activeFor(pusu?.yon, pusu?.patternKodu);
+function aktifTuglaKarari(pusu) {
+    const fallback = entryEvolution.activeFor(pusu?.yon, pusu?.patternKodu);
+    return adaptiveDnaEntry.select(pusu || {}, fallback);
 }
+
+function aktifTuglaMesafesi(pusu) {
+    return Number(aktifTuglaKarari(pusu).brick);
+}
+
 
 function tetikFiyati(pusu) {
     return entryEvolution.targetPrice(pusu, aktifTuglaMesafesi(pusu));
@@ -271,6 +278,7 @@ async function pusuDegerlendir(sym, onay1m = null) {
     const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, st);
     console.log(`\n${renkoKanit}\n`);
 
+    const adaptiveEntryDecision = aktifTuglaKarari(pusu);
     const girisAnalizi = {
         entryStrategy: 'ST2_RENKO',
         pusuPeriyodu: ayarlar.renkoKaynakPeriyodu || '15m',
@@ -279,7 +287,8 @@ async function pusuDegerlendir(sym, onay1m = null) {
         hedefFiyati: pusu.referansSeviye,
         tetikFiyati: target,
         tetikYuzdesiAyar: Number(ayarlar.renkoTetikYuzdesi || 0),
-        renkoEntryBrickDistance: aktifTuglaMesafesi(pusu),
+        renkoEntryBrickDistance: Number(adaptiveEntryDecision.brick),
+        adaptiveDnaEntryDecision: adaptiveEntryDecision,
         tetikModu: 'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE',
         girisFiyati: price,
         superTrendYonu: st.trend,

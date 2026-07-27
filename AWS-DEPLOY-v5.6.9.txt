@@ -1,0 +1,29 @@
+AGROS ST2 v5.6.9 AWS DEPLOY
+
+1) Canlı state/data yedeği:
+cd ~/apps/para-makinesi-st2
+cp -a data "data-backup-v569-$(date +%Y%m%d-%H%M%S)"
+cp -a sanal-state.json "sanal-state-v569-$(date +%Y%m%d-%H%M%S).json" 2>/dev/null || true
+
+2) Kodu GitHub üzerinden güncelle veya ZIP'i temiz çalışma klasörüne aç.
+Canlı data klasörünü SİLME ve ZIP içindeki örnek/tmp state ile değiştirme.
+
+3) Kontrol:
+node --check 2_rapor.js
+node --check 62_lab_premier_league.js
+node --check 75_st2_winning_intelligence.js
+node test_v569_four_issue_resolution.js
+node test_v567_telegram_consistency_safe_startup.js
+
+4) Restart:
+pm2 restart agros-st2 --update-env
+pm2 save
+
+5) Doğrulama:
+pm2 logs agros-st2 --lines 150
+
+Beklenen canlı rapor:
+- Sürüm 5.6.9-PREMIER-CLOSE-WINNING-INTELLIGENCE
+- Premier kapanış sonrası Kapanan Premier N artar.
+- K1 satırı: "Anlık ... | SL ... | K1 koruma aktif"
+- KAZANMA / KAYBETME ZEKÂSI bölümü LONG/SHORT ekonomisini gösterir.
