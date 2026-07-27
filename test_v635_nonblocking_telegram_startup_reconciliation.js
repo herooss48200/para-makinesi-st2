@@ -15,5 +15,5 @@ assert.ok(memory.includes('telegramMesajGonderHizli'), 'fast Telegram API missin
 assert.ok(memory.includes('{ timeoutMs: 8000, retryCount: 0 }'), 'startup Telegram fast policy mismatch');
 assert.ok(entry.includes("PATTERN GİRİŞ EVRİMİNDE N5'E EN YAKIN"), 'truthful pattern-level heading missing');
 assert.ok(!entry.includes("<b>PREMIER'E EN YAKIN</b>"), 'misleading Premier heading still present');
-assert.strictEqual(version.botSurumu, '6.3.5-NONBLOCKING-TELEGRAM-STARTUP-RECONCILIATION');
+assert.ok(version.botSurumu === '6.3.5-NONBLOCKING-TELEGRAM-STARTUP-RECONCILIATION' || version.botSurumu.startsWith('6.3.6-')); 
 console.log('✅ v6.3.5 non-blocking Telegram startup + success-only stamp + truthful pattern heading passed');

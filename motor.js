@@ -489,7 +489,8 @@ const m = {
 
             if (ayarlar.sanalEmirModu) {
                 console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${islemYonu}`);
-                const etkinAnaliz = islemYonu === yon ? girisAnalizi : { ...(girisAnalizi || {}), originalSignalSide: yon, reverseExecutionSide: islemYonu };
+                const kimlikAnalizi = hazirKimlik.girisAnalizi || girisAnalizi || {};
+                const etkinAnaliz = islemYonu === yon ? kimlikAnalizi : { ...kimlikAnalizi, originalSignalSide: yon, reverseExecutionSide: islemYonu };
                 return await m.sanalPozisyonKaydet(symbol, islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision, etkinAnaliz, hazirKimlik);
             }
 

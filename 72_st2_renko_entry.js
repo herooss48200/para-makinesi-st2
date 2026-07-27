@@ -10,6 +10,42 @@ const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 let baslangicPusuOzetiGonderildi = false;
 let baslangicPusuKuyrugu = [];
 
+
+function bucket(value, cuts, labels) {
+    const x = Number(value || 0);
+    for (let i = 0; i < cuts.length; i++) if (x < cuts[i]) return labels[i];
+    return labels[labels.length - 1];
+}
+
+function exactContextHesapla(candles, match, bricks, bb, boxSize) {
+    const son = Array.isArray(candles) ? candles.at(-1) : null;
+    const close = Number(son?.close ?? son?.[4] ?? 0);
+    const upper = Number(Array.isArray(bb?.upper) ? bb.upper.at(-1) : bb?.upper);
+    const lower = Number(Array.isArray(bb?.lower) ? bb.lower.at(-1) : bb?.lower);
+    const mid = Number(bb?.mid || 0);
+    const reference = Number(match?.referenceLevel || 0);
+    let rbb = 'UNKNOWN';
+    if (upper > lower && reference > 0) {
+        const pos = (reference - lower) / (upper - lower);
+        rbb = pos <= 0.10 ? 'ALT' : pos <= 0.40 ? 'ORTA_ALT' : pos <= 0.60 ? 'ORTA' : pos <= 0.90 ? 'ORTA_UST' : 'UST';
+    }
+    const atrPct = close > 0 ? Number(boxSize || 0) / close * 100 : 0;
+    const bbWidthPct = mid > 0 && upper > lower ? (upper - lower) / mid * 100 : 0;
+    const recent = (Array.isArray(candles) ? candles.slice(-20) : [])
+        .map(x => Number(x?.close ?? x?.[4] ?? 0)).filter(x => x > 0);
+    const slopePct = recent.length >= 20 ? (recent.at(-1) / recent[0] - 1) * 100 : 0;
+    return {
+        rbb,
+        rbbw: bucket(bbWidthPct, [0.8, 1.6, 3.0], ['DAR', 'NORMAL', 'GENIS', 'COK_GENIS']),
+        atrRegime: bucket(atrPct, [0.20, 0.45, 0.80], ['DUSUK', 'NORMAL', 'YUKSEK', 'COK_YUKSEK']),
+        trend20: slopePct > 0.60 ? 'UP' : slopePct < -0.60 ? 'DOWN' : 'YATAY',
+        atrPct,
+        bbWidthPct,
+        trend20SlopePct: slopePct,
+        renko6: (Array.isArray(bricks) ? bricks.slice(-6) : []).map(x => x.color === 'GREEN' ? 'G' : 'R').join('') || 'UNKNOWN'
+    };
+}
+
 function aktifTuglaKarari(pusu) {
     const fallback = entryEvolution.activeFor(pusu?.yon, pusu?.patternKodu);
     return adaptiveDnaEntry.select(pusu || {}, fallback);
@@ -177,7 +213,7 @@ function bollingerSenaryosu(match, bollinger, boxSize) {
     );
 }
 
-function patternPususuGuncelle(sym, bricks, bollinger, boxSize, audit = null) {
+function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit = null) {
     const store = storeHazirla();
     const longMatch = core.longPatternTespit(bricks);
     const shortMatch = core.shortPatternTespit(bricks);
@@ -207,9 +243,15 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, audit = null) {
         if (!mevcut && store.sonPatternSignature[sym] === signature) continue;
 
         store.pusular[sym] = core.pusuOlustur(sym, match, scenario);
-        store.pusular[sym].renkoBb = { ...scenario };
+        const exactContext = exactContextHesapla(candles, match, bricks, bollinger, boxSize);
+        store.pusular[sym].rbb = exactContext.rbb;
+        store.pusular[sym].rbbw = exactContext.rbbw;
+        store.pusular[sym].atrRegime = exactContext.atrRegime;
+        store.pusular[sym].trend20 = exactContext.trend20;
+        store.pusular[sym].exactContextSnapshot = exactContext;
+        store.pusular[sym].renkoBb = { ...scenario, zone: exactContext.rbb, widthRegime: exactContext.rbbw };
         store.pusular[sym].renkoBoxSize = Number(boxSize || 0);
-        store.pusular[sym].renkoSonTuglaDizisi = match.bricks.map(b => b.color === 'GREEN' ? 'G' : 'R').join('');
+        store.pusular[sym].renkoSonTuglaDizisi = exactContext.renko6;
         store.pusular[sym].renkoSon10Tugla = tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10));
         const pusuKaniti = pusuOlusumKanitiMetni(sym, store.pusular[sym]);
         store.pusular[sym].renkoPusuKanitMetni = pusuKaniti;
@@ -312,6 +354,11 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         referansSeviye: pusu.referansSeviye,
         renkoBoxSize: store.boxSize?.[sym] || 0,
         renkoBb: pusu.renkoBb || null,
+        rbb: pusu.rbb,
+        rbbw: pusu.rbbw,
+        atrRegime: pusu.atrRegime,
+        trend20: pusu.trend20,
+        exactContextSnapshot: pusu.exactContextSnapshot || null,
         renkoBbTemasToleransTugla: Number(ayarlar.renkoBbTemasToleransTugla ?? 0.25),
         renkoSonTuglaDizisi: pusu.renkoSonTuglaDizisi || pusu.patternKodu,
         renkoSon10Tugla: pusu.renkoSon10Tugla || [],
@@ -369,7 +416,7 @@ async function taraVeDegerlendir() {
         const bb = m.hesaplaBollinger(bricks.map(x => Number(x.close)));
         if (!core.bollingerHazirMi(bb)) { audit.red.BB_GECERSIZ++; continue; }
         audit.bbHazir++;
-        patternPususuGuncelle(sym, bricks, bb, box, audit);
+        patternPususuGuncelle(sym, bricks, bb, box, candles, audit);
         const onay1m = birDakikaRenkoSuperTrend(sym, audit);
         await pusuDegerlendir(sym, onay1m, audit);
     }

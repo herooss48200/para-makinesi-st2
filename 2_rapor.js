@@ -326,7 +326,8 @@ function canliRaporMetniOlustur() {
     for (const pusu of pusuDegerleri) {
         try {
             const gate = adaptiveDnaEntry.gateDecision(pusu, Number(pusu?.renkoEntryBrickDistance || 0.75));
-            if (gate.executionMode === 'PREMIER') pusuDnaDagilimi.premier++;
+            if (!adaptiveDnaEntry.contextComplete(gate.context)) pusuDnaDagilimi.unknown++;
+            else if (gate.executionMode === 'PREMIER') pusuDnaDagilimi.premier++;
             else pusuDnaDagilimi.shadow++;
             const reason=gate.reason||'UNKNOWN'; pusuDnaDagilimi.reasons[reason]=(pusuDnaDagilimi.reasons[reason]||0)+1;
         } catch (_) { pusuDnaDagilimi.unknown++; }

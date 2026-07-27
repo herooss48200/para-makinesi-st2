@@ -81,7 +81,7 @@ function contextFromHistoricalEvent(event={}){
 }
 
 function contextComplete(c={}){
-  return ['rbb','rbbw','renko6'].every(k => c[k] && c[k] !== 'UNKNOWN');
+  return ['yon','pattern','rbb','rbbw','renko6','atr','trend20'].every(k => c[k] && c[k] !== 'UNKNOWN');
 }
 function patternKey(c){return `${c.yon}|${c.pattern}`;}
 function legacyDnaKey(c){return `${patternKey(c)}|RBB=${c.rbb}|RBBW=${c.rbbw}|RENKO6=${c.renko6}|ATR=${c.atr}|TREND20=${c.trend20}|SESSION=${c.session}`;}
@@ -201,7 +201,8 @@ function gateDecision(source,fallbackBrick=0.75){
   const liveReview=latestCompletedLiveReview(state,c,reviewBrick);
   const liveDemoted=Boolean(liveReview&&!positiveEvidence(liveReview,LAST_N,true));
   let action='OBSERVE', executionMode='SHADOW', reason='HISTORICAL_30_COIN_TRAINING_INCOMPLETE', evidence=null;
-  if(completion.complete){
+  if(!contextComplete(c)) reason='EXACT_CONTEXT_INCOMPLETE';
+  else if(completion.complete){
     if(liveWinner){action='ALLOW';executionMode='PREMIER';reason='LIVE_LAST3_WINNER';evidence={...decision.live,source:'LIVE_LAST3',exact:true};}
     else if(exactPositive&&!liveDemoted){action='ALLOW';executionMode='PREMIER';reason='HISTORICAL_EXACT_DNA_PREMIER';evidence=exactHistorical;}
     else if(exactPositive&&liveDemoted){reason='LIVE_N3_DEMOTED_TO_SHADOW';evidence=liveReview;}
