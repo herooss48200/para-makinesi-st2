@@ -478,7 +478,7 @@ function telegram(){
   }
 
   if(waiting.length){
-    t+=`\n⏳ <b>PREMIER'E EN YAKIN</b>\n`;
+    t+=`\n⏳ <b>PATTERN GİRİŞ EVRİMİNDE N5'E EN YAKIN</b>\n`;
     for(const r0 of waiting.slice(0,5)) t+=`${r0.p.yon} ${r0.p.patternCode} | N${r0.p.closed}/5 | ${Math.max(0,5-r0.p.closed)} kapanış kaldı\n`;
   }
   return t;

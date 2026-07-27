@@ -80,15 +80,24 @@ async function baslat() {
         let startupLastSentAt = 0;
         try { startupLastSentAt = Number(JSON.parse(fs.readFileSync(startupStampFile, 'utf8'))?.lastSentAt || 0); } catch (_) {}
         const startupCooldownMs = 10 * 60 * 1000;
-        if (Date.now() - startupLastSentAt >= startupCooldownMs) {
-            await h.telegramMesajGonder(baslangicMesaji);
-            try { fs.mkdirSync(path.dirname(startupStampFile), { recursive: true }); fs.writeFileSync(startupStampFile, JSON.stringify({ lastSentAt: Date.now(), version: versiyonBilgi.botSurumu }, null, 2)); } catch (e) { console.error(`⚠️ [ST2 STARTUP TELEGRAM STAMP] ${e.message}`); }
-        } else {
-            console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
-        }
-        await rapor.raporGonder(true);
+        const startupTelegramTask = async () => {
+            if (Date.now() - startupLastSentAt >= startupCooldownMs) {
+                const sonuclar = await h.telegramMesajGonderHizli(baslangicMesaji);
+                const basarili = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ok === true);
+                if (basarili) {
+                    try { fs.mkdirSync(path.dirname(startupStampFile), { recursive: true }); fs.writeFileSync(startupStampFile, JSON.stringify({ lastSentAt: Date.now(), version: versiyonBilgi.botSurumu }, null, 2)); } catch (e) { console.error(`⚠️ [ST2 STARTUP TELEGRAM STAMP] ${e.message}`); }
+                } else {
+                    console.log('⚠️ [ST2 STARTUP TELEGRAM] Gönderim doğrulanmadı; startup damgası yazılmadı.');
+                }
+            } else {
+                console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
+            }
+            await rapor.raporGonder(true);
+        };
+
         console.log(`✅ SİSTEM HAZIR. DÖNGÜ BAŞLATILDI. Emir Modu: ${emirModu}`);
 
+        let canliRaporCalisiyor = false;
         setInterval(async () => {
             if (donguCalisiyor) return;
             if (Date.now() < h.state.cooldownBitis) return;
@@ -110,9 +119,12 @@ async function baslat() {
                 await p.pusuRaporuGonder();
 
                 const now = Date.now();
-                if (ayarlar.canliRaporAktif && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 30000)) {
+                if (ayarlar.canliRaporAktif && !canliRaporCalisiyor && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 30000)) {
                     sonCanliRapor = now;
-                    await rapor.raporGonder(false);
+                    canliRaporCalisiyor = true;
+                    Promise.resolve(rapor.raporGonder(false))
+                        .catch(err => console.error(`⚠️ [CANLI RAPOR ARKA PLAN HATASI] ${err.message}`))
+                        .finally(() => { canliRaporCalisiyor = false; });
                 }
 
                 // v3.0.2 FIX: Strategy Lab toplu başarı/uyum analizi sadece kapanış sayacına bağlı kalmasın.
@@ -143,6 +155,10 @@ async function baslat() {
                 donguCalisiyor = false;
             }
         }, ayarlar.pingInterval || 500);
+
+        setImmediate(() => {
+            startupTelegramTask().catch(err => console.error(`⚠️ [ST2 STARTUP RAPOR ARKA PLAN HATASI] ${err.message}`));
+        });
     } catch (e) {
         console.error('❌ Kritik Başlatma Hatası! 5 saniye sonra yeniden denenecek:', e.message || e);
         setTimeout(baslat, 5000);

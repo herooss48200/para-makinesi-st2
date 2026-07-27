@@ -78,7 +78,7 @@ let telegramSonIstekZamani = 0;
 
 function bekle(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-function telegramHamIstegiAt(path, veri) {
+function telegramHamIstegiAt(path, veri, options = {}) {
     return new Promise((resolve) => {
         if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
             resolve({ ok: false, description: 'Telegram bilgileri eksik' });
@@ -86,12 +86,13 @@ function telegramHamIstegiAt(path, veri) {
         }
 
         const postData = JSON.stringify(veri);
-        const options = {
+        const timeoutMs = Math.max(3000, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
+        const requestOptions = {
             hostname: 'api.telegram.org',
             port: 443,
             path: `/bot${TELEGRAM_TOKEN}/${path}`,
             method: 'POST',
-            timeout: TELEGRAM_TIMEOUT_MS,
+            timeout: timeoutMs,
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(postData),
@@ -99,7 +100,7 @@ function telegramHamIstegiAt(path, veri) {
             }
         };
 
-        const req = https.request(options, (res) => {
+        const req = https.request(requestOptions, (res) => {
             let body = '';
             res.on('data', (chunk) => body += chunk);
             res.on('end', () => {
@@ -113,36 +114,37 @@ function telegramHamIstegiAt(path, veri) {
             });
         });
 
-        req.setTimeout(TELEGRAM_TIMEOUT_MS, () => req.destroy(new Error(`TELEGRAM_TIMEOUT:${TELEGRAM_TIMEOUT_MS}ms`)));
+        req.setTimeout(timeoutMs, () => req.destroy(new Error(`TELEGRAM_TIMEOUT:${timeoutMs}ms`)));
         req.on('error', (err) => resolve({ ok: false, description: err.message, transient: true }));
         req.write(postData);
         req.end();
     });
 }
 
-async function telegramDayanikliIstegiAt(path, veri) {
+async function telegramDayanikliIstegiAt(path, veri, options = {}) {
     let son = null;
-    for (let deneme = 0; deneme <= TELEGRAM_RETRY_COUNT; deneme++) {
+    const retryCount = Math.max(0, Math.min(TELEGRAM_RETRY_COUNT, Number.isFinite(Number(options.retryCount)) ? Number(options.retryCount) : TELEGRAM_RETRY_COUNT));
+    for (let deneme = 0; deneme <= retryCount; deneme++) {
         const gecen = Date.now() - telegramSonIstekZamani;
         if (gecen < TELEGRAM_MIN_INTERVAL_MS) await bekle(TELEGRAM_MIN_INTERVAL_MS - gecen);
         telegramSonIstekZamani = Date.now();
-        son = await telegramHamIstegiAt(path, veri);
+        son = await telegramHamIstegiAt(path, veri, options);
         if (son?.ok) return son;
 
         const aciklama = String(son?.description || son?.raw || '');
         const rateLimited = aciklama.includes('Too Many Requests') || Number(son?.error_code) === 429;
         const transient = son?.transient === true || aciklama.includes('TIMEOUT') || aciklama.includes('ECONNRESET') || aciklama.includes('EAI_AGAIN') || rateLimited;
-        if (!transient || deneme >= TELEGRAM_RETRY_COUNT) break;
+        if (!transient || deneme >= retryCount) break;
         const retryAfterMs = Math.max(1000, Number(son?.parameters?.retry_after || 0) * 1000, 1000 * (deneme + 1));
-        console.log(`⚠️ Telegram geçici hata; yeniden denenecek ${deneme + 1}/${TELEGRAM_RETRY_COUNT} | ${aciklama || 'geçici hata'}`);
+        console.log(`⚠️ Telegram geçici hata; yeniden denenecek ${deneme + 1}/${retryCount} | ${aciklama || 'geçici hata'}`);
         await bekle(retryAfterMs);
     }
     if (!son?.ok) console.error(`❌ Telegram HTTP Hatası: ${son?.description || son?.raw || 'bilinmeyen hata'}`);
     return son || { ok: false, description: 'Telegram yanıtı alınamadı' };
 }
 
-function yerelTelegramIstegiAt(path, veri) {
-    const is = () => telegramDayanikliIstegiAt(path, veri);
+function yerelTelegramIstegiAt(path, veri, options = {}) {
+    const is = () => telegramDayanikliIstegiAt(path, veri, options);
     const sonuc = telegramKuyruk.then(is, is);
     telegramKuyruk = sonuc.catch(() => null);
     return sonuc;
@@ -186,7 +188,7 @@ function telegramHtmlTemizle(mesaj) {
         .replace(/&amp;/g, '&');
 }
 
-async function telegramMesajGonder(mesaj) {
+async function telegramMesajGonder(mesaj, options = {}) {
     if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
         console.log('⚠️ Telegram bilgileri eksik, mesaj gönderilmedi.');
         return [];
@@ -205,7 +207,7 @@ async function telegramMesajGonder(mesaj) {
                     text,
                     parse_mode: 'HTML',
                     disable_web_page_preview: true
-                });
+                }, options);
 
                 // Telegram HTML parse hatası veya uzun mesaj yüzünden kritik kapanış mesajları kaybolmasın.
                 // HTML sürümü başarısız olursa aynı parçayı düz metin olarak tekrar gönderiyoruz.
@@ -218,7 +220,7 @@ async function telegramMesajGonder(mesaj) {
                             chat_id,
                             text: telegramHtmlTemizle(text),
                             disable_web_page_preview: true
-                        });
+                        }, options);
                     } else {
                         console.log(`⚠️ Telegram timeout: ${chat_id} | Aynı mesaj yinelenmedi; sonraki rapor turu bekleniyor.`);
                     }
@@ -235,6 +237,12 @@ async function telegramMesajGonder(mesaj) {
         }
     }
     return sonuclar;
+}
+
+
+
+async function telegramMesajGonderHizli(mesaj) {
+    return telegramMesajGonder(mesaj, { timeoutMs: 8000, retryCount: 0 });
 }
 
 async function telegramMesajDuzenle(chat_id, message_id, mesaj) {
@@ -320,6 +328,7 @@ module.exports = {
     client,
     state,
     telegramMesajGonder,
+    telegramMesajGonderHizli,
     telegramMesajDuzenle,
     telegramMesajSil,
     telegramCanliRaporGuncelle

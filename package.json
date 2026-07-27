@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.3.4-session-neutral-exact-dna-reconciliation",
-  "description": "AGROS ST2 v6.3.4: session-neutral exact DNA identity with lossless live-state migration and session reference profiling.",
+  "version": "6.3.5-nonblocking-telegram-startup-reconciliation",
+  "description": "AGROS ST2 v6.3.5: non-blocking Telegram startup/reporting, success-only startup stamp, fast startup send, and truthful pattern-level candidate heading.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -115,7 +115,7 @@
     "verify:v566": "node --check motor.js && node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check 74_st2_renko_exit_evolution.js && npm run test:v566 && npm run test:v565 && npm run test:v564",
     "test:v568": "node test_v568_consistency_clean_final.js",
     "verify:v568": "node --check 2_rapor.js && node --check 69_operation_intelligence_dashboard.js && node --check 72_st2_renko_entry.js && node test_v568_consistency_clean_final.js && node test_v567_telegram_consistency_safe_startup.js && node test_v566_renko_premier_binding_clean_telegram.js && node test_v565_renko_exit_safety_final.js && node test_v564_st2_renko_exit_manual_safety.js",
-    "test": "npm run verify:v634 && npm run verify:v633 && npm run verify:v632 && npm run verify:v631 && npm run verify:v630 && npm run verify:v622",
+    "test": "npm run verify:v635 && npm run verify:v634 && npm run verify:v633 && npm run verify:v632 && npm run verify:v631 && npm run verify:v630 && npm run verify:v622",
     "verify": "npm run verify:v612",
     "test:v5610": "node test_v5610_failed_pattern_breakdown.js",
     "verify:v5610": "node --check 73_st2_renko_entry_evolution.js && node --check test_v5610_failed_pattern_breakdown.js && npm run test:v5610 && node test_v569_four_issue_resolution.js && node test_v567_telegram_consistency_safe_startup.js",
@@ -162,7 +162,9 @@
     "test:v633": "node test_v633_final_observability_audit_reconciliation.js",
     "verify:v633": "node --check 2_rapor.js && node --check 73_st2_renko_entry_evolution.js && node --check 77_st2_pattern_dna_intelligence.js && npm run test:v633",
     "test:v634": "node test_v634_session_neutral_exact_dna_reconciliation.js",
-    "verify:v634": "node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check versiyon.js && npm run test:v634"
+    "verify:v634": "node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check versiyon.js && npm run test:v634",
+    "test:v635": "node test_v635_nonblocking_telegram_startup_reconciliation.js",
+    "verify:v635": "node --check 1_hafiza.js && node --check bot.js && node --check 73_st2_renko_entry_evolution.js && node --check versiyon.js && npm run test:v635"
   },
   "dependencies": {
     "axios": "^1.13.2",
