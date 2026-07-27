@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('assert');const fs=require('fs');const os=require('os');const path=require('path');
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'agros-v601-'));process.env.AGROS_DATA_DIR=tmp;
+fs.writeFileSync(path.join(tmp,'st2-historical-training.json'),JSON.stringify({profiles:{'SHORT|GGGG':{bestHistoricalEntry:1.50,candidates:{'0.25':{triggered:22,closed:22,net:-2,grossProfit:1,grossLoss:3},'1.50':{triggered:14,closed:14,net:0.84,grossProfit:1.64,grossLoss:0.8,tp:13,sl:1}}}}}));
+const events=[];for(let i=0;i<6;i++)events.push({type:'HISTORICAL_SIGNAL',yon:'SHORT',patternCode:'GGGG',context:{features:['BB=UST','BBW=GENIS','ATR=NORMAL','TREND20=DOWN','SESSION=ASYA','RENKO6=GRGGGG'],session:'ASYA',renko6:'GRGGGG'},candidates:{'0.25':{triggered:true,resolved:true,pnlPct:-0.1},'1.50':{triggered:true,resolved:true,pnlPct:0.2}}});
+fs.writeFileSync(path.join(tmp,'st2-historical-training-ledger.jsonl'),events.map(JSON.stringify).join('\n')+'\n');
+const adaptive=require('./76_st2_adaptive_dna_entry.js');const intel=require('./77_st2_pattern_dna_intelligence.js');
+const pos={yon:'SHORT',girisAnalizi:{patternKodu:'GGGG',renkoSonTuglaDizisi:'GRGGGG',renkoBb:{zone:'UST',widthRegime:'GENIS'},atrRegime:'NORMAL',trend20:'DOWN',session:'ASYA'}};
+const d=adaptive.select(pos,0.75);assert.equal(d.brick,1.50);assert.equal(d.source,'HISTORICAL_PRIOR');assert.equal(d.historical.source,'HISTORICAL_DNA_LEDGER');
+const sum=adaptive.summary();assert.equal(sum.health.historicalProfiles,1);assert.equal(sum.health.historicalSignals,6);assert.equal(sum.profiles.length,1);assert.equal(sum.profiles[0].historicalOnly,true);
+const tg=adaptive.telegram();assert(tg.includes('Geçmişten hazır DNA 1'));assert(tg.includes('HISTORICAL_BOOTSTRAP'));
+const reg=intel.registry();assert.equal(reg.profiles.length,1);assert(reg.profiles[0].confidence.score>=0);assert(intel.telegram().includes('Geçmişten hazır DNA 1'));
+console.log('✅ v6.0.1 Historical DNA Bootstrap passed | bestHistoricalEntry + ledger DNA bootstrap + Telegram visibility');

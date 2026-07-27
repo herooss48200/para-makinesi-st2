@@ -7,7 +7,7 @@
  */
 const adaptive = require('./76_st2_adaptive_dna_entry.js');
 
-const VERSION = 'v6.0.0-ADAPTIVE-DNA-INTELLIGENCE';
+const VERSION = 'v6.0.1-HISTORICAL-DNA-BOOTSTRAP';
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function r(v,d=4){return Number(n(v).toFixed(d));}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,n(v)));}
@@ -104,7 +104,7 @@ function registry(){
 }
 function telegram(limit=10){
   const reg=registry();
-  let t=`🧠 <b>ADAPTIVE DNA INTELLIGENCE</b>\n${VERSION}\n🔒 Shadow zekâ katmanı — Trade Engine değişmedi.\n`;
+  let t=`🧠 <b>ADAPTIVE DNA INTELLIGENCE</b>\n${VERSION}\n📚 Geçmişten hazır DNA ${reg.health?.historicalProfiles||0} | Tarihsel sinyal ${reg.health?.historicalSignals||0} | Canlı kapanış ${reg.health?.observed||0}\n🔒 Shadow zekâ katmanı — Trade Engine değişmedi.\n`;
   for(const p of reg.profiles.slice(0,limit)){
     const c=p.context,d=p.decision,cf=p.confidence,e=p.expectation,ev=p.evolution,near=p.nearest?.[0];
     t+=`\n🧬 <b>${c.yon} ${c.pattern}</b> | Güven ${cf.score}/100 ${cf.grade}\n`+

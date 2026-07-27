@@ -1,0 +1,17 @@
+AGROS ST2 v6.0.1 PATCH
+
+1) Bu klasördeki dosyaları ST2 repo köküne kopyalayın ve mevcut dosyaların üzerine yazın.
+2) PowerShell:
+   npm install
+   npm run verify:v601
+3) Başarılıysa commit/push yapın.
+4) AWS'de pull sonrası:
+   npm install
+   npm run verify:v601
+   pm2 restart agros-st2 --update-env
+   pm2 save
+
+Beklenen Telegram başlığı:
+- Geçmişten hazır DNA <N>
+- Tarihsel sinyal <N>
+- Canlı kapanış <N>
