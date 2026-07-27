@@ -50,10 +50,10 @@ async function baslat() {
             }
             const observation = premierObservation.read();
             const labModel = labPremier.build();
-            console.log(`🗺️ [FAMILY MEMORY READY] ${adaptiveLeague.VERSION} | Family lig/audit ${leagueState ? 'OK' : 'OK'} | Emir yetkisi KAPALI | Eski observation kapanan ${Number(observation?.closed || 0)}`);
-            console.log(`🏆 [LAB PREMIER READY] ${labPremier.VERSION} | Premier LAB ${Number(labModel?.premierCount || 0)} | İleri doğrulanmış ${Number(labModel?.forwardVerifiedCount || 0)} | Exit model ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'}`);
+            console.log(`🧩 [LEGACY COMPATIBILITY MEMORY] ${adaptiveLeague.VERSION} | Kimlik/audit uyumluluğu ${leagueState ? 'OK' : 'OK'} | Premier/Shadow yetkisi YOK | Eski observation kapanan ${Number(observation?.closed || 0)}`);
+            console.log(`🧩 [LEGACY EXIT COMPATIBILITY] ${labPremier.VERSION} | Eski kayıt ${Number(labModel?.premierCount || 0)} | İleri kayıt ${Number(labModel?.forwardVerifiedCount || 0)} | Exit uyumluluğu ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'} | Yeni Premier yetkisi YOK`);
             console.log('🛡️ [RAM-SAFE] Ağır replay yalnız model eskiyse bir kez, sonrasında kontrollü 25 kapanış aralığında güncellenir.');
-            console.log('🧬 [DUAL-LAYER RUNTIME ACTIVE] ÖĞRENME=ALL_VALID_LAB | ÜST_KATMAN=LAB_PREMIER_x1 | CHAMPIONSHIP=SHADOW_x0 | FAMILY=MEMORY_ONLY | GERÇEK=FAIL_CLOSED');
+            console.log('🧬 [ST2 EXACT-CONTEXT RUNTIME ACTIVE] POZİTİF_CONTEXT=PREMIER | NEGATİF/BİLİNMEYEN=SHADOW | SHADOW_N3_TERFİ=AKTİF | LEGACY=COMPATIBILITY_ONLY | GERÇEK=FAIL_CLOSED');
         } catch (err) {
             console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
         }
@@ -65,10 +65,10 @@ async function baslat() {
             `📊 Strateji: ${ayarlar.renkoOnayPeriyodu || '1m'} Renko SuperTrend onayı + ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} Renko pusu + canlı fiyat tetik\n` +
             `📡 İzlenen Sembol: ${h.state.semboller.length}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
-            `🧬 Sanal öğrenme: TÜM GEÇERLİ LAB/FULL DNA\n` +
-            `🗺️ Family DNA: kalıcı hafıza ve audit; emir yetkisi yok\n` +
-            `🏆 LAB Premier: kendi doğrulanmış Exit'iyle eşit x1 sanal yarış\n` +
-            `🥈 LAB Championship/Development: gölge öğrenme x0\n` +
+            `🧬 Sanal öğrenme: Renko exact-context Premier/Shadow\n` +
+            `🏆 Tarihsel pozitif exact-context: Premier sanal işlem\n` +
+            `👻 Negatif veya bilinmeyen exact-context: Shadow sanal öğrenme\n` +
+            `🔄 Shadow terfisi: bağımsız tamamlanmış N3 blok + Net>0 + PF≥1.30 + Exp>0 + en az 2/3 kazanım\n` +
             `🔒 Gerçek emir: fail-closed\n` +
             `🛡️ Binance minimumu karşılanmazsa emir güvenle atlanır.\n` +
             `🗃️ Eski muhasebe/başarı sayıları korunuyor; açılış ekranında gizlendi.\n\n` +

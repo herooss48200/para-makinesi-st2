@@ -1,0 +1,6 @@
+AGROS ST2 v6.2.2 DEPLOY
+1) .env ve data/ korunur.
+2) npm run verify:v622
+3) pm2 reload ecosystem.config.js --only agros-st2 --update-env
+4) pm2 save
+5) Logda 29/29, EXACT-CONTEXT ve hata yokluğu doğrulanır.

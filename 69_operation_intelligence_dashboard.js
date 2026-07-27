@@ -54,7 +54,7 @@ function telegram(activePositions=[], prebuilt=null){
   }).length;
   const livePremier = (activePositions||[]).filter(p=>p?.labPremierObservation?.upperLayerIncluded===true || p?.labPremierDecision?.upperLayerIncluded===true).length;
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
-  t+=`🧬 Öğrenilmiş Premier Pattern ${renkoPremierPatterns} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
+  t+=`🧬 Öğrenilmiş exact-context Premier ${renkoPremierPatterns} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
   t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
   if(n(r.opened)||n(r.active)||n(r.closed)||d.candidates.length){
     t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;

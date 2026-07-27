@@ -287,8 +287,9 @@ function st2AnaRaporOgrenmeOzeti() {
         : 'YOK';
     return [
         `🧠 <b>ENTRY EVOLUTION</b>`,
-        `Pattern ${Number(t.profiles || 0)}/16 | Bilimsel kapanış ${Number(t.closed || 0)} | Varsayılan dışı atama ${Number(t.assigned || 0)}`,
-        `✅ Başarılı ${Number(t.tp || 0)} | ❌ Başarısız ${Number(t.sl || 0)} | ⚖️ BE ${Number(t.be || 0)} | Replay Net ${Number(t.net || 0) >= 0 ? '+' : ''}${Number(t.net || 0).toFixed(4)}`,
+        `Pattern ${Number(t.profiles || 0)}/16 | Bilimsel kayıt ${Number(t.closed || 0)} | Varsayılan dışı atama ${Number(t.assigned || 0)}`,
+        `🎯 Tetiklenen ${Number(t.tp || 0) + Number(t.sl || 0) + Number(t.be || 0)} | Tetiklenmeyen ${Math.max(0, Number(t.closed || 0) - Number(t.tp || 0) - Number(t.sl || 0) - Number(t.be || 0))}`,
+        `✅ Başarılı ${Number(t.tp || 0)} | ❌ Başarısız ${Number(t.sl || 0)} | ⚖️ BE ${Number(t.be || 0)} | Replay Net ${Number(t.net || 0) >= 0 ? '+' : ''}${Number(t.net || 0).toFixed(4)}`, 
         `🎯 Aktif giriş dağılımı: ${dagilimMetni}`,
         `🔄 Son giriş değişimi: ${sonDegisimMetni}`,
         `Köprü: Çağrı ${Number(b.calls || 0)} | Kabul ${Number(b.accepted || 0)} | Ret ${ret}`,
@@ -354,7 +355,7 @@ function canliRaporMetniOlustur() {
             return Number(p.closed)>=5&&Number(cur.net)>0&&Number(cur.pf)>1&&Number(cur.expectancy)>0;
         }).length;
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
-        mesaj += `🧬 Öğrenilmiş Premier Pattern: ${renkoPremierPattern} | Canlı Premier pozisyon: ${aktifler.length}\n`;
+        mesaj += `🧬 Öğrenilmiş exact-context Premier: ${renkoPremierPattern} | Canlı Premier pozisyon: ${aktifler.length}\n`;
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
         mesaj += `🧪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Replay Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
         mesaj += `
@@ -414,7 +415,7 @@ ${gercekOzet}
 
     mesaj += `\n━━━━━━━━━━━━━━━━━━\n`;
     mesaj += ayarlar.sanalEmirModu
-        ? `<i>Canlı Portföy yalnız LAB Premier sanal testini gösterir; Family ve diğer LAB'lar gölgede öğrenir.</i>`
+        ? `<i>Canlı Portföy yalnız exact-context Premier sanal işlemlerini gösterir; negatif ve bilinmeyen bağlamlar Shadow defterinde öğrenir.</i>`
         : `<i>Canlı Portföy yalnız Binance gerçek emirlerini gösterir; sanal test ve öğrenme sayaçları karışmaz.</i>`;
 
     return kisalt(mesaj);

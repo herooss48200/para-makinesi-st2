@@ -366,15 +366,15 @@ const m = {
             : '';
 
         const telegramGonderildi = ayarlar.telegramIslemAcilisMesaji === true ? await h.telegramMesajGonder(
-            `${yeniPozisyon.leagueShadowOnly ? '👻 <b>[LAB GÖLGE ÖĞRENME]</b>' : '🏆 <b>[LAB PREMIER SANAL POZİSYON]</b>'}\n` +
-            (yeniPozisyon.labPremierDecision?.upperLayerIncluded ? `💎 <b>LAB PREMIER İŞLEMİ</b> | ${yeniPozisyon.labPremierDecision.proofLevel}\n` : `🌱 LAB Championship/Development — tek gölge sanal pozisyon | Telegram açık | üst kasa dışı öğrenme\n`) +
+            `${yeniPozisyon.renkoPremierDecision?.premier ? '🏆 <b>[EXACT-CONTEXT PREMIER SANAL POZİSYON]</b>' : '👻 <b>[EXACT-CONTEXT SHADOW ÖĞRENME]</b>'}\n` +
+            (yeniPozisyon.renkoPremierDecision?.premier ? `💎 <b>PREMIER KARARI</b> | ${yeniPozisyon.renkoPremierDecision.reason || 'HISTORICAL_CONTEXT_WINNER'}\n` : `🌱 SHADOW KARARI | ${yeniPozisyon.renkoPremierDecision?.reason || 'CONTEXT_NOT_PROVEN_SHADOW'} | bağımsız N3 terfi takibi\n`) +
             `🔀 ${symbol} (${yon})\n` +
             (yeniPozisyon.labPremierDecision?.reverseExecution ? `🔁 Ters Premier kaynağı: ${yeniPozisyon.labPremierDecision.sourceLabDnaLabel || 'LAB #YOK'} ${yeniPozisyon.labPremierDecision.sourceSignalSide || ''} → ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} ${yon}\n` : '') +
             `🪪 ${yeniPozisyon.realOrderReadiness?.dnaLabel || yeniPozisyon.dnaLabel || 'DNA #YOK'}\n` +
             `🧩 ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
             `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
-            `🏆 LAB Lig: ${yeniPozisyon.labPremierDecision?.labLeague || 'DEVELOPMENT'} | Grup: ${yeniPozisyon.labPremierDecision?.premierTrack || 'LAB_LEAGUE'} | Kanıt: ${yeniPozisyon.labPremierDecision?.proofLevel || 'LEARNING'}\n` +
-            `🧬 Family: ${yeniPozisyon.realOrderReadiness?.league || 'UNRANKED'} (yalnız hafıza/audit)\n` +
+            `🧬 Exact Context: ${yeniPozisyon.renkoPremierDecision?.dnaKey || 'YOK'}\n` +
+            `🎯 Mod: ${yeniPozisyon.renkoPremierDecision?.executionMode || 'SHADOW'} | Kaynak: ${yeniPozisyon.renkoPremierDecision?.source || 'NONE'} | Giriş: ${Number(yeniPozisyon.renkoPremierDecision?.activeBrick || yeniPozisyon.girisAnalizi?.renkoEntryBrickDistance || 0.75).toFixed(2)} tuğla\n` +
             `🎯 Atanan Exit: ${yeniPozisyon.executionExitAssignment?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.executionExitAssignment?.activeForPosition ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
             `📊 Exit Kanıtı: N${Number(yeniPozisyon.executionExitAssignment?.samples || 0)} | Beat %${Number(yeniPozisyon.executionExitAssignment?.beatRate || 0).toFixed(1)} | PF ${Number(yeniPozisyon.executionExitAssignment?.profitFactor || 0).toFixed(2)} | Net ${Number(yeniPozisyon.executionExitAssignment?.netUsdt || 0).toFixed(4)}\n` +
             `🧭 Seçim Kapsamı: ${yeniPozisyon.executionExitAssignment?.scope || 'ACTUAL_FALLBACK'}\n` +

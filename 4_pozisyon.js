@@ -65,13 +65,13 @@ function kapanisRaporKimligi(pos, restartGapIslemi) {
         league = frozen?.labLeague || pos?.labLeagueAtOpen || 'GERÇEK';
         proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'REAL';
         track = 'GERÇEK';
-    } else if (upper) {
-        title = '[LAB PREMIER SANAL POZİSYON KAPANDI]';
+    } else if (pos?.renkoPremierDecision?.premier === true) {
+        title = '[EXACT-CONTEXT PREMIER SANAL POZİSYON KAPANDI]';
         league = frozen?.labLeague || pos?.labLeagueAtOpen || 'PREMIER';
         proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'PREMIER';
         track = 'ÜST KASA';
-    } else if (shadow) {
-        title = '[LAB GÖLGE ÖĞRENME KAPANDI]';
+    } else if (pos?.renkoPremierDecision && pos?.renkoPremierDecision?.premier !== true) {
+        title = '[EXACT-CONTEXT SHADOW ÖĞRENME KAPANDI]';
         league = frozen?.labLeague || pos?.labLeagueAtOpen || 'DEVELOPMENT';
         proof = frozen?.proofLevel || pos?.labProofLevelAtOpen || 'LEARNING';
         track = 'GÖLGE';
