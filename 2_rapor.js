@@ -639,9 +639,9 @@ async function st1FinalCertificationRaporuGonderGerekirse() {
         sonSt1CertificationSignature = signature;
         const mesaj = st1Certification.telegram(model);
         if (mesaj) await h.telegramMesajGonder(mesaj);
-        console.log(`🧾 [ST1 FINAL CERTIFICATION] Telegram | Skor ${model.score.toFixed(1)} | ${model.status} | İmza ${signature}`);
+        console.log(`🧾 [ST2 FINAL CERTIFICATION] Telegram | Skor ${model.score.toFixed(1)} | ${model.status} | İmza ${signature}`);
     } catch (err) {
-        console.error('❌ [ST1 FINAL CERTIFICATION HATASI]:', err.message);
+        console.error('❌ [ST2 FINAL CERTIFICATION HATASI]:', err.message);
     }
 }
 
@@ -727,7 +727,7 @@ async function raporGonder(oneCikar = false) {
         await labPremierRaporuGonderGerekirse();
         ramTrace('LAB Premier sonrası');
         await st1FinalCertificationRaporuGonderGerekirse();
-        ramTrace('ST1 Final Certification sonrası');
+        ramTrace('ST2 Final Certification sonrası');
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     } finally {

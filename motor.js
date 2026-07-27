@@ -1,6 +1,7 @@
 const ayarlar = require('./ayarlar.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
+const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const h = require('./1_hafiza.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
@@ -214,6 +215,18 @@ const m = {
         if (!izin.uygun) {
             console.log(`🛡️ [SANAL EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
             return false;
+        }
+
+        if (girisAnalizi?.entryStrategy === 'ST2_RENKO') {
+            const fallbackBrick = Number(girisAnalizi.renkoEntryBrickDistance || 0.75);
+            const gate = adaptiveDnaEntry.gateDecision({ symbol, sym: symbol, yon, girisAnalizi, ...girisAnalizi }, fallbackBrick);
+            girisAnalizi.historicalEntryGate = gate;
+            if (!gate.allow) {
+                console.log(`⛔ [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | ${gate.action} | ${gate.reason} | Coin ${gate.completion.ready}/${gate.completion.total} | ${gate.context.yon}|${gate.context.pattern}|RBB=${gate.context.rbb}|RBBW=${gate.context.rbbw}|RENKO6=${gate.context.renko6}`);
+                return false;
+            }
+            girisAnalizi.renkoEntryBrickDistance = gate.brick;
+            console.log(`✅ [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | ALLOW | ${gate.reason} | Giriş ${gate.brick.toFixed(2)} | N${Number(gate.evidence?.n||0)} Net ${Number(gate.evidence?.net||0).toFixed(4)} PF ${Number(gate.evidence?.pf||0).toFixed(2)} Exp ${Number(gate.evidence?.expectancy||0).toFixed(4)}`);
         }
 
         const sanalId = `SANAL-${Date.now()}-${h.state.sanalEmirSayaci++}`;

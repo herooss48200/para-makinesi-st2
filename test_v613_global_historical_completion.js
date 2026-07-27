@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('assert');const fs=require('fs');
+const recSrc=fs.readFileSync('./78_st2_global_historical_reconciliation.js','utf8');
+const runSrc=fs.readFileSync('./79_st2_global_historical_runtime.js','utf8');
+const reportSrc=fs.readFileSync('./2_rapor.js','utf8');
+assert(recSrc.includes("'PARTIAL_READY'"),'partial-ready status missing');
+assert(recSrc.includes("'READY':'PARTIAL_READY'"),'READY must require all canonical coins');
+assert(runSrc.includes('GLOBAL HISTORICAL TRAIN START'),'worker start telemetry missing');
+assert(runSrc.includes('GLOBAL HISTORICAL TRAIN COMPLETE'),'worker completion telemetry missing');
+assert(runSrc.includes('failedSymbols.push'),'per-symbol fail continuity missing');
+assert(runSrc.includes('reconciliation.SYMBOLS'),'canonical pool binding missing');
+assert(runSrc.includes('TRAINER_EXPORT_MISSING'),'trainer contract guard missing');
+assert(!reportSrc.includes('[ST1 FINAL CERTIFICATION]'),'ST1 runtime label remains');
+assert(reportSrc.includes('[ST2 FINAL CERTIFICATION]'),'ST2 runtime label missing');
+console.log('✅ v6.1.3 global historical completion passed | resilient 30-coin worker + truthful readiness + ST2 report identity');

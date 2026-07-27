@@ -1,0 +1,9 @@
+cd ~/apps/para-makinesi-st2
+git status --short
+git pull origin main
+npm test
+pm2 restart agros-st2 --update-env
+pm2 save
+pm2 status
+
+grep -nE "6\.1\.4|GLOBAL HISTORICAL TRAIN|ST2 HISTORICAL ENTRY GATE|ALLOW|BLOCK|ERROR|Unhandled|uncaught" logs-st2/agros-st2-out.log logs-st2/agros-st2-error.log | tail -250

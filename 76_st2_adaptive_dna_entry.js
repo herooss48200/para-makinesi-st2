@@ -15,7 +15,7 @@ const readline = require('readline');
 const io = require('./53_memory_safe_io.js');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v6.1.2-DNA-CONTEXT-TRUTH';
+const VERSION = 'v6.1.4-HISTORICAL-LIVE-N3-ENTRY-GATE';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-adaptive-pattern-dna-entry.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -132,13 +132,37 @@ function buildHistoricalIndex(){
   historicalCache={signature,index};return index;
 }
 function positiveEvidence(x,minN=1){return Boolean(x&&n(x.n)>=minN&&n(x.net)>0&&n(x.pf)>1&&n(x.expectancy)>0);}
+function historicalEvidence(yon,pattern,context=null){
+  const idx=buildHistoricalIndex();
+  if(context){
+    const exact=idx.dnas[dnaKey(context)];
+    if(exact?.best)return {...exact.best,source:exact.source,dnaKey:exact.key,context:exact.context,exact:true};
+  }
+  const p=idx.patterns[`${yon}|${pattern}`];return p?{...p,exact:false}:null;
+}
 function historicalProfile(yon,pattern,context=null){
   const idx=buildHistoricalIndex();
   if(context){
     const exact=idx.dnas[dnaKey(context)];
-    if(exact?.best&&positiveEvidence(exact.best,HISTORICAL_PREMIER_MIN_N()))return {...exact.best,source:exact.source,dnaKey:exact.key,context:exact.context};
+    if(exact?.best&&positiveEvidence(exact.best,HISTORICAL_PREMIER_MIN_N()))return {...exact.best,source:exact.source,dnaKey:exact.key,context:exact.context,exact:true};
   }
-  const p=idx.patterns[`${yon}|${pattern}`];return p?{...p}:null;
+  const p=idx.patterns[`${yon}|${pattern}`];
+  return positiveEvidence(p,HISTORICAL_PREMIER_MIN_N())?{...p,exact:false}:null;
+}
+function historicalCompletion(){
+  try{const h=JSON.parse(fs.readFileSync(HISTORICAL_FILE,'utf8'));const ready=Object.values(h.symbols||{}).filter(x=>n(x?.signals)>0).length;return {ready,total:30,complete:ready>=30};}catch(_){return {ready:0,total:30,complete:false};}
+}
+function gateDecision(source,fallbackBrick=0.75){
+  const c=contextFrom(source);
+  const completion=historicalCompletion();
+  const decision=select(source,fallbackBrick);
+  const evidence=decision.live&&positiveEvidence(decision.live,LAST_N)?{...decision.live,source:'LIVE_LAST3'}:historicalEvidence(c.yon,c.pattern,c);
+  const minN=HISTORICAL_PREMIER_MIN_N();
+  const positive=positiveEvidence(evidence,evidence?.source==='LIVE_LAST3'?LAST_N:minN);
+  const negative=Boolean(evidence&&n(evidence.n)>= (evidence?.source==='LIVE_LAST3'?LAST_N:minN)&&n(evidence.net)<0&&n(evidence.expectancy)<0&&n(evidence.pf)<0.80);
+  let action='WAIT';let reason='HISTORICAL_30_COIN_TRAINING_INCOMPLETE';
+  if(completion.complete){if(positive){action='ALLOW';reason=evidence.source==='LIVE_LAST3'?'LIVE_LAST3_WINNER':'HISTORICAL_CONTEXT_WINNER';}else if(negative){action='BLOCK';reason=evidence.source==='LIVE_LAST3'?'LIVE_LAST3_LOSER':'HISTORICAL_CONTEXT_LOSER';}else{action='BLOCK';reason=evidence?'CONTEXT_NOT_PROVEN':'CONTEXT_MISSING';}}
+  return {action,allow:action==='ALLOW',block:action==='BLOCK',reason,completion,context:c,decision,evidence:evidence||null,brick:n(decision.brick,fallbackBrick)};
 }
 function historicalBootstrapProfiles(){
   const idx=buildHistoricalIndex();
@@ -181,4 +205,4 @@ function observe(pos,result,replays={},tradeId){const s=load();if(tradeId&&s.hea
 function selectWithState(s,c,fallbackBrick){const p=s.dnaProfiles[dnaKey(c)];const hist=historicalProfile(c.yon,c.pattern,c);const hb=n(hist?.brick,fallbackBrick);if(!p||p.closes.length<LAST_N)return {brick:hb,reason:hist?'HISTORICAL_BOOTSTRAP':`SON_${LAST_N}_BEKLENIYOR`,historical:hist,live:null};const recent=p.closes.slice(-LAST_N);const rows=CANDIDATES().map(brick=>({brick,...metric(recent.map(x=>x.candidates?.[brick.toFixed(2)]).filter(Boolean))}));const live=rows.filter(x=>x.n===LAST_N&&x.net>0&&x.expectancy>0&&x.pf>1).sort((a,b)=>b.net-a.net||b.expectancy-a.expectancy)[0]||null;const base=rows.find(x=>Math.abs(x.brick-hb)<1e-9)||null;if(!live)return {brick:hb,reason:'SON_3_POZITIF_LIDER_YOK',historical:hist,live:null,rows};const edge=live.net-n(base?.net);const rel=edge/Math.max(Math.abs(n(base?.net)),0.01);if(live.brick!==hb&&edge<MIN_NET_EDGE()&&rel<MIN_RELATIVE_EDGE())return {brick:hb,reason:'FARK_ANLAMLI_DEGIL',historical:hist,live,rows};return {brick:live.brick,reason:'SON_3_POZITIF_NET_LIDER',historical:hist,live,rows};}
 function summary(){const s=load();const live=Object.values(s.dnaProfiles||{});const liveKeys=new Set(live.map(x=>x.key));const livePatterns=new Set(live.map(x=>x.patternKey));const boot=historicalBootstrapProfiles().filter(x=>!liveKeys.has(x.key)&&!(x.context?.rbb==='HISTORICAL_AGGREGATE'&&livePatterns.has(x.patternKey)));const profiles=[...live,...boot].map(p=>({...p,decision:selectWithState(s,p.context,n(p.activeBrick,0.75))}));const hi=buildHistoricalIndex();return {version:VERSION,policy:{lastN:LAST_N,minNetEdge:MIN_NET_EDGE(),minRelativeEdge:MIN_RELATIVE_EDGE(),candidates:CANDIDATES(),historicalBootstrap:true},health:{...s.health,historicalProfiles:Object.keys(hi.dnas).length||Object.keys(hi.patterns).length,historicalSignals:hi.signals,historicalSource:hi.source.ledger||hi.source.state},profiles};}
 function telegram(limit=10){const x=summary();let t=`🧬 <b>ADAPTIVE PATTERN DNA ENTRY</b>\nSürüm ${VERSION}\n📚 Geçmişten hazır DNA ${x.health.historicalProfiles||0} | Tarihsel sinyal ${x.health.historicalSignals||0} | Canlı kapanış ${x.health.observed||0}\nHistorical Prior + Son-${LAST_N} Live Evidence\n🔒 Yalnız yeni girişe atanır; açık pozisyon değişmez.\n`;for(const p of x.profiles.sort((a,b)=>n(b.decision?.historical?.n)-n(a.decision?.historical?.n)).slice(0,limit)){const d=p.decision;const h=d.historical;t+=`\n<b>${p.context.yon} ${p.context.pattern}</b>${p.historicalOnly?' | 📚 BOOTSTRAP':''}\nDNA RBB=${p.context.rbb} | RBBW=${p.context.rbbw} | RENKO6=${p.context.renko6}\nATR=${p.context.atr} | TREND20=${p.context.trend20} | SESSION=${p.context.session}\n📚 Tarihsel ${h?Number(h.brick).toFixed(2):'YOK'}${h?` | N${h.n} PF ${n(h.pf).toFixed(2)} Exp ${n(h.expectancy)>=0?'+':''}${n(h.expectancy).toFixed(4)}`:''}\n⚡ Canlı son-3 ${d.live?Number(d.live.brick).toFixed(2):'BEKLENİYOR'}${d.live?` | Net ${n(d.live.net)>=0?'+':''}${n(d.live.net).toFixed(4)} PF ${n(d.live.pf).toFixed(2)}`:''}\n🎯 Aktif ${Number(d.brick).toFixed(2)} | ${d.reason}\n`; }return t.trim();}
-module.exports={VERSION,STATE_FILE,BACKUP_FILE,HISTORICAL_FILE,HISTORICAL_LEDGER_FILE,LAST_N,CANDIDATES,HISTORICAL_PREMIER_MIN_N,contextFrom,contextFromHistoricalEvent,contextComplete,patternKey,dnaKey,historicalPaths,buildHistoricalIndex,historicalProfile,historicalBootstrapProfiles,positiveEvidence,premierFor,select,observe,summary,telegram,metric,load,save,blank};
+module.exports={VERSION,STATE_FILE,BACKUP_FILE,HISTORICAL_FILE,HISTORICAL_LEDGER_FILE,LAST_N,CANDIDATES,HISTORICAL_PREMIER_MIN_N,contextFrom,contextFromHistoricalEvent,contextComplete,patternKey,dnaKey,historicalPaths,buildHistoricalIndex,historicalEvidence,historicalProfile,historicalCompletion,gateDecision,historicalBootstrapProfiles,positiveEvidence,premierFor,select,observe,summary,telegram,metric,load,save,blank};

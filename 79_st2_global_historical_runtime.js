@@ -1,6 +1,6 @@
 'use strict';
 /**
- * AGROS ST2 v6.1.1 — Global Historical Runtime Activation
+ * AGROS ST2 v6.1.3 — Global Historical Worker Completion & Recovery
  * Shadow-only runtime coordinator. Trade Engine ve gerçek emir kararına yazmaz.
  */
 const fs = require('fs');
@@ -8,7 +8,7 @@ const path = require('path');
 const trainer = require('./75_st2_historical_renko_training.js');
 const reconciliation = require('./78_st2_global_historical_reconciliation.js');
 
-const VERSION = 'v6.1.2-GLOBAL-HISTORICAL-RUNTIME-RECOVERY';
+const VERSION = 'v6.1.3-GLOBAL-HISTORICAL-WORKER-COMPLETION';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const RUNTIME_FILE = path.join(DATA_DIR, 'st2-global-historical-runtime.json');
 let running = false;
@@ -29,21 +29,45 @@ function status(){
   return {version:VERSION,enabled:enabled(),autoTrain:autoTrainEnabled(),running,lastRunAt:prev.lastRunAt||null,lastSuccessAt:prev.lastSuccessAt||null,lastError:prev.lastError||null,coins:reconciliation.COINS.length,readyCoins:rec.historical.readyCoins,signals:rec.historical.signals,patterns:rec.historical.readyPatterns,reconciliationOk:rec.reconciliation.ok};
 }
 async function trainMissing(){
-  if(running)return status(); running=true;
+  if(running)return status();
+  running=true;
   const startedAt=new Date().toISOString(), range=configuredRange();
-  let state=trainer.load();
-  const ready=new Set(Object.keys(state.symbols||{}).filter(s=>n(state.symbols[s]?.signals)>0));
-  const targets=trainer.DEFAULT_SYMBOLS.filter(s=>!ready.has(s));
-  const runtime={version:VERSION,startedAt,lastRunAt:startedAt,targets,totalTargets:targets.length,lastError:null}; atomicWrite(runtime);
+  let runtime={version:VERSION,startedAt,lastRunAt:startedAt,targets:[],totalTargets:0,completedTargets:0,failedTargets:0,lastError:null};
   try{
-    for(const symbol of targets){
-      const candles=await trainer.downloadKlines(symbol,range.interval,Date.parse(range.start),Date.parse(range.end),{});
-      state=trainer.trainSymbol(symbol,candles,{minTrainingN:n(process.env.AGROS_ST2_HISTORICAL_MIN_N,30),maxHoldBars:n(process.env.AGROS_ST2_HISTORICAL_MAX_HOLD_BARS,32)},state);
-      trainer.save(state);
+    for(const fn of ['load','save','downloadKlines','trainSymbol']){
+      if(typeof trainer[fn]!=='function')throw new Error(`TRAINER_EXPORT_MISSING:${fn}`);
     }
-    atomicWrite({...runtime,completedAt:new Date().toISOString(),lastSuccessAt:new Date().toISOString(),trainedSymbols:targets});
-  }catch(e){atomicWrite({...runtime,failedAt:new Date().toISOString(),lastError:e.message||String(e)});throw e;}
-  finally{running=false;}
+    const canonicalSymbols=Array.isArray(reconciliation.SYMBOLS)&&reconciliation.SYMBOLS.length?reconciliation.SYMBOLS:trainer.DEFAULT_SYMBOLS;
+    if(!Array.isArray(canonicalSymbols)||canonicalSymbols.length!==reconciliation.COINS.length)throw new Error('CANONICAL_30_COIN_POOL_INVALID');
+    let state=trainer.load();
+    const ready=new Set(Object.keys(state.symbols||{}).filter(s=>n(state.symbols[s]?.signals)>0));
+    const targets=canonicalSymbols.filter(s=>!ready.has(s));
+    runtime={...runtime,targets,totalTargets:targets.length,alreadyReady:ready.size}; atomicWrite(runtime);
+    console.log(`🌍 [GLOBAL HISTORICAL TRAIN START] Hazır ${ready.size}/${canonicalSymbols.length} | Hedef ${targets.length}`);
+    const trainedSymbols=[], failedSymbols=[];
+    for(let i=0;i<targets.length;i++){
+      const symbol=targets[i], itemStartedAt=new Date().toISOString();
+      console.log(`🌍 [GLOBAL HISTORICAL TRAIN ${i+1}/${targets.length}] ${symbol} START`);
+      try{
+        const candles=await trainer.downloadKlines(symbol,range.interval,Date.parse(range.start),Date.parse(range.end),{});
+        state=trainer.trainSymbol(symbol,candles,{minTrainingN:n(process.env.AGROS_ST2_HISTORICAL_MIN_N,30),maxHoldBars:n(process.env.AGROS_ST2_HISTORICAL_MAX_HOLD_BARS,32)},state);
+        trainer.save(state); trainedSymbols.push(symbol);
+        const signals=n(state.symbols?.[symbol]?.signals);
+        runtime={...runtime,currentSymbol:symbol,completedTargets:trainedSymbols.length,failedTargets:failedSymbols.length,trainedSymbols,failedSymbols,lastProgressAt:new Date().toISOString(),lastError:null}; atomicWrite(runtime);
+        console.log(`✅ [GLOBAL HISTORICAL TRAIN ${i+1}/${targets.length}] ${symbol} OK | Mum ${candles.length} | Sinyal ${signals}`);
+      }catch(e){
+        failedSymbols.push({symbol,error:e.message||String(e),at:new Date().toISOString(),startedAt:itemStartedAt});
+        runtime={...runtime,currentSymbol:symbol,completedTargets:trainedSymbols.length,failedTargets:failedSymbols.length,trainedSymbols,failedSymbols,lastProgressAt:new Date().toISOString(),lastError:e.message||String(e)}; atomicWrite(runtime);
+        console.error(`❌ [GLOBAL HISTORICAL TRAIN ${i+1}/${targets.length}] ${symbol} FAIL | ${e.message||e}`);
+      }
+    }
+    const completedAt=new Date().toISOString();
+    atomicWrite({...runtime,currentSymbol:null,completedAt,lastSuccessAt:failedSymbols.length?null:completedAt,partialSuccessAt:trainedSymbols.length?completedAt:null,trainedSymbols,failedSymbols,lastError:failedSymbols.length?`${failedSymbols.length}_SYMBOL_FAILED`:null});
+    console.log(`🌍 [GLOBAL HISTORICAL TRAIN COMPLETE] Başarılı ${trainedSymbols.length} | Hatalı ${failedSymbols.length} | Toplam ${targets.length}`);
+  }catch(e){
+    atomicWrite({...runtime,failedAt:new Date().toISOString(),lastError:e.message||String(e)});
+    console.error(`❌ [GLOBAL HISTORICAL RUNTIME FATAL] ${e.message||e}`);
+  }finally{running=false;}
   return status();
 }
 function activate(){
