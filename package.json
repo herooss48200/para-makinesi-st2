@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.0.2-complete-historical-premier",
-  "description": "AGROS ST2 v6.0.2: complete historical Pattern aggregation, best historical entry, adaptive Premier gate; Trade Engine unchanged.",
+  "version": "6.1.0-st2-global-historical-learning-intelligence-reconciliation",
+  "description": "AGROS ST2 v6.1.0: 30-coin shadow historical learning, hierarchical source selection, actual-vs-optimized Entry Evolution reconciliation; Trade Engine unchanged.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -134,7 +134,9 @@
     "test:v601": "node test_v601_historical_dna_bootstrap.js",
     "verify:v601": "node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check test_v601_historical_dna_bootstrap.js && npm run test:v601 && npm run verify:v600",
     "test:v602": "node test_v602_complete_historical_premier.js",
-    "verify:v602": "node --check 73_st2_renko_entry_evolution.js && node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check motor.js && node --check test_v602_complete_historical_premier.js && npm run test:v602 && npm run verify:v601"
+    "verify:v602": "node --check 73_st2_renko_entry_evolution.js && node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check motor.js && node --check test_v602_complete_historical_premier.js && npm run test:v602 && npm run verify:v601",
+    "test:v610": "node test_v610_global_historical_reconciliation.js",
+    "verify:v610": "node --check 75_st2_historical_renko_training.js && node --check 73_st2_renko_entry_evolution.js && node --check 75_st2_winning_intelligence.js && node --check 78_st2_global_historical_reconciliation.js && node --check 2_rapor.js && npm run test:v610 && npm run test:v602 && npm run test:v601 && npm run test:v600 && npm run test:v590 && npm run test:v581 && npm run test:v580 && npm run test:v570 && node test_st2_identity_isolation.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

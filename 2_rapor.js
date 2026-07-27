@@ -20,6 +20,7 @@ const operationIntelligence = require('./69_operation_intelligence_dashboard.js'
 const st1Certification = require('./71_st1_final_certification.js');
 const winningIntelligence = require('./75_st2_winning_intelligence.js');
 const adaptiveDnaIntelligence = require('./77_st2_pattern_dna_intelligence.js');
+const globalHistoricalReconciliation = require('./78_st2_global_historical_reconciliation.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -372,6 +373,7 @@ ${ayarlar.entryStrategyMode === 'ST2_RENKO' ? st2AnaRaporOgrenmeOzeti() : learni
         if (ayarlar.entryStrategyMode === 'ST2_RENKO') mesaj += `
 
 ${winningIntelligence.telegram()}
+${globalHistoricalReconciliation.telegram()}
 `;
     } else {
         mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}

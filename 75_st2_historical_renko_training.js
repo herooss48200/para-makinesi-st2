@@ -24,6 +24,8 @@ const BACKUP_FILE = `${STATE_FILE}.bak`;
 const LEDGER_FILE = path.join(DATA_DIR, 'st2-historical-training-ledger.jsonl');
 const CHECKPOINT_FILE = path.join(DATA_DIR, 'st2-historical-training-checkpoint.json');
 const CANDIDATES = [0.25, 0.50, 0.75, 1.00, 1.25, 1.50];
+const DEFAULT_COINS = ['BTC','ETH','BNB','SOL','XRP','DOGE','ADA','LINK','LTC','AVAX','DOT','BCH','TRX','ATOM','ETC','NEAR','APT','SUI','ARB','OP','FIL','INJ','SEI','TON','UNI','AAVE','FET','PEPE','WIF','HBAR'];
+const DEFAULT_SYMBOLS = DEFAULT_COINS.map(x => `${x}USDT`);
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function r(v, digits = 8) { return Number(n(v).toFixed(digits)); }
@@ -336,7 +338,7 @@ async function cli(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
   if (args.report) { console.log(report()); return; }
   const symbols = String(args.symbols || args.symbol || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean);
-  if (!symbols.length) throw new Error('Kullanım: node 75_st2_historical_renko_training.js --symbols=BTCUSDT,ETHUSDT --start=2025-01-01 --end=2026-07-01');
+  if (!symbols.length) symbols.push(...DEFAULT_SYMBOLS);
   const start = Date.parse(args.start); const end = Date.parse(args.end || new Date().toISOString());
   if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) throw new Error('Geçerli --start ve --end tarihleri zorunludur.');
   let state = args.reset ? blank() : load();
@@ -349,4 +351,4 @@ async function cli(argv = process.argv.slice(2)) {
 }
 
 if (require.main === module) cli().catch(e => { console.error(`❌ ${e.stack || e.message}`); process.exitCode = 1; });
-module.exports = { VERSION, parseArgs, STATE_FILE, BACKUP_FILE, LEDGER_FILE, CHECKPOINT_FILE, CANDIDATES, blank, load, save, smaBb, normalizeKline, bbZone, signalContext, featureMetric, intelligenceForCandidate, replayCandidate, metric, chooseBest, trainSymbol, downloadKlines, report, cli };
+module.exports = { VERSION, DEFAULT_COINS, DEFAULT_SYMBOLS, parseArgs, STATE_FILE, BACKUP_FILE, LEDGER_FILE, CHECKPOINT_FILE, CANDIDATES, blank, load, save, smaBb, normalizeKline, bbZone, signalContext, featureMetric, intelligenceForCandidate, replayCandidate, metric, chooseBest, trainSymbol, downloadKlines, report, cli };
