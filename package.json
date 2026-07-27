@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.0.1-historical-dna-bootstrap",
-  "description": "AGROS ST2 v5.6.10: Telegram Entry Evolution failed-pattern breakdown and exact reconciliation; Trade Engine unchanged.",
+  "version": "6.0.2-complete-historical-premier",
+  "description": "AGROS ST2 v6.0.2: complete historical Pattern aggregation, best historical entry, adaptive Premier gate; Trade Engine unchanged.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -132,7 +132,9 @@
     "test:v600": "node test_v600_adaptive_dna_intelligence.js",
     "verify:v600": "node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check test_v600_adaptive_dna_intelligence.js && npm run test:v590 && npm run test:v600 && npm run verify:v581",
     "test:v601": "node test_v601_historical_dna_bootstrap.js",
-    "verify:v601": "node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check test_v601_historical_dna_bootstrap.js && npm run test:v601 && npm run verify:v600"
+    "verify:v601": "node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check test_v601_historical_dna_bootstrap.js && npm run test:v601 && npm run verify:v600",
+    "test:v602": "node test_v602_complete_historical_premier.js",
+    "verify:v602": "node --check 73_st2_renko_entry_evolution.js && node --check 76_st2_adaptive_dna_entry.js && node --check 77_st2_pattern_dna_intelligence.js && node --check motor.js && node --check test_v602_complete_historical_premier.js && npm run test:v602 && npm run verify:v601"
   },
   "dependencies": {
     "axios": "^1.13.2",

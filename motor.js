@@ -257,21 +257,21 @@ const m = {
         // ST2 Renko Entry Evolution Premier köprüsü: ikinci emir açmaz; aynı sanal pozisyonu
         // yalnız Renko bilimsel üst kasasında sınıflandırır. Gerçek emir/Trade Engine yetkisi değişmez.
         if (girisAnalizi?.entryStrategy === 'ST2_RENKO') {
-            const renkoPremier = renkoEntryEvolution.premierFor(yon, girisAnalizi.patternKodu);
+            const renkoPremier = renkoEntryEvolution.premierFor({ ...yeniPozisyon, ...girisAnalizi, girisAnalizi });
             yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_RENKO_ENTRY_EVOLUTION' };
             if (renkoPremier.premier) {
                 labKarar = {
                     ...(labKarar || {}),
-                    labLeague: 'PREMIER', premierTrack: 'RENKO_PATTERN_PREMIER', proofLevel: 'RENKO_ENTRY_EVOLUTION_PREMIER',
+                    labLeague: 'PREMIER', premierTrack: 'RENKO_PATTERN_PREMIER', proofLevel: 'HISTORICAL_ADAPTIVE_RENKO_PREMIER',
                     upperLayerIncluded: true, virtualShadowOnly: false, observationEligible: true,
-                    reason: `ST2 Renko ${renkoPremier.patternKey} | N${renkoPremier.closed} | Net ${renkoPremier.net.toFixed(4)} | PF ${renkoPremier.pf.toFixed(2)} | Exp ${renkoPremier.expectancy.toFixed(4)}`
+                    reason: `ST2 Renko ${renkoPremier.patternKey} | ${renkoPremier.source} | N${renkoPremier.closed} | Giriş ${renkoPremier.activeBrick.toFixed(2)} | Net ${renkoPremier.net.toFixed(4)} | PF ${renkoPremier.pf.toFixed(2)} | Exp ${renkoPremier.expectancy.toFixed(4)}`
                 };
                 yeniPozisyon.labPremierDecision = labKarar;
                 yeniPozisyon.labLeagueAtOpen = 'PREMIER';
                 yeniPozisyon.premierTrackAtOpen = 'RENKO_PATTERN_PREMIER';
-                yeniPozisyon.labProofLevelAtOpen = 'RENKO_ENTRY_EVOLUTION_PREMIER';
+                yeniPozisyon.labProofLevelAtOpen = 'HISTORICAL_ADAPTIVE_RENKO_PREMIER';
                 yeniPozisyon.leagueShadowOnly = false;
-                console.log(`🏆 [ST2 RENKO PREMIER BINDING] ${symbol} ${yon} | ${renkoPremier.patternKey} | N${renkoPremier.closed} Net ${renkoPremier.net.toFixed(4)} PF ${renkoPremier.pf.toFixed(2)} Exp ${renkoPremier.expectancy.toFixed(4)}`);
+                console.log(`🏆 [ST2 RENKO PREMIER BINDING] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${renkoPremier.source} | N${renkoPremier.closed} Giriş ${renkoPremier.activeBrick.toFixed(2)} Net ${renkoPremier.net.toFixed(4)} PF ${renkoPremier.pf.toFixed(2)} Exp ${renkoPremier.expectancy.toFixed(4)}`);
             }
         }
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
