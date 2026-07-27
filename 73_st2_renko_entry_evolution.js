@@ -448,6 +448,13 @@ function telegram(){
       const h=Array.isArray(r0.p.history)&&r0.p.history[0];
       if(h) t+=`🔄 Son değişim: ${n(h.from).toFixed(2)} → ${n(h.to).toFixed(2)} | ${h.reason} | N${n(h.closed)}\n`;
       else t+=`🧠 Karar: ${r0.p.lastDecision||'İlk bilimsel değerlendirme bekleniyor'}\n`;
+      const eligibleRows=rows.filter(c=>n(c.triggered)>=FIRST_ASSIGN()&&n(c.net)>0&&n(c.pf)>1&&n(c.expectancy)>0&&n(c.weightedExpectancy)>0)
+        .sort((a,b)=>n(b.net)-n(a.net)||n(b.score)-n(a.score)||n(b.weightedExpectancy)-n(a.weightedExpectancy)||n(a.brick)-n(b.brick));
+      const leader=eligibleRows[0]||null;
+      const active=rows.find(c=>Math.abs(n(c.brick)-n(r0.p.activeBrick,x.policy.defaultBrick))<1e-9)||null;
+      const premierChecks=`N ${n(r0.p.closed)>=5?'✅':'❌'} | Net ${n(r0.cur.net)>0?'✅':'❌'} | PF ${n(r0.cur.pf)>1?'✅':'❌'} | Exp ${n(r0.cur.expectancy)>0?'✅':'❌'}`;
+      t+=`🧾 Seçim gerekçesi: ${leader?`Lider ${n(leader.brick).toFixed(2)} Net ${n(leader.net)>=0?'+':''}${n(leader.net).toFixed(4)} / Skor ${n(leader.score).toFixed(4)}`:'Pozitif ve yeterli aday yok'} | Aktif ${active?n(active.brick).toFixed(2):'YOK'} | Politika: önce Net, sonra güncel-ağırlıklı skor/PF/Exp\n`;
+      t+=`🏆 Premier kanıtı: ${premierChecks}\n`;
     }
   }
 

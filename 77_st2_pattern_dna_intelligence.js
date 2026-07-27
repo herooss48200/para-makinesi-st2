@@ -6,12 +6,25 @@
  * Shadow/read-only intelligence layer. Trade Engine kararını değiştirmez.
  */
 const adaptive = require('./76_st2_adaptive_dna_entry.js');
+const crypto = require('crypto');
 
-const VERSION = 'v6.0.1-HISTORICAL-DNA-BOOTSTRAP';
+const VERSION = 'v6.3.0-DNA-EXPLAINABILITY';
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function r(v,d=4){return Number(n(v).toFixed(d));}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,n(v)));}
 function avg(xs=[]){return xs.length?xs.reduce((a,b)=>a+n(b),0)/xs.length:0;}
+
+
+function shortId(key=''){return crypto.createHash('sha256').update(String(key)).digest('hex').slice(0,10).toUpperCase();}
+function statusReason(profile){
+  const d=profile.decision||{}, liveN=(profile.closes||[]).length, h=d.historical||null;
+  if(!h && liveN<3)return 'EXACT_TARIHSEL_YOK + CANLI_N3_BEKLENIYOR';
+  if(!h)return 'EXACT_TARIHSEL_YOK';
+  if(liveN<3)return 'CANLI_N3_BEKLENIYOR';
+  if(n(h.n)<5)return 'MINIMUM_N_EKSIK';
+  if(profile.confidence?.score<50)return 'GUVEN_ESIGI_ALTI';
+  return profile.evolution?.trend||'IZLEME';
+}
 
 function qualityScore(m){
   if(!m||!n(m.n)) return 0;
@@ -107,13 +120,27 @@ function telegram(limit=10){
   let t=`🧠 <b>ADAPTIVE DNA INTELLIGENCE</b>\n${VERSION}\n📚 Geçmişten hazır DNA ${reg.health?.historicalProfiles||0} | Tarihsel sinyal ${reg.health?.historicalSignals||0} | Canlı kapanış ${reg.health?.observed||0}\n🔒 Shadow zekâ katmanı — Trade Engine değişmedi.\n`;
   for(const p of reg.profiles.slice(0,limit)){
     const c=p.context,d=p.decision,cf=p.confidence,e=p.expectation,ev=p.evolution,near=p.nearest?.[0];
-    t+=`\n🧬 <b>${c.yon} ${c.pattern}</b> | Güven ${cf.score}/100 ${cf.grade}\n`+
-      `RBB=${c.rbb} | RBBW=${c.rbbw} | RENKO6=${c.renko6}\n`+
-      `🎯 Aktif ${Number(d.brick).toFixed(2)} | ${d.reason}\n`+
-      `📚 Tarihsel ${d.historical?Number(d.historical.brick).toFixed(2):'YOK'} | ⚡ Canlı ${d.live?Number(d.live.brick).toFixed(2):'YOK'}\n`+
-      `📈 Beklenti PF ${e.pf.toFixed(2)} | Exp ${e.expectancy>=0?'+':''}${e.expectancy.toFixed(4)} | ${ev.trend}\n`+
-      `${near?`🔗 En yakın DNA %${near.similarity.toFixed(1)} | Güven ${n(near.confidence).toFixed(1)}`:'🔗 Benzer DNA yok'}\n`;
+    const hist=d.historical||null, id=shortId(p.key), reason=statusReason(p);
+    t+=`
+🧬 <b>DNA ${id} | ${c.yon} ${c.pattern}</b> | Güven ${cf.score}/100 ${cf.grade}
+`+
+      `🔑 Exact ${id} | RBB=${c.rbb} | RBBW=${c.rbbw} | RENKO6=${c.renko6}
+`+
+      `🌐 ATR=${c.atr} | TREND20=${c.trend20} | SESSION=${c.session}
+`+
+      `🎯 Aktif ${Number(d.brick).toFixed(2)} | Kaynak ${d.source||d.reason} | ${d.reason}
+`+
+      `📚 Tarihsel ${hist?Number(hist.brick).toFixed(2):'YOK'} | N${n(hist?.n)} WR %${n(hist?.wr).toFixed(1)} PF ${n(hist?.pf).toFixed(2)} Net ${n(hist?.net)>=0?'+':''}${n(hist?.net).toFixed(4)} Exp ${n(hist?.expectancy)>=0?'+':''}${n(hist?.expectancy).toFixed(4)}
+`+
+      `⚡ Canlı ${d.live?Number(d.live.brick).toFixed(2):'YOK'} | N${(p.closes||[]).length} | Durum ${reason}
+`+
+      `🧮 Güven: Tarih ${cf.historicalQuality} | Canlı ${cf.liveQuality} | Stabilite ${cf.stability} | Örnek ${cf.sample} | Bağlam ${cf.regimeCompleteness}
+`+
+      `📈 Beklenti PF ${e.pf.toFixed(2)} | Exp ${e.expectancy>=0?'+':''}${e.expectancy.toFixed(4)} | ${ev.trend}
+`+
+      `${near?`🔗 En yakın DNA ${shortId(near.key)} %${near.similarity.toFixed(1)} | Güven ${n(near.confidence).toFixed(1)} | YALNIZ REFERANS/SHADOW`:'🔗 Benzer DNA yok'}
+`;
   }
   return t.trim();
 }
-module.exports={VERSION,qualityScore,recentStability,confidence,contextSimilarity,nearest,expectation,evolution,registry,telegram};
+module.exports={VERSION,shortId,statusReason,qualityScore,recentStability,confidence,contextSimilarity,nearest,expectation,evolution,registry,telegram};

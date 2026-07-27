@@ -1,6 +1,20 @@
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 
+function sayi(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+function tickerListesi(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object') return Object.entries(raw).map(([symbol, value]) => ({ symbol, ...(value || {}) }));
+    return [];
+}
+
+async function hacimSiralamasiCek() {
+    if (typeof h.client.futuresDailyStats !== 'function') throw new Error('futuresDailyStats kullanılamıyor');
+    const raw = await h.client.futuresDailyStats();
+    return tickerListesi(raw);
+}
+
 function filtreDegeri(filters, tip, anahtar) {
     const f = filters.find(x => x.filterType === tip);
     return f ? parseFloat(f[anahtar]) : null;
@@ -33,8 +47,33 @@ async function sembolleriYukle() {
             }
         }
 
-        h.state.semboller = uygunSemboller.slice(0, ayarlar.taranacakCoinSayisi || 100);
-        console.log(`✅ ${h.state.semboller.length} adet geçerli FUTURES sembolü kurallarıyla yüklendi.`);
+        const limit = Math.max(1, Number(ayarlar.taranacakCoinSayisi || 100));
+        const uygunSet = new Set(uygunSemboller);
+        let hacimKaydi = [];
+        try {
+            const tickerlar = await hacimSiralamasiCek();
+            hacimKaydi = tickerlar
+                .filter(x => uygunSet.has(String(x.symbol || '').toUpperCase()))
+                .map(x => ({ symbol: String(x.symbol).toUpperCase(), quoteVolume: sayi(x.quoteVolume) }))
+                .sort((a, b) => b.quoteVolume - a.quoteVolume || a.symbol.localeCompare(b.symbol));
+            if (!hacimKaydi.length) throw new Error('24s quoteVolume listesi boş');
+            h.state.semboller = hacimKaydi.slice(0, limit).map(x => x.symbol);
+            h.state.sembolEvreniKaniti = {
+                method: 'FUTURES_24H_QUOTE_VOLUME_DESC', count: h.state.semboller.length,
+                selectedAt: new Date().toISOString(), top10: hacimKaydi.slice(0, 10),
+                boundary: hacimKaydi[Math.min(limit, hacimKaydi.length) - 1] || null
+            };
+            const ilk10 = h.state.sembolEvreniKaniti.top10.map(x => `${x.symbol}:${x.quoteVolume.toFixed(0)}`).join(' | ');
+            const son = h.state.sembolEvreniKaniti.boundary;
+            console.log(`✅ ${h.state.semboller.length} adet USDT PERPETUAL, 24s quoteVolume sırasına göre yüklendi.`);
+            console.log(`📊 [CANLI EVREN KANITI] TOP10 ${ilk10}`);
+            console.log(`📊 [CANLI EVREN SINIRI] #${h.state.semboller.length} ${son?.symbol || 'YOK'} | quoteVolume ${sayi(son?.quoteVolume).toFixed(0)}`);
+        } catch (hacimHatasi) {
+            // Güvenli geri dönüş: canlılığı kesmez; fakat sıralamanın kanıtlanamadığını açıkça işaretler.
+            h.state.semboller = uygunSemboller.slice(0, limit);
+            h.state.sembolEvreniKaniti = { method: 'EXCHANGE_INFO_FALLBACK_UNSORTED', count: h.state.semboller.length, selectedAt: new Date().toISOString(), error: hacimHatasi.message, top10: [], boundary: null };
+            console.error(`⚠️ [CANLI EVREN] 24s hacim sıralaması alınamadı; exchangeInfo fallback kullanıldı: ${hacimHatasi.message}`);
+        }
     } catch (e) {
         console.error('❌ Sembol yükleme hatası:', e.message || e);
         h.state.semboller = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
@@ -102,4 +141,4 @@ async function acikPozisyonlariBorsadanDevral() {
     }
 }
 
-module.exports = { sembolleriYukle, acikPozisyonlariBorsadanDevral };
+module.exports = { sembolleriYukle, acikPozisyonlariBorsadanDevral, tickerListesi, hacimSiralamasiCek };

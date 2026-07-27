@@ -15,5 +15,5 @@ const body = report.slice(report.indexOf('async function raporGonder'), report.i
 ].forEach(call => assert(!body.includes('await '+call), `legacy Telegram call active: ${call}`));
 assert(body.includes('st2EntryEvolutionDetayiGonderGerekirse'));
 assert(body.includes('st2ExitEvolutionDetayiGonderGerekirse'));
-assert.strictEqual(version.botSurumu,'6.2.2-EXACT-CONTEXT-FINAL-REPORT-RECONCILIATION');
-console.log('✅ v6.2.0 legacy isolation + clean Premier/Shadow Telegram core passed');
+assert.strictEqual(typeof version === 'string' ? version : version.botSurumu,'6.3.0-LIVE-UNIVERSE-ENTRY-FUNNEL-EXPLAINABILITY');
+console.log('✅ v6.2.0 legacy isolation compatibility passed under v6.3.0');

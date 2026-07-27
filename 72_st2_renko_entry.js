@@ -125,6 +125,8 @@ function auditBaslat() {
         onay1mMumHazir: 0, onay1mAtrHazir: 0, onay1mRenkoHazir: 0,
         onay1mUp: 0, onay1mDown: 0, onay1mYetersiz: 0,
         longPusu: 0, shortPusu: 0, tetikBekleyen: 0,
+        pusuDegerlendirilen: 0, fiyatTetigi: 0, fiyatBekleyen: 0, fiyatEksik: 0,
+        stOnayi: 0, stReddi: 0, birlikteUygun: 0, pozisyonAcildi: 0, pozisyonReddedildi: 0,
         red: {
             ATR_YETERSIZ: 0, RENKO_YETERSIZ: 0, PATTERN_YOK: 0,
             BB_YETERSIZ: 0, BB_GECERSIZ: 0, BB_TEMAS_YOK: 0, PUSU_SURESI_DOLDU: 0, ONAY_1M_RENKO_YETERSIZ: 0,
@@ -259,11 +261,12 @@ function eskiPusuyuSuresiDolduysaSil(sym, bricks, audit = null) {
     return true;
 }
 
-async function pusuDegerlendir(sym, onay1m = null) {
+async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     const store = storeHazirla();
     const pusu = store.pusular[sym];
     if (!pusu) return false;
 
+    if (audit) audit.pusuDegerlendirilen++;
     const price = Number(h.state.canliFiyatlar[sym]);
     const target = tetikFiyati(pusu);
     const st = onay1m || birDakikaRenkoSuperTrend(sym);
@@ -271,6 +274,13 @@ async function pusuDegerlendir(sym, onay1m = null) {
     const stUygun = pusu.yon === 'LONG' ? st.trend === 'UP' : st.trend === 'DOWN';
     pusu.fiyatTetigiGoruldu = fiyatUygun;
     pusu.superTrendOnayi = stUygun;
+    if (audit) {
+        if (!(price > 0)) audit.fiyatEksik++;
+        else if (fiyatUygun) audit.fiyatTetigi++;
+        else audit.fiyatBekleyen++;
+        if (stUygun) audit.stOnayi++; else audit.stReddi++;
+        if (fiyatUygun && stUygun) audit.birlikteUygun++;
+    }
 
     // Tetik ve 1m Renko ST aynı değerlendirme anında geçerli olmalıdır; eski onay latch edilmez.
     if (!fiyatUygun || !stUygun) return false;
@@ -311,6 +321,7 @@ async function pusuDegerlendir(sym, onay1m = null) {
         pusuTuglasi: { ...pusu }
     };
     const ok = await m.pozisyonAc(sym, pusu.yon, price, girisAnalizi);
+    if (audit) { if (ok) audit.pozisyonAcildi++; else audit.pozisyonReddedildi++; }
     if (ok) delete store.pusular[sym];
     return ok;
 }
@@ -323,6 +334,7 @@ function auditLogla(audit) {
     store.sonAuditLogZamani = now;
     const aktif = Object.values(store.pusular || {});
     console.log(`🧱 [ST2 RENKO AUDIT] Sembol ${audit.sembol} | 15m ATR ${audit.atrHazir} | Renko ${audit.renkoHazir} (min ${audit.renkoMin ?? 0}/max ${audit.renkoMax}) | Pattern aday ${audit.patternAday} | Yeni pattern ${audit.yeniPattern} | BB hazır ${audit.bbHazir} | BB temas L${audit.bbLongTemas}/S${audit.bbShortTemas} | 1m Renko ST ${audit.onay1mRenkoHazir} (UP ${audit.onay1mUp}/DOWN ${audit.onay1mDown}) | Yeni pusu L${audit.longPusu}/S${audit.shortPusu} | Aktif ${aktif.length}`);
+    console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → Fiyat tetik ${audit.fiyatTetigi} → 1m ST onay ${audit.stOnayi} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Ret: Mesafe ${audit.fiyatBekleyen} | Fiyat eksik ${audit.fiyatEksik} | 1m ST ${audit.stReddi} | Pozisyon katmanı ${audit.pozisyonReddedildi}`);
     console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu süresi doldu ${audit.red.PUSU_SURESI_DOLDU} | 1m ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ}`);
     const dagilim = Object.entries(audit.patternDagilimi || {}).sort().map(([k,v]) => `${k}:${v}`).join(' ') || 'YOK';
     console.log(`🧱 [ST2 RENKO PATTERN] ${dagilim}`);
@@ -359,7 +371,7 @@ async function taraVeDegerlendir() {
         audit.bbHazir++;
         patternPususuGuncelle(sym, bricks, bb, box, audit);
         const onay1m = birDakikaRenkoSuperTrend(sym, audit);
-        await pusuDegerlendir(sym, onay1m);
+        await pusuDegerlendir(sym, onay1m, audit);
     }
     audit.tetikBekleyen = Object.keys(store.pusular || {}).length;
     auditLogla(audit);
@@ -403,6 +415,7 @@ module.exports = {
     tetikFiyati,
     aktifTuglaMesafesi,
     storeHazirla,
+    auditBaslat,
     birDakikaRenkoSuperTrend,
     bollingerHazirMi: core.bollingerHazirMi,
     bollingerSenaryosu,
