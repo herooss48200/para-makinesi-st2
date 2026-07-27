@@ -177,12 +177,17 @@ async function telegramMesajGonder(mesaj) {
                 // HTML sürümü başarısız olursa aynı parçayı düz metin olarak tekrar gönderiyoruz.
                 if (!sonuc || !sonuc.ok) {
                     const aciklama = sonuc?.description || sonuc?.raw || 'bilinmeyen hata';
-                    console.log(`⚠️ Telegram HTML iletim sorunu: ${chat_id} | ${aciklama} | Düz metin tekrar deneniyor.`);
-                    sonuc = await yerelTelegramIstegiAt('sendMessage', {
-                        chat_id,
-                        text: telegramHtmlTemizle(text),
-                        disable_web_page_preview: true
-                    });
+                    const timeout = String(aciklama).includes('TIMEOUT');
+                    if (!timeout) {
+                        console.log(`⚠️ Telegram HTML/parse iletim sorunu: ${chat_id} | ${aciklama} | Düz metin bir kez deneniyor.`);
+                        sonuc = await yerelTelegramIstegiAt('sendMessage', {
+                            chat_id,
+                            text: telegramHtmlTemizle(text),
+                            disable_web_page_preview: true
+                        });
+                    } else {
+                        console.log(`⚠️ Telegram timeout: ${chat_id} | Aynı mesaj yinelenmedi; sonraki rapor turu bekleniyor.`);
+                    }
                 }
 
                 sonuclar.push({ chat_id, parca: idx + 1, toplamParca: parcalar.length, sonuc });

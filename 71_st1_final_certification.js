@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST1 Final Certification
+ * AGROS ST2 Final Scientific Certification
  * Read-only scientific readiness report. It never changes Trade Engine decisions.
  */
 const os = require('os');
@@ -49,7 +49,7 @@ function build(activePositions = []) {
     { key: 'exit', label: 'Exit executor ve atama zinciri', ok: n(audit.health?.unsupported) === 0 && n(assignment.mismatch) === 0, waiting: n(assignment.ready) === 0, detail: `Hazır ${n(assignment.ready)} / Uyuşmazlık ${n(assignment.mismatch)}` },
     { key: 'stop', label: `Stop öğrenmesi N${life.min}`, ok: life.stopChanged.length > 0, waiting: true, detail: `Hazır profil ${life.ready.length} / Değişen ${life.stopChanged.length}` },
     { key: 'be', label: `BE öğrenmesi N${life.min}`, ok: life.beChanged.length > 0, waiting: true, detail: `Hazır profil ${life.ready.length} / Değişen ${life.beChanged.length}` },
-    { key: 'gap', label: 'GAP karantinası ve kesin mutabakat', ok: Boolean(continuity.reconciled), detail: `Fark ${n(continuity.difference)}` },
+    { key: 'gap', label: 'GAP karantinası ve kanonik mutabakat', ok: Boolean(continuity.reconciled), waiting: !continuity.migrationBatchReconciled, detail: `Kanonik fark ${n(continuity.difference)} | Eski sayaç audit ${n(continuity.rawLedgerDifference)}` },
     { key: 'mode', label: 'Gerçek emir fail-closed', ok: ayarlar.sanalEmirModu === true, detail: ayarlar.sanalEmirModu === true ? 'SANAL' : 'GERÇEK' }
   ];
 
@@ -63,7 +63,7 @@ function build(activePositions = []) {
     premier, audit, continuity, lifecycle: life,
     runtime: { rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024), heapMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024), load1m: n(os.loadavg?.()[0]) },
     certified: blockers.length === 0 && evidenceWaiting.length === 0,
-    status: blockers.length ? 'BLOKE' : (evidenceWaiting.length ? 'CANLI KANIT BEKLENİYOR' : 'ST1 BİLİMSEL OLARAK TAMAM')
+    status: blockers.length ? 'BLOKE' : (evidenceWaiting.length ? 'CANLI KANIT BEKLENİYOR' : 'ST2 BİLİMSEL OLARAK TAMAM')
   };
 }
 
@@ -79,7 +79,7 @@ function telegram(model = null) {
   const cf = p.bottomCounterfactual || {};
   const rp = p.reversePipeline || {};
   const assignment = m.audit.assignmentStats || {};
-  let t = `🧾 <b>ST1 FİNAL BİLİMSEL DENETİM — v5.4.1</b>\n`;
+  let t = `🧾 <b>ST2 FİNAL BİLİMSEL DENETİM — v6.1.2</b>\n`;
   t += `🎓 Hazırlık ${m.score.toFixed(1)}% | ${m.passed}/${m.total} | ${m.status}\n`;
   t += `🔒 Trade Engine değişmedi | Emir modu ${ayarlar.sanalEmirModu ? 'SANAL / FAIL-CLOSED' : 'GERÇEK'}\n\n`;
 

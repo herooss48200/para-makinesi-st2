@@ -8,7 +8,7 @@ const path = require('path');
 const trainer = require('./75_st2_historical_renko_training.js');
 const reconciliation = require('./78_st2_global_historical_reconciliation.js');
 
-const VERSION = 'v6.1.1-GLOBAL-HISTORICAL-RUNTIME-ACTIVATION';
+const VERSION = 'v6.1.2-GLOBAL-HISTORICAL-RUNTIME-RECOVERY';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const RUNTIME_FILE = path.join(DATA_DIR, 'st2-global-historical-runtime.json');
 let running = false;
@@ -18,7 +18,7 @@ function ensure(){fs.mkdirSync(DATA_DIR,{recursive:true});}
 function atomicWrite(value){ensure();const tmp=`${RUNTIME_FILE}.${process.pid}.${Date.now()}.tmp`;fs.writeFileSync(tmp,JSON.stringify(value,null,2));fs.renameSync(tmp,RUNTIME_FILE);}
 function read(){try{return fs.existsSync(RUNTIME_FILE)?JSON.parse(fs.readFileSync(RUNTIME_FILE,'utf8')):{};}catch(_){return{};}}
 function enabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_RUNTIME||'true').toLowerCase()!=='false';}
-function autoTrainEnabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_AUTO_TRAIN||'false').toLowerCase()==='true';}
+function autoTrainEnabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_AUTO_TRAIN||'true').toLowerCase()!=='false';}
 function configuredRange(){
   const end=process.env.AGROS_ST2_HISTORICAL_END||new Date().toISOString();
   const start=process.env.AGROS_ST2_HISTORICAL_START||new Date(Date.now()-180*86400000).toISOString();

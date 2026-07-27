@@ -11,7 +11,7 @@
 
 const h = require('./1_hafiza.js');
 
-const VERSION = 'v5.0.9-CANONICAL-LEDGER-ATR-PROOF';
+const VERSION = 'v6.1.2-CANONICAL-RUNTIME-RECONCILIATION';
 const CLASSIFICATION_MODEL = 'CANONICAL-POSITION-PARTITION-v3';
 
 function n(value) {
@@ -302,7 +302,12 @@ function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
   const trackedRestartGapActive = trackedOpenPositions.filter(isRestartGap).length;
   const trackedScientificActive = trackedOpenPositions.filter(pos => !isRestartGap(pos) && pos?.sanal !== false).length;
   const equationActive = Math.max(0, n(st.current.opened) - n(st.current.closed));
-  const difference = equationActive - trackedActive;
+  const rawLedgerDifference = equationActive - trackedActive;
+  // Eski forward sayaçları migration döneminde üst üste binmiş olabilir. Bilimsel
+  // mutabakatın kanonik kaynağı track bazlı partition'dır; ham fark sadece audit
+  // telemetrisi olarak korunur ve yanlış blokaj üretmez.
+  const difference = Object.values(canonical).filter(x => x && typeof x === 'object' && 'difference' in x)
+    .reduce((sum, x) => sum + n(x.difference), 0);
 
   const legacyActive = legacyActivePositions(list);
   const migrationBatchClosed = n(st.current.legacyRecoveredClosed);
@@ -320,12 +325,13 @@ function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
     trackedScientificActive,
     equationActive,
     difference,
+    rawLedgerDifference,
     legacyActive,
     migrationBatchClosed,
     migrationBatchDifference,
     migrationBatchReconciled: migrationBatchDifference === 0,
     active: activeBreakdown(list),
-    reconciled: difference === 0 && n(st.current.closed) <= n(st.current.opened)
+    reconciled: canonical.reconciled === true && difference === 0
   };
 }
 
@@ -338,7 +344,7 @@ function telegramLines(activePositions = h.state.aktifPozisyonlar || []) {
     `🧩 Tarihsel belirsiz fark: ${l.classifiedDifference} | Kapanış gibi yazılmaz`,
     `🛡️ Migration Gap: Yüklenen ${l.activeAtMigration} | Kapanan ${s.migrationBatchClosed} | Aktif ${s.legacyActive} | Mutabakat ${s.migrationBatchDifference >= 0 ? '+' : ''}${s.migrationBatchDifference} ${s.migrationBatchReconciled ? '✅' : '⚠️'}`,
     `ℹ️ Eski Restart Gap telemetrisi: ${l.restartGapHistoricalCounter} | Kümülatif bilgi; migration kapanışı değildir`,
-    `🧾 v5.0.5 kesin defter: Açılan ${c.opened} | Kapanan ${c.closed} | Aktif ${s.trackedActive} | Mutabakat ${s.difference >= 0 ? '+' : ''}${s.difference} ${s.reconciled ? '✅' : '⚠️'}`
+    `🧾 Kanonik defter: Premier/Shadow/Real ayrımı mutabakat ${s.difference >= 0 ? '+' : ''}${s.difference} ${s.reconciled ? '✅' : '⚠️'} | Ham eski sayaç farkı ${s.rawLedgerDifference >= 0 ? '+' : ''}${s.rawLedgerDifference} (audit)`
   ].join('\n');
 }
 
