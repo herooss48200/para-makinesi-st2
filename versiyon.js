@@ -1,8 +1,8 @@
 const versiyon = {
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
-    kod: 'AGROS ST2 v6.1.5 — PREMIER/SHADOW CONTEXT EXECUTION & N3 CYCLE',
-    botSurumu: '6.1.5-PREMIER-SHADOW-CONTEXT-N3-CYCLE',
+    kod: 'AGROS ST2 v6.1.6 — FINAL TELEGRAM, MANUAL CLOSE & PM2 MEMORY SAFETY',
+    botSurumu: '6.1.6-FINAL-TELEGRAM-MANUAL-CLOSE-PM2-SAFETY',
     stratejiSurumu: '1.0.21',
     yayinTarihi: '27.07.2026',
     ortam: { emirModu: 'SANAL' }

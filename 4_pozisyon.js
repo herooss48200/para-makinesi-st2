@@ -968,6 +968,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         ? (netKarZarar / ayarlar.calisilmakIstenenUsdtMiktar) * 100
         : 0;
     const duzeltilmisSebep = kapanisSebebiDuzenle(pos, sebep, kapanisFiyati);
+    const manuelDisKapanis = pos?.manualExternalClose === true || /MANUAL_EXTERNAL_CLOSE|MANUAL_OVERRIDE/i.test(String(sebep || duzeltilmisSebep || ''));
 
     const kararTrack = String(pos?.labPremierDecision?.premierTrack || pos?.premierTrackAtOpen || '').toUpperCase();
     const deneyTrack = ['REVERSE_PREMIER', 'BOTTOM_PREMIER_LONG', 'BOTTOM_PREMIER_SHORT'].includes(kararTrack);
@@ -1007,11 +1008,11 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     // BE yalnızca kapanış fiyatı/net PNL gerçekten başabaş bandındaysa yazılır; büyük zarar SL'dir.
 
     // Premier gözlem sonucu, açılışta dondurulan lig kimliğiyle ayrı kasaya yazılır.
-    premierObservation.close(pos, {
+    if (!manuelDisKapanis) premierObservation.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati
     });
-    try { labLifecycle.close(pos, {
+    if (!manuelDisKapanis) try { labLifecycle.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
         restartGap: restartGap.isQuarantined(pos)
@@ -1030,25 +1031,25 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         renkoBoxSize: pos?.girisAnalizi?.renkoBoxSize || pos?.renkoBoxSize || st2PusuSnapshot.renkoBoxSize,
         renkoEntryBrickDistance: pos?.girisAnalizi?.renkoEntryBrickDistance || pos?.renkoEntryBrickDistance || Number(ayarlar.renkoGirisVarsayilanTugla || 0.75)
     };
-    try { renkoEntryEvolution.close(pos, {
+    if (!manuelDisKapanis) try { renkoEntryEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
         restartGap: restartGap.isQuarantined(pos)
     }); } catch (e) { console.log(`⚠️ [ST2 ENTRY EVOLUTION] ${e.message}`); }
-    try { renkoExitEvolution.close(pos, {
+    if (!manuelDisKapanis) try { renkoExitEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
         restartGap: restartGap.isQuarantined(pos)
     }); } catch (e) { console.log(`⚠️ [ST2 EXIT EVOLUTION] ${e.message}`); }
 
     const restartGapIslemi = restartGap.isQuarantined(pos);
-    const exitMethodSummary = restartGapIslemi
+    const exitMethodSummary = (restartGapIslemi || manuelDisKapanis)
         ? exitMethodScoreboard.display(pos)
         : exitMethodScoreboard.close(pos, { net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc, reason: duzeltilmisSebep });
 
     // Muhasebe PNL/komisyon her durumda korunur; restart-gap pozisyonları
     // bilimsel başarı sayaçlarına ve öğrenme motorlarına alınmaz.
-    if (!restartGapIslemi && !leagueShadowOnly) {
+    if (!restartGapIslemi && !manuelDisKapanis && !leagueShadowOnly) {
         if (kaliteSonuc === 'TP') {
             h.state.basariOzeti.tp++;
             if (pos.yon === 'LONG') h.state.basariOzeti.longTp++;

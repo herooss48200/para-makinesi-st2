@@ -11,7 +11,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: '300M',
+      max_memory_restart: '750M',
       out_file: path.join(ROOT, 'logs-st2', 'agros-st2-out.log'),
       error_file: path.join(ROOT, 'logs-st2', 'agros-st2-error.log'),
       merge_logs: true,

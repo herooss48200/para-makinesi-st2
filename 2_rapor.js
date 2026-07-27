@@ -288,7 +288,7 @@ function st2AnaRaporOgrenmeOzeti() {
     return [
         `🧠 <b>ENTRY EVOLUTION</b>`,
         `Pattern ${Number(t.profiles || 0)}/16 | Bilimsel kapanış ${Number(t.closed || 0)} | Varsayılan dışı atama ${Number(t.assigned || 0)}`,
-        `✅ Başarılı ${Number(t.tp || 0)} | ❌ Başarısız ${Number(t.sl || 0)} | ⚖️ BE ${Number(t.be || 0)} | Net ${Number(t.net || 0) >= 0 ? '+' : ''}${Number(t.net || 0).toFixed(4)}`,
+        `✅ Başarılı ${Number(t.tp || 0)} | ❌ Başarısız ${Number(t.sl || 0)} | ⚖️ BE ${Number(t.be || 0)} | Replay Net ${Number(t.net || 0) >= 0 ? '+' : ''}${Number(t.net || 0).toFixed(4)}`,
         `🎯 Aktif giriş dağılımı: ${dagilimMetni}`,
         `🔄 Son giriş değişimi: ${sonDegisimMetni}`,
         `Köprü: Çağrı ${Number(b.calls || 0)} | Kabul ${Number(b.accepted || 0)} | Ret ${ret}`,
@@ -356,7 +356,7 @@ function canliRaporMetniOlustur() {
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
         mesaj += `🧬 Öğrenilmiş Premier Pattern: ${renkoPremierPattern} | Canlı Premier pozisyon: ${aktifler.length}\n`;
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
-        mesaj += `👻 Gölge/LAB: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
+        mesaj += `🧪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Replay Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -372,7 +372,6 @@ ${ayarlar.entryStrategyMode === 'ST2_RENKO' ? st2AnaRaporOgrenmeOzeti() : learni
 `;
         if (ayarlar.entryStrategyMode === 'ST2_RENKO') mesaj += `
 
-${winningIntelligence.telegram()}
 ${globalHistoricalReconciliation.telegram()}
 `;
     } else {

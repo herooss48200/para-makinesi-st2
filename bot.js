@@ -74,7 +74,18 @@ async function baslat() {
             `🗃️ Eski muhasebe/başarı sayıları korunuyor; açılış ekranında gizlendi.\n\n` +
             `<i>Sistem kapanmış mumları izliyor, pusu kuruyor ve sniper tetik bekliyor...</i>`;
 
-        await h.telegramMesajGonder(baslangicMesaji);
+        const fs = require('fs');
+        const path = require('path');
+        const startupStampFile = path.join(process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data'), 'st2-startup-telegram.json');
+        let startupLastSentAt = 0;
+        try { startupLastSentAt = Number(JSON.parse(fs.readFileSync(startupStampFile, 'utf8'))?.lastSentAt || 0); } catch (_) {}
+        const startupCooldownMs = 10 * 60 * 1000;
+        if (Date.now() - startupLastSentAt >= startupCooldownMs) {
+            await h.telegramMesajGonder(baslangicMesaji);
+            try { fs.mkdirSync(path.dirname(startupStampFile), { recursive: true }); fs.writeFileSync(startupStampFile, JSON.stringify({ lastSentAt: Date.now(), version: versiyonBilgi.botSurumu }, null, 2)); } catch (e) { console.error(`⚠️ [ST2 STARTUP TELEGRAM STAMP] ${e.message}`); }
+        } else {
+            console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
+        }
         await rapor.raporGonder(true);
         console.log(`✅ SİSTEM HAZIR. DÖNGÜ BAŞLATILDI. Emir Modu: ${emirModu}`);
 

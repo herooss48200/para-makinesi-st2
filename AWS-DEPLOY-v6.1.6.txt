@@ -1,0 +1,9 @@
+cd ~/apps/para-makinesi-st2
+git pull origin main
+npm test
+pm run verify:v616
+pm install
+pm run verify:v616
+pm exec pm2 reload ecosystem.config.js --only agros-st2 --update-env
+pm exec pm2 save
+pm exec pm2 describe agros-st2
