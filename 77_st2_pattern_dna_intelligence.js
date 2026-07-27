@@ -8,7 +8,7 @@
 const adaptive = require('./76_st2_adaptive_dna_entry.js');
 const crypto = require('crypto');
 
-const VERSION = 'v6.3.3-EXACT-DNA-LIVE-OBSERVABILITY';
+const VERSION = 'v6.3.4-SESSION-NEUTRAL-EXACT-DNA-INTELLIGENCE';
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function r(v,d=4){return Number(n(v).toFixed(d));}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,n(v)));}
@@ -60,12 +60,12 @@ function confidence(profile){
   const liveQuality=qualityScore(live);
   const stability=recentStability(recent);
   const sample=clamp((profile.closes||[]).length/50*100);
-  const regimeCompleteness=clamp(Object.values(profile.context||{}).filter(v=>v&&v!=='UNKNOWN').length/8*100);
+  const regimeCompleteness=clamp(['yon','pattern','rbb','rbbw','renko6','atr','trend20'].filter(k=>profile.context?.[k]&&profile.context[k]!=='UNKNOWN').length/7*100);
   const score=r(historicalQuality*0.35+liveQuality*0.25+stability*0.20+sample*0.10+regimeCompleteness*0.10,1);
   return {score,historicalQuality,liveQuality,stability:r(stability,1),sample:r(sample,1),regimeCompleteness:r(regimeCompleteness,1),grade:score>=85?'A+':score>=75?'A':score>=65?'B':score>=50?'C':'LAB'};
 }
 function contextSimilarity(a={},b={}){
-  const weights={yon:20,pattern:25,rbb:12,rbbw:10,renko6:15,atr:7,trend20:7,session:4};
+  const weights={yon:20,pattern:25,rbb:14,rbbw:11,renko6:16,atr:7,trend20:7};
   let got=0,total=0;
   for(const [k,w] of Object.entries(weights)){
     const av=String(a[k]||'UNKNOWN'),bv=String(b[k]||'UNKNOWN');
@@ -131,7 +131,7 @@ function telegram(limit=10){
 `+
       `🔑 Exact ${id} | RBB=${c.rbb} | RBBW=${c.rbbw} | RENKO6=${c.renko6}
 `+
-      `🌐 ATR=${c.atr} | TREND20=${c.trend20} | SESSION=${c.session}
+      `🌐 ATR=${c.atr} | TREND20=${c.trend20} | SESSION=REFERANS_ONLY
 `+
       `🎯 Aktif ${Number(d.brick).toFixed(2)} | Kaynak ${d.source||d.reason} | ${d.reason}
 `+
