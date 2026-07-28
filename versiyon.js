@@ -3,10 +3,10 @@
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
-    kod: 'AGROS ST2 v6.3.6 — LIVE PUSU EXACT CONTEXT BINDING REPAIR',
-    botSurumu: '6.3.6-LIVE-PUSU-EXACT-CONTEXT-BINDING-REPAIR',
-    stratejiSurumu: '1.0.21',
-    yayinTarihi: '27.07.2026',
+    kod: 'AGROS ST2 v6.3.7 — PREMIER READINESS & PUSU DEDUPE FINAL',
+    botSurumu: '6.3.7-PREMIER-READINESS-PUSU-DEDUPE-FINAL',
+    stratejiSurumu: '1.0.22',
+    yayinTarihi: '28.07.2026',
     ortam: Object.freeze({ emirModu: 'SANAL' })
 });
 

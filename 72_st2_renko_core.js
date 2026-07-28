@@ -193,8 +193,16 @@ function patternTespit(bricks, yon) {
 
 function patternSignature(match) {
     if (!match) return '';
-    const tail = match.bricks.map(b => `${b.color}:${b.closeTime}:${Number(b.close).toFixed(12)}`).join('|');
-    return `${match.yon}:${match.patternId}:${tail}`;
+    // Mantıksal pusu kimliği fiyat/ATR yeniden hesaplamasından bağımsız olmalıdır.
+    // Aynı kapanmış 15m kaynak olayı, Renko kutusu küçük miktarda değişse bile yeni pusu değildir.
+    const lastBrick = match.bricks?.at(-1) || {};
+    const referenceBrick = match.referenceBrick || {};
+    const lastCloseTime = Number(lastBrick.closeTime || 0);
+    const eventId = lastCloseTime > 0
+        ? `T${lastCloseTime}`
+        : `ID${Number(lastBrick.id || 0)}-REF${Number(referenceBrick.id || 0)}`;
+    const patternCode = String(match.patternCode || '').toUpperCase();
+    return `${String(match.yon || 'UNKNOWN').toUpperCase()}:${String(match.patternId || 'UNKNOWN').toUpperCase()}:${patternCode}:${eventId}`;
 }
 
 function tetikFiyati(pusu, pctValue) {

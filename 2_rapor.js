@@ -380,8 +380,11 @@ function canliRaporMetniOlustur() {
 `;
         mesaj += `🧬 <b>Pusu DNA adayı:</b> 🏆 Premier ${pusuDnaDagilimi.premier} | 👻 Shadow ${pusuDnaDagilimi.shadow} | ❓ Eksik ${pusuDnaDagilimi.unknown}
 `;
+        const pusuKararNedenleri = Object.entries(pusuDnaDagilimi.reasons).sort((a,b)=>b[1]-a[1]).slice(0,3);
+        if (pusuKararNedenleri.length) mesaj += `🔎 <b>Pusu karar nedenleri:</b> ${pusuKararNedenleri.map(([k,v])=>`${k} ${v}`).join(' | ')}
+`;
         if (aktifShadowlar.length) {
-            const shadowRows=aktifShadowlar.slice(0,3).map(p=>`${pozisyonSembol(p)} ${pozisyonYon(p)} | Exact ${String(p?.renkoPremierDecision?.dnaKey||'YOK').slice(0,10)} | ${p?.renkoPremierDecision?.reason||'SHADOW'} | N3 ${Number(p?.renkoPremierDecision?.liveN||0)}/3`);
+            const shadowRows=aktifShadowlar.slice(0,3).map(p=>`${pozisyonSembol(p)} ${pozisyonYon(p)} | DNA ${p?.renkoPremierDecision?.dnaKey ? adaptiveDnaIntelligence.shortId(p.renkoPremierDecision.dnaKey) : 'YOK'} | ${p?.renkoPremierDecision?.reason||'SHADOW'} | N3 ${Number(p?.renkoPremierDecision?.liveN||0)}/3`);
             mesaj += `👻 <b>Aktif Shadow kanıtı:</b> ${shadowRows.join(' || ')}${aktifShadowlar.length>3?` | +${aktifShadowlar.length-3} kayıt`:''}
 `;
         }

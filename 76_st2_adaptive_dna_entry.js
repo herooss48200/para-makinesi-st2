@@ -14,8 +14,9 @@ const path = require('path');
 const readline = require('readline');
 const io = require('./53_memory_safe_io.js');
 const ayarlar = require('./ayarlar.js');
+const canonicalHistoricalPool = require('./80_st2_canonical_historical_pool.js');
 
-const VERSION = 'v6.3.4-SESSION-NEUTRAL-EXACT-DNA-RECONCILIATION';
+const VERSION = 'v6.3.7-CANONICAL-READINESS-PREMIER-RECOVERY';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-adaptive-pattern-dna-entry.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -177,7 +178,22 @@ function historicalProfile(yon,pattern,context=null){
   return positiveEvidence(p,HISTORICAL_PREMIER_MIN_N())?{...p,exact:false}:null;
 }
 function historicalCompletion(){
-  try{const h=JSON.parse(fs.readFileSync(HISTORICAL_FILE,'utf8'));const ready=Object.values(h.symbols||{}).filter(x=>n(x?.signals)>0).length;return {ready,total:30,complete:ready>=30};}catch(_){return {ready:0,total:30,complete:false};}
+  const canonicalSymbols = Array.isArray(canonicalHistoricalPool.SYMBOLS)
+    ? [...new Set(canonicalHistoricalPool.SYMBOLS.map(x=>String(x).toUpperCase()).filter(Boolean))]
+    : [];
+  const total = canonicalSymbols.length || 29;
+  try{
+    const state=JSON.parse(fs.readFileSync(HISTORICAL_FILE,'utf8'));
+    const symbols=state.symbols||{};
+    const readySymbols=(canonicalSymbols.length?canonicalSymbols:Object.keys(symbols))
+      .filter(sym=>n(symbols?.[sym]?.signals)>0);
+    const missingSymbols=(canonicalSymbols.length?canonicalSymbols:Object.keys(symbols))
+      .filter(sym=>n(symbols?.[sym]?.signals)<=0);
+    const ready=readySymbols.length;
+    return {ready,total,complete:total>0&&ready>=total,readySymbols,missingSymbols,source:'GLOBAL_CANONICAL_COIN_POOL'};
+  }catch(_){
+    return {ready:0,total,complete:false,readySymbols:[],missingSymbols:canonicalSymbols,source:'GLOBAL_CANONICAL_COIN_POOL'};
+  }
 }
 function latestCompletedLiveReview(state,context,brick){
   const p=state.dnaProfiles[dnaKey(context)];
@@ -200,7 +216,7 @@ function gateDecision(source,fallbackBrick=0.75){
   const reviewBrick=liveWinner?decision.live.brick:(decision.brick||exactHistorical?.brick||fallbackBrick);
   const liveReview=latestCompletedLiveReview(state,c,reviewBrick);
   const liveDemoted=Boolean(liveReview&&!positiveEvidence(liveReview,LAST_N,true));
-  let action='OBSERVE', executionMode='SHADOW', reason='HISTORICAL_30_COIN_TRAINING_INCOMPLETE', evidence=null;
+  let action='OBSERVE', executionMode='SHADOW', reason='HISTORICAL_CANONICAL_POOL_INCOMPLETE', evidence=null;
   if(!contextComplete(c)) reason='EXACT_CONTEXT_INCOMPLETE';
   else if(completion.complete){
     if(liveWinner){action='ALLOW';executionMode='PREMIER';reason='LIVE_LAST3_WINNER';evidence={...decision.live,source:'LIVE_LAST3',exact:true};}

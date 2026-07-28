@@ -128,6 +128,9 @@ const ayarlar = {
     renkoKanitTuglaSayisi: 10,
     renkoYakinRedKanitSayisi: 3,
     renkoPusuKanitTelegram: true, // yalnız kısa açılış özeti + kısa yeni pusu; ayrıntılı proof yalnız log
+    // v6.3.7: canlı pusu bildirim hafızası sınırlı ve süreli tutulur.
+    renkoPusuBildirimHafizaSaat: 168,
+    renkoPusuBildirimHafizaMax: 5000,
     renkoOnayPeriyodu: '1m',
     renkoOnayAtrPeriod: 14,
     renkoOnaySuperTrendPeriod: 10,

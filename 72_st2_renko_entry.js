@@ -6,9 +6,41 @@ const m = require('./motor.js');
 const core = require('./72_st2_renko_core.js');
 const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
+const crypto = require('crypto');
+const pusuNotificationDedupe = require('./81_st2_pusu_notification_dedupe.js');
 
 let baslangicPusuOzetiGonderildi = false;
 let baslangicPusuKuyrugu = [];
+
+
+function dnaKisaId(key = '') {
+    return crypto.createHash('sha256').update(String(key)).digest('hex').slice(0, 10).toUpperCase();
+}
+
+function pusuGateOzeti(pusu) {
+    try {
+        const gate = adaptiveDnaEntry.gateDecision(pusu, Number(pusu?.renkoEntryBrickDistance || 0.75));
+        const key = adaptiveDnaEntry.dnaKey(gate.context || adaptiveDnaEntry.contextFrom(pusu));
+        return {
+            dnaKey: key,
+            dnaId: dnaKisaId(key),
+            executionMode: gate.executionMode || 'SHADOW',
+            reason: gate.reason || 'UNKNOWN',
+            completion: gate.completion || null
+        };
+    } catch (error) {
+        return { dnaKey: null, dnaId: 'YOK', executionMode: 'UNKNOWN', reason: `GATE_ERROR:${error.message}`, completion: null };
+    }
+}
+
+function pusuBildirimHafizasiniTemizle(store, now = Date.now()) {
+    return pusuNotificationDedupe.temizle(store, {
+        now,
+        ttlHours: Number(ayarlar.renkoPusuBildirimHafizaSaat || 168),
+        maxEntries: Number(ayarlar.renkoPusuBildirimHafizaMax || 5000)
+    });
+}
+
 
 
 function bucket(value, cuts, labels) {
@@ -239,8 +271,11 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
         }
         const signature = core.patternSignature(match);
         const mevcut = store.pusular[sym];
-        if (mevcut?.patternSignature === signature) return mevcut;
-        if (!mevcut && store.sonPatternSignature[sym] === signature) continue;
+        // Aktif pusu, tetiklenene veya Renko yaş limiti dolana kadar korunur.
+        // Yeni tarama aynı sembolde yeni bir aday üretse bile aktif pusuyu yenileyip
+        // bekleme süresini sıfırlamaz ve Telegram'a tekrar pusu göndermez.
+        if (mevcut) return mevcut;
+        if (store.sonPatternSignature[sym] === signature) continue;
 
         store.pusular[sym] = core.pusuOlustur(sym, match, scenario);
         const exactContext = exactContextHesapla(candles, match, bricks, bollinger, boxSize);
@@ -255,9 +290,15 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
         store.pusular[sym].renkoSon10Tugla = tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10));
         const pusuKaniti = pusuOlusumKanitiMetni(sym, store.pusular[sym]);
         store.pusular[sym].renkoPusuKanitMetni = pusuKaniti;
+        const gateOzeti = pusuGateOzeti(store.pusular[sym]);
+        store.pusular[sym].exactDnaKeyAtSignal = gateOzeti.dnaKey;
+        store.pusular[sym].exactDnaIdAtSignal = gateOzeti.dnaId;
+        store.pusular[sym].historicalExecutionModeAtSignal = gateOzeti.executionMode;
+        store.pusular[sym].historicalGateReasonAtSignal = gateOzeti.reason;
+        store.pusular[sym].historicalCompletionAtSignal = gateOzeti.completion;
         console.log(`\n${pusuKaniti}\n`);
 
-        // Pusu Telegram kanıtı yalnız aynı sembol + Pattern imzasının ilk oluşumunda gönderilir.
+        // Pusu Telegram kanıtı yalnız aynı sembol + mantıksal Pattern olayının ilk oluşumunda gönderilir.
         // Pusu tetiklenip silinse veya taramada tekrar oluşturulsa bile aynı imza yeniden bildirilmez.
         const bildirimAnahtari = `${sym}|${signature}`;
         const dahaOnceBildirildi = Boolean(store.pusuTelegramBildirimleri[bildirimAnahtari]);
@@ -265,14 +306,15 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
             store.pusuTelegramBildirimleri[bildirimAnahtari] = Date.now();
             if (ayarlar.renkoPusuKanitTelegram !== false) {
                 if (!baslangicPusuOzetiGonderildi) {
-                    baslangicPusuKuyrugu.push({ sym, yon: match.yon, patternId: match.patternId, patternKodu: match.patternKodu, pusuKaniti });
+                    baslangicPusuKuyrugu.push({ sym, yon: match.yon, patternId: match.patternId, patternKodu: store.pusular[sym].patternKodu, patternSignature: signature, pusuKaniti, ...gateOzeti });
                 } else {
                     const patternId = String(match.patternId || 'PATTERN').trim();
-                    const patternKodu = String(match.patternKodu || '').trim();
+                    const patternKodu = String(store.pusular[sym].patternKodu || match.patternCode || '').trim();
                     const patternEtiketi = patternKodu && !/^(undefined|null|nan)$/i.test(patternKodu)
                         ? `${patternId} (${patternKodu})`
                         : patternId;
-                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\nBB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
+                    const modEtiketi = gateOzeti.executionMode === 'PREMIER' ? '🏆 PREMIER' : gateOzeti.executionMode === 'SHADOW' ? '👻 SHADOW' : '❓ UNKNOWN';
+                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\n🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi} | ${gateOzeti.reason}\nBB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
                     h.telegramMesajGonder(kisaMesaj).catch(e => console.log(`⚠️ [ST2 RENKO YENİ PUSU] Telegram gönderimi başarısız ${sym}: ${e.message}`));
                 }
             }
@@ -381,6 +423,7 @@ function auditLogla(audit) {
     store.sonAuditLogZamani = now;
     const aktif = Object.values(store.pusular || {});
     console.log(`🧱 [ST2 RENKO AUDIT] Sembol ${audit.sembol} | 15m ATR ${audit.atrHazir} | Renko ${audit.renkoHazir} (min ${audit.renkoMin ?? 0}/max ${audit.renkoMax}) | Pattern aday ${audit.patternAday} | Yeni pattern ${audit.yeniPattern} | BB hazır ${audit.bbHazir} | BB temas L${audit.bbLongTemas}/S${audit.bbShortTemas} | 1m Renko ST ${audit.onay1mRenkoHazir} (UP ${audit.onay1mUp}/DOWN ${audit.onay1mDown}) | Yeni pusu L${audit.longPusu}/S${audit.shortPusu} | Aktif ${aktif.length}`);
+    if (Number(audit.bildirimHafizaTemizlenen || 0) > 0) console.log(`🧹 [ST2 PUSU DEDUPE] Eski/fazla bildirim anahtarı temizlendi: ${audit.bildirimHafizaTemizlenen}`);
     console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → Fiyat tetik ${audit.fiyatTetigi} → 1m ST onay ${audit.stOnayi} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Ret: Mesafe ${audit.fiyatBekleyen} | Fiyat eksik ${audit.fiyatEksik} | 1m ST ${audit.stReddi} | Pozisyon katmanı ${audit.pozisyonReddedildi}`);
     console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu süresi doldu ${audit.red.PUSU_SURESI_DOLDU} | 1m ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ}`);
     const dagilim = Object.entries(audit.patternDagilimi || {}).sort().map(([k,v]) => `${k}:${v}`).join(' ') || 'YOK';
@@ -393,6 +436,7 @@ function auditLogla(audit) {
 async function taraVeDegerlendir() {
     const store = storeHazirla();
     const audit = auditBaslat();
+    audit.bildirimHafizaTemizlenen = pusuBildirimHafizasiniTemizle(store);
     for (const sym of h.state.semboller || []) {
         if ((h.state.alinanlar || []).includes(sym) || (h.state.aktifShortlar || []).includes(sym)) continue;
         audit.sembol++;
@@ -430,7 +474,7 @@ async function taraVeDegerlendir() {
         const benzersiz = [];
         const gorulen = new Set();
         for (const x of baslangicPusuKuyrugu) {
-            const key = `${x.sym}|${x.yon}|${x.patternId}`;
+            const key = `${x.sym}|${x.patternSignature || `${x.yon}|${x.patternId}`}`;
             if (gorulen.has(key)) continue;
             gorulen.add(key);
             benzersiz.push(x);
@@ -439,7 +483,7 @@ async function taraVeDegerlendir() {
         if (ayarlar.renkoPusuKanitTelegram !== false && benzersiz.length > 0) {
             const longlar = benzersiz.filter(x => x.yon === 'LONG');
             const shortlar = benzersiz.filter(x => x.yon === 'SHORT');
-            const satir = x => `${x.sym} ${x.yon} | ${x.patternId || x.patternKodu || 'PATTERN'}`;
+            const satir = x => `${x.sym} ${x.yon} | ${x.patternId || x.patternKodu || 'PATTERN'} | ${x.executionMode === 'PREMIER' ? '🏆' : x.executionMode === 'SHADOW' ? '👻' : '❓'} DNA ${x.dnaId || 'YOK'}`;
             const mesaj = [
                 `🔔 <b>ST2 AÇILIŞ PUSU ÖZETİ</b>`,
                 `📊 Mevcut ${benzersiz.length} | LONG ${longlar.length} | SHORT ${shortlar.length}`,
@@ -460,6 +504,9 @@ async function taraVeDegerlendir() {
 module.exports = {
     ...core,
     tetikFiyati,
+    dnaKisaId,
+    pusuGateOzeti,
+    pusuBildirimHafizasiniTemizle,
     aktifTuglaMesafesi,
     storeHazirla,
     auditBaslat,

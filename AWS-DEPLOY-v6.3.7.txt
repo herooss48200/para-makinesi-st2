@@ -1,0 +1,55 @@
+AGROS ST2 v6.3.7 — AWS DAĞITIM
+================================
+
+ÖNEMLİ
+- data klasörünü silme veya sıfırlama.
+- .env dosyasını değiştirme.
+- ST1 klasörüne dokunma.
+- Bu sürüm yeni bağımlılık eklemez.
+
+1) YEREL REPO
+---------------
+ZIP içindeki ST2 dosyalarını yerel ST2 repo köküne kopyala.
+
+npm test
+git status --short
+git add .
+git commit -m "fix(st2): v6.3.7 premier readiness and pusu dedupe final"
+git push origin main
+
+2) AWS YEDEK + GÜNCELLEME
+--------------------------
+cd ~/apps/para-makinesi-st2
+
+git status --short
+STAMP=$(date +%Y%m%d-%H%M%S)
+cp -a data "data-backup-v637-$STAMP"
+cp -a .env ".env-backup-v637-$STAMP"
+
+git pull origin main
+npm test
+
+3) BOTU AÇ
+----------
+pm2 restart agros-st2 --update-env
+pm2 save
+pm2 logs agros-st2 --lines 250
+
+4) DOĞRULAMA
+------------
+Beklenen sürüm:
+6.3.7-PREMIER-READINESS-PUSU-DEDUPE-FINAL
+
+Beklenen kanıtlar:
+- State/Ledger mevcut sayıları korunur.
+- Global Historical 29/29 READY kalır.
+- `HISTORICAL_30_COIN_TRAINING_INCOMPLETE` bir daha görünmez.
+- Pozitif exact eşleşmede `HISTORICAL_EXACT_DNA_PREMIER` görülebilir.
+- Yeni pusu mesajı DNA hash + PREMIER/SHADOW + karar nedeni içerir.
+- Aynı aktif pusu tekrar tekrar yeni bildirim üretmez.
+- Aktif pusu yeni taramada ezilip bekleme süresi sıfırlanmaz.
+
+Not:
+Dağıtım öncesinden açık kalan Shadow pozisyonlar geriye dönük Premier yapılmaz.
+Restart sonrasında mevcut pozisyonlar güvenli Restart-GAP kurallarına tabidir.
+Yeni pusular ve yeni girişler v6.3.7 karar kapısını kullanır.

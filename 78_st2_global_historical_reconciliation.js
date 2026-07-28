@@ -4,13 +4,14 @@ const fs=require('fs');const path=require('path');const crypto=require('crypto')
 const evolution=require('./73_st2_renko_entry_evolution.js');
 const historical=require('./75_st2_historical_renko_training.js');
 const winning=require('./75_st2_winning_intelligence.js');
+const canonicalPool=require('./80_st2_canonical_historical_pool.js');
 const VERSION='v6.2.1-GLOBAL-HISTORICAL-29-COIN-READY';
 const DATA_DIR=process.env.AGROS_DATA_DIR?path.resolve(process.env.AGROS_DATA_DIR):path.join(__dirname,'data');
 const LIVE_LEDGER=path.join(DATA_DIR,'st2-renko-entry-evolution-ledger.jsonl');
 const HIST_LEDGER=path.join(DATA_DIR,'st2-historical-training-ledger.jsonl');
 const STATE_FILE=path.join(DATA_DIR,'st2-global-historical-intelligence.json');const BACKUP_FILE=STATE_FILE+'.bak';
-const COINS=['BTC','ETH','BNB','SOL','XRP','DOGE','ADA','LINK','LTC','AVAX','DOT','BCH','TRX','ATOM','ETC','NEAR','APT','SUI','ARB','OP','FIL','INJ','SEI','TON','UNI','AAVE','FET','WIF','HBAR'];
-const SYMBOLS=COINS.map(x=>x+'USDT');const CANDIDATES=[0.25,0.50,0.75,1.00,1.25,1.50];
+const COINS=canonicalPool.COINS;
+const SYMBOLS=canonicalPool.SYMBOLS;const CANDIDATES=[0.25,0.50,0.75,1.00,1.25,1.50];
 const GROUPS={CORE:['BTC','ETH'],L1:['SOL','ADA','AVAX','DOT','ATOM','NEAR','APT','SUI','SEI'],DEFI:['LINK','UNI','AAVE','INJ'],PAYMENT:['XRP','LTC','BCH','TRX','HBAR'],L2:['ARB','OP'],MEME:['DOGE','WIF'],INFRA:['BNB','ETC','FIL','FET','TON']};
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d}function r(v,d=8){return Number(n(v).toFixed(d))}
 function emptyMetric(){return{n:0,wins:0,losses:0,be:0,net:0,grossProfit:0,grossLoss:0,avgWin:0,avgLoss:0,wr:0,pf:0,expectancy:0,mfe:0,mae:0,triggered:0,notTriggered:0}}

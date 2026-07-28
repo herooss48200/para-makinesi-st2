@@ -5,7 +5,8 @@ const path=require('path');
 const assert=require('assert');
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'agros-v632-'));
 process.env.AGROS_DATA_DIR=dir;
-const symbols={};for(let i=0;i<30;i++)symbols[`C${i}`]={signals:1};
+const canonical=require('./80_st2_canonical_historical_pool.js');
+const symbols={};for(const sym of canonical.SYMBOLS)symbols[sym]={signals:1};
 fs.writeFileSync(path.join(dir,'st2-historical-training.json'),JSON.stringify({symbols,profiles:{}},null,2));
 function event(i,{yon='SHORT',patternCode='S01',bb='UST',bbw='COK_GENIS',renko6='GGGGGG',atr='NORMAL',trend='UP',session='ABD',pnl=0.2}={}){
   return {type:'HISTORICAL_SIGNAL',yon,patternCode,context:{renko6,session,features:[`BB=${bb}`,`BBW=${bbw}`,`RENKO6=${renko6}`,`ATR=${atr}`,`TREND20=${trend}`,`SESSION=${session}`]},candidates:{'1.50':{triggered:true,resolved:true,pnlPct:pnl}}};
