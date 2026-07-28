@@ -9,11 +9,11 @@ assert.ok(bot.includes('telegramMesajGonderHizli(baslangicMesaji)'), 'startup fa
 assert.ok(bot.includes("setImmediate(() =>"), 'startup reporting must run in background');
 assert.ok(bot.includes("const basarili = Array.isArray(sonuclar)"), 'success-only startup stamp guard missing');
 assert.ok(bot.includes("Gönderim doğrulanmadı; startup damgası yazılmadı"), 'failed startup stamp audit missing');
-assert.ok(bot.includes('Promise.resolve(rapor.raporGonder(false))'), 'periodic live report must be non-blocking');
-assert.ok(bot.includes('canliRaporCalisiyor'), 'background live report overlap guard missing');
+assert.ok(bot.includes('Promise.resolve(rapor.raporGonder(false))') || bot.includes('rapor.raporTalepEt(false)'), 'periodic live report must be non-blocking');
+assert.ok(bot.includes('canliRaporCalisiyor') || bot.includes('rapor.raporTalepEt(false)'), 'background live report overlap guard or central queue missing');
 assert.ok(memory.includes('telegramMesajGonderHizli'), 'fast Telegram API missing');
 assert.ok(memory.includes('{ timeoutMs: 8000, retryCount: 0 }'), 'startup Telegram fast policy mismatch');
 assert.ok(entry.includes("PATTERN GİRİŞ EVRİMİNDE N5'E EN YAKIN"), 'truthful pattern-level heading missing');
 assert.ok(!entry.includes("<b>PREMIER'E EN YAKIN</b>"), 'misleading Premier heading still present');
-assert.ok(/^6\.(3\.(5|6|7|8|9)|4\.(0|1))-/.test(version.botSurumu));
+assert.ok(/^6\.(3\.(5|6|7|8|9)|4\.(0|1|2))-/.test(version.botSurumu));
 console.log('✅ v6.3.5 non-blocking Telegram startup + success-only stamp + truthful pattern heading passed');

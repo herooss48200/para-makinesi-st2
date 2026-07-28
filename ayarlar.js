@@ -420,7 +420,9 @@ const ayarlar = {
     canliRaporAktif: true,
     canliRaporGuncellemeMs: 60000,
     // v6.4.1: Büyük Entry/DNA/Renko replay raporları en fazla 5 dakikada bir kontrol edilir.
-    st2DetayRaporMinAralikMs: 300000,
+    st2DetayRaporMinAralikMs: 600000,
+    st2GlobalHistoricalCacheMs: 300000,
+    st2DetayRaporHeapLimitMb: 190,
     // Telegram editMessageText eski mesajı aşağı taşımaz. Bu süre dolunca eski ana tablo silinir ve yeni tablo en alta gönderilir.
     canliRaporYenidenGondermeMs: 180000,
     canliRaporEskiMesajiSil: true,

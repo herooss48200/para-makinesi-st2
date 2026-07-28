@@ -93,12 +93,11 @@ async function baslat() {
             } else {
                 console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
             }
-            await rapor.raporGonder(true);
+            rapor.raporTalepEt(true);
         };
 
         console.log(`✅ SİSTEM HAZIR. DÖNGÜ BAŞLATILDI. Emir Modu: ${emirModu}`);
 
-        let canliRaporCalisiyor = false;
         setInterval(async () => {
             if (donguCalisiyor) return;
             if (Date.now() < h.state.cooldownBitis) return;
@@ -129,14 +128,9 @@ async function baslat() {
                 }
 
                 const now = Date.now();
-                if (ayarlar.canliRaporAktif && !canliRaporCalisiyor && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 30000)) {
+                if (ayarlar.canliRaporAktif && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 60000)) {
                     sonCanliRapor = now;
-                    canliRaporCalisiyor = true;
-                    setImmediate(() => {
-                        Promise.resolve(rapor.raporGonder(false))
-                            .catch(err => console.error(`⚠️ [CANLI RAPOR ARKA PLAN HATASI] ${err.message}`))
-                            .finally(() => { canliRaporCalisiyor = false; });
-                    });
+                    rapor.raporTalepEt(false);
                 }
 
                 // v3.0.2 FIX: Strategy Lab toplu başarı/uyum analizi sadece kapanış sayacına bağlı kalmasın.

@@ -34,7 +34,11 @@ let learningEvolutionBaseline = null;
 let raporZinciriCalisiyor = false;
 let raporTekrarIstegi = false;
 let raporTekrarOneCikar = false;
+let detayRaporCalisiyor = false;
+let detayRaporTekrarIstegi = false;
 let sonDetayRaporZamani = 0;
+let globalHistoricalCache = { signature: null, text: '', createdAt: 0 };
+let raporCalismaBaslangici = 0;
 let sonSt2EntryEvolutionDetayImzasi = null;
 let sonSt2ExitEvolutionDetayImzasi = null;
 let sonExitVictoryReplay = null;
@@ -43,6 +47,25 @@ let sonLabChampionKapanan = null;
 let sonLabPremierKapanan = null;
 let sonRealOrderPreparationMtime = null;
 let sonSt1CertificationSignature = null;
+
+
+function globalHistoricalTelegramCached() {
+    const entry = renkoEntryEvolution.summary();
+    const sig = `${Number(entry?.health?.stateRecords || 0)}|${Number(entry?.health?.ledgerRecords || 0)}|${Number(entry?.total?.closed || 0)}|${Number(h.state?.aktifPozisyonlar?.length || 0)}`;
+    const ttl = Math.max(60000, Number(ayarlar.st2GlobalHistoricalCacheMs || 300000));
+    if (globalHistoricalCache.signature === sig && globalHistoricalCache.text && Date.now() - globalHistoricalCache.createdAt < ttl) {
+        return globalHistoricalCache.text;
+    }
+    const text = globalHistoricalReconciliation.telegram();
+    globalHistoricalCache = { signature: sig, text, createdAt: Date.now() };
+    return text;
+}
+
+function heapPressureHigh() {
+    const m = process.memoryUsage();
+    const limitMb = Math.max(128, Number(ayarlar.st2DetayRaporHeapLimitMb || 190));
+    return (m.heapUsed / 1024 / 1024) >= limitMb;
+}
 
 function sayi(n, basamak = 2) {
     const v = Number(n);
@@ -406,7 +429,7 @@ ${ayarlar.entryStrategyMode === 'ST2_RENKO' ? st2AnaRaporOgrenmeOzeti() : learni
 `;
         if (ayarlar.entryStrategyMode === 'ST2_RENKO') mesaj += `
 
-${globalHistoricalReconciliation.telegram()}
+${globalHistoricalTelegramCached()}
 `;
     } else {
         mesaj += `📦 <b>Aktif Pozisyon:</b> ${aktifler.length} / ${ayarlar.maxPozisyonSayisi || '-'}
@@ -725,48 +748,72 @@ async function st2ExitEvolutionDetayiGonderGerekirse(oneCikar = false) {
     } catch (err) { console.error(`❌ [ST2 EXIT EVOLUTION TELEGRAM] ${err.message}`); }
 }
 
-async function raporGonder(oneCikar = false) {
-    if (raporZinciriCalisiyor) {
-        // v6.4.1: Çakışan rapor çağrısını kaybetme veya Telegram kuyruğuna yığma.
-        // Yalnız tek güncel tekrar isteği tutulur; oneCikar talebi önceliğini korur.
-        raporTekrarIstegi = true;
-        raporTekrarOneCikar = raporTekrarOneCikar || oneCikar;
-        console.warn('🛡️ [RAPOR COALESCE] Önceki rapor sürüyor; yeni istek tek güncel tekrar talebinde birleştirildi.');
+async function detayRaporlariniCalistir(oneCikar = false) {
+    if (detayRaporCalisiyor) {
+        detayRaporTekrarIstegi = true;
         return;
     }
-    raporZinciriCalisiyor = true;
-    try {
-        const mesaj = canliRaporMetniOlustur();
-
-        if (ayarlar.canliRaporAktif) {
-            await h.telegramCanliRaporGuncelle(mesaj, oneCikar);
-        } else if (oneCikar) {
-            await h.telegramMesajGonder(mesaj);
-        }
-
-        // Büyük replay/DNA raporları canlı panelin her turunda yeniden hesaplanmaz.
-        // Açılışta veya kontrollü aralık dolduğunda imza değişimi denetlenir.
-        const detayAralikMs = Math.max(60000, Number(ayarlar.st2DetayRaporMinAralikMs || 300000));
-        const detayZamani = oneCikar || (Date.now() - sonDetayRaporZamani >= detayAralikMs);
-        if (detayZamani) {
-            sonDetayRaporZamani = Date.now();
-            await st2EntryEvolutionDetayiGonderGerekirse(oneCikar);
-            await st2ExitEvolutionDetayiGonderGerekirse(oneCikar);
-        }
-
+    if (heapPressureHigh() && !oneCikar) {
         const m = memorySafeIo.ramMb();
-        console.log(`🧠 [ST2 CLEAN REPORT] Panel hızlı | Detay ${detayZamani ? 'KONTROL_EDILDI' : 'SEYREKLESTIRILDI'} | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);
+        console.warn(`🧠 [DETAY RAPOR BASKI KORUMASI] Heap ${m.heapUsed} MB; detay raporu ertelendi.`);
+        return;
+    }
+    detayRaporCalisiyor = true;
+    try {
+        await st2EntryEvolutionDetayiGonderGerekirse(oneCikar);
+        await st2ExitEvolutionDetayiGonderGerekirse(oneCikar);
     } catch (err) {
-        console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
+        console.error(`⚠️ [DETAY RAPOR KUYRUK HATASI] ${err.message}`);
     } finally {
-        raporZinciriCalisiyor = false;
-        if (raporTekrarIstegi) {
-            const tekrarOneCikar = raporTekrarOneCikar;
-            raporTekrarIstegi = false;
-            raporTekrarOneCikar = false;
-            setImmediate(() => raporGonder(tekrarOneCikar).catch(err => console.error(`⚠️ [RAPOR TEKRAR HATASI] ${err.message}`)));
+        detayRaporCalisiyor = false;
+        if (detayRaporTekrarIstegi) {
+            detayRaporTekrarIstegi = false;
+            setTimeout(() => detayRaporlariniCalistir(false), 1000).unref?.();
         }
     }
 }
 
-module.exports = { raporGonder, canliRaporMetniOlustur, st2EntryEvolutionDetayiGonderGerekirse, st2ExitEvolutionDetayiGonderGerekirse, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse, st1FinalCertificationRaporuGonderGerekirse };
+async function raporGonder(oneCikar = false) {
+    if (raporZinciriCalisiyor) {
+        raporTekrarIstegi = true;
+        raporTekrarOneCikar = raporTekrarOneCikar || oneCikar;
+        const gecen = raporCalismaBaslangici ? Date.now() - raporCalismaBaslangici : 0;
+        console.warn(`🛡️ [RAPOR COALESCE] Aktif panel ${gecen}ms; yeni istek tek güncel tekrar talebinde birleştirildi.`);
+        return false;
+    }
+    raporZinciriCalisiyor = true;
+    raporCalismaBaslangici = Date.now();
+    try {
+        const mesaj = canliRaporMetniOlustur();
+        if (ayarlar.canliRaporAktif) await h.telegramCanliRaporGuncelle(mesaj, oneCikar);
+        else if (oneCikar) await h.telegramMesajGonder(mesaj);
+
+        const detayAralikMs = Math.max(60000, Number(ayarlar.st2DetayRaporMinAralikMs || 300000));
+        const detayZamani = oneCikar || (Date.now() - sonDetayRaporZamani >= detayAralikMs);
+        if (detayZamani) {
+            sonDetayRaporZamani = Date.now();
+            setImmediate(() => detayRaporlariniCalistir(oneCikar));
+        }
+        const m = memorySafeIo.ramMb();
+        console.log(`🧠 [ST2 CLEAN REPORT] Panel hızlı | Detay ${detayZamani ? 'ARKA_PLAN_KUYRUK' : 'SEYREKLESTIRILDI'} | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);
+        return true;
+    } catch (err) {
+        console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
+        return false;
+    } finally {
+        raporZinciriCalisiyor = false;
+        raporCalismaBaslangici = 0;
+        if (raporTekrarIstegi) {
+            const tekrarOneCikar = raporTekrarOneCikar;
+            raporTekrarIstegi = false;
+            raporTekrarOneCikar = false;
+            setTimeout(() => raporGonder(tekrarOneCikar).catch(err => console.error(`⚠️ [RAPOR TEKRAR HATASI] ${err.message}`)), 250).unref?.();
+        }
+    }
+}
+
+function raporTalepEt(oneCikar = false) {
+    setImmediate(() => raporGonder(oneCikar).catch(err => console.error(`⚠️ [RAPOR TALEP HATASI] ${err.message}`)));
+}
+
+module.exports = { raporGonder, raporTalepEt, detayRaporlariniCalistir, canliRaporMetniOlustur, st2EntryEvolutionDetayiGonderGerekirse, st2ExitEvolutionDetayiGonderGerekirse, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse, st1FinalCertificationRaporuGonderGerekirse };
