@@ -8,7 +8,7 @@
 const adaptive = require('./76_st2_adaptive_dna_entry.js');
 const crypto = require('crypto');
 
-const VERSION = 'v6.3.4-SESSION-NEUTRAL-EXACT-DNA-INTELLIGENCE';
+const VERSION = 'v6.4.0-EXACT-DNA-TELEGRAM-TRUTH';
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function r(v,d=4){return Number(n(v).toFixed(d));}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,n(v)));}
@@ -20,7 +20,7 @@ function statusReason(profile){
   const d=profile.decision||{}, liveN=(profile.closes||[]).length, h=d.historical||null;
   const histPremier=adaptive.positiveEvidence(h,adaptive.HISTORICAL_PREMIER_MIN_N());
   const livePremier=adaptive.positiveEvidence(d.live,adaptive.LAST_N,true);
-  if(livePremier)return 'LIVE_N3_PREMIER_CONFIRMED';
+  if(livePremier)return 'LIVE_N3_POZITIF_GIRIS_PROFILI';
   if(histPremier&&liveN<3)return 'HISTORICAL_EXACT_PREMIER_READY';
   if(histPremier)return 'HISTORICAL_EXACT_PREMIER_LIVE_REVIEW';
   if(!h&&liveN<3)return 'EXACT_DNA_UNSEEN_SHADOW + LIVE_N3_LEARNING';
@@ -127,7 +127,7 @@ function telegram(limit=10){
     const hist=d.historical||null, id=shortId(p.key), reason=statusReason(p);
     const league=adaptive.positiveEvidence(hist,adaptive.HISTORICAL_PREMIER_MIN_N())?'PREMIER':'SHADOW';
     t+=`
-🧬 <b>DNA ${id} | ${c.yon} ${c.pattern}</b> | Güven ${cf.score}/100 | Lig ${league} | Güven sınıfı ${cf.grade}
+🧬 <b>DNA ${id} | ${c.yon} ${c.pattern}</b> | Güven ${cf.score}/100 | Tarihsel lig ${league} | Güven sınıfı ${cf.grade}
 `+
       `🔑 Exact ${id} | RBB=${c.rbb} | RBBW=${c.rbbw} | RENKO6=${c.renko6}
 `+
@@ -139,7 +139,7 @@ function telegram(limit=10){
 `+
       `⚡ Canlı ${d.live?Number(d.live.brick).toFixed(2):'YOK'} | N${(p.closes||[]).length} | Durum ${reason}
 `+
-      `🏷️ Lig ${adaptive.positiveEvidence(hist,adaptive.HISTORICAL_PREMIER_MIN_N())?'PREMIER':'SHADOW'} | Exact kanıt ${hist?'VAR':'YOK'} | En yakın DNA Premier yetkisi YOK
+      `🏷️ Tarihsel lig ${adaptive.positiveEvidence(hist,adaptive.HISTORICAL_PREMIER_MIN_N())?'PREMIER':'SHADOW'} | Exact tarihsel kanıt ${hist?'VAR':'YOK'} | Canlı N3 yalnız giriş profili öğrenir | En yakın DNA Premier yetkisi YOK
 `+
       `🧮 Güven: Tarih ${cf.historicalQuality} | Canlı ${cf.liveQuality} | Stabilite ${cf.stability} | Örnek ${cf.sample} | Bağlam ${cf.regimeCompleteness}
 `+

@@ -89,10 +89,12 @@ async function sembolleriYukle() {
 
 async function acikPozisyonlariBorsadanDevral() {
     if (ayarlar.sanalEmirModu) {
-        console.log('🧪 Sanal emir modu aktif: borsadan açık pozisyon devralınmayacak.');
-        h.state.aktifPozisyonlar = [];
-        h.state.alinanlar = [];
-        h.state.aktifShortlar = [];
+        const aktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
+        // Sanal modda Binance pozisyonu devralınmaz; kalıcı hafızadan yüklenen sanal işlemler korunur.
+        h.state.aktifPozisyonlar = aktifler;
+        h.state.alinanlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'LONG').map(p => p.sym).filter(Boolean))];
+        h.state.aktifShortlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'SHORT').map(p => p.sym).filter(Boolean))];
+        console.log(`🧪 Sanal emir modu aktif: Binance pozisyonu devralınmayacak; ${aktifler.length} kalıcı sanal pozisyon korunuyor.`);
         return;
     }
 
