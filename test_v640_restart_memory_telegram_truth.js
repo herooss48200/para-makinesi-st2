@@ -24,5 +24,5 @@ assert.ok(exitSrc.includes('Fallback/öğrenme bekliyor'));
 assert.ok(exitSrc.includes('AKTİF ÖĞRENİLMİŞ'));
 
 const version=require('./versiyon.js');
-assert.ok(version.botSurumu.startsWith('6.4.0-'));
+assert.ok(version.botSurumu.startsWith('6.4.'));
 console.log('✅ v6.4.0 restart memory + Telegram truth tests passed');

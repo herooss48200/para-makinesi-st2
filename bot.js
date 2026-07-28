@@ -15,6 +15,7 @@ binanceAg.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
 let donguCalisiyor = false;
 let sonOzetLog = 0;
 let sonCanliRapor = 0;
+let pusuRaporCalisiyor = false;
 
 async function baslat() {
     console.log('=== [PARA MAKİNESİ AUTOMATION SYSTEM] STARTING ===');
@@ -116,15 +117,26 @@ async function baslat() {
                     await p.pusulariDenetleVeIslemAc();
                 }
                 await p.izSurmeyiGuncelle();
-                await p.pusuRaporuGonder();
+                // v6.4.1: Telegram pusu bildirimi ana piyasa döngüsünü bekletmez.
+                // Aynı anda yalnız tek pusu raporu çalışır; yenileri bir sonraki turda güncel state ile birleşir.
+                if (!pusuRaporCalisiyor) {
+                    pusuRaporCalisiyor = true;
+                    setImmediate(() => {
+                        Promise.resolve(p.pusuRaporuGonder())
+                            .catch(err => console.error(`⚠️ [PUSU RAPOR ARKA PLAN HATASI] ${err.message}`))
+                            .finally(() => { pusuRaporCalisiyor = false; });
+                    });
+                }
 
                 const now = Date.now();
                 if (ayarlar.canliRaporAktif && !canliRaporCalisiyor && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 30000)) {
                     sonCanliRapor = now;
                     canliRaporCalisiyor = true;
-                    Promise.resolve(rapor.raporGonder(false))
-                        .catch(err => console.error(`⚠️ [CANLI RAPOR ARKA PLAN HATASI] ${err.message}`))
-                        .finally(() => { canliRaporCalisiyor = false; });
+                    setImmediate(() => {
+                        Promise.resolve(rapor.raporGonder(false))
+                            .catch(err => console.error(`⚠️ [CANLI RAPOR ARKA PLAN HATASI] ${err.message}`))
+                            .finally(() => { canliRaporCalisiyor = false; });
+                    });
                 }
 
                 // v3.0.2 FIX: Strategy Lab toplu başarı/uyum analizi sadece kapanış sayacına bağlı kalmasın.

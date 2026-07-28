@@ -32,6 +32,9 @@ let sonDnaLeagueTransferKapanisi = null;
 let sonPremierObservationKapanan = null;
 let learningEvolutionBaseline = null;
 let raporZinciriCalisiyor = false;
+let raporTekrarIstegi = false;
+let raporTekrarOneCikar = false;
+let sonDetayRaporZamani = 0;
 let sonSt2EntryEvolutionDetayImzasi = null;
 let sonSt2ExitEvolutionDetayImzasi = null;
 let sonExitVictoryReplay = null;
@@ -724,7 +727,11 @@ async function st2ExitEvolutionDetayiGonderGerekirse(oneCikar = false) {
 
 async function raporGonder(oneCikar = false) {
     if (raporZinciriCalisiyor) {
-        console.warn('🛡️ [RAPOR GUARD] Önceki rapor zinciri sürüyor; çakışan çağrı atlandı.');
+        // v6.4.1: Çakışan rapor çağrısını kaybetme veya Telegram kuyruğuna yığma.
+        // Yalnız tek güncel tekrar isteği tutulur; oneCikar talebi önceliğini korur.
+        raporTekrarIstegi = true;
+        raporTekrarOneCikar = raporTekrarOneCikar || oneCikar;
+        console.warn('🛡️ [RAPOR COALESCE] Önceki rapor sürüyor; yeni istek tek güncel tekrar talebinde birleştirildi.');
         return;
     }
     raporZinciriCalisiyor = true;
@@ -736,18 +743,29 @@ async function raporGonder(oneCikar = false) {
         } else if (oneCikar) {
             await h.telegramMesajGonder(mesaj);
         }
-        await st2EntryEvolutionDetayiGonderGerekirse(oneCikar);
-        await st2ExitEvolutionDetayiGonderGerekirse(oneCikar);
 
-        // v6.2.0 CLEAN CORE: Eski ST1/LAB türev panelleri Telegram zincirinden tamamen ayrıldı.
-        // Bu modüller geriye dönük runtime bağımlılıkları için kaynakta bulunabilir; ancak rapor,
-        // Premier/Shadow kararı, Entry/Exit Evolution veya N3 terfisi üzerinde yetkileri yoktur.
+        // Büyük replay/DNA raporları canlı panelin her turunda yeniden hesaplanmaz.
+        // Açılışta veya kontrollü aralık dolduğunda imza değişimi denetlenir.
+        const detayAralikMs = Math.max(60000, Number(ayarlar.st2DetayRaporMinAralikMs || 300000));
+        const detayZamani = oneCikar || (Date.now() - sonDetayRaporZamani >= detayAralikMs);
+        if (detayZamani) {
+            sonDetayRaporZamani = Date.now();
+            await st2EntryEvolutionDetayiGonderGerekirse(oneCikar);
+            await st2ExitEvolutionDetayiGonderGerekirse(oneCikar);
+        }
+
         const m = memorySafeIo.ramMb();
-        console.log(`🧠 [ST2 CLEAN REPORT] Yalnız Premier/Shadow + Entry/Exit/Renko + Global Historical | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);
+        console.log(`🧠 [ST2 CLEAN REPORT] Panel hızlı | Detay ${detayZamani ? 'KONTROL_EDILDI' : 'SEYREKLESTIRILDI'} | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);
     } catch (err) {
         console.error('❌ Rapor hazırlanırken hata oluştu:', err.message);
     } finally {
         raporZinciriCalisiyor = false;
+        if (raporTekrarIstegi) {
+            const tekrarOneCikar = raporTekrarOneCikar;
+            raporTekrarIstegi = false;
+            raporTekrarOneCikar = false;
+            setImmediate(() => raporGonder(tekrarOneCikar).catch(err => console.error(`⚠️ [RAPOR TEKRAR HATASI] ${err.message}`)));
+        }
     }
 }
 
