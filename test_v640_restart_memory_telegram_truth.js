@@ -20,9 +20,9 @@ assert.ok(reconSrc.includes('Bu oturum köprüsü'));
 
 const exitSrc=fs.readFileSync(path.join(__dirname,'74_st2_renko_exit_evolution.js'),'utf8');
 assert.ok(exitSrc.includes('İzlenen pattern'));
-assert.ok(exitSrc.includes('Fallback/öğrenme bekliyor'));
-assert.ok(exitSrc.includes('AKTİF ÖĞRENİLMİŞ'));
+assert.ok(exitSrc.includes('Fallback/öğrenme bekliyor') || exitSrc.includes('KANIT_BEKLIYOR'));
+assert.ok(exitSrc.includes('AKTİF ÖĞRENİLMİŞ') || exitSrc.includes('✅ AKTİF'));
 
 const version=require('./versiyon.js');
-assert.ok(version.botSurumu.startsWith('6.4.'));
+assert.ok(version.botSurumu.startsWith('6.4.') || version.botSurumu.startsWith('6.5.'));
 console.log('✅ v6.4.0 restart memory + Telegram truth tests passed');

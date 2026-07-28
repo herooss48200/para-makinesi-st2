@@ -1,0 +1,28 @@
+AGROS ST2 v6.5.0 — MFE CAPTURE & RENKO TAKEOVER EVOLUTION FINAL
+Date: 2026-07-28
+
+RESULT: PASS
+
+New validation:
+✅ v6.5.0 actual MFE capture audit
+✅ profit giveback and missed-profit telemetry
+✅ takeover-delay and pre/post takeover MFE separation
+✅ takeover threshold candidates 0.25–1.25%
+✅ trail candidates 0.50–2.00 bricks
+✅ joint takeover + trail shadow replay
+✅ safe Super League candidate gate: minimum N, Net>0, PF>=1.30, Exp>0, MFE capture and superiority
+✅ duplicate / restart-gap / manual-close isolation
+
+Regression chain:
+✅ v6.4.3 Premier report truth
+✅ v6.4.2 report queue + memory pressure
+✅ v6.4.1 non-blocking report runtime
+✅ v6.4.0 restart memory + Telegram truth
+✅ v6.3.9 Renko profit trail observability
+✅ v6.3.8 profit capture reconciliation
+✅ v6.3.7 through v6.1.3 compatibility chain
+
+Safety:
+- Trade Engine unchanged.
+- Entry, stop, BE, live Renko takeover and close mathematics unchanged.
+- New takeover recommendations remain SHADOW REPLAY until evidence thresholds are met.

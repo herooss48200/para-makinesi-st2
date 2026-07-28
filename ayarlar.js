@@ -695,6 +695,12 @@ const ayarlar = {
     // mevcut Renko stop adayının güvenli alt sınırıdır.
     renkoCikisMfeKorumaTetikYuzde: 0.40,
     renkoCikisMinMfeKorumaOrani: 0.60,
+    // v6.5.0 — Canlı davranışı değiştirmeyen devralma + takip ortak shadow replay.
+    renkoDevralmaAdayKarYuzde: [0.25, 0.40, 0.50, 0.75, 1.00, 1.25],
+    renkoSuperLigMinKapanis: 5,
+    renkoSuperLigMinPf: 1.30,
+    renkoSuperLigMinMfeCapture: 25,
+    renkoSuperLigMinUstunlukYuzde: 10,
     telegramIslemAcilisMesaji: false,
     telegramPusuMesaji: false,
     telegramRenkoDevralmaMesaji: true,

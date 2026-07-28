@@ -1,0 +1,11 @@
+cd ~/apps/para-makinesi-st2
+git pull origin main
+git log -1 --oneline
+git status --short
+npm test
+pm2 restart agros-st2 --update-env
+pm2 save
+sleep 20
+pm2 status
+grep -E "6.5.0|MFE CAPTURE|RENKO TAKEOVER|SUPER_LIG_ADAYI|KANIT_BEKLIYOR|Geri verme|Devralma gecikmesi|BOT AKTİF|RSS|Heap" logs-st2/agros-st2-out.log | tail -120
+tail -40 logs-st2/agros-st2-error.log
