@@ -5,7 +5,7 @@ const bot=fs.readFileSync('./bot.js','utf8');
 const report=fs.readFileSync('./2_rapor.js','utf8');
 const cfg=fs.readFileSync('./ayarlar.js','utf8');
 const ver=require('./versiyon.js');
-must(ver.botSurumu==='6.4.2-REPORT-QUEUE-MEMORY-PRESSURE','version');
+must(['6.4.2-REPORT-QUEUE-MEMORY-PRESSURE','6.4.3-PREMIER-REPORT-TRUTH'].includes(ver.botSurumu),'version');
 must(bot.includes('rapor.raporTalepEt(false)'), 'bot report queue not wired');
 must(!bot.includes('canliRaporCalisiyor'), 'legacy local report guard remains');
 must(report.includes('function raporTalepEt'), 'request API missing');

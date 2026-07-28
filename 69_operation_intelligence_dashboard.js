@@ -2,7 +2,7 @@
  * AGROS v5.3.5 — LIVE OPERATIONS + SELECTION INTELLIGENCE 2.0
  * Raporlama/karar-açıklama katmanıdır. Trade Engine kapılarını değiştirmez.
  */
-const VERSION = 'v5.4.2-REPORT-CONSISTENCY-FIX';
+const VERSION = 'v6.4.3-PREMIER-REPORT-TRUTH-FINAL';
 const runtimeVersion = require('./versiyon.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
@@ -52,7 +52,9 @@ function telegram(activePositions=[], prebuilt=null){
   const adaptiveSummary = adaptiveDnaEntry.summary();
   const renkoPremierPatterns = n(adaptiveSummary.health?.historicalPremierProfiles);
   const renkoShadowDnas = Math.max(0,n(adaptiveSummary.health?.historicalProfiles)-renkoPremierPatterns);
-  const livePremier = (activePositions||[]).filter(p=>p?.labPremierObservation?.upperLayerIncluded===true || p?.labPremierDecision?.upperLayerIncluded===true).length;
+  // Tek doğruluk kaynağı: accounting continuity tarafından üretilen bilimsel aktif Premier sayısı.
+  // Restart-GAP veya eski upperLayerIncluded işaretleri üst başlığa sızamaz.
+  const livePremier = n(ac.activeScientific);
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
   t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
   t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;

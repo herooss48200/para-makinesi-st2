@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.4.2-report-queue-memory-pressure",
-  "description": "AGROS ST2 v6.3.9: Renko profit trailing stop naming, active stop-source attribution, and closure observability reconciliation.",
+  "version": "6.4.3-premier-report-truth",
+  "description": "AGROS ST2 v6.4.3: Premier active-count report truth reconciliation; report queue and memory-pressure protections preserved.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -115,7 +115,7 @@
     "verify:v566": "node --check motor.js && node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check 74_st2_renko_exit_evolution.js && npm run test:v566 && npm run test:v565 && npm run test:v564",
     "test:v568": "node test_v568_consistency_clean_final.js",
     "verify:v568": "node --check 2_rapor.js && node --check 69_operation_intelligence_dashboard.js && node --check 72_st2_renko_entry.js && node test_v568_consistency_clean_final.js && node test_v567_telegram_consistency_safe_startup.js && node test_v566_renko_premier_binding_clean_telegram.js && node test_v565_renko_exit_safety_final.js && node test_v564_st2_renko_exit_manual_safety.js",
-    "test": "npm run verify:v642 && npm run verify:v641 && npm run verify:v640 && npm run verify:v639 && npm run verify:v638 && npm run verify:v637 && npm run verify:v636 && npm run verify:v635 && npm run verify:v634 && npm run verify:v633 && npm run verify:v632 && npm run verify:v631 && npm run verify:v630 && npm run verify:v622",
+    "test": "npm run verify:v643 && npm run verify:v642 && npm run verify:v641 && npm run verify:v640 && npm run verify:v639 && npm run verify:v638 && npm run verify:v637 && npm run verify:v636 && npm run verify:v635 && npm run verify:v634 && npm run verify:v633 && npm run verify:v632 && npm run verify:v631 && npm run verify:v630 && npm run verify:v622",
     "verify": "npm run verify:v612",
     "test:v5610": "node test_v5610_failed_pattern_breakdown.js",
     "verify:v5610": "node --check 73_st2_renko_entry_evolution.js && node --check test_v5610_failed_pattern_breakdown.js && npm run test:v5610 && node test_v569_four_issue_resolution.js && node test_v567_telegram_consistency_safe_startup.js",
@@ -178,7 +178,9 @@
     "test:v641": "node test_v641_nonblocking_report_runtime.js",
     "test:v642": "node test_v642_report_queue_memory_pressure.js",
     "verify:v642": "node --check bot.js && node --check 2_rapor.js && node --check ayarlar.js && node --check versiyon.js && node --check test_v642_report_queue_memory_pressure.js && npm run test:v642",
-    "verify:v641": "node --check bot.js && node --check 2_rapor.js && node --check ayarlar.js && node --check versiyon.js && node --check test_v641_nonblocking_report_runtime.js && npm run test:v641"
+    "verify:v641": "node --check bot.js && node --check 2_rapor.js && node --check ayarlar.js && node --check versiyon.js && node --check test_v641_nonblocking_report_runtime.js && npm run test:v641",
+    "test:v643": "node test_v643_premier_report_truth.js",
+    "verify:v643": "node --check 69_operation_intelligence_dashboard.js && node --check 2_rapor.js && node --check versiyon.js && node --check test_v643_premier_report_truth.js && npm run test:v643"
   },
   "dependencies": {
     "axios": "^1.13.2",
