@@ -15,7 +15,7 @@ const ayarlar = {
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
     calisilmakIstenenUsdtMiktar: 5,
-    mevcutKaldirac: 10,
+    mevcutKaldirac: 20,
     maxPozisyonSayisi: 100,
 
     // ========================================
