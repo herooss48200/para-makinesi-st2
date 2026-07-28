@@ -942,7 +942,10 @@ function kapanisSebebiDuzenle(pos, sebep, kapanisFiyati) {
         ? ((kapanisFiyati - giris) / giris) * 100
         : ((giris - kapanisFiyati) / giris) * 100;
 
-    if (fiyatKarYuzde > 0.05) return 'İz Süren Stop / Kâr Koruma';
+    if (fiyatKarYuzde > 0.05) {
+        const kaynak = pos?.renkoExitLastStopSourceLabel || (pos?.renkoExitActivated ? 'Renko takip stopu' : null);
+        return kaynak ? `${kaynak} ile Kâr Koruma` : 'İz Süren Stop / Kâr Koruma';
+    }
     if (Math.abs(fiyatKarYuzde) <= 0.05) return 'Başabaş Stop / Komisyon';
     return sebep;
 }

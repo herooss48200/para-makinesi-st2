@@ -1,0 +1,12 @@
+AGROS ST2 v6.3.9 DEPLOY
+
+cd ~/apps/para-makinesi-st2
+git status --short
+git pull origin main
+npm test
+pm2 restart agros-st2 --update-env
+pm2 save
+pm2 logs agros-st2 --lines 120
+
+Beklenen sürüm: 6.3.9-RENKO-PROFIT-TRAIL-OBSERVABILITY
+Yeni Telegram başlığı: ST2 RENKO KÂR TAKİP STOPU EVRİMİ

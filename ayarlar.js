@@ -681,11 +681,16 @@ const ayarlar = {
     adaptiveTradingLeagueRaporHerKapanis: 10,
 
 
-    // v5.6.4 — Pattern bazlı Renko Exit Evolution.
+    // v6.3.9 — Pattern bazlı Renko kâr takip stopu evrimi ve kaynak görünürlüğü.
     renkoCikisEvolutionAktif: true,
     renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
     renkoCikisVarsayilanTugla: 1.00,
     renkoCikisIlkAtamaKapanis: 3,
+    // Mevcut Renko yönetimi devraldıktan sonra, anlamlı MFE oluştuğunda
+    // tepe kârın en az bu oranını stop ile korur. Yeni katman değildir;
+    // mevcut Renko stop adayının güvenli alt sınırıdır.
+    renkoCikisMfeKorumaTetikYuzde: 0.40,
+    renkoCikisMinMfeKorumaOrani: 0.60,
     telegramIslemAcilisMesaji: false,
     telegramPusuMesaji: false,
     telegramRenkoDevralmaMesaji: true,

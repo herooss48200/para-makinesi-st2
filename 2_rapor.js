@@ -145,7 +145,16 @@ function pozisyonSatiri(p) {
     }
 
     if (kademe) {
-        satir += ` | K${kademe}${kademe === 1 ? ' koruma aktif' : ''}`;
+        satir += ` | K${kademe}`;
+    }
+
+    if (p.renkoExitActivated === true) {
+        satir += ` | Renko yönetimi/takip ${Number(p.renkoExitAssignment?.assignedTrailBricks || 0).toFixed(2)}T`;
+        if (p.renkoExitLastStopSourceLabel) satir += ` | ${p.renkoExitLastStopSourceLabel}`;
+    } else if (p.breakevenAktif === true) {
+        satir += ' | Güvenli koruma';
+    } else if (kademe) {
+        satir += ' | Koruma bekliyor';
     }
 
     return satir;
