@@ -5,7 +5,7 @@ const report=fs.readFileSync('2_rapor.js','utf8');
 const entry=fs.readFileSync('73_st2_renko_entry_evolution.js','utf8');
 const dna=fs.readFileSync('77_st2_pattern_dna_intelligence.js','utf8');
 const version=require('./versiyon.js');
-assert.ok(/^6\.(3\.[3-9]|4.[0-3]|5.0)-/.test(String(version.botSurumu||'')));
+assert.ok(/^6\.(3\.[3-9]|4.[0-3]|5.0|6.0)-/.test(String(version.botSurumu||'')));
 assert.ok(report.includes('Pusu DNA adayı'));
 assert.ok(report.includes('Aktif Shadow kanıtı'));
 assert.ok(entry.includes('legacyEntryAuditV632'));

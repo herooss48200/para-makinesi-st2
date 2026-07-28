@@ -174,14 +174,28 @@ function pozisyonSatiri(p) {
         satir += ` | K${kademe}`;
     }
 
-    if (p.renkoExitActivated === true) {
-        satir += ` | Renko yönetimi/takip ${Number(p.renkoExitAssignment?.assignedTrailBricks || 0).toFixed(2)}T`;
-        if (p.renkoExitLastStopSourceLabel) satir += ` | ${p.renkoExitLastStopSourceLabel}`;
-    } else if (p.breakevenAktif === true) {
-        satir += ' | Güvenli koruma';
-    } else if (kademe) {
-        satir += ' | Koruma bekliyor';
-    }
+    const atama = p.renkoExitAssignment || {};
+    const takeover = Number(atama.assignedTakeoverPct);
+    const trail = Number(atama.assignedTrailBricks);
+    const peak = Number.isFinite(Number(p.renkoExitPeak))
+        ? renkoExitEvolution.peakProfitPct(p, Number(p.renkoExitPeak))
+        : null;
+    const stage = p.renkoProtectionStage || (p.renkoExitActivated === true ? 'K2' : (p.breakevenAktif === true ? 'K1' : 'K0'));
+    const stateLabel = ({
+        ILK_KORUMA_BEKLIYOR: 'Koruma bekliyor',
+        BE_AKTIF_TAKEOVER_BEKLIYOR: 'BE aktif, takeover bekleniyor',
+        TAKEOVER_BEKLIYOR: 'Takeover bekleniyor',
+        RENKO_TAKEOVER_AKTIF: 'Renko yönetimi aktif',
+        RENKO_STOP_GUNCELLENDI: 'Renko yönetimi stop güncelledi'
+    })[p.renkoProtectionState] || (p.renkoExitActivated === true ? 'Renko yönetimi aktif' : (p.breakevenAktif === true ? 'BE aktif' : 'Koruma bekliyor'));
+
+    satir += ` | ${stage} ${stateLabel}`;
+    if (Number.isFinite(takeover)) satir += ` | Takeover %${takeover.toFixed(2)}`;
+    if (Number.isFinite(trail) && trail > 0) satir += ` | Trail ${trail.toFixed(2)}T`;
+    if (peak !== null) satir += ` | Peak ${peak >= 0 ? '+' : ''}%${yuzde(peak)}`;
+    if (p.renkoExitLastStopSourceLabel) satir += ` | ${p.renkoExitLastStopSourceLabel}`;
+    const sonOlay = Array.isArray(p.renkoProtectionTimeline) ? p.renkoProtectionTimeline.at(-1) : null;
+    if (sonOlay?.type) satir += ` | Son olay ${sonOlay.type}`;
 
     return satir;
 }

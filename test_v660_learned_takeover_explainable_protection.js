@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('assert'); const fs=require('fs'); const path=require('path');
+const tmp=path.join(__dirname,'.tmp-v660'); fs.rmSync(tmp,{recursive:true,force:true}); fs.mkdirSync(tmp,{recursive:true}); process.env.AGROS_DATA_DIR=tmp;
+const evo=require('./74_st2_renko_exit_evolution.js');
+assert.equal(evo.VERSION,'v6.6.0-LEARNED-TAKEOVER-EXPLAINABLE-PROTECTION');
+const state={version:evo.VERSION,profiles:{'LONG|RRRR':{patternKey:'LONG|RRRR',closed:9,activeTrail:0.75,activeTakeoverPct:0.50,candidates:{},takeoverCandidates:{},jointCandidates:{},audit:{},promotion:{}}},processedIds:{},health:{}};
+fs.writeFileSync(evo.STATE_FILE,JSON.stringify(state));
+const pos={sym:'TESTUSDT',yon:'LONG',girisFiyati:100,sl:99,breakevenAktif:true,korunanKarYuzdesi:0,girisAnalizi:{entryStrategy:'ST2_RENKO',patternKodu:'RRRR',renkoBoxSize:0.25}};
+const a=evo.assign(pos); assert.equal(a.assignedTakeoverPct,0.5); assert.equal(a.assignedTrailBricks,0.75); assert.equal(a.takeoverLearningMode,'LIVE_NEW_POSITIONS_ONLY');
+let r=evo.update(pos,100.4); assert.equal(r.active,false); assert.equal(r.reason,'TAKEOVER_THRESHOLD_NOT_REACHED'); assert.equal(pos.renkoProtectionStage,'K1');
+r=evo.update(pos,100.6); assert.equal(r.active,true); assert.equal(r.justActivated,true); assert(['K2','K3'].includes(pos.renkoProtectionStage)); assert(pos.renkoProtectionTimeline.some(x=>x.type==='TAKEOVER_ACTIVE'));
+const before=a.assignedTakeoverPct; state.profiles['LONG|RRRR'].activeTakeoverPct=1.25; fs.writeFileSync(evo.STATE_FILE,JSON.stringify(state)); evo.assign(pos); assert.equal(pos.renkoExitAssignment.assignedTakeoverPct,before,'open position assignment must stay frozen');
+const newPos={sym:'NEWUSDT',yon:'LONG',girisFiyati:100,sl:99,breakevenAktif:true,korunanKarYuzdesi:0,girisAnalizi:{entryStrategy:'ST2_RENKO',patternKodu:'RRRR',renkoBoxSize:0.25}}; assert.equal(evo.assign(newPos).assignedTakeoverPct,1.25,'new position must receive latest learned takeover');
+console.log('✅ v6.6.0 learned takeover + frozen assignment + explainable timeline passed');

@@ -14,5 +14,5 @@ assert(report.includes('raporTekrarIstegi') && report.includes('raporTekrarOneCi
 assert(report.includes('st2DetayRaporMinAralikMs') && report.includes('SEYREKLESTIRILDI'), 'Ağır detay raporları seyrekleştirilmeli');
 assert(settings.includes('canliRaporGuncellemeMs: 60000'), 'Canlı panel periyodu 60 saniye olmalı');
 assert(settings.includes('st2DetayRaporMinAralikMs: 300000') || settings.includes('st2DetayRaporMinAralikMs: 600000'), 'Detay rapor aralığı en az 5 dakika olmalı');
-assert(version.includes('6.4.1-NONBLOCKING-REPORT-RUNTIME') || version.includes('6.4.2-REPORT-QUEUE-MEMORY-PRESSURE') || version.includes('6.4.3-PREMIER-REPORT-TRUTH') || version.includes('6.5.0-MFE-CAPTURE-TAKEOVER-EVOLUTION'), 'Runtime sürümü v6.4.1+ olmalı');
+assert(version.includes('6.4.1-NONBLOCKING-REPORT-RUNTIME') || version.includes('6.4.2-REPORT-QUEUE-MEMORY-PRESSURE') || version.includes('6.4.3-PREMIER-REPORT-TRUTH') || version.includes('6.5.0-MFE-CAPTURE-TAKEOVER-EVOLUTION') || version.includes('6.6.0-LEARNED-TAKEOVER-EXPLAINABLE-PROTECTION'), 'Runtime sürümü v6.4.1+ olmalı');
 console.log('✅ v6.4.1 non-blocking report runtime tests passed');
