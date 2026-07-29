@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v6.7.0-ONLINE-ADAPTIVE-ATR-CAPTURE';
+const VERSION = 'v6.7.2-SAFE-ADAPTIVE-ATR-CAPTURE';
 const DATA_DIR = process.env.AGROS_DATA_DIR
   ? path.resolve(process.env.AGROS_DATA_DIR)
   : path.join(__dirname, 'data');
@@ -26,10 +26,27 @@ const DEFAULT_TRAIL = () => Number(ayarlar.renkoCikisVarsayilanTugla || 1);
 const DEFAULT_ATR = () => Number(ayarlar.renkoCikisVarsayilanAtrCarpani || 1.5);
 const DEFAULT_CAPTURE = () => Number(ayarlar.renkoCikisVarsayilanMfeYakalamaOrani || ayarlar.renkoCikisMinMfeKorumaOrani || 0.60);
 const DEFAULT_TAKEOVER = () => Number(ayarlar.renkoCikisMfeKorumaTetikYuzde || 0.40);
-const DEFAULT_SAFE_FLOOR = () => Math.max(0, Number(ayarlar.renkoCikisGuvenliKarTabaniYuzde || 0.10));
+const DEFAULT_SAFE_FLOOR = () => Math.max(0, Number(ayarlar.renkoCikisGuvenliKarTabaniYuzde || 0.15));
+const MIN_TAKEOVER = () => Math.max(0.05, Number(ayarlar.renkoCikisMinimumDevralmaYuzde || Math.min(...TAKEOVER_CANDIDATES()) || 0.25));
+const MIN_ATR = () => Math.max(0.25, Number(ayarlar.renkoCikisMinimumAtrCarpani || Math.min(...ATR_CANDIDATES()) || 1.00));
+const ROUND_TRIP_COMMISSION_PCT = () => Math.max(0, Number(ayarlar.sanalKomisyonOrani ?? 0.0005) * 2 * 100);
+const MIN_NET_PROFIT_PCT = () => Math.max(0, Number(ayarlar.renkoCikisMinimumNetKarYuzde || 0.05));
+const SAFE_FLOOR_MIN = () => Math.max(DEFAULT_SAFE_FLOOR(), ROUND_TRIP_COMMISSION_PCT() + MIN_NET_PROFIT_PCT());
 
 function n(v, d = 0) { v = Number(v); return Number.isFinite(v) ? v : d; }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, n(v, min))); }
+function takeoverOrNull(v) { const x = Number(v); return Number.isFinite(x) && x >= MIN_TAKEOVER() ? x : null; }
+function atrOrNull(v) { const x = Number(v); return Number.isFinite(x) && x >= MIN_ATR() ? x : null; }
+function captureOrNull(v) { const x = Number(v); return Number.isFinite(x) && x >= 0.40 && x <= 0.95 ? x : null; }
+function validTakeover(v) { return takeoverOrNull(v) ?? Math.max(MIN_TAKEOVER(), DEFAULT_TAKEOVER()); }
+function validAtr(v) { return atrOrNull(v) ?? Math.max(MIN_ATR(), DEFAULT_ATR()); }
+function validCapture(v) { return captureOrNull(v) ?? clamp(DEFAULT_CAPTURE(), 0.40, 0.95); }
+function safeFloorFor(takeoverPct, value) {
+  const takeover = validTakeover(takeoverPct);
+  const requested = Number(value);
+  const floor = Number.isFinite(requested) && requested > 0 ? requested : SAFE_FLOOR_MIN();
+  return Math.round(Math.min(takeover, Math.max(SAFE_FLOOR_MIN(), floor)) * 10000) / 10000;
+}
 function blend(from, to, weight) {
   const w = clamp(weight, 0, 1);
   return Math.round((n(from) + (n(to) - n(from)) * w) * 10000) / 10000;
@@ -64,10 +81,10 @@ function normalizeProfile(p = {}, patternKey = 'UNKNOWN|UNKNOWN') {
     patternKey,
     closed: n(p.closed),
     activeTrail: n(p.activeTrail, DEFAULT_TRAIL()),
-    activeTakeoverPct: p.activeTakeoverPct == null ? null : n(p.activeTakeoverPct),
-    activeAtrMultiplier: p.activeAtrMultiplier == null ? null : n(p.activeAtrMultiplier),
-    activeCaptureRatio: p.activeCaptureRatio == null ? null : n(p.activeCaptureRatio),
-    activeSafeFloorPct: p.activeSafeFloorPct == null ? null : n(p.activeSafeFloorPct),
+    activeTakeoverPct: takeoverOrNull(p.activeTakeoverPct),
+    activeAtrMultiplier: atrOrNull(p.activeAtrMultiplier),
+    activeCaptureRatio: captureOrNull(p.activeCaptureRatio),
+    activeSafeFloorPct: Number.isFinite(Number(p.activeSafeFloorPct)) && Number(p.activeSafeFloorPct) > 0 ? Number(p.activeSafeFloorPct) : null,
     activeProfileUpdatedAt: p.activeProfileUpdatedAt || null,
     candidates: p.candidates || {},
     takeoverCandidates: p.takeoverCandidates || {},
@@ -172,16 +189,23 @@ function chooseOnline(p) {
 function activeProfileFor(yon, pattern) {
   const s = read();
   const p = s.profiles[key(yon, pattern)];
-  const learned = p && (p.activeTakeoverPct != null || p.activeAtrMultiplier != null || p.activeCaptureRatio != null);
+  const learnedTakeover = takeoverOrNull(p?.activeTakeoverPct);
+  const learnedAtr = atrOrNull(p?.activeAtrMultiplier);
+  const learnedCapture = captureOrNull(p?.activeCaptureRatio);
+  const learned = Boolean(p && learnedTakeover != null && learnedAtr != null && learnedCapture != null);
+  const takeoverPct = learned ? learnedTakeover : validTakeover(DEFAULT_TAKEOVER());
+  const atrMultiplier = learned ? learnedAtr : validAtr(DEFAULT_ATR());
+  const captureRatio = learned ? learnedCapture : validCapture(DEFAULT_CAPTURE());
   return {
     trail: n(p?.activeTrail, DEFAULT_TRAIL()),
-    takeoverPct: n(p?.activeTakeoverPct, DEFAULT_TAKEOVER()),
-    atrMultiplier: n(p?.activeAtrMultiplier, DEFAULT_ATR()),
-    captureRatio: p?.activeCaptureRatio == null ? DEFAULT_CAPTURE() : clamp(p.activeCaptureRatio, 0.40, 0.95),
-    safeFloorPct: Math.min(p?.activeSafeFloorPct == null ? DEFAULT_SAFE_FLOOR() : n(p.activeSafeFloorPct), p?.activeTakeoverPct == null ? DEFAULT_TAKEOVER() : n(p.activeTakeoverPct)),
+    takeoverPct,
+    atrMultiplier,
+    captureRatio,
+    safeFloorPct: safeFloorFor(takeoverPct, p?.activeSafeFloorPct),
     samples: n(p?.online?.samples, p?.closed),
     confidence: confidence(n(p?.online?.samples, p?.closed)),
-    source: learned ? 'ONLINE_LEARNED_PROFILE' : 'SAFE_DEFAULT'
+    source: learned ? 'ONLINE_LEARNED_PROFILE' : 'SAFE_DEFAULT',
+    sanitizedLegacyProfile: Boolean(p && !learned && [p.activeTakeoverPct, p.activeAtrMultiplier, p.activeCaptureRatio].some(v => v != null))
   };
 }
 function activeFor(yon, pattern) { return activeProfileFor(yon, pattern).trail; }
@@ -243,7 +267,7 @@ function takeoverThresholdReady(pos, price) {
   const a = pos?.renkoExitAssignment || assign(pos);
   const entry = n(pos?.girisFiyati);
   if (!(entry > 0)) return firstProtectionReady(pos);
-  return profitPct(pos?.yon, entry, n(price)) >= Math.max(0, n(a?.assignedTakeoverPct, DEFAULT_TAKEOVER()));
+  return profitPct(pos?.yon, entry, n(price)) >= validTakeover(a?.assignedTakeoverPct);
 }
 function latestAtrPct(pos, price) {
   const rows = pos?.execution?.pricePath || pos?.journey?.pricePath || pos?.pricePath || [];
@@ -259,15 +283,15 @@ function latestAtrPct(pos, price) {
 function safeFloorStop(pos) {
   const a = pos?.renkoExitAssignment || assign(pos);
   const entry = n(pos?.girisFiyati);
-  const pct = Math.max(0, Math.min(n(a?.assignedSafeFloorPct, DEFAULT_SAFE_FLOOR()), n(a?.assignedTakeoverPct, DEFAULT_TAKEOVER())));
+  const pct = safeFloorFor(a?.assignedTakeoverPct, a?.assignedSafeFloorPct);
   return priceFromProfitPct(pos?.yon, entry, pct);
 }
 function mfeProtectionStop(pos, peak) {
   const entry = n(pos?.girisFiyati);
   if (!(entry > 0) || !(peak > 0)) return null;
   const a = pos?.renkoExitAssignment || assign(pos);
-  const trigger = Math.max(0, n(a?.assignedTakeoverPct, DEFAULT_TAKEOVER()));
-  const ratio = clamp(a?.assignedCaptureRatio, 0.40, 0.95) || DEFAULT_CAPTURE();
+  const trigger = validTakeover(a?.assignedTakeoverPct);
+  const ratio = validCapture(a?.assignedCaptureRatio);
   const peakPct = peakProfitPct(pos, peak);
   if (peakPct < trigger || ratio <= 0) return null;
   return priceFromProfitPct(pos?.yon, entry, peakPct * ratio);
@@ -286,7 +310,7 @@ function atrProtectionStop(pos, peak, price) {
   }
   const atrPct = n(pos?.renkoExitPeakAtrPct, current.value);
   if (!(atrPct > 0)) return { stop: null, atrPct: null, source: current.source, floorPct: null };
-  const multiplier = Math.max(0.25, n(a?.assignedAtrMultiplier, DEFAULT_ATR()));
+  const multiplier = validAtr(a?.assignedAtrMultiplier);
   const floorPct = peakPct - atrPct * multiplier;
   return {
     stop: priceFromProfitPct(pos?.yon, entry, floorPct),
@@ -448,6 +472,10 @@ function replay(pathRows, yon, entry, box, trail, takeoverPct = 0, finalPrice = 
   return { pct, mfe, capture, giveback: Math.max(0, mfe - pct), missedProfit: Math.max(0, mfe - Math.max(0, pct)), activated, activationPrice, activationIndex };
 }
 function adaptiveReplay(pathRows, yon, entry, takeoverPct, atrMultiplier, captureRatio, finalPrice = entry, safeFloorPct = DEFAULT_SAFE_FLOOR()) {
+  takeoverPct = validTakeover(takeoverPct);
+  atrMultiplier = validAtr(atrMultiplier);
+  captureRatio = validCapture(captureRatio);
+  safeFloorPct = safeFloorFor(takeoverPct, safeFloorPct);
   let activated = false, peakPct = 0, peakAtrPct = null, exitPct = null, mfe = 0, activationIndex = -1;
   let atrAvailable = false, exitReason = 'ACTUAL_CLOSE';
   for (let i = 0; i < pathRows.length; i++) {
@@ -548,7 +576,7 @@ function close(pos, result = {}) {
   const p = s.profiles[k] || (s.profiles[k] = normalizeProfile({}, k));
   const pathRows = normalizePath(pos), entry = n(pos.girisFiyati);
   const finalPrice = n(result.exitPrice, n(pathRows.at(-1)?.price, entry));
-  const observedTakeover = Math.max(0, n(pos?.renkoExitAssignment?.assignedTakeoverPct, n(pos?.korunanKarYuzdesi, DEFAULT_TAKEOVER())));
+  const observedTakeover = validTakeover(pos?.renkoExitAssignment?.assignedTakeoverPct ?? pos?.korunanKarYuzdesi);
 
   for (const trail of CANDIDATES()) {
     const rr = replay(pathRows, pos.yon, entry, box, trail, observedTakeover, finalPrice);
@@ -591,10 +619,10 @@ function close(pos, result = {}) {
     // İlk kapanıştan itibaren öğren; ancak tek örneğin aşırı uyumunu canlıya tam güçle verme.
     // Güven arttıkça güvenli başlangıç profilinden replay şampiyonuna kademeli yaklaş.
     const conf = confidence(best.samples);
-    p.activeTakeoverPct = blend(DEFAULT_TAKEOVER(), best.takeoverPct, conf);
-    p.activeAtrMultiplier = blend(DEFAULT_ATR(), best.atrMultiplier, conf);
-    p.activeCaptureRatio = blend(DEFAULT_CAPTURE(), best.captureRatio, conf);
-    p.activeSafeFloorPct = Math.min(n(best.safeFloorPct, DEFAULT_SAFE_FLOOR()), p.activeTakeoverPct);
+    p.activeTakeoverPct = validTakeover(blend(DEFAULT_TAKEOVER(), best.takeoverPct, conf));
+    p.activeAtrMultiplier = validAtr(blend(DEFAULT_ATR(), best.atrMultiplier, conf));
+    p.activeCaptureRatio = validCapture(blend(DEFAULT_CAPTURE(), best.captureRatio, conf));
+    p.activeSafeFloorPct = safeFloorFor(p.activeTakeoverPct, best.safeFloorPct);
     p.activeProfileUpdatedAt = new Date().toISOString();
     p.online = {
       status: 'ONLINE_AKTIF', samples: best.samples, confidence: conf,
@@ -654,7 +682,8 @@ function telegram(activePositions = []) {
   for (const p of x.profiles) {
     const a = p.auditMetric, o = p.online || {};
     t += `\n🧩 ${p.patternKey} | N${n(p.closed)} | ${o.status || 'SAFE_DEFAULT'}\n`;
-    t += `🎯 Devralma %${n(p.activeTakeoverPct, DEFAULT_TAKEOVER()).toFixed(2)} | ATR ${n(p.activeAtrMultiplier, DEFAULT_ATR()).toFixed(2)}× | MFE %${(n(p.activeCaptureRatio, DEFAULT_CAPTURE()) * 100).toFixed(0)} | Güven %${(n(o.confidence) * 100).toFixed(0)}\n`;
+    const active = activeProfileFor(...String(p.patternKey || 'UNKNOWN|UNKNOWN').split('|'));
+    t += `🎯 Devralma %${active.takeoverPct.toFixed(2)} | ATR ${active.atrMultiplier.toFixed(2)}× | MFE %${(active.captureRatio * 100).toFixed(0)} | Güven %${(n(o.confidence) * 100).toFixed(0)}\n`;
     t += `💰 Gerçek MFE %${a.avgMfe.toFixed(3)} | Kapanış %${a.avgExitPct.toFixed(3)} | Yakalama %${a.avgCapture.toFixed(1)} | Geri verme %${a.avgGiveback.toFixed(3)}\n`;
     if (o.status) t += `🧠 Replay Net ${n(o.net) >= 0 ? '+' : ''}${n(o.net).toFixed(4)} | PF ${n(o.pf).toFixed(2)} | Exp ${n(o.expectancy).toFixed(4)} | Replay yakalama %${n(o.mfeCapture).toFixed(1)}\n`;
   }
@@ -665,9 +694,11 @@ function telegram(activePositions = []) {
 module.exports = {
   VERSION, STATE_FILE, BACKUP_FILE, LEDGER_FILE,
   CANDIDATES, TAKEOVER_CANDIDATES, ATR_CANDIDATES, CAPTURE_CANDIDATES,
-  DEFAULT_TRAIL, DEFAULT_ATR, DEFAULT_CAPTURE,
+  DEFAULT_TRAIL, DEFAULT_ATR, DEFAULT_CAPTURE, DEFAULT_TAKEOVER, DEFAULT_SAFE_FLOOR,
+  MIN_TAKEOVER, MIN_ATR, ROUND_TRIP_COMMISSION_PCT, MIN_NET_PROFIT_PCT, SAFE_FLOOR_MIN,
   activeFor, activeProfileFor, assign, update, takeoverText, close, summary, telegram,
   firstProtectionReady, takeoverThresholdReady, addTimeline, peakProfitPct,
   mfeProtectionStop, atrProtectionStop, stopSource, sourceLabel,
-  replay, adaptiveReplay, actualAudit, metric, auditMetric, chooseOnline, adaptiveScore, confidence, blend
+  replay, adaptiveReplay, actualAudit, metric, auditMetric, chooseOnline, adaptiveScore, confidence, blend,
+  takeoverOrNull, atrOrNull, captureOrNull, validTakeover, validAtr, validCapture, safeFloorFor
 };

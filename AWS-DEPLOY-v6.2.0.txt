@@ -1,9 +1,0 @@
-AGROS ST2 v6.2.0 DEPLOY
-
-1) Back up the current AWS ST2 folder and data directory.
-2) Copy this package over ~/apps/para-makinesi-st2, but DO NOT delete or overwrite the existing data/ directory or .env.
-3) npm install --omit=dev
-4) npm run verify:v620
-5) pm2 reload ecosystem.config.js --only agros-st2 --update-env
-6) pm2 save
-7) Confirm Telegram only sends clean ST2 Premier/Shadow, global historical, Entry Evolution and Exit Evolution reports.

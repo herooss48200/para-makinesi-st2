@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'v6.3.7-STABLE-PUSU-NOTIFICATION-DEDUPE';
+const VERSION = 'v6.7.2-SINGLE-DELIVERY-PUSU-DEDUPE';
 
 function temizle(store, options = {}) {
     const map = store?.pusuTelegramBildirimleri || {};

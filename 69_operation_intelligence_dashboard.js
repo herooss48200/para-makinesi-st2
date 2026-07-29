@@ -2,7 +2,7 @@
  * AGROS v5.3.5 — LIVE OPERATIONS + SELECTION INTELLIGENCE 2.0
  * Raporlama/karar-açıklama katmanıdır. Trade Engine kapılarını değiştirmez.
  */
-const VERSION = 'v6.4.3-PREMIER-REPORT-TRUTH-FINAL';
+const VERSION = 'v6.7.2-PREMIER-LIVE-TRUTH';
 const runtimeVersion = require('./versiyon.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
@@ -57,7 +57,7 @@ function telegram(activePositions=[], prebuilt=null){
   // Restart-GAP veya eski upperLayerIncluded işaretleri üst başlığa sızamaz.
   const livePremier = n(ac.activeScientific);
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
-  t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Bilimsel Premier aktif ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
+  t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
   t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
   // Shadow sonucu, aynı bilimsel ledger toplamından Premier kasası çıkarılarak üretilir.
   // Böylece Premier ve Shadow ayrı görünür; toplam ekonomiyle mutabakat korunur.
@@ -78,7 +78,7 @@ function telegram(activePositions=[], prebuilt=null){
     t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;
   }
   t+=`🏆 Ligler: Exact Premier ${renkoPremierPatterns} | Exact Shadow ${renkoShadowDnas} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
-  t+=`📦 Premier gözlem defteri: Bilimsel aktif ${n(ac.activeScientific)} | Premier GAP aktif ${n(ac.activeGap)}\n`;
+  t+=`📦 Premier gözlem defteri: Canlı bilimsel ${n(ac.activeScientific)} | Restart-GAP ${n(ac.activeGap)} | GAP kapanan ${n(ac.closedGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;
   const top=d.premier.slice(0,5);
   if(top.length){

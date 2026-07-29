@@ -536,8 +536,10 @@ function premierAccounting(activePositions = [], observationAggregate = {}) {
   // Continuity katmanı yalnız GAP ayrımı için kullanılır; Reverse/Bottom eski sayaçları ana kasaya sızamaz.
   const opened = observation.opened;
   const closedScientific = observation.closed;
+  // Canlı aktif doğruluğunun tek kaynağı mevcut pozisyon listesinden üretilen continuity partition'dır.
+  // Observation.active eski/restart dönemlerinden kalan kümülatif açık sayaç taşıyabilir; canlı aktif diye gösterilmez.
   const activeGap = Math.min(opened, num(canonical.activeGap));
-  const activeScientific = Math.max(0, observation.active - activeGap);
+  const activeScientific = Math.min(Math.max(0, opened - closedScientific - activeGap), Math.max(0, num(canonical.activeScientific)));
   const closedGap = Math.max(0, opened - closedScientific - activeScientific - activeGap);
   const difference = opened - closedScientific - activeScientific - activeGap - closedGap;
   const observationOpenedDifference = 0; const observationClosedDifference = 0;

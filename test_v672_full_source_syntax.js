@@ -37,4 +37,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`✅ v6.7.0 full source syntax passed | ${files.length} JavaScript dosyası`);
+console.log(`✅ v6.7.2 full source syntax passed | ${files.length} JavaScript dosyası`);

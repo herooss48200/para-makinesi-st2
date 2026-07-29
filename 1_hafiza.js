@@ -235,7 +235,15 @@ function telegramCurlIstegiAt(apiPath, veri, options = {}) {
         const args = ['-4', '-sS', '--connect-timeout', '3', '--max-time', String(timeoutSeconds), '-X', 'POST', url, '-H', 'Content-Type: application/json', '--data-binary', JSON.stringify(veri)];
         execFile('curl', args, { timeout: timeoutMs + 1500, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
             if (err) {
-                resolve({ ok: false, description: `CURL_FALLBACK:${err.message}`, raw: String(stderr || ''), transient: true, transport: 'CURL_IPV4' });
+                const aciklama = String(err.message || err);
+                resolve({
+                    ok: false,
+                    description: `CURL_FALLBACK:${aciklama}`,
+                    raw: String(stderr || ''),
+                    transient: true,
+                    transport: 'CURL_IPV4',
+                    ambiguousDelivery: /TIMEOUT|TIMED OUT|ETIMEDOUT/i.test(aciklama)
+                });
                 return;
             }
             try {
@@ -254,6 +262,20 @@ async function telegramTekDeneme(apiPath, veri, options = {}) {
     const nativeTimeout = priority === 'critical'
         ? Math.min(2500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS))
         : Math.min(4000, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
+
+    // Tekil kritik bildirimlerde (startup/pusu) yalnız bir taşıma denemesi yapılır.
+    // Native timeout sonrası curl fallback aynı Telegram mesajını iki kez teslim edebildiği için
+    // preferCurl+atMostOnce hattı doğrudan curl kullanır; retry/fallback yapmaz.
+    if (options.preferCurl === true) {
+        const curlDirect = await telegramCurlIstegiAt(apiPath, veri, options);
+        if (curlDirect?.ok) {
+            telegramStats.curlFallbackOk++;
+            telegramNativeBypassUntil = Date.now() + TELEGRAM_NATIVE_BYPASS_MS;
+            return { ...curlDirect, singleDelivery: true };
+        }
+        telegramStats.curlFallbackFailed++;
+        if (options.atMostOnce === true) return { ...curlDirect, singleDelivery: true };
+    }
 
     // AWS yolunda Native HTTPS ardışık biçimde başarısızsa her mesajı aynı timeout'a sokma.
     // Curl IPv4 doğrulandıktan sonra süreli devre kesici aktif olur; süre bitince Native tekrar denenir.
@@ -358,7 +380,7 @@ async function telegramMesajGonder(mesaj, options = {}) {
                 let sonuc = await yerelTelegramIstegiAt('sendMessage', {
                     chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true
                 }, { ...options, priority, coalesceKey: options.coalesceKey ? `${options.coalesceKey}:${chat_id}:${idx}` : undefined });
-                if (!sonuc?.ok && !sonuc?.coalesced && !sonuc?.dropped) {
+                if (!sonuc?.ok && !sonuc?.coalesced && !sonuc?.dropped && options.atMostOnce !== true) {
                     const aciklama = sonuc?.description || sonuc?.raw || 'bilinmeyen hata';
                     if (!/TIMEOUT/i.test(String(aciklama))) {
                         sonuc = await yerelTelegramIstegiAt('sendMessage', {
@@ -376,6 +398,16 @@ async function telegramMesajGonder(mesaj, options = {}) {
 }
 async function telegramMesajGonderHizli(mesaj) {
     return telegramMesajGonder(mesaj, { timeoutMs: 5000, retryCount: 0, priority: 'critical' });
+}
+async function telegramMesajGonderTekil(mesaj, options = {}) {
+    return telegramMesajGonder(mesaj, {
+        ...options,
+        timeoutMs: Math.max(5000, Number(options.timeoutMs || 8000)),
+        retryCount: 0,
+        priority: 'critical',
+        preferCurl: true,
+        atMostOnce: true
+    });
 }
 async function telegramMesajDuzenle(chat_id, message_id, mesaj, options = {}) {
     try {
@@ -429,6 +461,7 @@ module.exports = {
     state,
     telegramMesajGonder,
     telegramMesajGonderHizli,
+    telegramMesajGonderTekil,
     telegramMesajDuzenle,
     telegramMesajSil,
     telegramCanliRaporGuncelle,

@@ -16,6 +16,8 @@ let donguCalisiyor = false;
 let sonOzetLog = 0;
 let sonCanliRapor = 0;
 let pusuRaporCalisiyor = false;
+let ilkSt2TaramaTamamlandi = false;
+let startupPanelPlanlandi = false;
 
 async function baslat() {
     console.log('=== [PARA MAKİNESİ AUTOMATION SYSTEM] STARTING ===');
@@ -81,20 +83,35 @@ async function baslat() {
         let startupLastSentAt = 0;
         try { startupLastSentAt = Number(JSON.parse(fs.readFileSync(startupStampFile, 'utf8'))?.lastSentAt || 0); } catch (_) {}
         const startupCooldownMs = 10 * 60 * 1000;
+        const startupPanelPlanla = (reason, delayMs = null) => {
+            if (startupPanelPlanlandi) return;
+            startupPanelPlanlandi = true;
+            const gecikme = delayMs == null
+                ? Math.max(5000, Number(ayarlar.st2StartupPanelGecikmeMs || 15000))
+                : Math.max(0, Number(delayMs) || 0);
+            setTimeout(() => {
+                console.log(`📊 [ST2 STARTUP PANEL] ${reason} sonrası canlı panel talep edildi.`);
+                rapor.raporTalepEt(false);
+            }, gecikme).unref?.();
+        };
         const startupTelegramTask = async () => {
             if (Date.now() - startupLastSentAt >= startupCooldownMs) {
-                const sonuclar = await h.telegramMesajGonderHizli(baslangicMesaji);
-                const basarili = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ok === true);
-                if (basarili) {
-                    try { fs.mkdirSync(path.dirname(startupStampFile), { recursive: true }); fs.writeFileSync(startupStampFile, JSON.stringify({ lastSentAt: Date.now(), version: versiyonBilgi.botSurumu }, null, 2)); } catch (e) { console.error(`⚠️ [ST2 STARTUP TELEGRAM STAMP] ${e.message}`); }
+                const sonuclar = await h.telegramMesajGonderTekil(baslangicMesaji, { coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}` });
+                const basarili = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
+                const belirsiz = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ambiguousDelivery === true);
+                if (basarili || belirsiz) {
+                    const sentAt = Date.now();
+                    try { fs.mkdirSync(path.dirname(startupStampFile), { recursive: true }); fs.writeFileSync(startupStampFile, JSON.stringify({ lastSentAt: sentAt, version: versiyonBilgi.botSurumu, delivery: basarili ? 'OK' : 'AMBIGUOUS_NO_RETRY' }, null, 2)); } catch (e) { console.error(`⚠️ [ST2 STARTUP TELEGRAM STAMP] ${e.message}`); }
+                    console.log(`${basarili ? '✅' : '⚠️'} [ST2 STARTUP TELEGRAM] ${basarili ? 'Tekil kritik teslim doğrulandı' : 'Teslim belirsiz; çift gönderimi önlemek için tekrar yok'} | ${new Date(sentAt).toISOString()}`);
                 } else {
-                    console.log('⚠️ [ST2 STARTUP TELEGRAM] Gönderim doğrulanmadı; startup damgası yazılmadı.');
+                    console.log('⚠️ [ST2 STARTUP TELEGRAM] Tekil gönderim başarısız; startup damgası yazılmadı.');
                 }
             } else {
                 console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
             }
-            const panelGecikmeMs = Math.max(5000, Number(ayarlar.st2StartupPanelGecikmeMs || 15000));
-            setTimeout(() => rapor.raporTalepEt(false), panelGecikmeMs).unref?.();
+            // ST2 canlı paneli ilk 100-coin Renko taraması ve tekil açılış pusu özeti tamamlanmadan başlamaz.
+            // Böylece ağır panel üretimi ilk taramayı ve kritik pusu mesajını geciktirmez.
+            if (ayarlar.entryStrategyMode !== 'ST2_RENKO') startupPanelPlanla('GENEL_STARTUP');
         };
 
         console.log(`✅ SİSTEM HAZIR. DÖNGÜ BAŞLATILDI. Emir Modu: ${emirModu}`);
@@ -111,7 +128,12 @@ async function baslat() {
                 }
 
                 if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
-                    await require('./72_st2_renko_entry.js').taraVeDegerlendir();
+                    const st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
+                    if (!ilkSt2TaramaTamamlandi) {
+                        ilkSt2TaramaTamamlandi = true;
+                        console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
+                        startupPanelPlanla('ILK_ST2_TARAMA', 0);
+                    }
                 } else {
                     await p.piyasayiTaraVePusuKur();
                     await p.pusulariDenetleVeIslemAc();

@@ -1,7 +1,0 @@
-cd ~/apps/para-makinesi-st2
-git pull origin main
-npm install
-npm run verify:v630
-pm2 restart agros-st2 --update-env
-pm2 save
-pm2 logs agros-st2 --lines 200

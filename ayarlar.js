@@ -703,7 +703,11 @@ const ayarlar = {
     renkoCikisMfeYakalamaAdaylari: [0.50, 0.60, 0.70, 0.80, 0.90],
     renkoCikisVarsayilanAtrCarpani: 1.50,
     renkoCikisVarsayilanMfeYakalamaOrani: 0.60,
-    renkoCikisGuvenliKarTabaniYuzde: 0.10,
+    // Komisyon sonrası en az +%0.05 net bırakacak güvenli brüt taban.
+    renkoCikisGuvenliKarTabaniYuzde: 0.15,
+    renkoCikisMinimumNetKarYuzde: 0.05,
+    renkoCikisMinimumDevralmaYuzde: 0.25,
+    renkoCikisMinimumAtrCarpani: 1.00,
     renkoCikisOnlineEmaAlpha: 0.35,
     renkoCikisOnlineGuvenOnculN: 4,
     // v6.5.0 — Canlı davranışı değiştirmeyen devralma + takip ortak shadow replay.

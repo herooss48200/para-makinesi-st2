@@ -333,7 +333,13 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
                         : patternId;
                     const modEtiketi = gateOzeti.executionMode === 'PREMIER' ? '🏆 PREMIER' : gateOzeti.executionMode === 'SHADOW' ? '👻 SHADOW' : '❓ UNKNOWN';
                     const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\n🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi} | ${gateOzeti.reason}\nBB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
-                    h.telegramMesajGonder(kisaMesaj).catch(e => console.log(`⚠️ [ST2 RENKO YENİ PUSU] Telegram gönderimi başarısız ${sym}: ${e.message}`));
+                    h.telegramMesajGonderTekil(kisaMesaj, { coalesceKey: `st2-yeni-pusu:${bildirimAnahtari}` })
+                        .then(sonuclar => {
+                            const ok = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
+                            const belirsiz = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ambiguousDelivery === true);
+                            console.log(`${ok ? '✅' : '⚠️'} [ST2 RENKO YENİ PUSU] ${sym} | ${ok ? 'TEKİL TESLİM OK' : belirsiz ? 'TESLİM BELİRSİZ; ÇİFT GÖNDERİMİ ÖNLEMEK İÇİN TEKRAR YOK' : 'TESLİM BAŞARISIZ; AYNI OLAY TEKRARLANMAYACAK'}`);
+                        })
+                        .catch(e => console.log(`⚠️ [ST2 RENKO YENİ PUSU] Telegram gönderimi başarısız ${sym}: ${e.message}`));
                 }
             }
         }
@@ -489,44 +495,54 @@ async function taraVeDegerlendir() {
     // Sonraki taramalarda yalnız yeni bulunan pusu kendi kanıt mesajıyla gönderilir.
     if (!baslangicPusuOzetiGonderildi && !baslangicPusuOzetiIsleniyor) {
         baslangicPusuOzetiIsleniyor = true;
-        baslangicPusuOzetiGonderildi = true;
-        const benzersiz = [];
-        const gorulen = new Set();
-        for (const x of baslangicPusuKuyrugu) {
-            const key = `${x.sym}|${x.patternSignature || `${x.yon}|${x.patternId}`}`;
-            if (gorulen.has(key)) continue;
-            gorulen.add(key);
-            benzersiz.push(x);
-        }
-        baslangicPusuKuyrugu = [];
-        if (ayarlar.renkoPusuKanitTelegram !== false && benzersiz.length > 0) {
-            const longlar = benzersiz.filter(x => x.yon === 'LONG');
-            const shortlar = benzersiz.filter(x => x.yon === 'SHORT');
-            const satir = x => `${x.sym} ${x.yon} | ${x.patternId || x.patternKodu || 'PATTERN'} | ${x.executionMode === 'PREMIER' ? '🏆' : x.executionMode === 'SHADOW' ? '👻' : '❓'} DNA ${x.dnaId || 'YOK'}`;
-            const mesaj = [
-                `🔔 <b>ST2 AÇILIŞ PUSU ÖZETİ</b>`,
-                `📊 Mevcut ${benzersiz.length} | LONG ${longlar.length} | SHORT ${shortlar.length}`,
-                ...(longlar.length ? ['', '📈 <b>LONG</b>', ...longlar.map(satir)] : []),
-                ...(shortlar.length ? ['', '📉 <b>SHORT</b>', ...shortlar.map(satir)] : []),
-                '',
-                `ℹ️ Bu açılış özeti yalnız bir kez gönderilir. Bundan sonra yalnız yeni bulunan pusu bildirilir.`
-            ].join('\n');
-            const signature = crypto.createHash('sha1').update(benzersiz.map(x => `${x.sym}|${x.patternSignature}`).sort().join('||')).digest('hex');
-            const onceki = pusuStartupStampOku();
-            const tekrarPenceresiMs = Math.max(60000, Number(ayarlar.renkoPusuStartupTekrarBastirMs || 900000));
-            const ayniOzetYakinda = onceki.signature === signature && Date.now() - Number(onceki.lastSentAt || 0) < tekrarPenceresiMs;
-            if (ayniOzetYakinda || onceki.bootId === PUSU_BOOT_ID) {
-                console.log(`⏭️ [ST2 AÇILIŞ PUSU ÖZETİ] Aynı açılış özeti tekrar bastırıldı | ${benzersiz.length} pusu`);
-                baslangicPusuOzetiIsleniyor = false;
-            } else {
-                h.telegramMesajGonder(mesaj, { priority: 'critical' }).then(sonuclar => {
-                    const ok = Array.isArray(sonuclar) && sonuclar.every(x => x?.sonuc?.ok === true);
-                    if (ok) pusuStartupStampYaz(signature, benzersiz.length);
-                    console.log(`${ok ? '✅' : '⚠️'} [ST2 AÇILIŞ PUSU ÖZETİ] ${benzersiz.length} pusu | Telegram ${ok ? 'OK' : 'DOĞRULANAMADI'}`);
-                }).catch(e => console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message}`))
-                  .finally(() => { baslangicPusuOzetiIsleniyor = false; });
+        try {
+            const benzersiz = [];
+            const gorulen = new Set();
+            for (const x of baslangicPusuKuyrugu) {
+                const key = `${x.sym}|${x.patternSignature || `${x.yon}|${x.patternId}`}`;
+                if (gorulen.has(key)) continue;
+                gorulen.add(key);
+                benzersiz.push(x);
             }
-        } else {
+            if (ayarlar.renkoPusuKanitTelegram === false || benzersiz.length === 0) {
+                baslangicPusuOzetiGonderildi = true;
+                baslangicPusuKuyrugu = [];
+                console.log(`✅ [ST2 AÇILIŞ PUSU ÖZETİ] ${benzersiz.length} pusu | Telegram özeti gerekmiyor`);
+            } else {
+                const longlar = benzersiz.filter(x => x.yon === 'LONG');
+                const shortlar = benzersiz.filter(x => x.yon === 'SHORT');
+                const satir = x => `${x.sym} ${x.yon} | ${x.patternId || x.patternKodu || 'PATTERN'} | ${x.executionMode === 'PREMIER' ? '🏆' : x.executionMode === 'SHADOW' ? '👻' : '❓'} DNA ${x.dnaId || 'YOK'}`;
+                const mesaj = [
+                    `🔔 <b>ST2 AÇILIŞ PUSU ÖZETİ</b>`,
+                    `📊 Mevcut ${benzersiz.length} | LONG ${longlar.length} | SHORT ${shortlar.length}`,
+                    ...(longlar.length ? ['', '📈 <b>LONG</b>', ...longlar.map(satir)] : []),
+                    ...(shortlar.length ? ['', '📉 <b>SHORT</b>', ...shortlar.map(satir)] : []),
+                    '',
+                    `ℹ️ Bu açılış özeti yalnız bir kez gönderilir. Bundan sonra yalnız yeni bulunan pusu bildirilir.`
+                ].join('\n');
+                const signature = crypto.createHash('sha1').update(benzersiz.map(x => `${x.sym}|${x.patternSignature}`).sort().join('||')).digest('hex');
+                const onceki = pusuStartupStampOku();
+                const tekrarPenceresiMs = Math.max(60000, Number(ayarlar.renkoPusuStartupTekrarBastirMs || 900000));
+                const ayniOzetYakinda = onceki.signature === signature && Date.now() - Number(onceki.lastSentAt || 0) < tekrarPenceresiMs;
+                if (ayniOzetYakinda || onceki.bootId === PUSU_BOOT_ID) {
+                    baslangicPusuOzetiGonderildi = true;
+                    baslangicPusuKuyrugu = [];
+                    console.log(`⏭️ [ST2 AÇILIŞ PUSU ÖZETİ] Aynı açılış özeti tekrar bastırıldı | ${benzersiz.length} pusu`);
+                } else {
+                    const sonuclar = await h.telegramMesajGonderTekil(mesaj, { coalesceKey: `st2-acilis-pusu:${signature}` });
+                    const ok = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
+                    const belirsiz = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ambiguousDelivery === true);
+                    if (ok || belirsiz) {
+                        pusuStartupStampYaz(signature, benzersiz.length);
+                        baslangicPusuOzetiGonderildi = true;
+                        baslangicPusuKuyrugu = [];
+                    }
+                    console.log(`${ok ? '✅' : '⚠️'} [ST2 AÇILIŞ PUSU ÖZETİ] ${benzersiz.length} pusu | Telegram ${ok ? 'TEKİL TESLİM OK' : belirsiz ? 'TESLİM BELİRSİZ; AYNI BOOTTA TEKRAR YOK' : 'BAŞARISIZ; SONRAKİ TARAMADA YENİDEN DENEYECEK'}`);
+                }
+            }
+        } catch (e) {
+            console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message} | Sonraki taramada yeniden denenecek`);
+        } finally {
             baslangicPusuOzetiIsleniyor = false;
         }
     }
