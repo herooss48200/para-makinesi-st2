@@ -2,7 +2,7 @@
 const assert=require('assert'); const fs=require('fs'); const path=require('path');
 const tmp=path.join(__dirname,'.tmp-v650-mfe-capture'); fs.rmSync(tmp,{recursive:true,force:true}); fs.mkdirSync(tmp,{recursive:true}); process.env.AGROS_DATA_DIR=tmp;
 const evo=require('./74_st2_renko_exit_evolution.js');
-assert(['v6.5.0-MFE-CAPTURE-TAKEOVER-EVOLUTION','v6.6.0-LEARNED-TAKEOVER-EXPLAINABLE-PROTECTION'].includes(evo.VERSION));
+assert(['v6.5.0-MFE-CAPTURE-TAKEOVER-EVOLUTION','v6.6.0-LEARNED-TAKEOVER-EXPLAINABLE-PROTECTION','v6.6.1-PREMIER-TRUTH-PROTECTION-LOCK'].includes(evo.VERSION));
 assert.deepEqual(evo.TAKEOVER_CANDIDATES(),[0.25,0.4,0.5,0.75,1,1.25]);
 const pathRows=[100,100.3,100.6,101.0,101.5,101.2,100.9].map((price,i)=>({price,at:new Date(1700000000000+i*60000).toISOString()}));
 const rr=evo.replay(pathRows,'LONG',100,0.25,1,0.5,100.9);

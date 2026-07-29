@@ -2,7 +2,7 @@
 const assert=require('assert'); const fs=require('fs'); const path=require('path');
 const tmp=path.join(__dirname,'.tmp-v660'); fs.rmSync(tmp,{recursive:true,force:true}); fs.mkdirSync(tmp,{recursive:true}); process.env.AGROS_DATA_DIR=tmp;
 const evo=require('./74_st2_renko_exit_evolution.js');
-assert.equal(evo.VERSION,'v6.6.0-LEARNED-TAKEOVER-EXPLAINABLE-PROTECTION');
+assert(['v6.6.0-LEARNED-TAKEOVER-EXPLAINABLE-PROTECTION','v6.6.1-PREMIER-TRUTH-PROTECTION-LOCK'].includes(evo.VERSION));
 const state={version:evo.VERSION,profiles:{'LONG|RRRR':{patternKey:'LONG|RRRR',closed:9,activeTrail:0.75,activeTakeoverPct:0.50,candidates:{},takeoverCandidates:{},jointCandidates:{},audit:{},promotion:{}}},processedIds:{},health:{}};
 fs.writeFileSync(evo.STATE_FILE,JSON.stringify(state));
 const pos={sym:'TESTUSDT',yon:'LONG',girisFiyati:100,sl:99,breakevenAktif:true,korunanKarYuzdesi:0,girisAnalizi:{entryStrategy:'ST2_RENKO',patternKodu:'RRRR',renkoBoxSize:0.25}};

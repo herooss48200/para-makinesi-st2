@@ -609,9 +609,13 @@ function groupMetrics(stateRows, track) {
 }
 function premierTrackAggregate(stateRows) {
   const b = blankBucket();
-  for (const row of stateRows.filter(x => x.premierTrack === TRACK.HISTORICAL)) addBucket(b, row.bucket);
+  // Exact-context ST2 Renko Premier, ana Premier kasasının ayrılmaz parçasıdır.
+  // Eski rapor yalnız HISTORICAL_POSITIVE satırlarını topladığı için RENKO_PATTERN_PREMIER
+  // kapanışları defterde durduğu halde ana raporda N0 görünüyordu.
+  for (const row of stateRows.filter(x => [TRACK.HISTORICAL, TRACK.RENKO].includes(x.premierTrack))) addBucket(b, row.bucket);
   return metrics(b);
 }
+
 function summaryModel(activePositions = [], { force = false } = {}) {
   const state = readState(); const league = build({ persist: false, force }); const stateRows = Object.values(state.byLab || {});
   const aggregate = premierTrackAggregate(stateRows);

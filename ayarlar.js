@@ -418,7 +418,7 @@ const ayarlar = {
     // TELEGRAM RAPORLAMA
     // ========================================
     canliRaporAktif: true,
-    canliRaporGuncellemeMs: 60000,
+    canliRaporGuncellemeMs: 30000,
     // v6.4.1: Büyük Entry/DNA/Renko replay raporları en fazla 5 dakikada bir kontrol edilir.
     st2DetayRaporMinAralikMs: 600000,
     st2GlobalHistoricalCacheMs: 300000,

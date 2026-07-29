@@ -180,14 +180,18 @@ function pozisyonSatiri(p) {
     const peak = Number.isFinite(Number(p.renkoExitPeak))
         ? renkoExitEvolution.peakProfitPct(p, Number(p.renkoExitPeak))
         : null;
-    const stage = p.renkoProtectionStage || (p.renkoExitActivated === true ? 'K2' : (p.breakevenAktif === true ? 'K1' : 'K0'));
-    const stateLabel = ({
-        ILK_KORUMA_BEKLIYOR: 'Koruma bekliyor',
-        BE_AKTIF_TAKEOVER_BEKLIYOR: 'BE aktif, takeover bekleniyor',
-        TAKEOVER_BEKLIYOR: 'Takeover bekleniyor',
-        RENKO_TAKEOVER_AKTIF: 'Renko yönetimi aktif',
-        RENKO_STOP_GUNCELLENDI: 'Renko yönetimi stop güncelledi'
-    })[p.renkoProtectionState] || (p.renkoExitActivated === true ? 'Renko yönetimi aktif' : (p.breakevenAktif === true ? 'BE aktif' : 'Koruma bekliyor'));
+    const protectionState = p.renkoProtectionState || (p.renkoExitActivated === true ? 'RENKO_TAKEOVER_AKTIF' : (p.breakevenAktif === true ? 'BE_AKTIF_TAKEOVER_BEKLIYOR' : 'ILK_KORUMA_BEKLIYOR'));
+    const protectionView = ({
+        ILK_KORUMA_BEKLIYOR: { stage: 'K0', label: 'Koruma bekliyor' },
+        TAKEOVER_BEKLIYOR: { stage: 'K0', label: 'Takeover bekleniyor' },
+        BE_AKTIF_TAKEOVER_BEKLIYOR: { stage: 'K1', label: 'BE aktif, takeover bekleniyor' },
+        RENKO_TAKEOVER_AKTIF: { stage: 'K2', label: 'Renko yönetimi aktif' },
+        RENKO_STOP_GUNCELLENDI: { stage: 'K3', label: 'Renko yönetimi stop güncelledi' },
+        RENKO_STOP_KORUNUYOR: { stage: 'K3', label: 'Renko koruma stopu aktif' }
+    })[protectionState] || { stage: p.renkoExitActivated === true ? 'K2' : (p.breakevenAktif === true ? 'K1' : 'K0'), label: 'Durum doğrulanıyor' };
+    // Aşama ve açıklama aynı durum nesnesinden gelir; K2/K3 çelişkisi üretilemez.
+    const stage = protectionView.stage;
+    const stateLabel = protectionView.label;
 
     satir += ` | ${stage} ${stateLabel}`;
     if (Number.isFinite(takeover)) satir += ` | Takeover %${takeover.toFixed(2)}`;

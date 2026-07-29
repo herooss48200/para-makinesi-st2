@@ -6,6 +6,7 @@ const VERSION = 'v6.4.3-PREMIER-REPORT-TRUTH-FINAL';
 const runtimeVersion = require('./versiyon.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
+const globalReconciliation = require('./78_st2_global_historical_reconciliation.js');
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,v))}
 function signed(v,d=2){const x=n(v);return `${x>=0?'+':''}${x.toFixed(d)}`}
@@ -56,8 +57,23 @@ function telegram(activePositions=[], prebuilt=null){
   // Restart-GAP veya eski upperLayerIncluded işaretleri üst başlığa sızamaz.
   const livePremier = n(ac.activeScientific);
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
-  t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
+  t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Bilimsel Premier aktif ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
   t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
+  // Shadow sonucu, aynı bilimsel ledger toplamından Premier kasası çıkarılarak üretilir.
+  // Böylece Premier ve Shadow ayrı görünür; toplam ekonomiyle mutabakat korunur.
+  const totalEconomy = globalReconciliation.summary().actual?.all || {};
+  const shadowClosed = Math.max(0, n(totalEconomy.n) - n(a.closed));
+  const shadowWins = Math.max(0, n(totalEconomy.wins) - n(a.tp));
+  const shadowLosses = Math.max(0, n(totalEconomy.losses) - n(a.sl));
+  const shadowBe = Math.max(0, n(totalEconomy.be) - n(a.be));
+  const shadowNet = n(totalEconomy.net) - n(a.net);
+  const shadowGrossProfit = Math.max(0, n(totalEconomy.grossProfit) - n(a.grossProfit));
+  const shadowGrossLoss = Math.max(0, n(totalEconomy.grossLoss) - n(a.grossLoss));
+  const shadowPf = shadowGrossLoss > 0 ? shadowGrossProfit / shadowGrossLoss : (shadowGrossProfit > 0 ? 999 : 0);
+  const shadowDecisive = shadowWins + shadowLosses;
+  const shadowWr = shadowDecisive ? shadowWins / shadowDecisive * 100 : 0;
+  const shadowExp = shadowClosed ? shadowNet / shadowClosed : 0;
+  t+=`👻 Shadow sonuçları: N${shadowClosed} | ✅${shadowWins} ❌${shadowLosses} ⚖️${shadowBe} | WR %${shadowWr.toFixed(1)} | Net ${signed(shadowNet,4)} | PF ${pf(shadowPf)} | Exp ${signed(shadowExp,4)}\n`;
   if(n(r.opened)||n(r.active)||n(r.closed)||d.candidates.length){
     t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;
   }

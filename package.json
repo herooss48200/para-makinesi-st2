@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.6.0-learned-takeover-explainable-protection",
-  "description": "AGROS ST2 v6.6.0: learned takeover thresholds applied to new positions only, frozen per-position assignments, explainable protection stages and bounded position timeline.",
+  "version": "6.6.2-30s-live-telegram-panel-report-truth",
+  "description": "AGROS ST2 v6.6.2: 30-second live Telegram panel restored while heavy analytics remain queued and memory-safe; Premier active wording made truthful.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -115,7 +115,7 @@
     "verify:v566": "node --check motor.js && node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 73_st2_renko_entry_evolution.js && node --check 74_st2_renko_exit_evolution.js && npm run test:v566 && npm run test:v565 && npm run test:v564",
     "test:v568": "node test_v568_consistency_clean_final.js",
     "verify:v568": "node --check 2_rapor.js && node --check 69_operation_intelligence_dashboard.js && node --check 72_st2_renko_entry.js && node test_v568_consistency_clean_final.js && node test_v567_telegram_consistency_safe_startup.js && node test_v566_renko_premier_binding_clean_telegram.js && node test_v565_renko_exit_safety_final.js && node test_v564_st2_renko_exit_manual_safety.js",
-    "test": "npm run verify:v660 && npm run verify:v643 && npm run verify:v642 && npm run verify:v641 && npm run verify:v640 && npm run verify:v639 && npm run verify:v638 && npm run verify:v637 && npm run verify:v636 && npm run verify:v635 && npm run verify:v634 && npm run verify:v633 && npm run verify:v632 && npm run verify:v631 && npm run verify:v630 && npm run verify:v622",
+    "test": "npm run verify:v662 && npm run verify:v643 && npm run verify:v642 && npm run verify:v641 && npm run verify:v640 && npm run verify:v639 && npm run verify:v638 && npm run verify:v637 && npm run verify:v636 && npm run verify:v635 && npm run verify:v634 && npm run verify:v633 && npm run verify:v632 && npm run verify:v631 && npm run verify:v630 && npm run verify:v622",
     "verify": "npm run verify:v612",
     "test:v5610": "node test_v5610_failed_pattern_breakdown.js",
     "verify:v5610": "node --check 73_st2_renko_entry_evolution.js && node --check test_v5610_failed_pattern_breakdown.js && npm run test:v5610 && node test_v569_four_issue_resolution.js && node test_v567_telegram_consistency_safe_startup.js",
@@ -184,7 +184,11 @@
     "test:v650": "node test_v650_mfe_capture_takeover_evolution.js",
     "verify:v650": "node --check 74_st2_renko_exit_evolution.js && node --check ayarlar.js && node --check versiyon.js && node --check test_v650_mfe_capture_takeover_evolution.js && npm run test:v650",
     "test:v660": "node test_v660_learned_takeover_explainable_protection.js",
-    "verify:v660": "node --check 74_st2_renko_exit_evolution.js && node --check 4_pozisyon.js && node --check 2_rapor.js && node --check versiyon.js && node --check test_v660_learned_takeover_explainable_protection.js && npm run test:v660 && npm run verify:v650"
+    "verify:v660": "node --check 74_st2_renko_exit_evolution.js && node --check 4_pozisyon.js && node --check 2_rapor.js && node --check versiyon.js && node --check test_v660_learned_takeover_explainable_protection.js && npm run test:v660 && npm run verify:v650",
+    "test:v661": "node test_v661_premier_truth_protection_shadow_lock.js",
+    "verify:v661": "node --check 62_lab_premier_league.js && node --check 74_st2_renko_exit_evolution.js && node --check 78_st2_global_historical_reconciliation.js && node --check 2_rapor.js && node --check versiyon.js && node --check test_v661_premier_truth_protection_shadow_lock.js && npm run test:v661 && npm run verify:v660",
+    "test:v662": "node test_v662_30s_live_telegram_panel.js",
+    "verify:v662": "node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 69_operation_intelligence_dashboard.js && node --check ayarlar.js && node --check versiyon.js && node --check test_v662_30s_live_telegram_panel.js && npm run test:v662 && npm run verify:v661"
   },
   "dependencies": {
     "axios": "^1.13.2",
