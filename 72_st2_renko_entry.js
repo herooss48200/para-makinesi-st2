@@ -7,10 +7,28 @@ const core = require('./72_st2_renko_core.js');
 const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const pusuNotificationDedupe = require('./81_st2_pusu_notification_dedupe.js');
 
 let baslangicPusuOzetiGonderildi = false;
+let baslangicPusuOzetiIsleniyor = false;
 let baslangicPusuKuyrugu = [];
+const PUSU_BOOT_ID = `${process.pid}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+const PUSU_DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
+const PUSU_STARTUP_STAMP_FILE = path.join(PUSU_DATA_DIR, 'st2-startup-pusu-telegram.json');
+
+function pusuStartupStampOku() {
+    try { return JSON.parse(fs.readFileSync(PUSU_STARTUP_STAMP_FILE, 'utf8')); }
+    catch (_) { return {}; }
+}
+function pusuStartupStampYaz(signature, count) {
+    try {
+        fs.mkdirSync(PUSU_DATA_DIR, { recursive: true });
+        fs.writeFileSync(PUSU_STARTUP_STAMP_FILE, JSON.stringify({ bootId: PUSU_BOOT_ID, signature, count, lastSentAt: Date.now() }, null, 2));
+    } catch (e) { console.log(`⚠️ [ST2 AÇILIŞ PUSU STAMP] ${e.message}`); }
+}
+
 
 
 function dnaKisaId(key = '') {
@@ -469,7 +487,8 @@ async function taraVeDegerlendir() {
 
     // Açılışta bulunan bütün mevcut pusular tek mesajda bir kez bildirilir.
     // Sonraki taramalarda yalnız yeni bulunan pusu kendi kanıt mesajıyla gönderilir.
-    if (!baslangicPusuOzetiGonderildi) {
+    if (!baslangicPusuOzetiGonderildi && !baslangicPusuOzetiIsleniyor) {
+        baslangicPusuOzetiIsleniyor = true;
         baslangicPusuOzetiGonderildi = true;
         const benzersiz = [];
         const gorulen = new Set();
@@ -492,10 +511,23 @@ async function taraVeDegerlendir() {
                 '',
                 `ℹ️ Bu açılış özeti yalnız bir kez gönderilir. Bundan sonra yalnız yeni bulunan pusu bildirilir.`
             ].join('\n');
-            h.telegramMesajGonder(mesaj).then(sonuclar => {
-                const ok = Array.isArray(sonuclar) && sonuclar.every(x => x?.sonuc?.ok === true);
-                console.log(`${ok ? '✅' : '⚠️'} [ST2 AÇILIŞ PUSU ÖZETİ] ${benzersiz.length} pusu | Telegram ${ok ? 'OK' : 'DOĞRULANAMADI'}`);
-            }).catch(e => console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message}`));
+            const signature = crypto.createHash('sha1').update(benzersiz.map(x => `${x.sym}|${x.patternSignature}`).sort().join('||')).digest('hex');
+            const onceki = pusuStartupStampOku();
+            const tekrarPenceresiMs = Math.max(60000, Number(ayarlar.renkoPusuStartupTekrarBastirMs || 900000));
+            const ayniOzetYakinda = onceki.signature === signature && Date.now() - Number(onceki.lastSentAt || 0) < tekrarPenceresiMs;
+            if (ayniOzetYakinda || onceki.bootId === PUSU_BOOT_ID) {
+                console.log(`⏭️ [ST2 AÇILIŞ PUSU ÖZETİ] Aynı açılış özeti tekrar bastırıldı | ${benzersiz.length} pusu`);
+                baslangicPusuOzetiIsleniyor = false;
+            } else {
+                h.telegramMesajGonder(mesaj, { priority: 'critical' }).then(sonuclar => {
+                    const ok = Array.isArray(sonuclar) && sonuclar.every(x => x?.sonuc?.ok === true);
+                    if (ok) pusuStartupStampYaz(signature, benzersiz.length);
+                    console.log(`${ok ? '✅' : '⚠️'} [ST2 AÇILIŞ PUSU ÖZETİ] ${benzersiz.length} pusu | Telegram ${ok ? 'OK' : 'DOĞRULANAMADI'}`);
+                }).catch(e => console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message}`))
+                  .finally(() => { baslangicPusuOzetiIsleniyor = false; });
+            }
+        } else {
+            baslangicPusuOzetiIsleniyor = false;
         }
     }
     return audit;

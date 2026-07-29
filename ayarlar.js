@@ -413,6 +413,7 @@ const ayarlar = {
     pusuRaporuMaxSembol: 20,
     // v3.0.2: Pusu raporu Telegram'ı kirletmesin diye yalnızca bot açılışından sonraki ilk dolu pusu taramasında gönderilir.
     pusuRaporuSadeceBaslangicta: true,
+    renkoPusuStartupTekrarBastirMs: 900000,
 
     // ========================================
     // TELEGRAM RAPORLAMA
@@ -420,7 +421,9 @@ const ayarlar = {
     canliRaporAktif: true,
     canliRaporGuncellemeMs: 30000,
     // v6.4.1: Büyük Entry/DNA/Renko replay raporları en fazla 5 dakikada bir kontrol edilir.
-    st2DetayRaporMinAralikMs: 600000,
+    st2DetayRaporMinAralikMs: 900000,
+    st2DetayRaporStartupGecikmeMs: 180000,
+    st2StartupPanelGecikmeMs: 15000,
     st2GlobalHistoricalCacheMs: 300000,
     st2DetayRaporHeapLimitMb: 190,
     // Telegram editMessageText eski mesajı aşağı taşımaz. Bu süre dolunca eski ana tablo silinir ve yeni tablo en alta gönderilir.
@@ -689,12 +692,20 @@ const ayarlar = {
     renkoCikisEvolutionAktif: true,
     renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
     renkoCikisVarsayilanTugla: 1.00,
-    renkoCikisIlkAtamaKapanis: 3,
+    renkoCikisIlkAtamaKapanis: 1,
     // Mevcut Renko yönetimi devraldıktan sonra, anlamlı MFE oluştuğunda
     // tepe kârın en az bu oranını stop ile korur. Yeni katman değildir;
     // mevcut Renko stop adayının güvenli alt sınırıdır.
     renkoCikisMfeKorumaTetikYuzde: 0.40,
     renkoCikisMinMfeKorumaOrani: 0.60,
+    // v6.7.0 — İlk bilimsel kapanıştan itibaren beklemeden çevrimiçi öğrenir.
+    renkoCikisAtrCarpanAdaylari: [1.00, 1.25, 1.50, 1.75, 2.00, 2.50],
+    renkoCikisMfeYakalamaAdaylari: [0.50, 0.60, 0.70, 0.80, 0.90],
+    renkoCikisVarsayilanAtrCarpani: 1.50,
+    renkoCikisVarsayilanMfeYakalamaOrani: 0.60,
+    renkoCikisGuvenliKarTabaniYuzde: 0.10,
+    renkoCikisOnlineEmaAlpha: 0.35,
+    renkoCikisOnlineGuvenOnculN: 4,
     // v6.5.0 — Canlı davranışı değiştirmeyen devralma + takip ortak shadow replay.
     renkoDevralmaAdayKarYuzde: [0.25, 0.40, 0.50, 0.75, 1.00, 1.25],
     renkoSuperLigMinKapanis: 5,

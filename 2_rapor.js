@@ -177,6 +177,8 @@ function pozisyonSatiri(p) {
     const atama = p.renkoExitAssignment || {};
     const takeover = Number(atama.assignedTakeoverPct);
     const trail = Number(atama.assignedTrailBricks);
+    const atrMultiplier = Number(atama.assignedAtrMultiplier);
+    const captureRatio = Number(atama.assignedCaptureRatio);
     const peak = Number.isFinite(Number(p.renkoExitPeak))
         ? renkoExitEvolution.peakProfitPct(p, Number(p.renkoExitPeak))
         : null;
@@ -184,8 +186,10 @@ function pozisyonSatiri(p) {
     const protectionView = ({
         ILK_KORUMA_BEKLIYOR: { stage: 'K0', label: 'Koruma bekliyor' },
         TAKEOVER_BEKLIYOR: { stage: 'K0', label: 'Takeover bekleniyor' },
+        GUVENLI_KAR_ESIGI_BEKLENIYOR: { stage: 'K0', label: 'Güvenli kâr eşiği bekleniyor' },
         BE_AKTIF_TAKEOVER_BEKLIYOR: { stage: 'K1', label: 'BE aktif, takeover bekleniyor' },
         RENKO_TAKEOVER_AKTIF: { stage: 'K2', label: 'Renko yönetimi aktif' },
+        ATR_TAKEOVER_AKTIF: { stage: 'K2', label: 'Öğrenen ATR yönetimi aktif' },
         RENKO_STOP_GUNCELLENDI: { stage: 'K3', label: 'Renko yönetimi stop güncelledi' },
         RENKO_STOP_KORUNUYOR: { stage: 'K3', label: 'Renko koruma stopu aktif' }
     })[protectionState] || { stage: p.renkoExitActivated === true ? 'K2' : (p.breakevenAktif === true ? 'K1' : 'K0'), label: 'Durum doğrulanıyor' };
@@ -195,7 +199,9 @@ function pozisyonSatiri(p) {
 
     satir += ` | ${stage} ${stateLabel}`;
     if (Number.isFinite(takeover)) satir += ` | Takeover %${takeover.toFixed(2)}`;
-    if (Number.isFinite(trail) && trail > 0) satir += ` | Trail ${trail.toFixed(2)}T`;
+    if (Number.isFinite(atrMultiplier) && atrMultiplier > 0) satir += ` | ATR ${atrMultiplier.toFixed(2)}×`;
+    else if (Number.isFinite(trail) && trail > 0) satir += ` | Trail ${trail.toFixed(2)}T`;
+    if (Number.isFinite(captureRatio) && captureRatio > 0) satir += ` | MFE %${(captureRatio * 100).toFixed(0)}`;
     if (peak !== null) satir += ` | Peak ${peak >= 0 ? '+' : ''}%${yuzde(peak)}`;
     if (p.renkoExitLastStopSourceLabel) satir += ` | ${p.renkoExitLastStopSourceLabel}`;
     const sonOlay = Array.isArray(p.renkoProtectionTimeline) ? p.renkoProtectionTimeline.at(-1) : null;
@@ -725,7 +731,7 @@ async function st2EntryEvolutionDetayiGonderGerekirse(oneCikar = false) {
     const imza = `${Number(x.total?.closed || 0)}|${Number(x.total?.profiles || 0)}|${Number(x.total?.assigned || 0)}|${x.bridge?.last?.at || ''}`;
     if (!oneCikar && sonSt2EntryEvolutionDetayImzasi === imza) return;
     try {
-        const sonuclar = await h.telegramMesajGonder(renkoEntryEvolution.telegram());
+        const sonuclar = await h.telegramMesajGonder(renkoEntryEvolution.telegram(), { priority: 'detail' });
         const liste = Array.isArray(sonuclar) ? sonuclar : [];
         const basarili = liste.length > 0 && liste.every(x => x?.sonuc?.ok === true);
         if (!basarili) {
@@ -734,7 +740,7 @@ async function st2EntryEvolutionDetayiGonderGerekirse(oneCikar = false) {
         }
         const intelligence = adaptiveDnaIntelligence.registry();
         if (Array.isArray(intelligence.profiles) && intelligence.profiles.length > 0) {
-            const dnaSonuclar = await h.telegramMesajGonder(adaptiveDnaIntelligence.telegram(8));
+            const dnaSonuclar = await h.telegramMesajGonder(adaptiveDnaIntelligence.telegram(8), { priority: 'detail' });
             const dnaListe = Array.isArray(dnaSonuclar) ? dnaSonuclar : [];
             const dnaBasarili = dnaListe.length > 0 && dnaListe.every(x => x?.sonuc?.ok === true);
             if (!dnaBasarili) {
@@ -758,7 +764,7 @@ async function st2ExitEvolutionDetayiGonderGerekirse(oneCikar = false) {
     if (!oneCikar && sonSt2ExitEvolutionDetayImzasi === imza) return;
     // Sıfır kapanışta da atama/fallback görünürlüğü korunur.
     try {
-        const sonuclar = await h.telegramMesajGonder(renkoExitEvolution.telegram(h.state.aktifPozisyonlar || []));
+        const sonuclar = await h.telegramMesajGonder(renkoExitEvolution.telegram(h.state.aktifPozisyonlar || []), { priority: 'detail' });
         const liste = Array.isArray(sonuclar) ? sonuclar : [];
         if (!(liste.length > 0 && liste.every(x => x?.sonuc?.ok === true))) return;
         sonSt2ExitEvolutionDetayImzasi = imza;
@@ -806,11 +812,15 @@ async function raporGonder(oneCikar = false) {
         if (ayarlar.canliRaporAktif) await h.telegramCanliRaporGuncelle(mesaj, oneCikar);
         else if (oneCikar) await h.telegramMesajGonder(mesaj);
 
-        const detayAralikMs = Math.max(60000, Number(ayarlar.st2DetayRaporMinAralikMs || 300000));
-        const detayZamani = oneCikar || (Date.now() - sonDetayRaporZamani >= detayAralikMs);
+        const detayAralikMs = Math.max(60000, Number(ayarlar.st2DetayRaporMinAralikMs || 900000));
+        const startupGecikmeMs = Math.max(60000, Number(ayarlar.st2DetayRaporStartupGecikmeMs || 180000));
+        const startupHazir = process.uptime() * 1000 >= startupGecikmeMs;
+        // Kritik kapanış/pusu mesajları için oneCikar ağır detay raporunu zorlamaz.
+        // Detay yalnız warm-up sonrası ve kendi seyrek periyodunda çalışır.
+        const detayZamani = startupHazir && (Date.now() - sonDetayRaporZamani >= detayAralikMs);
         if (detayZamani) {
             sonDetayRaporZamani = Date.now();
-            setImmediate(() => detayRaporlariniCalistir(oneCikar));
+            setImmediate(() => detayRaporlariniCalistir(false));
         }
         const m = memorySafeIo.ramMb();
         console.log(`🧠 [ST2 CLEAN REPORT] Panel hızlı | Detay ${detayZamani ? 'ARKA_PLAN_KUYRUK' : 'SEYREKLESTIRILDI'} | RSS ${m.rss} MB | Heap ${m.heapUsed}/${m.heapTotal} MB`);

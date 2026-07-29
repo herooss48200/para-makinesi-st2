@@ -93,7 +93,8 @@ async function baslat() {
             } else {
                 console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
             }
-            rapor.raporTalepEt(true);
+            const panelGecikmeMs = Math.max(5000, Number(ayarlar.st2StartupPanelGecikmeMs || 15000));
+            setTimeout(() => rapor.raporTalepEt(false), panelGecikmeMs).unref?.();
         };
 
         console.log(`✅ SİSTEM HAZIR. DÖNGÜ BAŞLATILDI. Emir Modu: ${emirModu}`);
@@ -118,7 +119,9 @@ async function baslat() {
                 await p.izSurmeyiGuncelle();
                 // v6.4.1: Telegram pusu bildirimi ana piyasa döngüsünü bekletmez.
                 // Aynı anda yalnız tek pusu raporu çalışır; yenileri bir sonraki turda güncel state ile birleşir.
-                if (!pusuRaporCalisiyor) {
+                // ST2 kendi tekil/açılış pusu dedupe hattını kullanır. Eski genel pusu raporu
+                // ST2 modunda çağrılmaz; böylece açılış pusuları iki kez gönderilmez.
+                if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && !pusuRaporCalisiyor) {
                     pusuRaporCalisiyor = true;
                     setImmediate(() => {
                         Promise.resolve(p.pusuRaporuGonder())
@@ -148,7 +151,8 @@ async function baslat() {
                 if (now - sonOzetLog > 30000) {
                     sonOzetLog = now;
                     const agDurum = binanceAg.durumOzeti({ reset: true });
-                    console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu: ${Object.keys(ayarlar.entryStrategyMode === 'ST2_RENKO' ? (h.state.st2Renko?.pusular || {}) : h.state.pusuListesi).length} | Pozisyon: ${h.state.aktifPozisyonlar.length} | ST Güncelleme: ${h.state.sonSniperGuncellemeZamani ? new Date(h.state.sonSniperGuncellemeZamani).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow}`);
+                    const tg = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0 };
+                    console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu: ${Object.keys(ayarlar.entryStrategyMode === 'ST2_RENKO' ? (h.state.st2Renko?.pusular || {}) : h.state.pusuListesi).length} | Pozisyon: ${h.state.aktifPozisyonlar.length} | ST Güncelleme: ${h.state.sonSniperGuncellemeZamani ? new Date(h.state.sonSniperGuncellemeZamani).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow} | TG Kritik ${tg.critical} Panel ${tg.panel} Detay ${tg.detail}`);
                 }
             } catch (e) {
                 if (e.message && (e.message.includes('429') || e.message.includes('1095'))) {

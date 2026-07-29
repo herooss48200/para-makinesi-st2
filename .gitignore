@@ -29,3 +29,7 @@ node_modules/
 .tmp-v650-mfe-capture/
 
 .tmp-v660/
+
+# Never commit generated test/runtime artifacts
+.tmp-*/
+*.bak
