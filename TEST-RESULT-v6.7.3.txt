@@ -1,0 +1,20 @@
+AGROS ST2 v6.7.3 — LIVE LAB PROMOTION & DEMOTION FINAL
+Test tarihi: 30.07.2026
+
+1) npm run test:v673:syntax
+   ✅ 96 JavaScript dosyası syntax kontrolünden geçti.
+
+2) npm run test:v672
+   ✅ v6.7.2 single-delivery Telegram + safe adaptive exit + report truth regression testi geçti.
+
+3) npm run test:v673
+   ✅ LAB canlı N5 terfi testi geçti.
+   ✅ LAB canlı N5 düşüş testi geçti.
+   ✅ Düşüş veto önceliği kaynak kontrolü geçti.
+   ✅ Terfi sonrası ayrı Premier muhasebe bucket testi geçti.
+   ✅ Eski Shadow sonuçlarının geriye dönük Premier kasasına taşınmadığı doğrulandı.
+
+4) Empty-runtime summary smoke
+   ✅ Operasyon raporunda Canlı yükselen / Canlı düşen sayaçları üretildi.
+
+Not: Bağımlılıklar değiştirilmedi. Testler mevcut doğrulanmış node_modules ile çevrimdışı çalıştırıldı.

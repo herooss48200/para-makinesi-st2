@@ -3,10 +3,10 @@
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
-    kod: 'AGROS ST2 v6.7.2 — SINGLE DELIVERY & SAFE ADAPTIVE EXIT FINAL',
-    botSurumu: '6.7.2-SINGLE-DELIVERY-SAFE-ADAPTIVE-EXIT',
+    kod: 'AGROS ST2 v6.7.3 — LIVE LAB PROMOTION & DEMOTION FINAL',
+    botSurumu: '6.7.3-LIVE-LAB-PROMOTION-DEMOTION',
     stratejiSurumu: '1.0.27',
-    yayinTarihi: '29.07.2026',
+    yayinTarihi: '30.07.2026',
     ortam: Object.freeze({ emirModu: 'SANAL' })
 });
 

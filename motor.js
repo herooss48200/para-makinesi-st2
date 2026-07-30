@@ -284,24 +284,37 @@ const m = {
                 executionMode: gate.executionMode
             };
             yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_HISTORICAL_CONTEXT_GATE' };
-            if (renkoPremier.premier) {
+            const labLiveReview = labKarar?.liveLeagueReview || null;
+            const exactLiveDemoted = renkoPremier.reason === 'LIVE_N3_DEMOTED_TO_SHADOW';
+            const labLiveDemoted = labLiveReview?.demoted === true;
+            const labLivePromoted = labLiveReview?.promoted === true;
+            const finalPremier = !exactLiveDemoted && !labLiveDemoted && (labLivePromoted || renkoPremier.premier);
+            if (finalPremier) {
+                const livePromotion = labLivePromoted;
+                const finalTrack = livePromotion ? 'LAB_LIVE_PROMOTED_PREMIER' : 'RENKO_PATTERN_PREMIER';
+                const finalProof = livePromotion ? 'LAB_LIVE_N5_PROMOTED_PREMIER' : 'HISTORICAL_ADAPTIVE_RENKO_PREMIER';
                 labKarar = {
                     ...(labKarar || {}),
-                    labLeague: 'PREMIER', premierTrack: 'RENKO_PATTERN_PREMIER', proofLevel: 'HISTORICAL_ADAPTIVE_RENKO_PREMIER',
+                    labLeague: 'PREMIER', premierTrack: finalTrack, proofLevel: finalProof,
                     upperLayerIncluded: true, virtualShadowOnly: false, observationEligible: true,
-                    reason: `ST2 Renko ${renkoPremier.patternKey} | ${renkoPremier.source} | N${renkoPremier.closed} | Giriş ${renkoPremier.activeBrick.toFixed(2)} | Net ${renkoPremier.net.toFixed(4)} | PF ${renkoPremier.pf.toFixed(2)} | Exp ${renkoPremier.expectancy.toFixed(4)}`
+                    reason: livePromotion
+                        ? `LAB canlı N${labLiveReview.thresholds.minClosed} terfisi | Net ${Number(labLiveReview.metrics.net).toFixed(4)} | PF ${Number(labLiveReview.metrics.profitFactor).toFixed(2)} | Exp ${Number(labLiveReview.metrics.expectancy).toFixed(4)}`
+                        : `ST2 Renko ${renkoPremier.patternKey} | ${renkoPremier.source} | N${renkoPremier.closed} | Giriş ${renkoPremier.activeBrick.toFixed(2)} | Net ${renkoPremier.net.toFixed(4)} | PF ${renkoPremier.pf.toFixed(2)} | Exp ${renkoPremier.expectancy.toFixed(4)}`
                 };
                 yeniPozisyon.labPremierDecision = labKarar;
                 yeniPozisyon.labLeagueAtOpen = 'PREMIER';
-                yeniPozisyon.premierTrackAtOpen = 'RENKO_PATTERN_PREMIER';
-                yeniPozisyon.labProofLevelAtOpen = 'HISTORICAL_ADAPTIVE_RENKO_PREMIER';
+                yeniPozisyon.premierTrackAtOpen = finalTrack;
+                yeniPozisyon.labProofLevelAtOpen = finalProof;
                 yeniPozisyon.leagueShadowOnly = false;
-                console.log(`🏆 [ST2 RENKO PREMIER BINDING] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${renkoPremier.source} | N${renkoPremier.closed} Giriş ${renkoPremier.activeBrick.toFixed(2)} Net ${renkoPremier.net.toFixed(4)} PF ${renkoPremier.pf.toFixed(2)} Exp ${renkoPremier.expectancy.toFixed(4)}`);
+                console.log(`🏆 [ST2 PREMIER BINDING] ${symbol} ${yon} | ${finalProof} | ${livePromotion ? `LAB N${labLiveReview.thresholds.minClosed} Net ${Number(labLiveReview.metrics.net).toFixed(4)} PF ${Number(labLiveReview.metrics.profitFactor).toFixed(2)}` : `${renkoPremier.patternKey} ${renkoPremier.source} N${renkoPremier.closed} Giriş ${renkoPremier.activeBrick.toFixed(2)}`}`);
             } else {
+                const finalShadowReason = labLiveDemoted ? 'LAB_LIVE_N5_DEMOTED_TO_SHADOW' : (exactLiveDemoted ? 'LIVE_N3_DEMOTED_TO_SHADOW' : renkoPremier.reason);
                 labKarar = {
                     ...(labKarar || {}), labLeague: 'DEVELOPMENT', premierTrack: 'HISTORICAL_CONTEXT_SHADOW',
-                    proofLevel: renkoPremier.reason, upperLayerIncluded: false, virtualShadowOnly: true,
-                    observationEligible: true, reason: `ST2 Shadow ${renkoPremier.patternKey} | ${renkoPremier.reason} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`
+                    proofLevel: finalShadowReason, upperLayerIncluded: false, virtualShadowOnly: true,
+                    observationEligible: true, reason: labLiveDemoted
+                        ? `LAB canlı N${labLiveReview.thresholds.minClosed} düşüşü | Net ${Number(labLiveReview.metrics.net).toFixed(4)} | PF ${Number(labLiveReview.metrics.profitFactor).toFixed(2)} | Exp ${Number(labLiveReview.metrics.expectancy).toFixed(4)}`
+                        : `ST2 Shadow ${renkoPremier.patternKey} | ${finalShadowReason} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`
                 };
                 yeniPozisyon.labPremierDecision = labKarar;
                 yeniPozisyon.labLeagueAtOpen = 'DEVELOPMENT';

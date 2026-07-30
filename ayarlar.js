@@ -57,6 +57,13 @@ const ayarlar = {
     labLifecycleGuncelAgirlik: 0.60,
     labLifecycleMinSkorIyilesme: 0.0005,
     labLifecycleOtomatikAktiflestirme: true,
+    // v6.7.3: LAB canlı lig terfi/düşüşü aynı son-N bilimsel kapanış penceresinden verilir.
+    // Pozitif ekonomi Premier'e çıkarır; aynı pencerenin pozitif kapıyı kaybetmesi Shadow'a indirir.
+    labCanliLigAktif: true,
+    labCanliLigMinKapanis: 5,
+    labCanliLigMinPF: 1,
+    labCanliLigMinNet: 0,
+    labCanliLigMinExpectancy: 0,
     labStopAdaylariYuzde: [0.8, 1.0, 1.2, 1.5, 1.8, 2.1, 2.4],
     labBeTetikAdaylariYuzde: [0.30, 0.40, 0.60, 0.80],
     labBeAdaylariYuzde: [0.08, 0.12, 0.16, 0.20, 0.25, 0.30],

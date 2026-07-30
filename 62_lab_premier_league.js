@@ -18,7 +18,7 @@ const evidenceEngine = require('./63_universal_evidence_engine.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 
-const VERSION = 'v5.4.0-ST1-SCIENTIFIC-AUDIT';
+const VERSION = 'v6.7.3-LAB-LIVE-PROMOTION-DEMOTION';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-premier-observation.json');
 const MODEL_FILE = path.join(DATA_DIR, 'lab-premier-league-model.json');
@@ -34,6 +34,8 @@ const TRACK = Object.freeze({
   BOTTOM_LONG: 'BOTTOM_PREMIER_LONG',
   BOTTOM_SHORT: 'BOTTOM_PREMIER_SHORT',
   LAB: 'LAB_LEAGUE',
+  LIVE: 'LAB_LIVE_PROMOTED_PREMIER',
+  SHADOW: 'HISTORICAL_CONTEXT_SHADOW',
   RENKO: 'RENKO_PATTERN_PREMIER'
 });
 
@@ -74,7 +76,7 @@ function normalizeState(raw) {
   // ST2 Renko Premier, HISTORICAL_POSITIVE ile aynı sanal üst kasa içinde izlenir; Reverse ayrı kalır.
   const historicalAggregate = blankBucket();
   for (const row of Object.values(out.byLab)) {
-    if ([TRACK.HISTORICAL, TRACK.RENKO].includes(row?.premierTrack)) addBucket(historicalAggregate, row.bucket || {});
+    if ([TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(row?.premierTrack)) addBucket(historicalAggregate, row.bucket || {});
   }
   if (Object.values(out.byLab).some(row => row?.premierTrack)) out.aggregate = historicalAggregate;
   return out;
@@ -101,6 +103,39 @@ function metrics(bucket = {}) {
     winRate: decided ? (num(bucket.tp) / decided) * 100 : 0,
     profitFactor: grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? 999 : 0),
     expectancy: closed ? num(bucket.net) / closed : 0
+  };
+}
+function liveLeagueThresholds() {
+  return {
+    enabled: ayarlar.labCanliLigAktif !== false,
+    minClosed: Math.max(1, num(ayarlar.labCanliLigMinKapanis, num(ayarlar.labChampionForwardMinKapanis, 5))),
+    minPf: num(ayarlar.labCanliLigMinPF, num(ayarlar.labChampionForwardMinPF, 1)),
+    minNet: num(ayarlar.labCanliLigMinNet, num(ayarlar.labChampionForwardMinNet, 0)),
+    minExpectancy: num(ayarlar.labCanliLigMinExpectancy, num(ayarlar.labChampionForwardMinExpectancy, 0))
+  };
+}
+function liveLeagueReview(labKeyValue, state = null) {
+  const labKey = hierarchy.labKey(labKeyValue);
+  const thresholds = liveLeagueThresholds();
+  const trades = (Array.isArray((state || readState()).lastTrades) ? (state || readState()).lastTrades : [])
+    .filter(x => hierarchy.labKey(x?.labKey) === labKey && !x?.reverseExecution && String(x?.premierTrack || '').toUpperCase() !== TRACK.REVERSE)
+    .slice(0, thresholds.minClosed);
+  const bucket = blankBucket();
+  for (const trade of trades) {
+    const net = num(trade?.net); const commission = Math.max(0, num(trade?.commission));
+    const outcome = String(trade?.outcome || '').toUpperCase();
+    bucket.closed++; bucket.net += net; bucket.commission += commission;
+    if (net > 0) bucket.grossProfit += net; else if (net < 0) bucket.grossLoss += Math.abs(net);
+    if (outcome === 'TP' || (outcome !== 'SL' && outcome !== 'BE' && net > 0)) bucket.tp++;
+    else if (outcome === 'BE' || Math.abs(net) <= 0.000001) bucket.be++; else bucket.sl++;
+  }
+  const m = metrics(bucket);
+  const complete = thresholds.enabled && Boolean(labKey) && trades.length >= thresholds.minClosed;
+  const positive = complete && m.net > thresholds.minNet && m.profitFactor > thresholds.minPf && m.expectancy > thresholds.minExpectancy;
+  return {
+    version: VERSION, labKey, complete, promoted: positive, demoted: complete && !positive,
+    reason: !complete ? `LAB_LIVE_N${thresholds.minClosed}_BEKLENIYOR` : (positive ? 'LAB_LIVE_N5_PROMOTED_PREMIER' : 'LAB_LIVE_N5_DEMOTED_TO_SHADOW'),
+    metrics: m, thresholds, tradeIds: trades.map(x => x.tradeId || '').filter(Boolean), reviewedAt: new Date().toISOString()
   };
 }
 function oppositeSide(side) { return String(side || '').toUpperCase() === 'SHORT' ? 'LONG' : 'SHORT'; }
@@ -312,10 +347,32 @@ function build({ catalogue = null, persist = true, force = false } = {}) {
   return model;
 }
 function identityFor(pos) { return hierarchy.decoratePosition(pos, { source: 'LAB_PREMIER_DECISION' }); }
+function tierWithLiveReview(baseTier, row, liveReview) {
+  if (liveReview?.demoted) {
+    return {
+      league: 'DEVELOPMENT', premierTrack: TRACK.SHADOW, upperLayerIncluded: false, observationEligible: true,
+      proofLevel: 'LAB_LIVE_N5_DEMOTED_TO_SHADOW', evidence: { liveLeagueReview: liveReview },
+      entryProven: false, exitValidated: false, safeFallback: false, reverseExecution: false,
+      reason: `Son ${liveReview.thresholds.minClosed} canlı LAB kapanışı pozitif ekonomi kapısını kaybetti; yeni işlemler Shadow`
+    };
+  }
+  if (liveReview?.promoted) {
+    const ownExitReady = ownPositiveExit(row);
+    return {
+      league: 'PREMIER', premierTrack: TRACK.LIVE, upperLayerIncluded: true, observationEligible: true,
+      proofLevel: 'LAB_LIVE_N5_PROMOTED_PREMIER', evidence: { liveLeagueReview: liveReview },
+      entryProven: true, exitValidated: ownExitReady, safeFallback: !ownExitReady, reverseExecution: false,
+      reason: `Son ${liveReview.thresholds.minClosed} canlı LAB kapanışı pozitif ekonomi üretti; sonraki işlemler Premier`
+    };
+  }
+  return baseTier;
+}
 function evaluate(pos, { model = null, realMode = false } = {}) {
   const identities = identityFor(pos); const leagueModel = model || build({ persist: false });
   const labKey = identities?.lab?.key || ''; const row = leagueModel.allCandidates.find(x => x.labKey === labKey) || null;
-  const tier = row ? championTier(row) : championTier(null);
+  const baseTier = row ? championTier(row) : championTier(null);
+  const liveReview = liveLeagueReview(labKey);
+  const tier = tierWithLiveReview(baseTier, row, liveReview);
   const reverseExecution = Boolean(!realMode && row && tier.reverseExecution);
   const upperLayerIncluded = Boolean(!realMode && row && tier.upperLayerIncluded);
   const reasons = [];
@@ -337,7 +394,7 @@ function evaluate(pos, { model = null, realMode = false } = {}) {
     proofLevel: row ? tier.proofLevel : 'LEARNING', admissionReason: row ? tier.reason : 'LAB giriş kanıtı oluşmadı',
     entryProven: Boolean(row && tier.entryProven), exitValidated: Boolean(row && tier.exitValidated), safeExitFallback: Boolean(row && tier.safeFallback),
     upperLayerIncluded, observationEligible: Boolean(tier.observationEligible || upperLayerIncluded || tier.premierTrack === TRACK.REVERSE), virtualShadowOnly: !upperLayerIncluded, sizeMultiplier: upperLayerIncluded ? 1 : 0,
-    historical: row?.historical || null, recent5: row?.recent5 || null, evidence: row?.evidence || null, forward: row?.forward || null,
+    historical: row?.historical || null, recent5: row?.recent5 || null, evidence: row?.evidence || null, forward: row?.forward || null, liveLeagueReview: liveReview, basePremierTrack: baseTier.premierTrack,
     exit: reverseExecution ? null : (row?.exit || null), realTradingAuthorized: false, allowed: !realMode, reasons
   };
   pos.labPremierDecision = decision;
@@ -414,6 +471,7 @@ function applyToPosition(pos, decision = null) {
 }
 function bucketKeyFor(decision) {
   if (decision?.premierTrack === TRACK.REVERSE) return `REVERSE|${decision.sourceLabKey || 'YOK'}|${decision.labKey || 'YOK'}`;
+  if ([TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE, TRACK.SHADOW].includes(decision?.premierTrack)) return `${decision.premierTrack}|${decision.labKey || 'LAB-YOK'}`;
   if (decision?.premierTrack === TRACK.BOTTOM_LONG || decision?.premierTrack === TRACK.BOTTOM_SHORT) {
     return `${decision.premierTrack}|${decision.labKey || 'LAB-YOK'}`;
   }
@@ -460,7 +518,7 @@ function snapshot(pos) {
     upperLayerIncluded: Boolean(decision.upperLayerIncluded), observationPool: decision.premierTrack === TRACK.REVERSE ? 'REVERSE_SEPARATE_LEDGER' : 'PREMIER', samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
   };
   pos.labPremierObservation = observation;
-  const state = readState(); if (decision.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO].includes(decision.premierTrack)) { state.aggregate.opened++; state.aggregate.active++; }
+  const state = readState(); if (decision.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(decision.premierTrack)) { state.aggregate.opened++; state.aggregate.active++; }
   if (decision.premierTrack === TRACK.REVERSE) { state.reverseAudit.opened = num(state.reverseAudit.opened) + 1; state.reverseAudit.last = [{ at: observation.openedAt, stage: 'OPENED', symbol: pos.sym || '', sourceLabKey: decision.sourceLabKey, targetLabKey: decision.labKey }, ...(state.reverseAudit.last || [])].slice(0, 50); }
   const row = ensureLabBucket(state, decision); row.bucket.opened++; row.bucket.active++; row.lastUpdatedAt = observation.openedAt;
   state.updatedAt = observation.openedAt; writeState(state); return observation;
@@ -481,7 +539,7 @@ function close(pos, result = {}) {
   if (!observation) {
     const d = pos?.labPremierDecision || null;
     const track = String(d?.premierTrack || pos?.premierTrackAtOpen || '').toUpperCase();
-    const isMainPremier = d?.upperLayerIncluded === true && [TRACK.HISTORICAL, TRACK.RENKO].includes(track);
+    const isMainPremier = d?.upperLayerIncluded === true && [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(track);
     if (!isMainPremier) return null;
     observation = {
       version: VERSION, openedAt: pos?.acilisZamani ? new Date(pos.acilisZamani).toISOString() : new Date().toISOString(),
@@ -501,7 +559,7 @@ function close(pos, result = {}) {
   const closeId = String(pos?.closeId || result?.closeId || pos?.tradeId || pos?.sanalOrderId || `${observation.symbol}|${observation.side}|${observation.openedAt}`);
   state.recentClosedIds = Array.isArray(state.recentClosedIds) ? state.recentClosedIds : [];
   if (state.recentClosedIds.includes(closeId)) return null;
-  if (observation.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO].includes(observation.premierTrack)) applyClosed(state.aggregate, net, commission, outcome);
+  if (observation.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(observation.premierTrack)) applyClosed(state.aggregate, net, commission, outcome);
   const decision = pos.labPremierDecision || {
     labKey: observation.labKey, labDnaId: observation.labDnaId, labDnaLabel: observation.labDnaLabel,
     familyDnaLabel: observation.familyDnaLabel, proofLevel: observation.proofLevel, premierTrack: observation.premierTrack,
@@ -575,7 +633,7 @@ function enrichCandidate(candidate, stateRows, league) {
   const currentExitId = ownPositiveExit({ exit: currentExit }) ? currentExit.algorithmId : 'ACTUAL';
   const storedExitId = stateRow?.exitAlgorithmId || 'ACTUAL';
   const pendingExitChange = Boolean(stateRow && currentExitId !== storedExitId);
-  const riskScope = candidate.premierTrack === TRACK.HISTORICAL ? 'PREMIER'
+  const riskScope = [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(candidate.premierTrack) ? 'PREMIER'
     : (candidate.premierTrack === TRACK.REVERSE ? 'REVERSE'
       : (candidate.premierTrack === TRACK.BOTTOM_LONG ? 'BOTTOM_LONG'
         : (candidate.premierTrack === TRACK.BOTTOM_SHORT ? 'BOTTOM_SHORT' : 'LAB')));
@@ -614,7 +672,7 @@ function premierTrackAggregate(stateRows) {
   // Exact-context ST2 Renko Premier, ana Premier kasasının ayrılmaz parçasıdır.
   // Eski rapor yalnız HISTORICAL_POSITIVE satırlarını topladığı için RENKO_PATTERN_PREMIER
   // kapanışları defterde durduğu halde ana raporda N0 görünüyordu.
-  for (const row of stateRows.filter(x => [TRACK.HISTORICAL, TRACK.RENKO].includes(x.premierTrack))) addBucket(b, row.bucket);
+  for (const row of stateRows.filter(x => [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(x.premierTrack))) addBucket(b, row.bucket);
   return metrics(b);
 }
 
@@ -622,17 +680,23 @@ function summaryModel(activePositions = [], { force = false } = {}) {
   const state = readState(); const league = build({ persist: false, force }); const stateRows = Object.values(state.byLab || {});
   const aggregate = premierTrackAggregate(stateRows);
   const accounting = premierAccounting(activePositions, aggregate);
-  const historicalPremier = league.historicalPremier.map(x => enrichCandidate(x, stateRows, league));
+  const allEnriched = league.allCandidates.map(x => ({ ...enrichCandidate(x, stateRows, league), liveLeagueReview: liveLeagueReview(x.labKey, state) }));
+  const historicalPremier = allEnriched.filter(x => x.premierTrack === TRACK.HISTORICAL && !x.liveLeagueReview.demoted);
+  const livePromotedPremier = allEnriched.filter(x => x.liveLeagueReview.promoted).map(x => ({
+    ...x, labLeague: 'PREMIER', premierTrack: TRACK.LIVE, upperLayerIncluded: true, proofLevel: 'LAB_LIVE_N5_PROMOTED_PREMIER'
+  }));
+  const liveDemoted = allEnriched.filter(x => x.liveLeagueReview.demoted);
+  const effectivePremier = [...new Map([...historicalPremier, ...livePromotedPremier].map(x => [x.labKey, x])).values()];
   const recent5Premier = [];
   const reversePremier = league.reversePremier.map(x => enrichCandidate(x, stateRows, league));
   const bottomLong = league.bottomLong.map(x => enrichCandidate(x, stateRows, league));
   const bottomShort = league.bottomShort.map(x => enrichCandidate(x, stateRows, league));
   return {
     version: VERSION, experimentId: state.experimentId,
-    league: { ...league, historicalPremier, recent5Premier, reversePremier, bottomLong, bottomShort, premier: [...historicalPremier] },
+    league: { ...league, historicalPremier, livePromotedPremier, liveDemoted, livePromotedCount: livePromotedPremier.length, liveDemotedCount: liveDemoted.length, recent5Premier, reversePremier, bottomLong, bottomShort, premier: effectivePremier },
     aggregate, accounting,
     trackMetrics: {
-      historical: groupMetrics(stateRows, TRACK.HISTORICAL), reverse: groupMetrics(stateRows, TRACK.REVERSE),
+      historical: groupMetrics(stateRows, TRACK.HISTORICAL), live: groupMetrics(stateRows, TRACK.LIVE), reverse: groupMetrics(stateRows, TRACK.REVERSE),
       bottomLong: groupMetrics(stateRows, TRACK.BOTTOM_LONG), bottomShort: groupMetrics(stateRows, TRACK.BOTTOM_SHORT)
     },
     byLab: stateRows.map(row => ({ ...row, metrics: metrics(row.bucket) })), active: activeRows(activePositions),
@@ -746,7 +810,7 @@ function audit() {
 
 module.exports = {
   VERSION, TRACK, STATE_FILE, MODEL_FILE, TRADES_FILE,
-  readState, writeState, metrics, oppositeSide, invertBits, reverseLabKey, reversePremierReady, reverseShadowReady, bottomPremierReady, nearProfitReady, recordReverseStage,
-  championTier, build, evaluate, bindReverseExecution, frozenExit, applyToPosition, snapshot, close, activeRows,
+  readState, writeState, metrics, liveLeagueThresholds, liveLeagueReview, oppositeSide, invertBits, reverseLabKey, reversePremierReady, reverseShadowReady, bottomPremierReady, nearProfitReady, recordReverseStage,
+  championTier, tierWithLiveReview, build, evaluate, bindReverseExecution, frozenExit, applyToPosition, snapshot, close, activeRows,
   premierAccounting, summaryModel, compactTelegramFromModel, compactTelegram, telegram, audit
 };

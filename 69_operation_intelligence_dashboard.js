@@ -2,7 +2,7 @@
  * AGROS v5.3.5 — LIVE OPERATIONS + SELECTION INTELLIGENCE 2.0
  * Raporlama/karar-açıklama katmanıdır. Trade Engine kapılarını değiştirmez.
  */
-const VERSION = 'v6.7.2-PREMIER-LIVE-TRUTH';
+const VERSION = 'v6.7.3-LAB-LIVE-LEAGUE-TRUTH';
 const runtimeVersion = require('./versiyon.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
@@ -28,7 +28,7 @@ function build(activePositions=[]){
   const lifecycle=require('./68_lab_lifecycle_evolution.js');
   const model=labPremier.summaryModel(activePositions);
   const life=lifecycle.read(); const lifeByLab=life.byLab||{};
-  const premier=(model.league?.historicalPremier||[]).map(c=>({...c,selectionI2:componentScore(c,lifeByLab[c.labKey]),form:formLabel(c)})).sort((a,b)=>b.selectionI2.score-a.selectionI2.score);
+  const premier=(model.league?.premier||[]).map(c=>({...c,selectionI2:componentScore(c,lifeByLab[c.labKey]),form:formLabel(c)})).sort((a,b)=>b.selectionI2.score-a.selectionI2.score);
   const reverse=(model.league?.reversePremier||[]).map(c=>({...c,selectionI2:componentScore(c,lifeByLab[c.labKey]),form:formLabel(c)}));
   const candidates=reverse.filter(x=>x.reversePremierCandidate).sort((a,b)=>n(b.liveMetrics?.expectancy)-n(a.liveMetrics?.expectancy));
   const lifeRows=Object.values(lifeByLab); const stopReady=lifeRows.filter(x=>x.stop?.recommendation?.ready).length; const beReady=lifeRows.filter(x=>x.be?.recommendation?.ready).length;
@@ -77,7 +77,7 @@ function telegram(activePositions=[], prebuilt=null){
   if(n(r.opened)||n(r.active)||n(r.closed)||d.candidates.length){
     t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;
   }
-  t+=`🏆 Ligler: Exact Premier ${renkoPremierPatterns} | Exact Shadow ${renkoShadowDnas} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
+  t+=`🏆 Ligler: Exact Premier ${renkoPremierPatterns} | Exact Shadow ${renkoShadowDnas} | Canlı yükselen ${n(l.livePromotedCount)} | Canlı düşen ${n(l.liveDemotedCount)} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
   t+=`📦 Premier gözlem defteri: Canlı bilimsel ${n(ac.activeScientific)} | Restart-GAP ${n(ac.activeGap)} | GAP kapanan ${n(ac.closedGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;
   const top=d.premier.slice(0,5);
