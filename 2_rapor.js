@@ -353,7 +353,55 @@ function st2AnaRaporOgrenmeOzeti() {
     ].join('\n');
 }
 
+
+function minimalCanliRaporMetniOlustur() {
+    const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
+    const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
+    const premierAktifler = aktifDagilim.premierPositions.filter(anaPremierPozisyonuMu);
+    const pusuKaynagi = ayarlar.entryStrategyMode === 'ST2_RENKO' ? h.state.st2Renko?.pusular : h.state.pusuListesi;
+    const pusular = Object.values(pusuKaynagi || {});
+    const pusuLong = pusular.filter(x => String(x.yon || '').toUpperCase() === 'LONG').length;
+    const pusuShort = pusular.filter(x => String(x.yon || '').toUpperCase() === 'SHORT').length;
+    const evo = renkoEntryEvolution.summary();
+    const op = operationIntelligence.build(tumAktifler);
+    const aggregate = op.model?.aggregate || {};
+    const accounting = op.model?.accounting || {};
+    const shadow = operationIntelligence.scientificLedgerPartitions().shadow || {};
+    const maxPozisyon = Math.max(1, Number(ayarlar.telegramCanliRaporMaxPozisyon || 5));
+    const sirali = [...premierAktifler].sort((a, b) => pozisyonKarYuzde(b) - pozisyonKarYuzde(a)).slice(0, maxPozisyon);
+    const transitions = [...(op.model?.league?.sessionPromotions || []), ...(op.model?.league?.sessionDemotions || [])]
+        .sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0)).slice(0, 3);
+    const pfMetni = v => Number(v) >= 999 ? '∞' : Number(v || 0).toFixed(2);
+    const sign = (v, d = 4) => `${Number(v || 0) >= 0 ? '+' : ''}${Number(v || 0).toFixed(d)}`;
+    const health = evo.health || {};
+    const stateN = Number(health.stateRecords || 0);
+    const ledgerN = Number(health.ledgerRecords || 0);
+    const stateOk = stateN === ledgerN;
+    const saat = new Date().toLocaleTimeString('tr-TR', { hour12: false });
+    const lines = [
+        `📊 AGROS ST2 OPERASYON — ${require('./versiyon.js').botSurumu}`,
+        `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
+        `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Premier ${premierAktifler.length} | Shadow ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
+        `💰 Premier N${Number(aggregate.closed || 0)} | ✅${Number(aggregate.tp || 0)} ❌${Number(aggregate.sl || 0)} ⚖️${Number(aggregate.be || 0)} | Net ${sign(aggregate.net)} | PF ${pfMetni(aggregate.profitFactor)}`,
+        `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
+        `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
+        `🧠 Entry Evolution N${Number(evo.total?.closed || 0)} | ✅${Number(evo.total?.tp || 0)} ❌${Number(evo.total?.sl || 0)} ⚖️${Number(evo.total?.be || 0)} | Net ${sign(evo.total?.net)} | Atama ${Number(evo.total?.assigned || 0)}`
+    ];
+    if (sirali.length) {
+        lines.push('', `📦 AKTİF PREMIER (${sirali.length}/${premierAktifler.length})`);
+        lines.push(...sirali.map(pozisyonSatiri));
+    }
+    if (transitions.length) {
+        lines.push('', '🔄 GERÇEK LİG HAREKETLERİ');
+        lines.push(...transitions.map(x => `${x.type === 'SHADOW_TO_PREMIER' ? '⬆️' : '⬇️'} ${x.labKey || 'LAB'} | ${x.previousLeague || '-'} → ${x.newLeague || '-'} | ${x.reason || '-'}`));
+    }
+    if (accounting.reconciled === false) lines.push(`⚠️ Premier mutabakat farkı ${Number(accounting.difference || 0)}`);
+    lines.push('', 'ℹ️ Ayrıntılı replay, DNA, BB/OHLC ve bilimsel tablolar yalnız log/state/ledger dosyalarında tutulur.');
+    return telegramGuvenliMetin(lines.join('\n'));
+}
+
 function canliRaporMetniOlustur() {
+    if (ayarlar.telegramMinimalOperasyonModu === true) return minimalCanliRaporMetniOlustur();
     const s = h.state.basariOzeti || {};
     const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
     const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
@@ -771,6 +819,10 @@ async function st2ExitEvolutionDetayiGonderGerekirse(oneCikar = false) {
 }
 
 async function detayRaporlariniCalistir(oneCikar = false) {
+    if (ayarlar.telegramMinimalOperasyonModu === true || ayarlar.telegramDetayRaporlariAktif === false) {
+        console.log('ℹ️ [MINIMAL TELEGRAM] Entry/Exit/DNA ayrıntı raporları Telegram yerine log/state/ledger içinde tutuluyor.');
+        return;
+    }
     if (detayRaporCalisiyor) {
         detayRaporTekrarIstegi = true;
         return;
@@ -810,9 +862,10 @@ async function raporGonder(oneCikar = false) {
         if (ayarlar.canliRaporAktif) await h.telegramCanliRaporGuncelle(mesaj, oneCikar);
         else if (oneCikar) await h.telegramMesajGonder(mesaj);
 
+        const detayIzinli = ayarlar.telegramMinimalOperasyonModu !== true && ayarlar.telegramDetayRaporlariAktif !== false;
         const detayAralikMs = Math.max(60000, Number(ayarlar.st2DetayRaporMinAralikMs || 900000));
         const startupGecikmeMs = Math.max(60000, Number(ayarlar.st2DetayRaporStartupGecikmeMs || 180000));
-        const startupHazir = process.uptime() * 1000 >= startupGecikmeMs;
+        const startupHazir = detayIzinli && process.uptime() * 1000 >= startupGecikmeMs;
         // Kritik kapanış/pusu mesajları için oneCikar ağır detay raporunu zorlamaz.
         // Detay yalnız warm-up sonrası ve kendi seyrek periyodunda çalışır.
         const detayZamani = startupHazir && (Date.now() - sonDetayRaporZamani >= detayAralikMs);
@@ -842,4 +895,4 @@ function raporTalepEt(oneCikar = false) {
     setImmediate(() => raporGonder(oneCikar).catch(err => console.error(`⚠️ [RAPOR TALEP HATASI] ${err.message}`)));
 }
 
-module.exports = { raporGonder, raporTalepEt, detayRaporlariniCalistir, canliRaporMetniOlustur, st2EntryEvolutionDetayiGonderGerekirse, st2ExitEvolutionDetayiGonderGerekirse, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse, st1FinalCertificationRaporuGonderGerekirse };
+module.exports = { raporGonder, raporTalepEt, detayRaporlariniCalistir, canliRaporMetniOlustur, minimalCanliRaporMetniOlustur, st2EntryEvolutionDetayiGonderGerekirse, st2ExitEvolutionDetayiGonderGerekirse, learningValidationRaporuGonderGerekirse, dnaLeagueRaporuGonderGerekirse, labChampionRaporuGonderGerekirse, labPremierRaporuGonderGerekirse, premierObservationRaporuGonderGerekirse, adaptiveTradingLeagueRaporuGonderGerekirse, exitEvolutionDashboardGonderGerekirse, exitVictoryVeDnaKartlariGonderGerekirse, realOrderPreparationRaporuGonderGerekirse, st1FinalCertificationRaporuGonderGerekirse };

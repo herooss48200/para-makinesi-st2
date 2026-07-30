@@ -1,0 +1,31 @@
+AGROS ST2 v6.8.3 — MINIMAL TELEGRAM OPERATIONS
+Baseline: v6.8.2 + a3d966a runtime export hotfix
+
+DEĞİŞEN KAYNAK DOSYALARI
+- 1_hafiza.js
+- 2_rapor.js
+- 4_pozisyon.js
+- 22_exit_replay_engine.js
+- 72_st2_renko_entry.js
+- ayarlar.js
+- versiyon.js
+- package.json
+- package-lock.json
+- test_v674_full_source_syntax.js
+- test_v683_minimal_telegram_operations.js
+
+BELGELER
+- CHANGELOG-v6.8.3.md
+- AWS-ST2-v6.8.3.md
+- PATCH-MANIFEST-v6.8.3.txt
+- TEST-RESULT-v6.8.3.txt
+- TEST-LOG-v6.8.3.txt
+
+PAKETE DAHİL DEĞİL
+- node_modules/
+- .git/
+- .env
+- data/
+- state/ledger dosyaları
+- logs/ ve logs-st2/
+- geçici klasörler

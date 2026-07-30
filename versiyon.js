@@ -3,8 +3,8 @@
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
-    kod: 'AGROS ST2 v6.8.2 — OPERATION LIFECYCLE & REPORT TRUTH',
-    botSurumu: '6.8.2-OPERATION-LIFECYCLE-REPORT-TRUTH',
+    kod: 'AGROS ST2 v6.8.3 — MINIMAL TELEGRAM OPERATIONS',
+    botSurumu: '6.8.3-MINIMAL-TELEGRAM-OPERATIONS',
     stratejiSurumu: '1.0.27',
     yayinTarihi: '30.07.2026',
     ortam: Object.freeze({ emirModu: 'SANAL' })

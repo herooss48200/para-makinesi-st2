@@ -1144,12 +1144,14 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     const telegramSonuclari = await h.telegramMesajGonder(operasyonMesaji);
     let bilimselTelegramSonuclari = [];
-    if (!restartGapIslemi && !manuelDisKapanis) {
+    if (!restartGapIslemi && !manuelDisKapanis && ayarlar.telegramMinimalOperasyonModu !== true) {
         const bilimselMesaj = blackbox.bilimselKapanisMetni(pos) +
             exitOptimizer.kapanisMetni(pos, kapanisAnalizPaketi) +
             exitReplay.kapanisMetni(exitReplayRecord) +
             exitMethodScoreboard.telegramLine(exitMethodSummary, { restartGap: false, currentOutcome: kaliteSonuc });
         bilimselTelegramSonuclari = await h.telegramMesajGonder(bilimselMesaj);
+    } else if (!restartGapIslemi && !manuelDisKapanis) {
+        console.log(`ℹ️ [MINIMAL TELEGRAM] ${pos.sym} ${pos.yon} bilimsel kapanış ayrıntısı log/state/ledger içinde tutuldu.`);
     }
 
     const telegramOk = Array.isArray(telegramSonuclari) && telegramSonuclari.some(x => x?.sonuc?.ok);
@@ -1159,7 +1161,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     // v2.5.1: Her N kapanışta bir ayrı BlackBox istatistik raporu gönder.
     // Canlı rapor içinde özet var; bu rapor ise Telegram'da kaçırılmayacak ayrı analiz mesajıdır.
     try {
-        if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && !restartGapIslemi && blackbox.istatistikRaporGerekli && blackbox.istatistikRaporGerekli()) {
+        if (ayarlar.telegramMinimalOperasyonModu !== true && ayarlar.entryStrategyMode !== 'ST2_RENKO' && !restartGapIslemi && blackbox.istatistikRaporGerekli && blackbox.istatistikRaporGerekli()) {
             await h.telegramMesajGonder(blackbox.telegramIstatistikRaporMetni());
             kaliciHafiza.kaydet('blackbox-istatistik-raporu-gonderildi');
         }
@@ -1169,7 +1171,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     // v3.6.5: Her ayarlanan kapanış sayısında DNA bazlı Exit Evolution skor tablosu gönder.
     try {
-        if (!restartGapIslemi && !manuelDisKapanis && exitReplay.periyodikRaporGerekli()) {
+        if (ayarlar.telegramMinimalOperasyonModu !== true && !restartGapIslemi && !manuelDisKapanis && exitReplay.periyodikRaporGerekli()) {
             const exitRaporSonuclari = await h.telegramMesajGonder(exitReplay.periyodikRaporMetni());
             const exitRaporOk = Array.isArray(exitRaporSonuclari) && exitRaporSonuclari.some(x => x?.sonuc?.ok);
             if (exitRaporOk) {

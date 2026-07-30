@@ -512,13 +512,17 @@ async function taraVeDegerlendir() {
                 const longlar = benzersiz.filter(x => x.yon === 'LONG');
                 const shortlar = benzersiz.filter(x => x.yon === 'SHORT');
                 const satir = x => `${x.sym} ${x.yon} | ${x.patternId || x.patternKodu || 'PATTERN'} | ${x.executionMode === 'PREMIER' ? '🏆' : x.executionMode === 'SHADOW' ? '👻' : '❓'} DNA ${x.dnaId || 'YOK'}`;
+                const maxSatir = ayarlar.telegramMinimalOperasyonModu === true
+                    ? Math.max(1, Number(ayarlar.telegramAcilisPusuMaxSatir || 6))
+                    : benzersiz.length;
+                const gosterilen = benzersiz.slice(0, maxSatir);
+                const kalan = Math.max(0, benzersiz.length - gosterilen.length);
                 const mesaj = [
                     `🔔 <b>ST2 AÇILIŞ PUSU ÖZETİ</b>`,
                     `📊 Mevcut ${benzersiz.length} | LONG ${longlar.length} | SHORT ${shortlar.length}`,
-                    ...(longlar.length ? ['', '📈 <b>LONG</b>', ...longlar.map(satir)] : []),
-                    ...(shortlar.length ? ['', '📉 <b>SHORT</b>', ...shortlar.map(satir)] : []),
-                    '',
-                    `ℹ️ Bu açılış özeti yalnız bir kez gönderilir. Bundan sonra yalnız yeni bulunan pusu bildirilir.`
+                    ...gosterilen.map(satir),
+                    ...(kalan ? [`… +${kalan} pusu loglarda`] : []),
+                    `ℹ️ Bundan sonra yalnız yeni bulunan pusu kısa mesajla bildirilir.`
                 ].join('\n');
                 const signature = crypto.createHash('sha1').update(benzersiz.map(x => `${x.sym}|${x.patternSignature}`).sort().join('||')).digest('hex');
                 const onceki = pusuStartupStampOku();

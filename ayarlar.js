@@ -425,6 +425,12 @@ const ayarlar = {
     // ========================================
     // TELEGRAM RAPORLAMA
     // ========================================
+    // v6.8.3: Telegram yalnız operasyon ekranıdır. Bilimsel ayrıntılar state/ledger/loglarda kalır.
+    telegramMinimalOperasyonModu: true,
+    telegramMesajMaxKarakter: 3400,
+    telegramDetayRaporlariAktif: false,
+    telegramCanliRaporMaxPozisyon: 5,
+    telegramAcilisPusuMaxSatir: 6,
     canliRaporAktif: true,
     canliRaporGuncellemeMs: 30000,
     // v6.4.1: Büyük Entry/DNA/Renko replay raporları en fazla 5 dakikada bir kontrol edilir.

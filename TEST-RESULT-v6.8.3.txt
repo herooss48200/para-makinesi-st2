@@ -1,0 +1,16 @@
+AGROS ST2 v6.8.3 — TEST RESULT
+
+PASS — 102 JavaScript dosyası syntax kontrolü
+PASS — v6.7.2 single-delivery Telegram + safe adaptive exit + report truth
+PASS — v6.8.2 persistent LAB lifecycle + true transitions + per-LAB N5
+PASS — v6.7.4 Telegram startup reliable delivery + truthful curl diagnostics
+PASS — v6.8.2 report reconciliation + duration truth
+PASS — v6.8.2 operation lifecycle + scientific separation + same-universe analytics
+PASS — v6.8.3 minimal Telegram operations + one-message hard limit + runtime export guard
+PASS — boş-state minimal canlı panel runtime üretimi: 430 karakter (< 3400)
+PASS — undefined telegramOzetMetni export hotfix korunuyor
+
+Test ortamı notu:
+- Kaynak paketi node_modules içermediği için izole test ortamında dotenv ve binance-api-node yalnız require yüklemesini sağlayan zararsız stublarla çalıştırıldı.
+- Ağ isteği veya gerçek emir çağrısı yapılmadı.
+- Yerel ST2 ve AWS üzerinde kurulu gerçek bağımlılıklarla `npm test` yeniden çalıştırılmalıdır.

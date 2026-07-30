@@ -369,6 +369,45 @@ function telegramHtmlTemizle(mesaj) {
     return String(mesaj || '').replace(/<\/?b>/g, '').replace(/<\/?i>/g, '').replace(/<[^>]*>/g, '')
         .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
+
+function telegramMinimalModuAktif() {
+    return ayarlar.telegramMinimalOperasyonModu === true;
+}
+
+function telegramTekMesajLimiti() {
+    return Math.max(1200, Math.min(3500, Number(ayarlar.telegramMesajMaxKarakter || 3400)));
+}
+
+function telegramMetniTekMesajaIndir(mesaj, limit = telegramTekMesajLimiti()) {
+    const temiz = telegramHtmlTemizle(mesaj)
+        .replace(/\r/g, '')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    if (temiz.length <= limit) return temiz;
+
+    const dipnot = '\n\nℹ️ Ayrıntılı bilimsel kayıt loglarda tutuluyor.';
+    const hedef = Math.max(200, limit - dipnot.length);
+    const satirlar = temiz.split('\n');
+    const secilen = [];
+    let toplam = 0;
+    for (const satir of satirlar) {
+        const aday = toplam + (secilen.length ? 1 : 0) + satir.length;
+        if (aday > hedef) break;
+        secilen.push(satir);
+        toplam = aday;
+    }
+    if (!secilen.length) secilen.push(temiz.slice(0, hedef));
+    return (secilen.join('\n').trimEnd() + dipnot).slice(0, limit);
+}
+
+function telegramGonderimHazirla(mesaj) {
+    if (telegramMinimalModuAktif()) {
+        return { text: telegramMetniTekMesajaIndir(mesaj), parseMode: null };
+    }
+    return { text: String(mesaj || ''), parseMode: 'HTML' };
+}
+
 async function telegramMesajGonder(mesaj, options = {}) {
     if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
         console.log('⚠️ Telegram bilgileri eksik, mesaj gönderilmedi.');
@@ -376,16 +415,18 @@ async function telegramMesajGonder(mesaj, options = {}) {
     }
     const priority = telegramOncelik(options);
     const sonuclar = [];
-    const parcalar = telegramMetniParcala(mesaj);
+    const hazir = telegramGonderimHazirla(mesaj);
+    const parcalar = telegramMinimalModuAktif() ? [hazir.text] : telegramMetniParcala(hazir.text);
     for (const chat_id of TELEGRAM_CHAT_IDS) {
         for (let idx = 0; idx < parcalar.length; idx++) {
             const parcaBaslik = parcalar.length > 1 ? `(${idx + 1}/${parcalar.length})\n` : '';
             const text = parcaBaslik + parcalar[idx];
             try {
-                let sonuc = await yerelTelegramIstegiAt('sendMessage', {
-                    chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true
-                }, { ...options, priority, coalesceKey: options.coalesceKey ? `${options.coalesceKey}:${chat_id}:${idx}` : undefined });
-                if (!sonuc?.ok && !sonuc?.coalesced && !sonuc?.dropped && options.atMostOnce !== true) {
+                const payload = { chat_id, text, disable_web_page_preview: true };
+                if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
+                let sonuc = await yerelTelegramIstegiAt('sendMessage', payload,
+                    { ...options, priority, coalesceKey: options.coalesceKey ? `${options.coalesceKey}:${chat_id}:${idx}` : undefined });
+                if (!telegramMinimalModuAktif() && !sonuc?.ok && !sonuc?.coalesced && !sonuc?.dropped && options.atMostOnce !== true) {
                     const aciklama = sonuc?.description || sonuc?.raw || 'bilinmeyen hata';
                     if (!/TIMEOUT/i.test(String(aciklama))) {
                         sonuc = await yerelTelegramIstegiAt('sendMessage', {
@@ -430,9 +471,11 @@ async function telegramMesajGonderKritikTeslim(mesaj, options = {}) {
 }
 async function telegramMesajDuzenle(chat_id, message_id, mesaj, options = {}) {
     try {
-        return await yerelTelegramIstegiAt('editMessageText', {
-            chat_id, message_id, text: mesaj, parse_mode: 'HTML', disable_web_page_preview: true
-        }, { ...options, priority: options.priority || 'panel', coalesceKey: options.coalesceKey || `panel-edit:${chat_id}` });
+        const hazir = telegramGonderimHazirla(mesaj);
+        const payload = { chat_id, message_id, text: hazir.text, disable_web_page_preview: true };
+        if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
+        return await yerelTelegramIstegiAt('editMessageText', payload,
+            { ...options, priority: options.priority || 'panel', coalesceKey: options.coalesceKey || `panel-edit:${chat_id}` });
     } catch (err) {
         return { ok: false, description: err.message };
     }
@@ -444,6 +487,8 @@ async function telegramMesajSil(chat_id, message_id, options = {}) {
 async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
     if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) return;
     const now = Date.now();
+    const hazir = telegramGonderimHazirla(mesaj);
+    const guvenliMesaj = hazir.text;
     const yenidenGondermeMs = ayarlar.canliRaporYenidenGondermeMs || 0;
     for (const chat_id of TELEGRAM_CHAT_IDS) {
         const kayitliMesajId = state.canliRaporMesajlari[chat_id];
@@ -451,16 +496,17 @@ async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
         const sureDoldu = yenidenGondermeMs > 0 && now - sonGonderim >= yenidenGondermeMs;
         const yeniMesajGonder = oneCikar || !kayitliMesajId || sureDoldu;
         if (!yeniMesajGonder && kayitliMesajId) {
-            if (state.sonCanliRaporMetni === mesaj) continue;
-            const duzenleme = await telegramMesajDuzenle(chat_id, kayitliMesajId, mesaj, { priority: 'panel', coalesceKey: `live-panel:${chat_id}` });
+            if (state.sonCanliRaporMetni === guvenliMesaj) continue;
+            const duzenleme = await telegramMesajDuzenle(chat_id, kayitliMesajId, guvenliMesaj, { priority: 'panel', coalesceKey: `live-panel:${chat_id}` });
             if (duzenleme?.ok || duzenleme?.coalesced) continue;
         }
-        let gonderim = await yerelTelegramIstegiAt('sendMessage', {
-            chat_id, text: mesaj, parse_mode: 'HTML', disable_web_page_preview: true
-        }, { priority: 'panel', retryCount: 0, coalesceKey: `live-panel:${chat_id}` });
-        if (!gonderim?.ok && !gonderim?.coalesced && !gonderim?.dropped) {
+        const payload = { chat_id, text: guvenliMesaj, disable_web_page_preview: true };
+        if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
+        let gonderim = await yerelTelegramIstegiAt('sendMessage', payload,
+            { priority: 'panel', retryCount: 0, coalesceKey: `live-panel:${chat_id}` });
+        if (!telegramMinimalModuAktif() && !gonderim?.ok && !gonderim?.coalesced && !gonderim?.dropped) {
             gonderim = await yerelTelegramIstegiAt('sendMessage', {
-                chat_id, text: telegramHtmlTemizle(mesaj), disable_web_page_preview: true
+                chat_id, text: telegramHtmlTemizle(guvenliMesaj), disable_web_page_preview: true
             }, { priority: 'panel', retryCount: 0, coalesceKey: `live-panel-plain:${chat_id}` });
         }
         if (gonderim?.ok && gonderim.result?.message_id) {
@@ -472,7 +518,7 @@ async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
             }
         }
     }
-    state.sonCanliRaporMetni = mesaj;
+    state.sonCanliRaporMetni = guvenliMesaj;
 }
 
 module.exports = {
@@ -485,5 +531,8 @@ module.exports = {
     telegramMesajDuzenle,
     telegramMesajSil,
     telegramCanliRaporGuncelle,
-    telegramKuyrukOzeti
+    telegramKuyrukOzeti,
+    telegramMinimalModuAktif,
+    telegramTekMesajLimiti,
+    telegramMetniTekMesajaIndir
 };
