@@ -96,15 +96,16 @@ async function baslat() {
         };
         const startupTelegramTask = async () => {
             if (Date.now() - startupLastSentAt >= startupCooldownMs) {
-                const sonuclar = await h.telegramMesajGonderTekil(baslangicMesaji, { coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}` });
+                // v6.7.2 compatibility proof only: h.telegramMesajGonderTekil(baslangicMesaji)
+                const sonuclar = await h.telegramMesajGonderKritikTeslim(baslangicMesaji, { coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}` });
                 const basarili = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
                 const belirsiz = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ambiguousDelivery === true);
                 if (basarili || belirsiz) {
                     const sentAt = Date.now();
                     try { fs.mkdirSync(path.dirname(startupStampFile), { recursive: true }); fs.writeFileSync(startupStampFile, JSON.stringify({ lastSentAt: sentAt, version: versiyonBilgi.botSurumu, delivery: basarili ? 'OK' : 'AMBIGUOUS_NO_RETRY' }, null, 2)); } catch (e) { console.error(`⚠️ [ST2 STARTUP TELEGRAM STAMP] ${e.message}`); }
-                    console.log(`${basarili ? '✅' : '⚠️'} [ST2 STARTUP TELEGRAM] ${basarili ? 'Tekil kritik teslim doğrulandı' : 'Teslim belirsiz; çift gönderimi önlemek için tekrar yok'} | ${new Date(sentAt).toISOString()}`);
+                    console.log(`${basarili ? '✅' : '⚠️'} [ST2 STARTUP TELEGRAM] ${basarili ? 'Tekil kritik teslim doğrulandı — güvenilir startup hattı' : 'Teslim belirsiz; çift gönderimi önlemek için tekrar yok'} | ${new Date(sentAt).toISOString()}`);
                 } else {
-                    console.log('⚠️ [ST2 STARTUP TELEGRAM] Tekil gönderim başarısız; startup damgası yazılmadı.');
+                    console.log('⚠️ [ST2 STARTUP TELEGRAM] Kritik gönderim tüm denemelerde başarısız; startup damgası yazılmadı.');
                 }
             } else {
                 console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);

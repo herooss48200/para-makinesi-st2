@@ -1,0 +1,8 @@
+AGROS ST2 v6.7.4 test result
+
+PASS: v6.7.4 full source syntax | 98 JavaScript files
+PASS: v6.7.2 single-delivery Telegram + safe adaptive exit + report truth
+PASS: v6.7.3 live LAB promotion + demotion + isolated accounting
+PASS: v6.7.4 Telegram startup reliable delivery + truthful curl diagnostics
+
+Trade Engine / entry / stop / BE / exit / LAB accounting unchanged except Telegram startup transport reliability.

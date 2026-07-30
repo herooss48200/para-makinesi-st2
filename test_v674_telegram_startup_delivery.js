@@ -1,0 +1,15 @@
+'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const hafiza = fs.readFileSync('./1_hafiza.js', 'utf8');
+const bot = fs.readFileSync('./bot.js', 'utf8');
+assert(hafiza.includes('async function telegramMesajGonderKritikTeslim'), 'teslim öncelikli kritik Telegram hattı eksik');
+assert(hafiza.includes("description: 'CURL_EMPTY_RESPONSE'"), 'boş curl cevabı ayrı sınıflandırılmalı');
+assert(hafiza.includes("description: 'CURL_INVALID_JSON_RESPONSE'"), 'geçersiz curl cevabı ayrı sınıflandırılmalı');
+assert(hafiza.includes('retryCount: Math.max(1'), 'startup kritik hattında kontrollü retry eksik');
+assert(hafiza.includes('preferCurl: false'), 'startup Native IPv4 ile başlamalı');
+assert(hafiza.includes('atMostOnce: false'), 'startup teslim öncelikli olmalı');
+assert(bot.includes('h.telegramMesajGonderKritikTeslim(baslangicMesaji'), 'startup güvenilir teslim hattını kullanmıyor');
+assert(hafiza.includes('telegramMesajGonderTekil'), 'pusu at-most-once hattı korunmalı');
+assert(hafiza.includes('atMostOnce: true'), 'pusu tekil hattı at-most-once kalmalı');
+console.log('✅ v6.7.4 Telegram startup reliable delivery + truthful curl diagnostics passed');

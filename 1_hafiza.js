@@ -71,8 +71,8 @@ const TELEGRAM_CHAT_IDS = (process.env.AGROS_ST2_TELEGRAM_CHAT_ID || '').split('
 const TELEGRAM_TOKEN = process.env.AGROS_ST2_TELEGRAM_TOKEN;
 const { execFile } = require('child_process');
 
-const TELEGRAM_TIMEOUT_MS = Math.max(5000, Number(process.env.AGROS_ST2_TELEGRAM_TIMEOUT_MS || 10000));
-const TELEGRAM_RETRY_COUNT = Math.max(0, Math.min(2, Number(process.env.AGROS_ST2_TELEGRAM_RETRY_COUNT || 1)));
+const TELEGRAM_TIMEOUT_MS = Math.max(8000, Number(process.env.AGROS_ST2_TELEGRAM_TIMEOUT_MS || 15000));
+const TELEGRAM_RETRY_COUNT = Math.max(0, Math.min(3, Number(process.env.AGROS_ST2_TELEGRAM_RETRY_COUNT || 2)));
 const TELEGRAM_MIN_INTERVAL_MS = Math.max(80, Number(process.env.AGROS_ST2_TELEGRAM_MIN_INTERVAL_MS || 180));
 const telegramHttpsAgent = new https.Agent({ keepAlive: true, family: 4, maxSockets: 4, maxFreeSockets: 2 });
 const telegramIsKuyruklari = { critical: [], panel: [], detail: [] };
@@ -246,12 +246,17 @@ function telegramCurlIstegiAt(apiPath, veri, options = {}) {
                 });
                 return;
             }
+            const raw = String(stdout || '').trim();
+            if (!raw) {
+                resolve({ ok: false, description: 'CURL_EMPTY_RESPONSE', raw: String(stderr || ''), transient: true, transport: 'CURL_IPV4' });
+                return;
+            }
             try {
-                const parsed = JSON.parse(String(stdout || ''));
+                const parsed = JSON.parse(raw);
                 parsed.transport = 'CURL_IPV4';
                 resolve(parsed);
             } catch (_) {
-                resolve({ ok: false, description: 'CURL_JSON_PARSE', raw: String(stdout || stderr || ''), transient: true, transport: 'CURL_IPV4' });
+                resolve({ ok: false, description: 'CURL_INVALID_JSON_RESPONSE', raw: raw.slice(0, 500), transient: true, transport: 'CURL_IPV4' });
             }
         });
     });
@@ -402,11 +407,25 @@ async function telegramMesajGonderHizli(mesaj) {
 async function telegramMesajGonderTekil(mesaj, options = {}) {
     return telegramMesajGonder(mesaj, {
         ...options,
-        timeoutMs: Math.max(5000, Number(options.timeoutMs || 8000)),
+        timeoutMs: Math.max(8000, Number(options.timeoutMs || 12000)),
         retryCount: 0,
         priority: 'critical',
         preferCurl: true,
         atMostOnce: true
+    });
+}
+
+// Açılış gibi mutlaka görünmesi gereken kritik bildirimler için teslim-öncelikli hat.
+// Tekil pusu hattı at-most-once kalır; startup ise Native IPv4 -> curl IPv4 fallback
+// ve kontrollü retry kullanır. Böylece geçici Telegram/AWS ağ kesintisinde mesaj kaybolmaz.
+async function telegramMesajGonderKritikTeslim(mesaj, options = {}) {
+    return telegramMesajGonder(mesaj, {
+        ...options,
+        timeoutMs: Math.max(12000, Number(options.timeoutMs || 18000)),
+        retryCount: Math.max(1, Math.min(3, Number(options.retryCount ?? TELEGRAM_RETRY_COUNT))),
+        priority: 'critical',
+        preferCurl: false,
+        atMostOnce: false
     });
 }
 async function telegramMesajDuzenle(chat_id, message_id, mesaj, options = {}) {
@@ -462,6 +481,7 @@ module.exports = {
     telegramMesajGonder,
     telegramMesajGonderHizli,
     telegramMesajGonderTekil,
+    telegramMesajGonderKritikTeslim,
     telegramMesajDuzenle,
     telegramMesajSil,
     telegramCanliRaporGuncelle,

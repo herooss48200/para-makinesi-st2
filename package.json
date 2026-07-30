@@ -1,14 +1,16 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.7.3-live-lab-promotion-demotion",
+  "version": "6.7.4-telegram-startup-reliable-delivery",
   "description": "AGROS ST2 v6.7.3: live LAB N5 promotion to Premier, symmetric live N5 demotion to Shadow, exact-context demotion precedence, isolated post-promotion accounting, and truthful league reporting.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:v673:syntax && npm run test:v672 && npm run test:v673",
+    "check": "npm run test:v674:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674",
     "test": "npm run check",
+    "test:v674:syntax": "node test_v674_full_source_syntax.js",
     "test:v673:syntax": "node test_v673_full_source_syntax.js",
     "test:v673": "node test_v673_live_lab_league.js",
+    "test:v674": "node test_v674_telegram_startup_delivery.js",
     "migrate:exit-replay": "node 24_exit_replay_migration.js",
     "build:exit-runtime": "node --max-old-space-size=768 58_dynamic_exit_runtime_index.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js"
