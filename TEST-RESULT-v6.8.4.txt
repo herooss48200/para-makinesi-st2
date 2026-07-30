@@ -1,0 +1,9 @@
+PASS — npm test
+PASS — 103 JavaScript syntax
+PASS — v6.7.2 single delivery / safe exit
+PASS — v6.7.3 LAB lifecycle
+PASS — v6.7.4 startup delivery
+PASS — v6.8.1 report reconciliation
+PASS — v6.8.2 operation transparency
+PASS — v6.8.3 one-message hard limit
+PASS — v6.8.4 entry/exit/replay operation proof

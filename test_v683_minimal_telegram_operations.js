@@ -12,12 +12,14 @@ const pusuSource = read('72_st2_renko_entry.js');
 const ayarlarSource = read('ayarlar.js');
 const exitReplaySource = read('22_exit_replay_engine.js');
 const versionSource = read('versiyon.js');
+const botSource = read('bot.js');
 
 assert(ayarlarSource.includes('telegramMinimalOperasyonModu: true'), 'minimal Telegram modu varsayılan aktif olmalı');
 assert(ayarlarSource.includes('telegramMesajMaxKarakter: 3400'), 'tek mesaj güvenli limiti 3400 olmalı');
 assert(ayarlarSource.includes('telegramDetayRaporlariAktif: false'), 'ağır Telegram detay raporları kapalı olmalı');
 assert(ayarlarSource.includes('telegramCanliRaporMaxPozisyon: 5'), 'canlı panel pozisyon satırı sınırlı olmalı');
 assert(ayarlarSource.includes('telegramAcilisPusuMaxSatir: 6'), 'açılış pusu özeti sınırlı olmalı');
+assert(ayarlarSource.includes('telegramIslemAcilisMesaji: true'), 'işlem açılış kanıt mesajı açık olmalı');
 
 assert(hafizaSource.includes('function telegramMetniTekMesajaIndir'), 'merkezi tek-mesaj kısaltıcı eksik');
 assert(hafizaSource.includes('telegramMinimalModuAktif() ? [hazir.text]'), 'minimal mod birden fazla Telegram parçası üretmemeli');
@@ -34,7 +36,13 @@ assert(pozisyonSource.includes('bilimsel kapanış ayrıntısı log/state/ledger
 assert(pusuSource.includes('telegramAcilisPusuMaxSatir'), 'açılış pusu Telegram özeti sınırlanmıyor');
 
 assert(!exitReplaySource.includes('kapanisMetni,telegramOzetMetni,periyodikRaporGerekli'), 'tanımsız telegramOzetMetni export hotfixi korunmamış');
-assert(versionSource.includes('6.8.3-MINIMAL-TELEGRAM-OPERATIONS'), 'v6.8.3 sürüm etiketi eksik');
+assert(versionSource.includes('6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF'), 'v6.8.4 sürüm etiketi eksik');
+
+const earlyStartupIndex = botSource.indexOf('[ST2 EARLY STARTUP TELEGRAM]');
+const heavyHistoryIndex = botSource.indexOf('await revizyon.derinGecmisiInsaEt()');
+assert(earlyStartupIndex >= 0, 'erken startup Telegram görünürlüğü eksik');
+assert(heavyHistoryIndex >= 0 && earlyStartupIndex < heavyHistoryIndex, 'startup Telegram ağır tarihsel hazırlığın arkasında kalmamalı');
+assert(botSource.includes("coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}`"), 'erken ve normal startup aynı dedupe anahtarını kullanmalı');
 
 // Runtime guard: merkezi kısaltıcı gerçekten tek, düz ve güvenli boyutta mesaj üretmeli.
 const originalLoad = Module._load;

@@ -729,7 +729,7 @@ const ayarlar = {
     renkoSuperLigMinPf: 1.30,
     renkoSuperLigMinMfeCapture: 25,
     renkoSuperLigMinUstunlukYuzde: 10,
-    telegramIslemAcilisMesaji: false,
+    telegramIslemAcilisMesaji: true,
     telegramPusuMesaji: false,
     telegramRenkoDevralmaMesaji: true,
     manuelKapanisYenidenGirisKilidiMs: 3600000,

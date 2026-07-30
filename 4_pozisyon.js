@@ -1137,7 +1137,8 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         grossPnl: brutKarZarar,
         commission: toplamKomisyon,
         netPnl: netKarZarar,
-        shadowOnly: leagueShadowOnly
+        shadowOnly: leagueShadowOnly,
+        replayValidation: exitReplayRecord?.shadowExitValidation || null
     }) +
     (restartGapIslemi ? restartGap.telegramMetni(pos) : '') +
     (manuelDisKapanis ? `\n\n⚠️ <b>MANUEL/DIŞ KAPANIŞ</b>\nBilimsel öğrenme ve metot çetelesi bu kapanış için güncellenmedi.` : '');

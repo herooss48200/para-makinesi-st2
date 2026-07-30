@@ -6,7 +6,7 @@
  */
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v6.8.2-OPERATION-TRANSPARENCY';
+const VERSION = 'v6.8.4-OPERATION-PROOF-TELEGRAM';
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function html(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function signed(v, digits = 4) { const x = n(v); return `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`; }
@@ -33,6 +33,36 @@ function contextLines(pos) {
   const bb = snap?.coin?.bollinger?.bolge || pos?.girisAnalizi?.renkoBbState || 'YOK';
   return { btc, coin, total, bb };
 }
+function compactEvidenceValue(v, digits = 4) {
+  const x = Number(v);
+  return Number.isFinite(x) ? `${x >= 0 ? '+' : ''}${x.toFixed(digits)}` : 'YOK';
+}
+function entryEvidence(pos) {
+  const d = pos?.renkoPremierDecision || pos?.girisAnalizi?.historicalEntryGate?.decision || {};
+  const e = pos?.girisAnalizi?.historicalEntryGate?.evidence || {};
+  const h = d?.historical || e?.historical || {};
+  const live = d?.live || e?.live || {};
+  const samples = n(d.closed, n(d.historicalN, n(e.n, n(h.n, n(live.n, 0)))));
+  return {
+    samples,
+    pf: n(d.pf, n(e.pf, n(h.pf, n(live.pf, NaN)))),
+    expectancy: n(d.expectancy, n(e.expectancy, n(h.expectancy, n(live.expectancy, NaN)))),
+    net: n(d.net, n(e.net, n(h.net, n(live.net, NaN)))),
+    reason: d.reason || d.decision?.reason || e.reason || 'KANIT DETAYI YOK'
+  };
+}
+function exitEvidence(pos) {
+  const e = pos?.executionExitAssignment || {};
+  return {
+    ready: e.ready === true || e.activeForPosition === true,
+    label: e.label || e.selectedAlgorithmLabel || 'Mevcut Kademe Sistemi',
+    samples: n(e.samples),
+    beatRate: n(e.beatRate, NaN),
+    profitFactor: n(e.profitFactor, NaN),
+    netUsdt: n(e.netUsdt, NaN),
+    reason: e.reason || 'GÜVENLİ KADEME FALLBACK'
+  };
+}
 function plan(pos) {
   const a = pos?.renkoExitAssignment || {};
   const risk = pos?.labLifecycleProfile || {};
@@ -54,6 +84,8 @@ function openingText(pos, options = {}) {
   const ga = pos?.girisAnalizi || {};
   const p = plan(pos);
   const ctx = contextLines(pos);
+  const entryProof = entryEvidence(pos);
+  const exitProof = exitEvidence(pos);
   const brick = n(pos?.renkoPremierDecision?.activeBrick, n(ga.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)));
   const defaultBrick = n(ayarlar.renkoGirisVarsayilanTugla, 0.75);
   const learned = Math.abs(brick - defaultBrick) > 1e-9;
@@ -71,6 +103,8 @@ function openingText(pos, options = {}) {
     `🚪 <b>GİRİŞ KARARI</b>\n` +
     `Giriş seviyesi: <b>${brick.toFixed(2)} tuğla</b> | ${learned ? 'Entry Evolution öğrenilmiş atama' : 'Varsayılan/güvenli giriş'}\n` +
     `Seçim kaynağı: ${html(entrySource(pos))}\n` +
+    `Giriş kanıtı: N${entryProof.samples} | PF ${Number.isFinite(entryProof.pf) ? entryProof.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entryProof.expectancy)} | Net ${compactEvidenceValue(entryProof.net)}\n` +
+    `Karar gerekçesi: ${html(entryProof.reason)}\n` +
     `Referans: ${price(ga.referansSeviye, digits)} | Tetik: ${price(ga.tetikFiyati, digits)} | Gerçek giriş: ${price(pos?.girisFiyati, digits)}\n\n` +
     `🌍 <b>AÇILIŞ BAĞLAMI</b>\n` +
     `BTC uyumu: ${html(ctx.btc)} | Coin uyumu: ${html(ctx.coin)} | Toplam: ${html(ctx.total)}\n` +
@@ -81,7 +115,9 @@ function openingText(pos, options = {}) {
     `Başlangıç aşaması: <b>K0</b> | BE planı: +%${p.beTriggerPct.toFixed(2)} → +%${p.beBufferPct.toFixed(2)} koruma\n` +
     `Takeover: ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | Güvenli taban: ${Number.isFinite(p.safeFloorPct) ? `+%${p.safeFloorPct.toFixed(2)}` : 'YOK'}\n` +
     `ATR takip: ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}× ATR` : 'YOK'} | MFE yakalama hedefi: ${capture}\n` +
-    `Exit planı: ${html(exitLabel)} | Profil kaynağı: ${html(p.source)}${p.profileSamples ? ` N${p.profileSamples}` : ''}\n\n` +
+    `Exit planı: ${html(exitLabel)} | Profil kaynağı: ${html(p.source)}${p.profileSamples ? ` N${p.profileSamples}` : ''}\n` +
+    `Exit replay kanıtı: ${exitProof.ready ? 'AKTİF ATAMA' : 'FALLBACK'} | N${exitProof.samples} | Beat ${Number.isFinite(exitProof.beatRate) ? `%${exitProof.beatRate.toFixed(1)}` : 'YOK'} | PF ${Number.isFinite(exitProof.profitFactor) ? exitProof.profitFactor.toFixed(2) : 'YOK'} | Net ${compactEvidenceValue(exitProof.netUsdt)}\n` +
+    `Exit gerekçesi: ${html(exitProof.reason)}\n\n` +
     `🔒 <b>SABİTLENENLER</b>: Giriş seçimi, başlangıç risk profili, takeover/ATR/MFE parametreleri bu pozisyon kapanana kadar değişmez.\n` +
     `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: MFE zirvesi, ATR/MFE koruma seviyesi ve gerçek kapanış fiyatı piyasa yoluyla güncellenir.`;
 }
@@ -110,6 +146,9 @@ function timelineSummary(pos, digits = 6) {
 function closingText(pos, ctx = {}) {
   const digits = Number.isInteger(ctx.pricePrecision) ? ctx.pricePrecision : 6;
   const p = plan(pos); const tl = timelineSummary(pos, digits);
+  const entryProof = entryEvidence(pos);
+  const exitProof = exitEvidence(pos);
+  const replay = ctx.replayValidation || null;
   const mfe = n(pos?.journey?.mfeYuzde, n(ctx.mfePct, 0));
   const mae = n(pos?.journey?.maeYuzde, n(ctx.maePct, 0));
   const move = n(ctx.fiyatKarYuzdesi);
@@ -126,10 +165,12 @@ function closingText(pos, ctx = {}) {
     `Açılış: ${html(ctx.openedAtText || 'YOK')} | Kapanış: ${html(ctx.closedAtText || 'YOK')} | Süre: ${html(ctx.durationText || 'YOK')}\n` +
     `Giriş: ${price(pos?.girisFiyati, digits)} | Çıkış: ${price(ctx.exitPrice, digits)}\n\n` +
     `🚪 <b>GİRİŞ KARARI</b>\n` +
-    `Seçilen giriş: ${n(pos?.girisAnalizi?.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)).toFixed(2)} tuğla | Kaynak: ${html(entrySource(pos))}\n\n` +
+    `Seçilen giriş: ${n(pos?.girisAnalizi?.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)).toFixed(2)} tuğla | Kaynak: ${html(entrySource(pos))}\n` +
+    `Açılış giriş kanıtı: N${entryProof.samples} | PF ${Number.isFinite(entryProof.pf) ? entryProof.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entryProof.expectancy)}\n\n` +
     `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\n` +
     `Başlangıç stopu: -%${p.stopPct.toFixed(2)} | Takeover: ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | Güvenli taban: ${Number.isFinite(p.safeFloorPct) ? `+%${p.safeFloorPct.toFixed(2)}` : 'YOK'}\n` +
-    `ATR: ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE hedefi: ${Number.isFinite(p.captureRatio) ? `%${(p.captureRatio * 100).toFixed(0)}` : 'YOK'}\n\n` +
+    `ATR: ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE hedefi: ${Number.isFinite(p.captureRatio) ? `%${(p.captureRatio * 100).toFixed(0)}` : 'YOK'}\n` +
+    `Atanan exit: ${html(exitProof.label)} | ${exitProof.ready ? 'AKTİF' : 'FALLBACK'} | N${exitProof.samples} | Beat ${Number.isFinite(exitProof.beatRate) ? `%${exitProof.beatRate.toFixed(1)}` : 'YOK'} | PF ${Number.isFinite(exitProof.profitFactor) ? exitProof.profitFactor.toFixed(2) : 'YOK'}\n\n` +
     `🔄 <b>GERÇEKLEŞEN YÖNETİM — SON AŞAMA ${html(stage)}</b>\n` +
     tl.lines.map(x => `• ${x}`).join('\n') + `\n` +
     `Takeover: <b>${takeover ? 'EVET' : 'HAYIR'}</b> | BE/BE+: ${pos?.breakevenAktif === true ? 'EVET' : 'HAYIR'} | Stop güncelleme: ${tl.stops.length}\n` +
@@ -137,8 +178,9 @@ function closingText(pos, ctx = {}) {
     `📈 <b>FİYAT YOLU VE KORUMA</b>\n` +
     `MFE: ${pct(mfe, 3)} | MAE: ${pct(mae, 3)} | Yakalanan hareket: ${pct(move, 3)}\n` +
     `MFE Capture: %${capture.toFixed(1)} | Geri verilen kâr: %${giveback.toFixed(1)}\n\n` +
+    (replay ? `🧪 <b>REPLAY KANITI</b>\nSeçilen: ${html(replay.selectedAlgorithmLabel || exitProof.label)} | Gerçek kademe ${compactEvidenceValue(replay.actualNetUsdt)} USDT | Replay ${compactEvidenceValue(replay.selectedNetUsdt)} USDT\nFark: ${compactEvidenceValue(replay.deltaVsActualUsdt)} USDT | ${replay.selectedWouldWin ? 'REPLAY ÜSTÜN' : 'GERÇEK KADEME ÜSTÜN/EŞİT'}\n\n` : `🧪 <b>REPLAY KANITI</b>\nBu kapanış için karşılaştırma üretilemedi veya fallback kullanıldı.\n\n`) +
     `🏁 <b>KAPANIŞ</b>\n` +
     `Sonuç: <b>${html(resultLabel(ctx.outcome))}</b> | Ana neden: ${html(ctx.reason || 'YOK')}\n` +
     `Brüt PNL: ${signed(ctx.grossPnl)} USDT | Komisyon: -${Math.abs(n(ctx.commission)).toFixed(4)} USDT | Net PNL: <b>${signed(ctx.netPnl)} USDT</b>${ctx.shadowOnly ? ' | 👻 Üst kasa dışı' : ''}`;
 }
-module.exports = { VERSION, n, plan, entrySource, openingText, timelineSummary, closingText };
+module.exports = { VERSION, n, plan, entrySource, entryEvidence, exitEvidence, openingText, timelineSummary, closingText };

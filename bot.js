@@ -31,6 +31,54 @@ async function baslat() {
         await piyasa.acikPozisyonlariBorsadanDevral();
         accountingContinuity.initializeMigration();
         kaliciHafiza.kaydet('accounting-continuity-migration');
+
+        // v6.8.3-HOTFIX1: Kritik başlangıç görünürlüğü ağır tarihsel hazırlığın arkasında beklemez.
+        // Mesaj başarılı/belirsiz teslimde aynı startup damgasını yazar; normal startup görevi
+        // daha sonra bu damgayı görüp ikinci mesajı bastırır.
+        {
+            const fsEarly = require('fs');
+            const pathEarly = require('path');
+            const dataDirEarly = process.env.AGROS_DATA_DIR
+                ? pathEarly.resolve(process.env.AGROS_DATA_DIR)
+                : pathEarly.join(__dirname, 'data');
+            const stampFileEarly = pathEarly.join(dataDirEarly, 'st2-startup-telegram.json');
+            let lastSentEarly = 0;
+            try { lastSentEarly = Number(JSON.parse(fsEarly.readFileSync(stampFileEarly, 'utf8'))?.lastSentAt || 0); } catch (_) {}
+            const cooldownEarly = 10 * 60 * 1000;
+            if (Date.now() - lastSentEarly >= cooldownEarly) {
+                const earlyMessage = [
+                    '🚀 AGROS ST2 BAŞLATILIYOR',
+                    `🧩 Sürüm: ${versiyonBilgi.botSurumu}`,
+                    `📡 İzlenen sembol: ${h.state.semboller.length}`,
+                    `💼 Korunan sanal pozisyon: ${h.state.aktifPozisyonlar.length}`,
+                    '⏳ Tarihsel veri ve Renko hazırlığı sürüyor; işlem defteri korunuyor.'
+                ].join('\n');
+                setImmediate(async () => {
+                    try {
+                        const sonuclar = await h.telegramMesajGonderKritikTeslim(earlyMessage, {
+                            coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}`
+                        });
+                        const basarili = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
+                        const belirsiz = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ambiguousDelivery === true);
+                        if (basarili || belirsiz) {
+                            const sentAt = Date.now();
+                            fsEarly.mkdirSync(pathEarly.dirname(stampFileEarly), { recursive: true });
+                            fsEarly.writeFileSync(stampFileEarly, JSON.stringify({
+                                lastSentAt: sentAt,
+                                version: versiyonBilgi.botSurumu,
+                                delivery: basarili ? 'EARLY_OK' : 'EARLY_AMBIGUOUS_NO_RETRY'
+                            }, null, 2));
+                            console.log(`${basarili ? '✅' : '⚠️'} [ST2 EARLY STARTUP TELEGRAM] ${basarili ? 'Teslim doğrulandı' : 'Teslim belirsiz; tekrar yok'} | ${new Date(sentAt).toISOString()}`);
+                        } else {
+                            console.log('⚠️ [ST2 EARLY STARTUP TELEGRAM] Teslim doğrulanmadı; normal startup görevi daha sonra yeniden deneyecek.');
+                        }
+                    } catch (err) {
+                        console.error(`⚠️ [ST2 EARLY STARTUP TELEGRAM HATASI] ${err.message}`);
+                    }
+                });
+            }
+        }
+
         await revizyon.derinGecmisiInsaEt();
 
         const historicalRuntimeStatus = globalHistoricalRuntime.activate();
