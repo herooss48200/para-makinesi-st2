@@ -261,165 +261,94 @@ function confidenceLabel(profile) {
   if (profile.samples < 30) return `ORTA (${profile.samples})`;
   return `GÜÇLÜ (${profile.samples})`;
 }
+function exitProfileAuthority(profile, best) {
+  if (!profile || !best) return { allowed:false, reasons:['PROFIL_YOK'] };
+  const minN = Math.max(1, num(ayarlar.dnaExitSelectorMinOrnek, 20));
+  const minBeat = num(ayarlar.dnaExitSelectorMinBeatRate, 60);
+  const minDelta = num(ayarlar.dnaExitSelectorMinDeltaUsdt, 1);
+  const minPf = num(ayarlar.dnaExitSelectorMinProfitFactor, 1.10);
+  const reasons = [];
+  if (num(profile.samples) < minN) reasons.push(`N${num(profile.samples)}/${minN}`);
+  if (num(best.beatRate) < minBeat) reasons.push(`BEAT_%${num(best.beatRate).toFixed(1)}<%${minBeat}`);
+  if (num(best.deltaUsdt) < minDelta) reasons.push(`DELTA_${sign(best.deltaUsdt,2)}<+${minDelta.toFixed(2)}`);
+  if (num(best.profitFactor) <= minPf) reasons.push(`PF_${num(best.profitFactor).toFixed(2)}<=${minPf.toFixed(2)}`);
+  return { allowed:reasons.length===0, reasons, thresholds:{minN,minBeat,minDelta,minPf} };
+}
 function kapanisMetni(record) {
   if (!record || ayarlar.exitReplayTelegramAktif === false) return '';
   const actual = record.results.find(x => x.algorithmId === 'ACTUAL');
   const replayResults = record.results
     .filter(x => x.algorithmId !== 'ACTUAL' && x.isExecutable)
     .sort((a, b) => b.netUsdt - a.netUsdt);
-  const best = replayResults[0];
+  const best = replayResults[0] || null;
   const profile = dnaProfileForRecord(record);
   const dnaBest = profile?.bestExit || null;
   const currentModel = buildModel();
-  const potential = currentModel.profitPotential?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
-  const behavior = currentModel.dnaBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
-  const trendBehavior = currentModel.dnaTrendBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
-  const volatilityBehavior = currentModel.dnaVolatilityBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
-  const ladderBehavior = currentModel.dnaLadderBehavior?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
-  const behaviorIntelligence = currentModel.behaviorIntelligence?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
-  const exitConsensus = currentModel.exitConsensus?.dna?.find(x => x.key === (record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK')) || null;
+  const key = record.input.signatureShort || record.input.signatureKey || 'SIGNATURE_YOK';
+  const behavior = currentModel.dnaBehavior?.dna?.find(x => x.key === key) || null;
+  const behaviorIntelligence = currentModel.behaviorIntelligence?.dna?.find(x => x.key === key) || null;
+  const exitConsensus = currentModel.exitConsensus?.dna?.find(x => x.key === key) || null;
+  const trendBehavior = currentModel.dnaTrendBehavior?.dna?.find(x => x.key === key) || null;
+  const volatilityBehavior = currentModel.dnaVolatilityBehavior?.dna?.find(x => x.key === key) || null;
+  const ladderBehavior = currentModel.dnaLadderBehavior?.dna?.find(x => x.key === key) || null;
   const signature = record.input.signatureShort || record.input.signatureLabel || 'İMZA YOK';
   const actualWon = !best || num(actual?.netUsdt) >= num(best.netUsdt) - 0.000001;
 
-  let text = `\n\n━━━━━━━━━━━━━━━━━━\n🧬 <b>EXIT EVOLUTION LAB v3.10.0</b>\n`;
-  text += `🔬 DNA: <b>${htmlSafe(signature)}</b>\n`;
-  text += `✅ Gerçek Çıkış: <b>${sign(actual?.netUsdt)} USDT</b>\n`;
+  let text = `\n\n🔬 <b>BU İŞLEMİN EXIT REPLAY SONUCU</b>\n`;
+  text += `Kaynak: Bu işlemin kaydedilmiş fiyat yolu | Kapsam: Tek işlem | Canlı karar: HAYIR — geriye dönük replay\n`;
+  text += `DNA: <b>${htmlSafe(signature)}</b>\n`;
+  text += `Gerçek çıkış: <b>${sign(actual?.netUsdt)} USDT</b>\n`;
   if (best) {
-    text += `${actualWon ? '🛡️' : '🏆'} Bu İşlemin En İyi Replay'i: <b>${htmlSafe(best.algorithmLabel)}</b>\n`;
-    text += `💰 Replay Net: <b>${sign(best.netUsdt)} USDT</b>\n`;
-    text += `📈 Gerçeğe Fark: <b>${sign(best.deltaVsActualUsdt)} USDT</b>\n`;
+    text += `${actualWon ? '🛡️ Gerçek yönetim en iyi/denk' : '🏆 En iyi alternatif'}: <b>${htmlSafe(best.algorithmLabel)}</b>\n`;
+    text += `Alternatif net: <b>${sign(best.netUsdt)} USDT</b> | Gerçeğe fark: <b>${sign(best.deltaVsActualUsdt)} USDT</b>\n`;
+  } else {
+    text += `Alternatif replay sonucu üretilemedi.\n`;
   }
+
   if (dnaBest) {
-    text += `\n🧠 <b>DNA EXIT PROFİLİ</b>\n`;
-    text += `🥇 Birikimli En İyi: <b>${htmlSafe(dnaBest.label)}</b>\n`;
-    text += `📦 DNA Örneği: ${profile.samples} | Güven: ${confidenceLabel(profile)}\n`;
-    text += `💎 Toplam Avantaj: ${sign(dnaBest.deltaUsdt, 2)} USDT | Gerçeği Geçme: %${num(dnaBest.beatRate).toFixed(1)}\n`;
-    text += `📊 Net: ${sign(dnaBest.netUsdt, 2)} USDT | WR: %${num(dnaBest.winRate).toFixed(1)} | PF: ${num(dnaBest.profitFactor).toFixed(2)}\n`;
-    if (profile.ranking?.[1]) text += `🥈 İkinci: ${htmlSafe(profile.ranking[1].label)} | Fark ${sign(profile.ranking[1].deltaUsdt, 2)} USDT\n`;
+    const tp = num(dnaBest.profitableTrades);
+    const sl = num(dnaBest.losingTrades);
+    const be = Math.max(0, num(dnaBest.samples) - tp - sl);
+    const auth = exitProfileAuthority(profile, dnaBest);
+    text += `\n🧬 <b>AYNI DNA'NIN BİRİKİMLİ EXIT PROFİLİ</b>\n`;
+    text += `Kaynak: Aynı DNA'nın bilimsel replay kapanışları | Kapsam: ${htmlSafe(dnaBest.label)} | Replay havuzu\n`;
+    text += `Birikimli en iyi yöntem: <b>${htmlSafe(dnaBest.label)}</b>\n`;
+    text += `📌 N${num(dnaBest.samples)} = Kârlı ${tp} (%${num(dnaBest.samples)?(tp/num(dnaBest.samples)*100).toFixed(1):'0.0'}) + Zararlı ${sl} (%${num(dnaBest.samples)?(sl/num(dnaBest.samples)*100).toFixed(1):'0.0'}) + BE ${be} (%${num(dnaBest.samples)?(be/num(dnaBest.samples)*100).toFixed(1):'0.0'}) ${num(dnaBest.samples)===tp+sl+be?'✅':'⚠️'}\n`;
+    text += `Replay WR: %${num(dnaBest.winRate).toFixed(1)} | Replay Net: ${sign(dnaBest.netUsdt, 4)} USDT | PF: ${num(dnaBest.profitFactor)>=999?'∞':num(dnaBest.profitFactor).toFixed(2)}\n`;
+    text += `Gerçek çıkışı geçme: %${num(dnaBest.beatRate).toFixed(1)} | Toplam avantaj: ${sign(dnaBest.deltaUsdt, 4)} USDT\n`;
+    text += `Güven: ${confidenceLabel(profile)} | Canlı karar yetkisi: <b>${auth.allowed?'VAR':'YOK'}</b>${auth.allowed?'':` — ${htmlSafe(auth.reasons.join(', '))}`}\n`;
+    if (profile.ranking?.[1]) text += `İkinci yöntem: ${htmlSafe(profile.ranking[1].label)} | Toplam fark ${sign(profile.ranking[1].deltaUsdt, 4)} USDT\n`;
   }
 
-  if (behavior) {
-    text += `
-🧠 <b>DNA BEHAVIOR PROFILE</b>
-`;
-    text += `💰 Profit: <b>${htmlSafe(behavior.profit?.character || 'VERI_BIRIKIYOR')}</b>
-`;
-    text += `⏱️ Time: <b>${htmlSafe(behavior.time?.character || 'VERI_BIRIKIYOR')}</b>
-`;
-    text += `📈 Trend: <b>${htmlSafe(behavior.trend?.character || 'VERI_BIRIKIYOR')}</b>
-`;
-    text += `🌊 Volatility: <b>${htmlSafe(behavior.volatility?.character || 'VERI_BIRIKIYOR')}</b>
-`;
-    text += `🪜 Kademe: <b>${htmlSafe(behavior.ladder?.character || 'VERI_BIRIKIYOR')}</b>
-`;
-    text += `🛡️ Risk: <b>${htmlSafe(behavior.risk || 'BELIRSIZ')}</b> | Güven: ${htmlSafe(behavior.confidence || 'DUSUK')} | Örnek: ${behavior.samples}
-`;
-    text += `📝 ${htmlSafe(behavior.summary || '')}
-`;
+  const minSamples = Math.max(
+    num(behavior?.minimumSample, 10),
+    num(behaviorIntelligence?.minimumSample, 10),
+    num(exitConsensus?.minimumSample, 10),
+    num(trendBehavior?.minimumSample, 10),
+    num(volatilityBehavior?.minimumSample, 10),
+    num(ladderBehavior?.minimumSample, 10)
+  );
+  const samples = Math.max(
+    num(behavior?.samples), num(behaviorIntelligence?.samples), num(exitConsensus?.samples),
+    num(trendBehavior?.samples), num(volatilityBehavior?.pathQualifiedSamples), num(ladderBehavior?.qualifiedSamples)
+  );
+  const anyReady = Boolean(behavior?.ready || behaviorIntelligence?.ready || exitConsensus?.ready || trendBehavior?.ready || volatilityBehavior?.ready || ladderBehavior?.ready);
+  if (!anyReady) {
+    text += `\n🧠 <b>DAVRANIŞ MOTORLARI OLGUNLUK ÖZETİ</b>\n`;
+    text += `Profit/Time/Trend/Volatility/Kademe/Consensus: VERİ BİRİKİYOR | Mevcut N${samples} / Minimum N${minSamples}\n`;
+    text += `Uzman: 0 | Mutabakat: HESAPLANAMADI | Çelişki: HESAPLANAMADI\n`;
+  } else {
+    text += `\n🧠 <b>OLGUN DAVRANIŞ ÖZETİ</b>\n`;
+    if (behavior?.ready) text += `Genel profil: ${htmlSafe(behavior.generalCharacter || behavior.summary || 'OLGUN')}\n`;
+    if (behaviorIntelligence?.ready) text += `Motor görüşü: ${htmlSafe(behaviorIntelligence.generalCharacter)} | Mutabık motor ${behaviorIntelligence.motorAgreementCount}/${behaviorIntelligence.motorCount} | Çelişki %${num(behaviorIntelligence.conflictPct).toFixed(1)}\n`;
+    if (exitConsensus?.ready) text += `Exit consensus: ${htmlSafe(exitConsensus.recommendation)} | Uzman ${exitConsensus.voteCount} | Mutabakat %${num(exitConsensus.agreementPct).toFixed(1)}\n`;
+    if (trendBehavior?.ready) text += `Trend: ${htmlSafe(trendBehavior.character)}\n`;
+    if (volatilityBehavior?.ready) text += `Volatilite: ${htmlSafe(volatilityBehavior.character)}\n`;
+    if (ladderBehavior?.ready) text += `Kademe: ${htmlSafe(ladderBehavior.character)} | Güvenli kademe ${ladderBehavior.highestReliableStage}\n`;
   }
-
-  if (behaviorIntelligence) {
-    text += `
-🧠 <b>DNA BEHAVIOR INTELLIGENCE</b>
-`;
-    text += `🧬 Genel Karakter: <b>${htmlSafe(behaviorIntelligence.generalCharacter)}</b>
-`;
-    text += `🤝 Motor Mutabakatı: ${behaviorIntelligence.motorAgreementCount}/${behaviorIntelligence.motorCount} | Çelişki: %${num(behaviorIntelligence.conflictPct).toFixed(1)}
-`;
-    if (behaviorIntelligence.ready) {
-      text += `✅ Güçlü: ${htmlSafe((behaviorIntelligence.strengths || []).slice(0, 3).join(', ') || 'BELIRSIZ')}
-`;
-      text += `⚠️ Zayıf: ${htmlSafe((behaviorIntelligence.weaknesses || []).slice(0, 3).join(', ') || 'BELIRSIZ')}
-`;
-      text += `🛡️ Ana Koruma: <b>${htmlSafe(behaviorIntelligence.primaryProtection)}</b> | Risk: ${htmlSafe(behaviorIntelligence.risk)}
-`;
-    } else {
-      text += `⏳ Birleşik davranış verisi birikiyor (${behaviorIntelligence.samples}/${behaviorIntelligence.minimumSample}).
-`;
-    }
-  }
-  if (exitConsensus) {
-    text += `
-🎯 <b>EXIT CONSENSUS ENGINE</b>
-`;
-    text += `🧭 Görüş: <b>${htmlSafe(exitConsensus.recommendation)}</b>
-`;
-    text += `🤝 Mutabakat: %${num(exitConsensus.agreementPct).toFixed(1)} | Uzman: ${exitConsensus.voteCount} | Güven: ${htmlSafe(exitConsensus.confidence)}
-`;
-    if (exitConsensus.ready) {
-      if (exitConsensus.bestReplay) text += `🏆 Replay Lideri: ${htmlSafe(exitConsensus.bestReplay.label)} | Beat %${num(exitConsensus.bestReplay.beatRate).toFixed(1)}
-`;
-      if (exitConsensus.safestProfitStage) text += `🪜 Güvenli Kademe: ${exitConsensus.safestProfitStage.stage} | Geri Dönüş %${num(exitConsensus.safestProfitStage.returnBelowRate).toFixed(1)}
-`;
-    } else {
-      text += `⏳ Exit mutabakatı için veri birikiyor (${exitConsensus.samples}/${exitConsensus.minimumSample}).
-`;
-    }
-  }
-
-  if (volatilityBehavior) {
-    text += `
-🌊 <b>DNA VOLATILITY DAVRANIŞI</b>
-`;
-    text += `🧬 Karakter: <b>${htmlSafe(volatilityBehavior.character)}</b> | Yol Örneği: ${volatilityBehavior.pathQualifiedSamples}
-`;
-    if (volatilityBehavior.ready) {
-      text += `📊 Gerçekleşen Vol: %${num(volatilityBehavior.realizedVolatilityPct).toFixed(4)} | Ort. Adım: %${num(volatilityBehavior.averageAbsStepPct).toFixed(4)}
-`;
-      text += `💥 Genişleme: %${num(volatilityBehavior.expansionRate).toFixed(1)} | Gürültü: %${num(volatilityBehavior.noisyRate).toFixed(1)} | Yol Verimi: %${num(volatilityBehavior.averagePathEfficiencyPct).toFixed(1)}
-`;
-      if (volatilityBehavior.averagePeakVolMinute !== null) text += `⏰ En yüksek oynaklık zamanı: ${num(volatilityBehavior.averagePeakVolMinute).toFixed(1)} dk
-`;
-    } else {
-      text += `⏳ Volatilite yolu verisi birikiyor (${volatilityBehavior.pathQualifiedSamples}/${volatilityBehavior.minimumSample}).
-`;
-    }
-  }
-  if (ladderBehavior) {
-    text += `
-🪜 <b>DNA KADEME DAVRANIŞI</b>
-`;
-    text += `🧬 Karakter: <b>${htmlSafe(ladderBehavior.character)}</b> | Yol Örneği: ${ladderBehavior.qualifiedSamples}
-`;
-    if (ladderBehavior.ready) {
-      text += `📊 Ort. Max Kademe: ${num(ladderBehavior.averageMaxStage).toFixed(2)} | En Güvenilir Kademe: ${ladderBehavior.highestReliableStage}
-`;
-      text += `🎯 TP: %${num(ladderBehavior.tpRate).toFixed(1)} | Kârlı: %${num(ladderBehavior.profitableRate).toFixed(1)} | Ort. Geçiş: ${num(ladderBehavior.averageStageChanges).toFixed(1)}
-`;
-      if (ladderBehavior.safestProfitStage) {
-        text += `🛡️ En Güvenli Kâr Kademesi: ${ladderBehavior.safestProfitStage.stage} | Kârlı %${num(ladderBehavior.safestProfitStage.positiveRate).toFixed(1)} | Geri Dönüş %${num(ladderBehavior.safestProfitStage.returnBelowRate).toFixed(1)}
-`;
-      }
-    } else {
-      text += `⏳ Kademe yolu verisi birikiyor (${ladderBehavior.qualifiedSamples}/${ladderBehavior.minimumSample}).
-`;
-    }
-  }
-
-  if (trendBehavior) {
-    text += `\n📈 <b>DNA TREND DAVRANIŞI</b>\n`;
-    text += `🧬 Karakter: <b>${htmlSafe(trendBehavior.character)}</b> | Örnek: ${trendBehavior.samples}\n`;
-    if (trendBehavior.ready) {
-      text += `🔗 Trend Uyum Oranı: %${num(trendBehavior.alignmentRate).toFixed(1)} | Kırılma: %${num(trendBehavior.breakRate).toFixed(1)}\n`;
-      text += `🏔️ Kırılma Sonrası Yeni Zirve: %${num(trendBehavior.newHighAfterBreakRate).toFixed(1)}`;
-      if (trendBehavior.averageBreakMinute !== null) text += ` | Ort. Kırılma: ${num(trendBehavior.averageBreakMinute).toFixed(1)} dk`;
-      text += `\n`;
-    } else {
-      text += `⏳ Trend yolu verisi birikiyor (${trendBehavior.samples}/${trendBehavior.minimumSample}).\n`;
-    }
-  }
-  text += `\n🧭 Fiyat Yolu: ${record.input.pathCoverage} örnek | Süre ${(record.input.durationMs / 60000).toFixed(1)} dk\n`;
-  text += `ℹ️ Yalnızca öğrenir; gerçek Trade Engine kararını değiştirmez.`;
-  text += dnaExitSelector.closingText(record);
   return text;
 }
-function telegramOzetMetni() {
-  const m = buildModel();
-  const top = m.algorithmRanking.filter(x => x.key !== 'ACTUAL').slice(0, 5);
-  let text = `\n\n🧬 <b>EXIT EVOLUTION LAB v3.10.0</b>\n📦 Replay edilen kapanış: ${m.totalTrades}`;
-  if (!top.length) return text + '\nHenüz replay sonucu yok.';
-  return text + '\n\n🏆 <b>Genel Exit Sıralaması</b>\n' + top.map((x, i) => `${i + 1}) ${htmlSafe(x.label)} | Örnek ${x.samples} | Fark ${sign(x.deltaUsdt, 2)} USDT | Beat %${x.beatRate.toFixed(1)}`).join('\n');
-}
+
 function periyodikRaporGerekli() {
   if (ayarlar.exitReplayTelegramAktif === false) return false;
   const o = ozetEnsure();
@@ -496,4 +425,4 @@ function periyodikRaporGonderildiIsaretle() {
   const o = ozetEnsure();
   o.lastTelegramReportTradeCount = o.totalTrades;
 }
-module.exports={ normalizeInput,algorithms,replayTrade,buildModel,kapanisMetni,telegramOzetMetni,periyodikRaporGerekli,periyodikRaporMetni,periyodikRaporGonderildiIsaretle };
+module.exports={exitProfileAuthority, normalizeInput,algorithms,replayTrade,buildModel,kapanisMetni,telegramOzetMetni,periyodikRaporGerekli,periyodikRaporMetni,periyodikRaporGonderildiIsaretle };

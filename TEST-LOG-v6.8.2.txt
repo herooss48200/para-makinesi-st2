@@ -1,0 +1,38 @@
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency test
+> npm run check
+
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency check
+> npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682
+
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency test:syntax
+> node test_v674_full_source_syntax.js
+
+✅ v6.8.2 full source syntax passed | 101 JavaScript dosyası
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency test:v672
+> node test_v672_single_delivery_safe_exit.js
+
+✅ v6.7.2 single-delivery Telegram + safe adaptive exit + report truth passed
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency test:v673
+> node test_v673_live_lab_league.js
+
+✅ v6.8.2 persistent LAB lifecycle + true transitions + per-LAB N5 passed
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency test:v674
+> node test_v674_telegram_startup_delivery.js
+
+✅ v6.7.4 Telegram startup reliable delivery + truthful curl diagnostics passed
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency test:v681
+> node test_v681_live_report_reconciliation.js
+
+✅ AGROS ST2 v6.8.2 report reconciliation + uncut Telegram + duration truth passed
+
+> para-makinesi-st2@6.8.2-operation-lifecycle-transparency test:v682
+> node test_v682_operation_transparency.js
+
+✅ AGROS ST2 v6.8.2 operation lifecycle + scientific separation + same-universe analytics passed

@@ -57,15 +57,18 @@ assert(pos.sl < 100, 'SHORT stop girişin altında, kâr bölgesinde olmalı');
 
 // Çetele kapanışta gerçekten uygulanan öğrenen ATR metoduna taşınmalı.
 const scoreboard = require('./52_exit_method_scoreboard.js');
-const scorePos = { sym: 'METHODUSDT', yon: 'LONG' };
+const scorePos = { sym: 'METHODUSDT', yon: 'LONG', renkoExitAssignment: { assignedTakeoverPct: 0.28, assignedAtrMultiplier: 1.09, assignedCaptureRatio: 0.85 } };
 scoreboard.open(scorePos);
 scorePos.renkoExitActivated = true;
 scorePos.renkoExitLastStopSourceLabel = 'Öğrenilmiş MFE kâr koruma';
 const score = scoreboard.close(scorePos, { outcome: 'TP', net: 1, commission: 0.1 });
-assert.strictEqual(score.id, 'RENKO_ADAPTIVE_ATR_MFE');
-assert.strictEqual(score.label, 'Öğrenen ATR + MFE Kâr Takibi');
-assert.strictEqual(score.opened, 1, 'açılan sayaç uygulanan metoda taşınmalı');
-assert.strictEqual(score.closed, 1);
+assert.strictEqual(score.method.id, 'RENKO_ADAPTIVE_ATR_MFE');
+assert.strictEqual(score.method.label, 'Öğrenen ATR + MFE Kâr Takibi');
+assert.strictEqual(score.method.opened, 1, 'açılan sayaç uygulanan metoda taşınmalı');
+assert.strictEqual(score.method.closed, 1);
+assert.strictEqual(score.assignment.closed, 1, 'atanan bütün işlemler atama evreninde kapanmalı');
+assert.strictEqual(score.assignment.postTakeoverProfit, 1, 'takeover sonrası kârlı kapanış ayrılmalı');
+assert.strictEqual(score.assignment.reconciled, true, 'atama çetelesi tüm kapanışlarla mutabık olmalı');
 
 // Canlı Premier aktif sayısı observation.active kalıntısından değil mevcut pozisyon partition'ından gelir.
 const h = require('./1_hafiza.js');
@@ -107,7 +110,9 @@ assert(operation.includes('📦 Canlı Premier'), 'üst rapor gerçek canlı Pre
 assert(!operation.includes('Bilimsel Premier aktif'), 'yanıltıcı aktif etiketi kalmamalı');
 assert(globalReport.includes('Runtime ${runtimeVersion.botSurumu'), 'Global rapor runtime sürümünü göstermeli');
 assert(!globalReport.includes('RECONCILIATION — v6.6.1'), 'eski sabit sürüm başlığı kalmamalı');
-assert(globalReport.includes("PF etkisi ${pfEtki}"), 'sonsuz PF farkı açıklanabilir gösterilmeli');
+assert(globalReport.includes('TETİKLENEN AYNI İŞLEMLER'), 'replay aynı işlem evreniyle karşılaştırılmalı');
+assert(globalReport.includes('TEORİK TOPLAM'), 'tam evren teorik toplamı açık gösterilmeli');
+assert(!globalReport.includes('optimized.all.net-actual.all.net'), 'N6 replay ile N165 baz ekonomi doğrudan çıkarılmamalı');
 
 const hafiza = fs.readFileSync('./1_hafiza.js', 'utf8');
 assert(hafiza.includes('async function telegramMesajGonderTekil'), 'tekil Telegram fonksiyonu eksik');

@@ -5,7 +5,7 @@ const evolution=require('./73_st2_renko_entry_evolution.js');
 const historical=require('./75_st2_historical_renko_training.js');
 const winning=require('./75_st2_winning_intelligence.js');
 const canonicalPool=require('./80_st2_canonical_historical_pool.js');const runtimeVersion=require('./versiyon.js');
-const VERSION='v6.6.1-GLOBAL-OPTIMIZER-SHADOW-LOCK';
+const VERSION='v6.8.2-GLOBAL-SAME-UNIVERSE-RECONCILIATION';
 const EXECUTION_POLICY=Object.freeze({mode:'SHADOW_ONLY',liveGateAuthorized:false,tradeEngineWritable:false,reason:'OLGUNLUK_VE_KAPSAMA_KANITI_YETERSIZ'});
 const DATA_DIR=process.env.AGROS_DATA_DIR?path.resolve(process.env.AGROS_DATA_DIR):path.join(__dirname,'data');
 const LIVE_LEDGER=path.join(DATA_DIR,'st2-renko-entry-evolution-ledger.jsonl');
@@ -23,25 +23,64 @@ function readJsonl(file,type){if(!fs.existsSync(file))return[];const out=[],seen
 function pattern(row){return String(row?.pos?.girisAnalizi?.patternKodu||row?.patternCode||'UNKNOWN').toUpperCase()}function side(row){return String(row?.pos?.yon||row?.yon||'UNKNOWN').toUpperCase()}function symbol(row){return String(row?.pos?.sym||row?.pos?.symbol||row?.symbol||'UNKNOWN').toUpperCase()}
 function replayOf(row,brick){const p=pattern(row),prof=evolution.read().profiles?.[`${side(row)}|${p}`];const lr=prof?.lastReplay;if(lr?.tradeId===row.closeId)return lr.candidates?.[brick.toFixed(2)]||null;return null}
 function actualEconomy(rows){const all=emptyMetric(),dirs={},patterns={};for(const row of rows){const pnl=actualNet(row);add(all,pnl);const d=dirs[side(row)]||=emptyMetric();add(d,pnl);const k=`${side(row)}|${pattern(row)}`,p=patterns[k]||=emptyMetric();add(p,pnl)}return{all:finish(all),directions:Object.fromEntries(Object.entries(dirs).map(([k,v])=>[k,finish(v)])),patterns:Object.fromEntries(Object.entries(patterns).map(([k,v])=>[k,finish(v)]))}}
-function optimizedEconomy(rows){const state=evolution.read(),all=emptyMetric(),dirs={},patterns={};let preventedLosses=0,missedWins=0;for(const row of rows){const key=`${side(row)}|${pattern(row)}`,prof=state.profiles?.[key],brick=n(prof?.activeBrick,n(row?.pos?.girisAnalizi?.renkoEntryBrickDistance,0.75));let rp=replayOf(row,brick);if(!rp){const pos=row.pos||{},ga=pos.girisAnalizi||{},snap=ga.pusuTuglasi||pos.pusuTuglasi||{};const pusu={yon:side(row),referansSeviye:n(ga.referansSeviye||pos.referansSeviye||snap.referansSeviye),renkoBoxSize:n(ga.renkoBoxSize||pos.renkoBoxSize||snap.renkoBoxSize)};const points=typeof evolution.frozenExit==='function'?[]:[];try{rp=evolution.replayCandidate(pos,row.result||{},pusu,brick,undefined)}catch(_){rp=null}}const a=actualNet(row);if(!rp||rp.triggered!==true){all.notTriggered++;if(a>0)missedWins++;continue}all.triggered++;add(all,n(rp.net),{mfe:rp.mfePct,mae:rp.maePct});const d=dirs[side(row)]||=emptyMetric();d.triggered++;add(d,n(rp.net));const p=patterns[key]||=emptyMetric();p.triggered++;add(p,n(rp.net));if(a<0&&n(rp.net)>=0)preventedLosses++}return{all:finish(all),directions:Object.fromEntries(Object.entries(dirs).map(([k,v])=>[k,finish(v)])),patterns:Object.fromEntries(Object.entries(patterns).map(([k,v])=>[k,finish(v)])),preventedLosses,missedWins}}
+function optimizedEconomy(rows){
+ const state=evolution.read(),all=emptyMetric(),triggeredActual=emptyMetric(),notTriggeredActual=emptyMetric(),theoreticalTotal=emptyMetric();
+ const dirs={},patterns={},actualDirs={},actualPatterns={};let preventedLosses=0,missedWins=0;
+ for(const row of rows){
+  const key=`${side(row)}|${pattern(row)}`,prof=state.profiles?.[key],brick=n(prof?.activeBrick,n(row?.pos?.girisAnalizi?.renkoEntryBrickDistance,0.75));
+  let rp=replayOf(row,brick);
+  if(!rp){const pos=row.pos||{},ga=pos.girisAnalizi||{},snap=ga.pusuTuglasi||pos.pusuTuglasi||{};const pusu={yon:side(row),referansSeviye:n(ga.referansSeviye||pos.referansSeviye||snap.referansSeviye),renkoBoxSize:n(ga.renkoBoxSize||pos.renkoBoxSize||snap.renkoBoxSize)};try{rp=evolution.replayCandidate(pos,row.result||{},pusu,brick,undefined)}catch(_){rp=null}}
+  const a=actualNet(row);
+  if(!rp||rp.triggered!==true){
+   all.notTriggered++;add(notTriggeredActual,a);add(theoreticalTotal,a);
+   if(a>0)missedWins++;continue;
+  }
+  const replayNet=n(rp.net);all.triggered++;add(all,replayNet,{mfe:rp.mfePct,mae:rp.maePct});add(triggeredActual,a);add(theoreticalTotal,replayNet,{mfe:rp.mfePct,mae:rp.maePct});
+  const d=dirs[side(row)]||=emptyMetric();d.triggered++;add(d,replayNet);
+  const ad=actualDirs[side(row)]||=emptyMetric();add(ad,a);
+  const pm=patterns[key]||=emptyMetric();pm.triggered++;add(pm,replayNet);
+  const ap=actualPatterns[key]||=emptyMetric();add(ap,a);
+  if(a<0&&replayNet>=0)preventedLosses++;
+ }
+ return{
+  all:finish(all),triggeredActual:finish(triggeredActual),notTriggeredActual:finish(notTriggeredActual),theoreticalTotal:finish(theoreticalTotal),
+  directions:Object.fromEntries(Object.entries(dirs).map(([k,v])=>[k,finish(v)])),
+  actualDirections:Object.fromEntries(Object.entries(actualDirs).map(([k,v])=>[k,finish(v)])),
+  patterns:Object.fromEntries(Object.entries(patterns).map(([k,v])=>[k,finish(v)])),
+  actualPatterns:Object.fromEntries(Object.entries(actualPatterns).map(([k,v])=>[k,finish(v)])),preventedLosses,missedWins
+ };
+}
 function historicalProfiles(){const rows=readJsonl(HIST_LEDGER,'HISTORICAL_SIGNAL'),coins={},global={};for(const row of rows){const sym=String(row.symbol||'UNKNOWN').replace(/USDT$/,'');const key=`${row.yon}|${row.patternCode}`;for(const [b,x] of Object.entries(row.candidates||{})){const holder=(coins[sym]||={});const m=(holder[key]||={})[b]||=((holder[key]||={})[b]=emptyMetric());if(x.triggered){m.triggered++;add(m,n(x.pnlPct),{mfe:x.mfePct,mae:x.maePct})}else m.notTriggered++;const g=(global[key]||={})[b]||=((global[key]||={})[b]=emptyMetric());if(x.triggered){g.triggered++;add(g,n(x.pnlPct),{mfe:x.mfePct,mae:x.maePct})}else g.notTriggered++}}
  const finalize=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[k,Object.fromEntries(Object.entries(v).map(([b,m])=>[b,finish(m)]))]));return{rows:rows.length,coins:Object.fromEntries(Object.entries(coins).map(([c,v])=>[c,finalize(v)])),global:finalize(global)}}
 function confidence(m){const N=n(m?.n);return N>=100?'YUKSEK':N>=30?'ORTA':N>=10?'DUSUK':'YETERSIZ'}
 function choose(rows){return Object.entries(rows||{}).map(([brick,m])=>({brick:Number(brick),...m,confidence:confidence(m),score:n(m.expectancy)*Math.log2(n(m.n)+1)+Math.log2(Math.max(n(m.pf),0.01))*0.15+n(m.net)*0.05+(n(m.triggered)/(n(m.triggered)+n(m.notTriggered)||1))*0.1})).filter(x=>x.n>=5&&x.net>0&&x.pf>1&&x.expectancy>0).sort((a,b)=>b.score-a.score||b.n-a.n)[0]||null}
 function sourceDecision(sym,dir,pat){const hp=historicalProfiles(),coin=String(sym).replace(/USDT$/,''),key=`${dir}|${pat}`;let rows=hp.coins?.[coin]?.[key],source=`COIN:${coin}`;let best=choose(rows);if(!best){const group=Object.entries(GROUPS).find(([,a])=>a.includes(coin))?.[0];if(group){const agg={};for(const c of GROUPS[group])for(const [b,m] of Object.entries(hp.coins?.[c]?.[key]||{})){const z=agg[b]||=emptyMetric();z.n+=n(m.n);z.wins+=n(m.wins);z.losses+=n(m.losses);z.be+=n(m.be);z.net+=n(m.net);z.grossProfit+=n(m.grossProfit);z.grossLoss+=n(m.grossLoss);z.triggered+=n(m.triggered);z.notTriggered+=n(m.notTriggered)}rows=Object.fromEntries(Object.entries(agg).map(([b,m])=>[b,finish(m)]));best=choose(rows);source=`GROUP:${group}`}}
  if(!best){rows=hp.global?.[key];best=choose(rows);source='GLOBAL_29'}if(!best){const agg={};for(const c of ['BTC','ETH'])for(const [b,m] of Object.entries(hp.coins?.[c]?.[key]||{})){const z=agg[b]||=emptyMetric();Object.keys(z).forEach(k=>{if(typeof z[k]==='number')z[k]+=n(m[k])})}rows=Object.fromEntries(Object.entries(agg).map(([b,m])=>[b,finish(m)]));best=choose(rows);source='BTC_ETH_PRIOR'}return{source,best,confidence:confidence(best),n:n(best?.n),rows,advisoryOnly:true,liveExecutionAuthorized:false,executionPolicy:EXECUTION_POLICY}}
-function summary(){const live=readJsonl(LIVE_LEDGER,'SCIENTIFIC_CLOSE'),actual=actualEconomy(live),optimized=optimizedEconomy(live),hist=historicalProfiles();const ev=evolution.summary();const delta={net:r(optimized.all.net-actual.all.net),pf:r(optimized.all.pf-actual.all.pf),expectancy:r(optimized.all.expectancy-actual.all.expectancy),preventedLosses:optimized.preventedLosses,missedWins:optimized.missedWins,notTriggered:optimized.all.notTriggered,directions:{},patterns:{}};for(const k of new Set([...Object.keys(actual.directions),...Object.keys(optimized.directions)]))delta.directions[k]={net:r(n(optimized.directions[k]?.net)-n(actual.directions[k]?.net)),expectancy:r(n(optimized.directions[k]?.expectancy)-n(actual.directions[k]?.expectancy))};for(const k of new Set([...Object.keys(actual.patterns),...Object.keys(optimized.patterns)]))delta.patterns[k]={net:r(n(optimized.patterns[k]?.net)-n(actual.patterns[k]?.net)),expectancy:r(n(optimized.patterns[k]?.expectancy)-n(actual.patterns[k]?.expectancy))};return{version:VERSION,executionPolicy:EXECUTION_POLICY,coins:COINS,symbols:SYMBOLS,groups:GROUPS,historical:{signals:hist.rows,readyCoins:Object.keys(hist.coins).filter(c=>Object.keys(hist.coins[c]).length).length,readyPatterns:Object.keys(hist.global).length,globalStatus:hist.rows===0?'EMPTY':(Object.keys(hist.coins).filter(c=>Object.keys(hist.coins[c]).length).length>=COINS.length?'READY':'PARTIAL_READY')},actual,optimized,delta,reconciliation:{ledgerScientificCloses:live.length,entryEvolutionAccepted:n(ev.bridge?.accepted),stateRecords:n(ev.health?.stateRecords),ledgerRecords:n(ev.health?.ledgerRecords),duplicate:n(ev.health?.duplicateRejects),actualN:actual.all.n,directionN:Object.values(actual.directions).reduce((a,x)=>a+n(x.n),0),patternN:Object.values(actual.patterns).reduce((a,x)=>a+n(x.n),0),replayTotal:optimized.all.triggered+optimized.all.notTriggered,ok:actual.all.n===Object.values(actual.directions).reduce((a,x)=>a+n(x.n),0)&&actual.all.n===Object.values(actual.patterns).reduce((a,x)=>a+n(x.n),0)&&n(ev.health?.stateRecords)===n(ev.health?.ledgerRecords)}}}
-function telegram(){const x=summary(),a=x.actual.all,o=x.optimized.all,d=x.delta,r=x.reconciliation;const pfEtki=(a.pf>=999||o.pf>=999)?'∞ (sonlu fark yok)':`${d.pf>=0?'+':''}${d.pf.toFixed(2)}`;return `
+function summary(){
+ const live=readJsonl(LIVE_LEDGER,'SCIENTIFIC_CLOSE'),actual=actualEconomy(live),optimized=optimizedEconomy(live),hist=historicalProfiles();const ev=evolution.summary();
+ const oa=optimized.triggeredActual,or=optimized.all,tt=optimized.theoreticalTotal;
+ const delta={net:r(or.net-oa.net),expectancy:r(or.expectancy-oa.expectancy),preventedLosses:optimized.preventedLosses,missedWins:optimized.missedWins,notTriggered:or.notTriggered,directions:{},patterns:{}};
+ for(const k of new Set([...Object.keys(optimized.actualDirections),...Object.keys(optimized.directions)]))delta.directions[k]={net:r(n(optimized.directions[k]?.net)-n(optimized.actualDirections[k]?.net)),expectancy:r(n(optimized.directions[k]?.expectancy)-n(optimized.actualDirections[k]?.expectancy))};
+ for(const k of new Set([...Object.keys(optimized.actualPatterns),...Object.keys(optimized.patterns)]))delta.patterns[k]={net:r(n(optimized.patterns[k]?.net)-n(optimized.actualPatterns[k]?.net)),expectancy:r(n(optimized.patterns[k]?.expectancy)-n(optimized.actualPatterns[k]?.expectancy))};
+ return{version:VERSION,executionPolicy:EXECUTION_POLICY,coins:COINS,symbols:SYMBOLS,groups:GROUPS,historical:{signals:hist.rows,readyCoins:Object.keys(hist.coins).filter(c=>Object.keys(hist.coins[c]).length).length,readyPatterns:Object.keys(hist.global).length,globalStatus:hist.rows===0?'EMPTY':(Object.keys(hist.coins).filter(c=>Object.keys(hist.coins[c]).length).length>=COINS.length?'READY':'PARTIAL_READY')},actual,optimized,delta,reconciliation:{ledgerScientificCloses:live.length,entryEvolutionAccepted:n(ev.bridge?.accepted),stateRecords:n(ev.health?.stateRecords),ledgerRecords:n(ev.health?.ledgerRecords),duplicate:n(ev.health?.duplicateRejects),actualN:actual.all.n,directionN:Object.values(actual.directions).reduce((a,x)=>a+n(x.n),0),patternN:Object.values(actual.patterns).reduce((a,x)=>a+n(x.n),0),replayTotal:or.triggered+or.notTriggered,triggeredActualN:oa.n,triggeredReplayN:or.n,theoreticalTotalN:tt.n,ok:actual.all.n===Object.values(actual.directions).reduce((a,x)=>a+n(x.n),0)&&actual.all.n===Object.values(actual.patterns).reduce((a,x)=>a+n(x.n),0)&&n(ev.health?.stateRecords)===n(ev.health?.ledgerRecords)&&oa.n===or.n&&tt.n===actual.all.n}};
+}
+function telegram(){
+ const x=summary(),a=x.actual.all,o=x.optimized.all,oa=x.optimized.triggeredActual,nt=x.optimized.notTriggeredActual,tt=x.optimized.theoreticalTotal,d=x.delta,r=x.reconciliation;
+ const fmt=m=>`N${m.n} WR %${m.wr.toFixed(1)} Net ${m.net>=0?'+':''}${m.net.toFixed(4)} PF ${m.pf>=999?'∞':m.pf.toFixed(2)} Exp ${m.expectancy>=0?'+':''}${m.expectancy.toFixed(4)}`;
+ return `
 
 🌍 <b>GLOBAL HISTORICAL & ECONOMY RECONCILIATION</b>
 🧩 Runtime ${runtimeVersion.botSurumu || 'AGROS-ST2'}
 🔒 <b>DENEYSEL SHADOW-ONLY:</b> Canlı giriş filtresi değildir; Trade Engine'e yazma yetkisi YOK
 🪙 Tarihsel coin ${x.historical.readyCoins}/${COINS.length} | Sinyal ${x.historical.signals} | Pattern ${x.historical.readyPatterns}/16 | Global ${x.historical.globalStatus}
 📒 Canlı bilimsel kapanış ${r.ledgerScientificCloses}
-💼 BAZ İŞLEM EKONOMİSİ: N${a.n} WR %${a.wr.toFixed(1)} Net ${a.net>=0?'+':''}${a.net.toFixed(4)} PF ${a.pf>=999?'∞':a.pf.toFixed(2)} Exp ${a.expectancy>=0?'+':''}${a.expectancy.toFixed(4)}
-🧪 DENEYSEL SHADOW / OPTİMİZE REPLAY: Tetik N${o.triggered} | Tetiklenmeyen ${o.notTriggered} | WR %${o.wr.toFixed(1)} Net ${o.net>=0?'+':''}${o.net.toFixed(4)} PF ${o.pf>=999?'∞':o.pf.toFixed(2)} Exp ${o.expectancy>=0?'+':''}${o.expectancy.toFixed(4)}
-⚖️ TEORİK ETKİ: Net ${d.net>=0?'+':''}${d.net.toFixed(4)} | PF etkisi ${pfEtki} | Exp ${d.expectancy>=0?'+':''}${d.expectancy.toFixed(4)} | Önlenen zarar ${d.preventedLosses} | Optimize tetiklenmeyen kazançlı kapanış ${d.missedWins}
-🧮 Kalıcı mutabakat ${r.ok?'✅':'❌'} | State ${r.stateRecords} = Ledger ${r.ledgerRecords} | Ekonomi N${r.actualN} = Yön N${r.directionN} = Pattern N${r.patternN}
-🔄 Bu oturum köprüsü: Kabul ${r.entryEvolutionAccepted} | Duplicate ${r.duplicate} (restart sonrası sıfırlanabilir)`;}
+💼 BAZ İŞLEM EKONOMİSİ (tüm aynı evren): ${fmt(a)}
+🧪 TETİKLENEN AYNI İŞLEMLER — Gerçek: ${fmt(oa)}
+🧪 TETİKLENEN AYNI İŞLEMLER — Replay: ${fmt(o)}
+⚖️ AYNI EVREN FARKI: Net ${d.net>=0?'+':''}${d.net.toFixed(4)} | Exp ${d.expectancy>=0?'+':''}${d.expectancy.toFixed(4)} | Önlenen zarar ${d.preventedLosses}
+🧮 TEORİK TOPLAM: Tetiklenmeyen gerçek ${fmt(nt)} + tetiklenen replay → ${fmt(tt)}
+🧮 Kalıcı mutabakat ${r.ok?'✅':'❌'} | State ${r.stateRecords} = Ledger ${r.ledgerRecords} | Ekonomi N${r.actualN} = Yön N${r.directionN} = Pattern N${r.patternN} | Tetik gerçek N${r.triggeredActualN} = Replay N${r.triggeredReplayN} | Teorik N${r.theoreticalTotalN}
+🔄 Bu oturum köprüsü: Kabul ${r.entryEvolutionAccepted} | Duplicate ${r.duplicate} (restart sonrası sıfırlanabilir)`;
+}
 
 module.exports={VERSION,EXECUTION_POLICY,COINS,SYMBOLS,GROUPS,CANDIDATES,LIVE_LEDGER,HIST_LEDGER,STATE_FILE,BACKUP_FILE,readJsonl,actualEconomy,optimizedEconomy,historicalProfiles,sourceDecision,summary,telegram,choose,confidence};

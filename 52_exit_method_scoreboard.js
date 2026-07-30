@@ -1,69 +1,94 @@
 /**
- * AGROS ST2 v6.7.2 - EXIT METHOD SCOREBOARD
- * Her pozisyonun kapanışta gerçekten uygulanan exit metodunu kalıcı olarak sayar.
+ * AGROS ST2 v6.8.2 — EXIT METHOD + ASSIGNMENT SCOREBOARD
+ * Separates the method that was assigned at opening from the method that actually
+ * closed the position. This removes survivor bias from ATR/MFE takeover reports.
  */
 const fs = require('fs');
 const path = require('path');
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const FILE = path.join(DATA_DIR, 'exit-method-scoreboard.json');
-const VERSION = 'v6.7.2-EXIT-METHOD-SCOREBOARD-TRUTH';
+const VERSION = 'v6.8.2-EXIT-ASSIGNMENT-RECONCILIATION';
 function num(v,d=0){const n=Number(v);return Number.isFinite(n)?n:d;}
 function ensure(){if(!fs.existsSync(DATA_DIR))fs.mkdirSync(DATA_DIR,{recursive:true});}
-function empty(){return{version:VERSION,createdAt:new Date().toISOString(),updatedAt:null,totalOpened:0,totalClosed:0,methodMigrations:0,methods:{}};}
-function read(){try{return{...empty(),...JSON.parse(fs.readFileSync(FILE,'utf8'))};}catch(_){return empty();}}
-function write(m){ensure();m.version=VERSION;m.updatedAt=new Date().toISOString();const tmp=FILE+'.tmp';fs.writeFileSync(tmp,JSON.stringify(m,null,2));fs.renameSync(tmp,FILE);}
+function empty(){return{version:VERSION,createdAt:new Date().toISOString(),updatedAt:null,totalOpened:0,totalClosed:0,methodMigrations:0,methods:{},assignments:{}};}
+function normalize(raw){const m={...empty(),...(raw||{})};m.methods=m.methods&&typeof m.methods==='object'?m.methods:{};m.assignments=m.assignments&&typeof m.assignments==='object'?m.assignments:{};return m;}
+function read(){try{return normalize(JSON.parse(fs.readFileSync(FILE,'utf8')));}catch(_){return empty();}}
+function write(m){ensure();m=normalize(m);m.version=VERSION;m.updatedAt=new Date().toISOString();const tmp=FILE+'.tmp';fs.writeFileSync(tmp,JSON.stringify(m,null,2));fs.renameSync(tmp,FILE);return m;}
 function methodFor(pos){
   const applied=pos?.dynamicExitApplied;
   if(applied?.algorithmId)return{id:String(applied.algorithmId),label:applied.algorithmLabel||applied.algorithmId,source:'DYNAMIC_APPLIED'};
   if(pos?.renkoExitActivated===true){
-    return{id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'RENKO_ADAPTIVE_APPLIED',detail:pos?.renkoExitLastStopSourceLabel||'Devralma aktif'};
+    return{id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'RENKO_ADAPTIVE_APPLIED',detail:pos?.renkoExitLastStopSourceLabel||'Takeover aktif'};
   }
   const plan=pos?.exitPlanShadow;
   if(plan?.ready&&plan?.selectedAlgorithmId&&plan.selectedAlgorithmId!=='ACTUAL')return{id:String(plan.selectedAlgorithmId),label:plan.selectedAlgorithmLabel||plan.selectedAlgorithmId,source:'ASSIGNED_DYNAMIC'};
-  return{id:'ACTUAL',label:'Mevcut Kademe Sistemi',source:'KADEME_FALLBACK'};
+  return{id:'ACTUAL',label:'Başlangıç Stop / Mevcut Kademe',source:'PRE_TAKEOVER_OR_FALLBACK'};
 }
-function bucket(m,method){
+function assignmentFor(pos){
+  const a=pos?.renkoExitAssignment;
+  if(a)return{id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'ASSIGNED_AT_OPEN',detail:`Takeover %${num(a.assignedTakeoverPct).toFixed(2)} | ATR ${num(a.assignedAtrMultiplier).toFixed(2)}× | MFE %${(num(a.assignedCaptureRatio)*100).toFixed(0)}`};
+  const plan=pos?.exitPlanShadow;
+  if(plan?.ready&&plan?.selectedAlgorithmId&&plan.selectedAlgorithmId!=='ACTUAL')return{id:String(plan.selectedAlgorithmId),label:plan.selectedAlgorithmLabel||plan.selectedAlgorithmId,source:'ASSIGNED_AT_OPEN'};
+  return{id:'ACTUAL',label:'Mevcut Kademe Sistemi',source:'ASSIGNED_FALLBACK'};
+}
+function methodBucket(m,method){
   const b=m.methods[method.id]||(m.methods[method.id]={id:method.id,label:method.label,opened:0,closed:0,tp:0,sl:0,be:0,net:0,commission:0,grossProfit:0,grossLoss:0,source:method.source});
   b.label=method.label||b.label;b.source=method.source||b.source;return b;
 }
+function assignmentBucket(m,assignment){
+  const b=m.assignments[assignment.id]||(m.assignments[assignment.id]={id:assignment.id,label:assignment.label,assigned:0,closed:0,takeoverReached:0,preTakeoverSl:0,preTakeoverProfit:0,postTakeoverProfit:0,postTakeoverLoss:0,be:0,net:0,commission:0,grossProfit:0,grossLoss:0,source:assignment.source});
+  b.label=assignment.label||b.label;b.source=assignment.source||b.source;return b;
+}
+function outcomeAdd(b,outcome,net){
+  if(outcome==='TP')b.tp=num(b.tp)+1;else if(outcome==='BE')b.be=num(b.be)+1;else b.sl=num(b.sl)+1;
+  b.net=num(b.net)+net;if(net>0)b.grossProfit=num(b.grossProfit)+net;else if(net<0)b.grossLoss=num(b.grossLoss)+Math.abs(net);
+}
 function open(pos){
   if(!pos||pos.exitMethodScoreboardOpened)return null;
-  const m=read(),method=methodFor(pos),b=bucket(m,method);b.opened++;m.totalOpened++;
-  pos.exitMethodScoreboardOpened={id:method.id,label:method.label,at:Date.now()};write(m);return b;
+  const m=read(),method=methodFor(pos),assignment=assignmentFor(pos);
+  methodBucket(m,method).opened++;m.totalOpened++;
+  assignmentBucket(m,assignment).assigned++;
+  pos.exitMethodScoreboardOpened={id:method.id,label:method.label,assignmentId:assignment.id,assignmentLabel:assignment.label,at:Date.now()};
+  write(m);return{method:methodBucket(m,method),assignment:assignmentBucket(m,assignment)};
+}
+function takeoverReached(pos){return pos?.renkoExitActivated===true||(Array.isArray(pos?.renkoProtectionTimeline)&&pos.renkoProtectionTimeline.some(x=>x?.type==='TAKEOVER_ACTIVE'));}
+function assignmentClose(b,pos,outcome,net,commission){
+  b.closed=num(b.closed)+1;b.net=num(b.net)+net;b.commission=num(b.commission)+commission;
+  if(net>0)b.grossProfit=num(b.grossProfit)+net;else if(net<0)b.grossLoss=num(b.grossLoss)+Math.abs(net);
+  const takeover=takeoverReached(pos);if(takeover)b.takeoverReached=num(b.takeoverReached)+1;
+  if(outcome==='BE')b.be=num(b.be)+1;
+  else if(takeover&&outcome==='TP')b.postTakeoverProfit=num(b.postTakeoverProfit)+1;
+  else if(takeover&&outcome==='SL')b.postTakeoverLoss=num(b.postTakeoverLoss)+1;
+  else if(!takeover&&outcome==='SL')b.preTakeoverSl=num(b.preTakeoverSl)+1;
+  else if(!takeover&&outcome==='TP')b.preTakeoverProfit=num(b.preTakeoverProfit)+1;
 }
 function close(pos,result={}){
   if(!pos||pos.exitMethodScoreboardClosed)return null;
-  const m=read(),method=methodFor(pos),opened=pos.exitMethodScoreboardOpened;
-  const b=bucket(m,method);
-  // Pozisyon açılışta kademe fallback olarak kaydedilmiş, sonra öğrenen ATR devralmış olabilir.
-  // Açılan sayısını kapanışta gerçekten uygulanan metoda bir kez taşı; toplam açılan değişmez.
-  if(opened?.id&&opened.id!==method.id){
-    const old=m.methods[opened.id];
-    if(old)old.opened=Math.max(0,num(old.opened)-1);
-    b.opened++;
-    m.methodMigrations=num(m.methodMigrations)+1;
-    pos.exitMethodScoreboardMigrated={from:opened.id,to:method.id,at:Date.now()};
-  }
+  const m=read(),method=methodFor(pos),assignment=assignmentFor(pos),opened=pos.exitMethodScoreboardOpened;
+  const b=methodBucket(m,method);
+  if(opened?.id&&opened.id!==method.id){const old=m.methods[opened.id];if(old)old.opened=Math.max(0,num(old.opened)-1);b.opened++;m.methodMigrations=num(m.methodMigrations)+1;pos.exitMethodScoreboardMigrated={from:opened.id,to:method.id,at:Date.now()};}
   b.closed++;m.totalClosed++;
-  const outcome=String(result.outcome||'SL').toUpperCase();
-  if(outcome==='TP')b.tp++;else if(outcome==='BE')b.be++;else b.sl++;
-  const net=num(result.net);b.net+=net;b.commission+=num(result.commission);
-  if(net>0)b.grossProfit+=net;else if(net<0)b.grossLoss+=Math.abs(net);
-  pos.exitMethodScoreboardClosed={id:method.id,label:method.label,detail:method.detail||null,at:Date.now()};
-  write(m);return summary(b,method);
+  const outcome=String(result.outcome||'SL').toUpperCase();const net=num(result.net);const commission=num(result.commission);
+  outcomeAdd(b,outcome,net);b.commission=num(b.commission)+commission;
+  const assigned=assignmentBucket(m,assignment);assignmentClose(assigned,pos,outcome,net,commission);
+  pos.exitMethodScoreboardClosed={id:method.id,label:method.label,assignmentId:assignment.id,assignmentLabel:assignment.label,detail:method.detail||null,takeoverReached:takeoverReached(pos),at:Date.now()};
+  write(m);return summary(b,method,assigned,assignment);
 }
-function summary(b,method={}){
-  const decisive=num(b.tp)+num(b.sl);const success=decisive?(num(b.tp)/decisive)*100:0;
-  const pf=num(b.grossLoss)>0?num(b.grossProfit)/num(b.grossLoss):(num(b.grossProfit)>0?Infinity:0);
-  const exp=num(b.closed)?num(b.net)/num(b.closed):0;
-  return{...b,id:method.id||b.id,label:method.label||b.label,detail:method.detail||null,success,pf,expectancy:exp};
-}
-function display(pos){const m=read(),method=methodFor(pos),b=m.methods[method.id];return b?summary(b,method):{id:method.id,label:method.label,detail:method.detail||null,opened:0,closed:0,tp:0,sl:0,be:0,net:0,success:0,pf:0,expectancy:0};}
+function metrics(b={}){const decisive=num(b.tp)+num(b.sl);const success=decisive?num(b.tp)/decisive*100:0;const pf=num(b.grossLoss)>0?num(b.grossProfit)/num(b.grossLoss):(num(b.grossProfit)>0?Infinity:0);const exp=num(b.closed)?num(b.net)/num(b.closed):0;return{...b,success,pf,expectancy:exp};}
+function assignmentMetrics(b={}){const classified=num(b.preTakeoverSl)+num(b.preTakeoverProfit)+num(b.postTakeoverProfit)+num(b.postTakeoverLoss)+num(b.be);const pf=num(b.grossLoss)>0?num(b.grossProfit)/num(b.grossLoss):(num(b.grossProfit)>0?Infinity:0);return{...b,classified,reconciled:num(b.closed)===classified,pf,expectancy:num(b.closed)?num(b.net)/num(b.closed):0,takeoverRate:num(b.closed)?num(b.takeoverReached)/num(b.closed)*100:0};}
+function summary(b,method={},assigned=null,assignment={}){return{method:metrics({...b,id:method.id||b.id,label:method.label||b.label,detail:method.detail||null}),assignment:assignmentMetrics({...assigned,id:assignment.id||assigned?.id,label:assignment.label||assigned?.label,detail:assignment.detail||null})};}
+function display(pos){const m=read(),method=methodFor(pos),assignment=assignmentFor(pos),b=m.methods[method.id],a=m.assignments[assignment.id];return summary(b||{id:method.id,label:method.label,opened:0,closed:0,tp:0,sl:0,be:0,net:0,grossProfit:0,grossLoss:0},method,a||{id:assignment.id,label:assignment.label,assigned:0,closed:0,takeoverReached:0,preTakeoverSl:0,preTakeoverProfit:0,postTakeoverProfit:0,postTakeoverLoss:0,be:0,net:0,grossProfit:0,grossLoss:0},assignment);}
 function telegramLine(s,options={}){
-  if(!s)return'';const pf=Number.isFinite(s.pf)?s.pf.toFixed(2):'∞';const restartGap=options.restartGap===true;
-  const outcome=String(options.currentOutcome||'').toUpperCase();const baslik=restartGap?'📒 Metot Çetelesi (bu kapanış hariç)':'📒 Metot Çetelesi';
-  const detay=s.detail?` | ${s.detail}`:'';
-  const gapNotu=restartGap?`\n🧾 Bu kapanışın muhasebe sonucu: <b>${outcome||'BELİRSİZ'}</b> | Çetele ve öğrenme: <b>HARİÇ (RESTART GAP)</b>`:'';
-  return `\n🎯 Exit Metodu: <b>${s.label}</b>${detay}\n${baslik}: Açılan ${s.opened} | Kapalı ${s.closed} | TP ${s.tp} SL ${s.sl} BE ${s.be} | Başarı %${s.success.toFixed(1)} | Net ${s.net>=0?'+':''}${s.net.toFixed(4)} | PF ${pf} | Exp ${s.expectancy>=0?'+':''}${s.expectancy.toFixed(4)}${gapNotu}`;
+  if(!s)return'';const method=s.method||s;const a=s.assignment||null;const restartGap=options.restartGap===true;const outcome=String(options.currentOutcome||'').toUpperCase();
+  const methodPf=Number.isFinite(method.pf)?method.pf.toFixed(2):'∞';
+  let text=`\n🎯 Gerçek uygulanan Exit: <b>${method.label}</b>${method.detail?` | ${method.detail}`:''}`;
+  if(a){const pf=Number.isFinite(a.pf)?a.pf.toFixed(2):'∞';text+=`\n📒 <b>ATAMA PERFORMANSI — ${a.label}</b>${restartGap?' (bu kapanış hariç)':''}`;
+    text+=`\nAtanan ${num(a.assigned)} | Kapalı ${num(a.closed)} | Takeover ${num(a.takeoverReached)} (%${num(a.takeoverRate).toFixed(1)})`;
+    text+=`\nTakeover öncesi: SL ${num(a.preTakeoverSl)} | Kârlı ${num(a.preTakeoverProfit)} | BE ${num(a.be)}`;
+    text+=`\nTakeover sonrası: Kârlı ${num(a.postTakeoverProfit)} | Zararlı ${num(a.postTakeoverLoss)}`;
+    text+=`\nMutabakat: ${num(a.closed)} = ${num(a.classified)} ${a.reconciled?'✅':'⚠️'} | Net ${num(a.net)>=0?'+':''}${num(a.net).toFixed(4)} | PF ${pf} | Exp ${num(a.expectancy)>=0?'+':''}${num(a.expectancy).toFixed(4)}`;
+  } else text+=`\nMetot çetelesi: Açılan ${num(method.opened)} | Kapalı ${num(method.closed)} | TP ${num(method.tp)} SL ${num(method.sl)} BE ${num(method.be)} | PF ${methodPf}`;
+  if(restartGap)text+=`\n🧾 Bu kapanışın muhasebe sonucu: <b>${outcome||'BELİRSİZ'}</b> | Çetele/öğrenme: <b>HARİÇ (RESTART GAP)</b>`;
+  return text;
 }
-module.exports={VERSION,FILE,read,open,close,display,methodFor,telegramLine};
+module.exports={VERSION,FILE,read,write,open,close,display,methodFor,assignmentFor,takeoverReached,telegramLine,assignmentMetrics};

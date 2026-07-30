@@ -230,7 +230,21 @@ function matrixSirasiBul(key, mode = 'best') {
   return idx >= 0 ? idx + 1 : null;
 }
 
-function matrixGecmisPerformansMetni(snap, baslik = 'GEÇMİŞ PERFORMANS') {
+function dagilimOranlari(b = {}) {
+  const toplam = Number(b?.toplam || 0);
+  const tp = Number(b?.tp || 0), sl = Number(b?.sl || 0), be = Number(b?.be || 0);
+  const decisive = tp + sl;
+  return {
+    toplam, tp, sl, be, decisive,
+    tpPct: toplam ? tp / toplam * 100 : 0,
+    slPct: toplam ? sl / toplam * 100 : 0,
+    bePct: toplam ? be / toplam * 100 : 0,
+    decisiveWr: decisive ? tp / decisive * 100 : 0,
+    reconciled: toplam === tp + sl + be
+  };
+}
+
+function matrixGecmisPerformansMetni(snap, baslik = 'BİRİKİMLİ GENİŞ İMZA PERFORMANSI') {
   if (!snap) return '';
   const o = ozetHazirla();
   const key = signatureMatrixKey(snap);
@@ -238,29 +252,28 @@ function matrixGecmisPerformansMetni(snap, baslik = 'GEÇMİŞ PERFORMANS') {
   const sig = snap.strategySignature || {};
   const kisa = signatureMatrixKisa(snap);
   const etiket = signatureMatrixEtiket(snap);
+  const sourceLine = `Kaynak: BlackBox bilimsel kapanış özeti | Kapsam: Yön + BTC(5m/15m/1h/4h) + Coin(5m/15m/1h/4h) | BB filtresi: YOK | Restart-GAP: HARİÇ`;
   if (!b || !Number(b.toplam || 0)) {
     return `\n\n📚 <b>${baslik}</b>\n` +
+      `${sourceLine}\n` +
       `🧬 İmza: ${kisa}\n` +
       `BTC: ${bitTfMetni(sig.btcBits || uyumBitleri(snap?.btc?.superTrend, sig.yon || snap.yon), sig.yon || snap.yon)}\n` +
       `Coin: ${bitTfMetni(sig.coinBits || uyumBitleri(snap?.coin?.superTrend, sig.yon || snap.yon), sig.yon || snap.yon)}\n` +
-      `Bu 256 BTC×Coin imzası için henüz kapanan geçmiş işlem yok. İlk kapanıştan sonra oran oluşacak.`;
+      `Bu geniş imza için henüz bilimsel kapanış yok.`;
   }
-  const toplam = Number(b.toplam || 0);
-  const sonucN = Number(b.tp || 0) + Number(b.sl || 0);
-  const basari = Number(oran(b)).toFixed(1);
-  const basarisiz = sonucN > 0 ? ((Number(b.sl || 0) / sonucN) * 100).toFixed(1) : '0.0';
-  const beOran = toplam > 0 ? ((Number(b.be || 0) / toplam) * 100).toFixed(1) : '0.0';
-  const ortNet = toplam > 0 ? (Number(b.net || 0) / toplam).toFixed(3) : '0.000';
+  const d = dagilimOranlari(b);
+  const ortNet = d.toplam > 0 ? (Number(b.net || 0) / d.toplam).toFixed(4) : '0.0000';
   const rankBest = matrixSirasiBul(key, 'best');
   const rankWorst = matrixSirasiBul(key, 'worst');
   return `\n\n📚 <b>${baslik}</b>\n` +
+    `${sourceLine}\n` +
     `🧬 İmza: ${kisa}\n` +
     `${etiket}\n` +
-    `🎯 Bu imzanın geçmiş başarı oranı: %${basari} | Başarısızlık: %${basarisiz} | BE: %${beOran}\n` +
-    `📌 Örnek: ${toplam} işlem | TP:${b.tp || 0} SL:${b.sl || 0} BE:${b.be || 0}\n` +
-    `💰 Net: ${Number(b.net || 0).toFixed(2)} USDT | Ort.Net: ${ortNet} | PF: ${profitFactor(b)}\n` +
+    `📌 N${d.toplam} = TP ${d.tp} (%${d.tpPct.toFixed(1)}) + SL ${d.sl} (%${d.slPct.toFixed(1)}) + BE ${d.be} (%${d.bePct.toFixed(1)}) ${d.reconciled ? '✅' : '⚠️'}\n` +
+    `🎯 Kararlı sonuç WR: %${d.decisiveWr.toFixed(1)} (${d.tp}/${d.decisive}, BE hariç)\n` +
+    `💰 Net ${Number(b.net || 0).toFixed(4)} USDT | PF ${profitFactor(b)} | Exp ${ortNet} USDT/işlem\n` +
     `🏁 Sıralama: En iyi #${rankBest || '-'} | En kötü #${rankWorst || '-'} | Güven: ${guvenMetni(b)}\n` +
-    `🧠 Karar: ${imzaKararSeviyesi(b)}`;
+    `🕒 Son güncelleme: ${o.sonGuncelleme ? tarihSaat(o.sonGuncelleme) : 'YOK'} | Karar: ${imzaKararSeviyesi(b)}`;
 }
 
 function signatureKey(snap) { return snap?.strategySignature?.key || tamKombinasyonKey(snap, snap?.yon); }
@@ -373,7 +386,7 @@ function sureMetni(ms) {
   const dk = Math.floor(s / 60); const sn = s % 60;
   const parca = [];
   if (gun) parca.push(`${gun}g`);
-  if (saat) parca.push(`${saat}s`);
+  if (saat) parca.push(`${saat}sa`);
   if (dk) parca.push(`${dk}dk`);
   parca.push(`${sn}sn`);
   return parca.join(' ');
@@ -1155,18 +1168,27 @@ function comboOgrenmeMetni(pos) {
   const exactStats = o.exactComboStats || {};
   const exactKey = signatureKey(ac);
   const exact = exactStats[exactKey];
-  const matrixText = matrixGecmisPerformansMetni(ac, 'GÜNCELLENMİŞ 256 İMZA PERFORMANSI');
+  const matrixText = matrixGecmisPerformansMetni(ac, 'BİRİKİMLİ GENİŞ 256 İMZA PERFORMANSI');
+  const sourceLine = `Kaynak: BlackBox bilimsel kapanış özeti | Kapsam: Yön + BTC + Coin + açılış BB | BB filtresi: ${ac?.coin?.bollinger?.bolge || 'YOK'} | Restart-GAP: HARİÇ`;
   if (!exact || !exact.toplam) {
-    return matrixText + `\n\n📚 <b>Aynı Tam Kombinasyon</b>\nBu tam BTC/Coin/BB kombinasyonu için ilk kapanış bekleniyor.`;
+    return matrixText + `\n\n📚 <b>EXACT İMZA + BB PERFORMANSI</b>\n${sourceLine}\nBu exact kombinasyon için ilk bilimsel kapanış bekleniyor.`;
   }
-  const sonucSayisi = (exact.tp || 0) + (exact.sl || 0);
-  const beOran = exact.toplam > 0 ? (((exact.be || 0) / exact.toplam) * 100).toFixed(1) : '0.0';
-  return matrixText + `\n\n📚 <b>Aynı Tam Kombinasyon + BB</b>\n` +
+  const d = dagilimOranlari(exact);
+  const exp = d.toplam ? Number(exact.net || 0) / d.toplam : 0;
+  return matrixText + `\n\n📚 <b>EXACT İMZA + BB PERFORMANSI</b>\n` +
+    `${sourceLine}\n` +
     `${signatureEtiket(ac)}\n` +
-    `🎯 Bu tam imzanın başarı oranı: %${oran(exact)} | BE Oranı: %${beOran}\n` +
-    `📌 Örnek: ${exact.toplam} | TP:${exact.tp || 0} SL:${exact.sl || 0} BE:${exact.be || 0}\n` +
-    `💰 Net: ${Number(exact.net || 0).toFixed(2)} USDT` +
-    (sonucSayisi < 10 ? `\nNot: Örnek sayısı düşük; veri toplandıkça güven artacak.` : '');
+    `📌 N${d.toplam} = TP ${d.tp} (%${d.tpPct.toFixed(1)}) + SL ${d.sl} (%${d.slPct.toFixed(1)}) + BE ${d.be} (%${d.bePct.toFixed(1)}) ${d.reconciled ? '✅' : '⚠️'}\n` +
+    `🎯 Kararlı sonuç WR: %${d.decisiveWr.toFixed(1)} (${d.tp}/${d.decisive}, BE hariç)\n` +
+    `💰 Net ${Number(exact.net || 0).toFixed(4)} USDT | PF ${profitFactor(exact)} | Exp ${exp >= 0 ? '+' : ''}${exp.toFixed(4)} USDT/işlem\n` +
+    `🕒 Son güncelleme: ${o.sonGuncelleme ? tarihSaat(o.sonGuncelleme) : 'YOK'}\n` +
+    (d.toplam < 10 ? `⚠️ Örnek sayısı düşük; bu blok canlı karar yetkisi değildir.` : `✅ Örnek sayısı olgunlaşma eşiğini geçti.`);
+}
+
+function bilimselKapanisMetni(pos) {
+  return `🔬 <b>ST2 BİLİMSEL KAPANIŞ ANALİZİ</b>\n` +
+    `Bu mesaj operasyonel kapanıştan ayrıdır; veri havuzları kaynak ve kapsamlarıyla gösterilir.` +
+    comboOgrenmeMetni(pos);
 }
 
 function enIyiKombinasyonMetni(limit = 10) {
@@ -1866,4 +1888,4 @@ function telegramOzetMetni() {
   return renderOzetRaporu(blackboxReportModelOlustur());
 }
 
-module.exports = { hierarchicalIdentityRefresh, strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur, evolutionLabMetni, featureImportanceLab, pairImportanceLab, tripleDnaLab, confidenceEngine, liveIntelligenceMonitor, intelligenceConsole, exitOptimizer };
+module.exports = { hierarchicalIdentityRefresh, strategySignatureOlustur, strategySignatureMetni, deneyMeta, deneyKimligi, snapshotAl, telegramSnapshotMetni, gecisMetni, kayitYaz, emojiTrend, telegramOzetMetni, telegramIstatistikRaporMetni, istatistikRaporGerekli, istatistikDakikaRaporGerekli, stSatiri, tarihSaat, sureMetni, tradeZamanMetni, kapanisAnalizMetni, comboOgrenmeMetni, bilimselKapanisMetni, dagilimOranlari, blackboxReportModelOlustur, renderIstatistikRaporu, renderOzetRaporu, fullSignatureKey, fullSignatureEtiket, fullSignatureShort, pusuTipiBul, fullSignatureLabMetni, intersectionLabMetni, intersectionHaritasiOlustur, evolutionLabMetni, featureImportanceLab, pairImportanceLab, tripleDnaLab, confidenceEngine, liveIntelligenceMonitor, intelligenceConsole, exitOptimizer };

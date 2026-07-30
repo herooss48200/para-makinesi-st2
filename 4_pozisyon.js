@@ -19,6 +19,7 @@ const sanalDynamicExit = require('./51_sanal_dynamic_exit_executor.js');
 const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 const hierarchyIdentity = require('./60_hierarchical_dna_identity_registry.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
+const operationTransparency = require('./82_st2_operation_transparency.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -1088,7 +1089,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     };
 
     let exitReplayRecord = null;
-    if (!restartGapIslemi) {
+    if (!restartGapIslemi && !manuelDisKapanis) {
         pos.blackboxKapanis = await blackbox.snapshotAl(pos.sym, pos.yon, 'KAPANIS').catch(err => {
             console.log(`⚠️ [BLACKBOX] Kapanış snapshot alınamadı: ${pos.sym} ${pos.yon} | ${err.message}`);
             return null;
@@ -1101,52 +1102,59 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
         labChampion.close(pos, kapanisAnalizPaketi, exitReplayRecord);
         labPremier.close(pos, { net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc, reason: duzeltilmisSebep });
-    } else {
+    } else if (restartGapIslemi) {
         restartGap.closeRecord(pos, kapanisAnalizPaketi);
         console.log(`🛡️ [RESTART GAP KAPANIŞ] ${pos.sym} ${pos.yon} | Muhasebe dahil, öğrenme hariç | Net: ${netKarZarar.toFixed(4)}`);
+    } else {
+        console.log(`🖐️ [MANUEL/DIŞ KAPANIŞ] ${pos.sym} ${pos.yon} | Bilimsel öğrenme hariç | Net: ${netKarZarar.toFixed(4)}`);
     }
 
     try {
         accountingContinuity.trackAtClose(pos, {
             restartGap: restartGapIslemi,
-            scientific: !restartGapIslemi
+            scientific: !restartGapIslemi && !manuelDisKapanis
         });
     } catch (err) {
         console.log(`⚠️ [ACCOUNTING CONTINUITY CLOSE] ${pos.sym} ${pos.yon} | ${err.message}`);
     }
 
-    const telegramSonuclari = await h.telegramMesajGonder(
-        `${emoji} <b>${baslik}</b>\n` +
-        `🔀 ${pos.sym} (${pos.yon})\n` +
-        `🪪 ${raporKimligi.dnaLabel}\n` +
-        `🧩 ${raporKimligi.labDnaLabel} | ${raporKimligi.fullDnaLabel}\n` +
-        `🧬 DNA: ${raporKimligi.rawKey}\n` +
-        `🏆 Açılıştaki LAB Lig: ${raporKimligi.league} | Kanıt: ${raporKimligi.proof} | ${raporKimligi.track}\n` +
-        `🕒 Açılış: ${blackbox.tarihSaat(pos.acilisZamani || pos.zaman)}\n` +
-        `🕒 Kapanış: ${blackbox.tarihSaat(kapanisZamani)}\n` +
-        `⏳ Süre: ${blackbox.sureMetni(kapanisZamani - Number(pos.acilisZamani || pos.zaman || kapanisZamani))}\n` +
-        `📌 Sebep: ${duzeltilmisSebep}\n` +
-        `📥 Giriş: ${pos.girisFiyati.toFixed(pPrecision)}\n` +
-        `📤 Çıkış: ${kapanisFiyati.toFixed(pPrecision)}\n` +
-        `📦 Pozisyon: ${pozisyonDegeri.toFixed(4)} USDT\n` +
-        `📊 Fiyat Hareketi: %${fiyatKarYuzdesi.toFixed(2)}\n` +
-        `📈 Brüt PNL: ${brutKarZarar.toFixed(4)} USDT\n` +
-        `💸 Komisyon: ${toplamKomisyon.toFixed(4)} USDT\n` +
-        `👑 Net PNL: ${netKarZarar.toFixed(4)} USDT${leagueShadowOnly ? ' | 👻 SANAL KASA DIŞI' : ''}` +
-        exitMethodScoreboard.telegramLine(exitMethodSummary, { restartGap: restartGapIslemi, currentOutcome: kaliteSonuc }) + `\n` +
-        (pos.girisAnalizi?.pusuKalite ? `🏅 Pusu Kalitesi: ${pos.girisAnalizi.pusuKalite.puan}/100 ${pos.girisAnalizi.pusuKalite.sinif} | ${pos.girisAnalizi.pusuKalite.senaryo || pos.girisAnalizi.senaryo || 'YOK'} | ${restartGapIslemi ? 'Muhasebe Sonucu' : 'Sonuç'}: ${kaliteSonuc}${restartGapIslemi ? ' | Öğrenme: HARİÇ' : ''}\n` : '') +
-        `📊 Net %: %${netPozisyonYuzdesi.toFixed(2)} | Marjin %: %${netMarjinYuzdesi.toFixed(2)}` +
-        restartGap.telegramMetni(pos) +
-        (restartGapIslemi ? '' : blackbox.kapanisAnalizMetni(pos, kapanisAnalizPaketi, kapanisZamani) +
-        exitOptimizer.kapanisMetni(pos, kapanisAnalizPaketi) +
-        exitReplay.kapanisMetni(exitReplayRecord) +
-        blackbox.telegramSnapshotMetni(pos.blackboxAcilis, 'AÇILIŞ FOTOĞRAFI') +
-        blackbox.telegramSnapshotMetni(pos.blackboxKapanis, 'KAPANIŞ FOTOĞRAFI') +
-        blackbox.gecisMetni(pos.blackboxAcilis, pos.blackboxKapanis))
-    );
+    const operasyonMesaji = operationTransparency.closingText(pos, {
+        emoji,
+        title: baslik,
+        dnaLabel: raporKimligi.dnaLabel,
+        labDnaLabel: raporKimligi.labDnaLabel,
+        fullDnaLabel: raporKimligi.fullDnaLabel,
+        league: raporKimligi.league,
+        proof: raporKimligi.proof,
+        openedAtText: blackbox.tarihSaat(pos.acilisZamani || pos.zaman),
+        closedAtText: blackbox.tarihSaat(kapanisZamani),
+        durationText: blackbox.sureMetni(kapanisZamani - Number(pos.acilisZamani || pos.zaman || kapanisZamani)),
+        exitPrice: kapanisFiyati,
+        pricePrecision: pPrecision,
+        reason: duzeltilmisSebep,
+        outcome: kaliteSonuc,
+        fiyatKarYuzdesi,
+        grossPnl: brutKarZarar,
+        commission: toplamKomisyon,
+        netPnl: netKarZarar,
+        shadowOnly: leagueShadowOnly
+    }) +
+    (restartGapIslemi ? restartGap.telegramMetni(pos) : '') +
+    (manuelDisKapanis ? `\n\n⚠️ <b>MANUEL/DIŞ KAPANIŞ</b>\nBilimsel öğrenme ve metot çetelesi bu kapanış için güncellenmedi.` : '');
+
+    const telegramSonuclari = await h.telegramMesajGonder(operasyonMesaji);
+    let bilimselTelegramSonuclari = [];
+    if (!restartGapIslemi && !manuelDisKapanis) {
+        const bilimselMesaj = blackbox.bilimselKapanisMetni(pos) +
+            exitOptimizer.kapanisMetni(pos, kapanisAnalizPaketi) +
+            exitReplay.kapanisMetni(exitReplayRecord) +
+            exitMethodScoreboard.telegramLine(exitMethodSummary, { restartGap: false, currentOutcome: kaliteSonuc });
+        bilimselTelegramSonuclari = await h.telegramMesajGonder(bilimselMesaj);
+    }
 
     const telegramOk = Array.isArray(telegramSonuclari) && telegramSonuclari.some(x => x?.sonuc?.ok);
-    console.log(`${telegramOk ? '✅' : '⚠️'} [TELEGRAM KAPANIŞ] ${pos.sym} ${pos.yon} | Sonuç: ${kaliteSonuc} | Net: ${netKarZarar.toFixed(4)} | Parça/deneme: ${Array.isArray(telegramSonuclari) ? telegramSonuclari.length : 0}`);
+    const bilimselTelegramOk = !bilimselTelegramSonuclari.length || bilimselTelegramSonuclari.some(x => x?.sonuc?.ok);
+    console.log(`${telegramOk && bilimselTelegramOk ? '✅' : '⚠️'} [TELEGRAM KAPANIŞ] ${pos.sym} ${pos.yon} | Operasyon ${telegramOk ? 'OK' : 'HATA'} | Bilimsel ${bilimselTelegramOk ? 'OK' : 'HATA'} | Sonuç: ${kaliteSonuc} | Net: ${netKarZarar.toFixed(4)} | Parça: ${Array.isArray(telegramSonuclari) ? telegramSonuclari.length : 0}+${bilimselTelegramSonuclari.length}`);
 
     // v2.5.1: Her N kapanışta bir ayrı BlackBox istatistik raporu gönder.
     // Canlı rapor içinde özet var; bu rapor ise Telegram'da kaçırılmayacak ayrı analiz mesajıdır.
@@ -1161,7 +1169,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
 
     // v3.6.5: Her ayarlanan kapanış sayısında DNA bazlı Exit Evolution skor tablosu gönder.
     try {
-        if (!restartGapIslemi && exitReplay.periyodikRaporGerekli()) {
+        if (!restartGapIslemi && !manuelDisKapanis && exitReplay.periyodikRaporGerekli()) {
             const exitRaporSonuclari = await h.telegramMesajGonder(exitReplay.periyodikRaporMetni());
             const exitRaporOk = Array.isArray(exitRaporSonuclari) && exitRaporSonuclari.some(x => x?.sonuc?.ok);
             if (exitRaporOk) {

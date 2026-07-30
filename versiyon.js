@@ -3,8 +3,8 @@
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
     kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
-    kod: 'AGROS ST2 v6.7.3 — LIVE LAB PROMOTION & DEMOTION FINAL',
-    botSurumu: '6.7.4-TELEGRAM-STARTUP-RELIABLE-DELIVERY',
+    kod: 'AGROS ST2 v6.8.2 — OPERATION LIFECYCLE & REPORT TRUTH',
+    botSurumu: '6.8.2-OPERATION-LIFECYCLE-REPORT-TRUTH',
     stratejiSurumu: '1.0.27',
     yayinTarihi: '30.07.2026',
     ortam: Object.freeze({ emirModu: 'SANAL' })
@@ -13,14 +13,9 @@ const versiyon = Object.freeze({
 function kisaOzet() {
     return `${versiyon.isim} ${versiyon.botSurumu} | ${versiyon.kodAdi} | Strateji ${versiyon.stratejiSurumu}`;
 }
-
 function telegramOzet() {
     const mod = versiyon.ortam?.emirModu || 'BILINMIYOR';
     return `${versiyon.botSurumu} / ${versiyon.kodAdi} / ${mod}`;
 }
-
-function detayliOzet() {
-    return { ...versiyon, kisaOzet: kisaOzet(), telegramOzet: telegramOzet() };
-}
-
+function detayliOzet() { return { ...versiyon, kisaOzet: kisaOzet(), telegramOzet: telegramOzet() }; }
 module.exports = { ...versiyon, versiyon, kisaOzet, telegramOzet, detayliOzet };

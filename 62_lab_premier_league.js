@@ -18,7 +18,9 @@ const evidenceEngine = require('./63_universal_evidence_engine.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 
-const VERSION = 'v6.7.3-LAB-LIVE-PROMOTION-DEMOTION';
+const VERSION = 'v6.8.2-LAB-LIFECYCLE-PERSISTENT-TRANSITIONS';
+const PROCESS_STARTED_AT = new Date().toISOString();
+const PROCESS_STARTED_AT_MS = Date.now();
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'lab-premier-observation.json');
 const MODEL_FILE = path.join(DATA_DIR, 'lab-premier-league-model.json');
@@ -53,7 +55,23 @@ function blankState() {
     version: VERSION,
     experimentId: ayarlar.labPremierExperimentId || 'LAB-PREMIER-DYNAMIC-LEAGUE-2026-07-21',
     startedAt: new Date().toISOString(), aggregate: blankBucket(), byLab: {}, lastTrades: [],
+    liveLeagueByLab: {}, leagueTransitions: [], recentClosedIds: [],
     reverseAudit: { evaluated: 0, bound: 0, opened: 0, identityMismatch: 0, last: [] }, updatedAt: null
+  };
+}
+function baseLeagueFromTrack(track) {
+  return [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(String(track || '').toUpperCase()) ? 'PREMIER' : 'SHADOW';
+}
+function normalizeLiveLeagueEntry(raw = {}, labKey = '') {
+  return {
+    labKey,
+    initialLeague: ['PREMIER', 'SHADOW'].includes(String(raw.initialLeague || '').toUpperCase()) ? String(raw.initialLeague).toUpperCase() : null,
+    currentLeague: ['PREMIER', 'SHADOW'].includes(String(raw.currentLeague || '').toUpperCase()) ? String(raw.currentLeague).toUpperCase() : null,
+    previousLeague: ['PREMIER', 'SHADOW'].includes(String(raw.previousLeague || '').toUpperCase()) ? String(raw.previousLeague).toUpperCase() : null,
+    recentTrades: Array.isArray(raw.recentTrades) ? raw.recentTrades.slice(0, 50) : [],
+    promotedAt: raw.promotedAt || null, demotedAt: raw.demotedAt || null,
+    promotionCount: num(raw.promotionCount), demotionCount: num(raw.demotionCount),
+    lastTransition: raw.lastTransition || null, lastReview: raw.lastReview || null, updatedAt: raw.updatedAt || null
   };
 }
 function normalizeState(raw) {
@@ -62,18 +80,33 @@ function normalizeState(raw) {
   out.byLab = raw?.byLab && typeof raw.byLab === 'object' ? raw.byLab : {};
   // v5.0.x kalıcı defteri kaybolmaz; eski proof etiketi yeni üçlü Premier yoluna taşınır.
   for (const row of Object.values(out.byLab)) {
-    if (!row || row.premierTrack) continue;
-    const proof = String(row.currentProofLevel || row.proofLevelAtFirstOpen || '').toUpperCase();
-    row.premierTrack = proof.includes('RECENT5') ? TRACK.RECENT5 : TRACK.HISTORICAL;
+    if (!row) continue;
+    if (!row.premierTrack) {
+      const proof = String(row.currentProofLevel || row.proofLevelAtFirstOpen || '').toUpperCase();
+      row.premierTrack = proof.includes('RECENT5') ? TRACK.RECENT5 : TRACK.HISTORICAL;
+    }
     row.bucket = { ...blankBucket(), ...(row.bucket || {}) };
     row.exitChangeCount = num(row.exitChangeCount);
   }
-  out.lastTrades = Array.isArray(raw?.lastTrades) ? raw.lastTrades : [];
+  out.lastTrades = Array.isArray(raw?.lastTrades) ? raw.lastTrades.slice(0, 150) : [];
+  out.liveLeagueByLab = raw?.liveLeagueByLab && typeof raw.liveLeagueByLab === 'object' ? raw.liveLeagueByLab : {};
+  for (const [key, value] of Object.entries(out.liveLeagueByLab)) out.liveLeagueByLab[key] = normalizeLiveLeagueEntry(value, key);
+  // Eski ortak lastTrades yapısından LAB bazlı pencereye kayıpsız geçiş.
+  for (const trade of out.lastTrades) {
+    if (trade?.reverseExecution) continue;
+    const key = hierarchy.labKey(trade?.labKey);
+    if (!key) continue;
+    const entry = out.liveLeagueByLab[key] || normalizeLiveLeagueEntry({}, key);
+    if (!entry.recentTrades.some(x => String(x?.tradeId || '') && String(x.tradeId) === String(trade?.tradeId || ''))) entry.recentTrades.push(trade);
+    entry.recentTrades = entry.recentTrades.slice(0, 50);
+    entry.initialLeague = entry.initialLeague || baseLeagueFromTrack(trade?.premierTrack);
+    out.liveLeagueByLab[key] = entry;
+  }
+  out.leagueTransitions = Array.isArray(raw?.leagueTransitions) ? raw.leagueTransitions.slice(0, 2000) : [];
+  out.recentClosedIds = Array.isArray(raw?.recentClosedIds) ? raw.recentClosedIds.slice(0, 2000) : [];
   out.reverseAudit = { evaluated: 0, bound: 0, opened: 0, identityMismatch: 0, last: [], ...(raw?.reverseAudit || {}) };
   out.reverseAudit.last = Array.isArray(out.reverseAudit.last) ? out.reverseAudit.last.slice(0, 50) : [];
   // v5.3 ters işlemleri yanlışlıkla ana aggregate'e yazılmış olabilir.
-  // Ana Premier kasası her okumada kanonik üst katman satırlarından yeniden kurulur.
-  // ST2 Renko Premier, HISTORICAL_POSITIVE ile aynı sanal üst kasa içinde izlenir; Reverse ayrı kalır.
   const historicalAggregate = blankBucket();
   for (const row of Object.values(out.byLab)) {
     if ([TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(row?.premierTrack)) addBucket(historicalAggregate, row.bucket || {});
@@ -114,29 +147,77 @@ function liveLeagueThresholds() {
     minExpectancy: num(ayarlar.labCanliLigMinExpectancy, num(ayarlar.labChampionForwardMinExpectancy, 0))
   };
 }
-function liveLeagueReview(labKeyValue, state = null) {
-  const labKey = hierarchy.labKey(labKeyValue);
-  const thresholds = liveLeagueThresholds();
-  const trades = (Array.isArray((state || readState()).lastTrades) ? (state || readState()).lastTrades : [])
-    .filter(x => hierarchy.labKey(x?.labKey) === labKey && !x?.reverseExecution && String(x?.premierTrack || '').toUpperCase() !== TRACK.REVERSE)
-    .slice(0, thresholds.minClosed);
+function tradeOutcome(trade = {}) {
+  const explicit = String(trade?.outcome || trade?.sonuc || '').toUpperCase();
+  if (['TP', 'SL', 'BE'].includes(explicit)) return explicit;
+  const net = num(trade?.net ?? trade?.netKarZarar);
+  if (Math.abs(net) <= 0.000001) return 'BE';
+  return net > 0 ? 'TP' : 'SL';
+}
+function liveBucketFromTrades(trades = []) {
   const bucket = blankBucket();
   for (const trade of trades) {
-    const net = num(trade?.net); const commission = Math.max(0, num(trade?.commission));
-    const outcome = String(trade?.outcome || '').toUpperCase();
+    const net = num(trade?.net ?? trade?.netKarZarar); const commission = Math.max(0, num(trade?.commission ?? trade?.komisyon));
+    const outcome = tradeOutcome(trade);
     bucket.closed++; bucket.net += net; bucket.commission += commission;
     if (net > 0) bucket.grossProfit += net; else if (net < 0) bucket.grossLoss += Math.abs(net);
-    if (outcome === 'TP' || (outcome !== 'SL' && outcome !== 'BE' && net > 0)) bucket.tp++;
-    else if (outcome === 'BE' || Math.abs(net) <= 0.000001) bucket.be++; else bucket.sl++;
+    if (outcome === 'TP') bucket.tp++; else if (outcome === 'BE') bucket.be++; else bucket.sl++;
   }
-  const m = metrics(bucket);
+  return bucket;
+}
+function recentLabTrades(state, labKey, limit = 50) {
+  const direct = state?.liveLeagueByLab?.[labKey]?.recentTrades;
+  const source = Array.isArray(direct) && direct.length ? direct : (Array.isArray(state?.lastTrades) ? state.lastTrades : []);
+  return source.filter(x => hierarchy.labKey(x?.labKey) === labKey && !x?.reverseExecution && String(x?.premierTrack || '').toUpperCase() !== TRACK.REVERSE).slice(0, limit);
+}
+function liveLeagueReview(labKeyValue, state = null, baseTrack = '') {
+  const labKey = hierarchy.labKey(labKeyValue); const currentState = state || readState();
+  const thresholds = liveLeagueThresholds(); const entry = currentState?.liveLeagueByLab?.[labKey] || normalizeLiveLeagueEntry({}, labKey);
+  const trades = recentLabTrades(currentState, labKey, thresholds.minClosed);
+  const m = metrics(liveBucketFromTrades(trades));
   const complete = thresholds.enabled && Boolean(labKey) && trades.length >= thresholds.minClosed;
   const positive = complete && m.net > thresholds.minNet && m.profitFactor > thresholds.minPf && m.expectancy > thresholds.minExpectancy;
+  const initialLeague = entry.initialLeague || baseLeagueFromTrack(baseTrack || currentState?.byLab?.[labKey]?.premierTrack);
+  const computedLeague = complete ? (positive ? 'PREMIER' : 'SHADOW') : (entry.currentLeague || initialLeague);
   return {
-    version: VERSION, labKey, complete, promoted: positive, demoted: complete && !positive,
-    reason: !complete ? `LAB_LIVE_N${thresholds.minClosed}_BEKLENIYOR` : (positive ? 'LAB_LIVE_N5_PROMOTED_PREMIER' : 'LAB_LIVE_N5_DEMOTED_TO_SHADOW'),
-    metrics: m, thresholds, tradeIds: trades.map(x => x.tradeId || '').filter(Boolean), reviewedAt: new Date().toISOString()
+    version: VERSION, labKey, complete, currentLeague: computedLeague, previousLeague: entry.previousLeague || null,
+    promoted: complete && computedLeague === 'PREMIER', demoted: complete && computedLeague === 'SHADOW',
+    isLivePremier: complete && computedLeague === 'PREMIER', isLiveShadow: complete && computedLeague === 'SHADOW',
+    reason: !complete ? `LAB_LIVE_N${thresholds.minClosed}_BEKLENIYOR` : (positive ? 'LAB_LIVE_N5_PREMIER_CONDITION' : 'LAB_LIVE_N5_SHADOW_CONDITION'),
+    metrics: m, thresholds, tradeIds: trades.map(x => x.tradeId || '').filter(Boolean), reviewedAt: new Date().toISOString(),
+    lastTransition: entry.lastTransition || null, promotionCount: num(entry.promotionCount), demotionCount: num(entry.demotionCount),
+    promotedAt: entry.promotedAt || null, demotedAt: entry.demotedAt || null
   };
+}
+function updateLiveLeagueState(state, trade) {
+  if (!trade || trade.reverseExecution) return null;
+  const labKey = hierarchy.labKey(trade.labKey); if (!labKey) return null;
+  const entry = normalizeLiveLeagueEntry(state.liveLeagueByLab?.[labKey] || {}, labKey);
+  const tradeId = String(trade.tradeId || `${trade.symbol || ''}|${trade.side || ''}|${trade.closedAt || ''}`);
+  entry.recentTrades = [trade, ...entry.recentTrades.filter(x => String(x?.tradeId || `${x?.symbol || ''}|${x?.side || ''}|${x?.closedAt || ''}`) !== tradeId)].slice(0, 50);
+  entry.initialLeague = entry.initialLeague || baseLeagueFromTrack(trade.premierTrack);
+  const tempState = { ...state, liveLeagueByLab: { ...(state.liveLeagueByLab || {}), [labKey]: entry } };
+  const review = liveLeagueReview(labKey, tempState, trade.premierTrack);
+  const previousLeague = entry.currentLeague || entry.initialLeague;
+  const nextLeague = review.complete ? review.currentLeague : previousLeague;
+  let transition = null;
+  if (review.complete && previousLeague && nextLeague !== previousLeague) {
+    transition = {
+      version: VERSION, transitionId: `${labKey}|${tradeId}|${nextLeague}`, at: trade.closedAt || new Date().toISOString(), labKey,
+      previousLeague, newLeague: nextLeague,
+      type: previousLeague === 'SHADOW' && nextLeague === 'PREMIER' ? 'SHADOW_TO_PREMIER' : 'PREMIER_TO_SHADOW',
+      reason: nextLeague === 'PREMIER' ? 'LAB_LIVE_N5_POSITIVE_ECONOMY' : 'LAB_LIVE_N5_POSITIVE_GATE_LOST',
+      metrics: review.metrics, thresholds: review.thresholds, triggerTradeId: tradeId
+    };
+    entry.previousLeague = previousLeague; entry.currentLeague = nextLeague; entry.lastTransition = transition;
+    if (nextLeague === 'PREMIER') { entry.promotedAt = transition.at; entry.promotionCount++; }
+    else { entry.demotedAt = transition.at; entry.demotionCount++; }
+    state.leagueTransitions = [transition, ...(state.leagueTransitions || []).filter(x => x?.transitionId !== transition.transitionId)].slice(0, 2000);
+  } else if (!entry.currentLeague) entry.currentLeague = nextLeague;
+  entry.lastReview = { at: trade.closedAt || new Date().toISOString(), complete: review.complete, currentLeague: nextLeague, reason: review.reason, metrics: review.metrics, thresholds: review.thresholds };
+  entry.updatedAt = trade.closedAt || new Date().toISOString();
+  state.liveLeagueByLab = { ...(state.liveLeagueByLab || {}), [labKey]: entry };
+  return { entry, review: { ...review, currentLeague: nextLeague }, transition };
 }
 function oppositeSide(side) { return String(side || '').toUpperCase() === 'SHORT' ? 'LONG' : 'SHORT'; }
 function invertBits(bits) { return String(bits || '').replace(/[01]/g, bit => bit === '1' ? '0' : '1'); }
@@ -371,7 +452,7 @@ function evaluate(pos, { model = null, realMode = false } = {}) {
   const identities = identityFor(pos); const leagueModel = model || build({ persist: false });
   const labKey = identities?.lab?.key || ''; const row = leagueModel.allCandidates.find(x => x.labKey === labKey) || null;
   const baseTier = row ? championTier(row) : championTier(null);
-  const liveReview = liveLeagueReview(labKey);
+  const liveReview = liveLeagueReview(labKey, null, baseTier.premierTrack);
   const tier = tierWithLiveReview(baseTier, row, liveReview);
   const reverseExecution = Boolean(!realMode && row && tier.reverseExecution);
   const upperLayerIncluded = Boolean(!realMode && row && tier.upperLayerIncluded);
@@ -578,7 +659,10 @@ function close(pos, result = {}) {
     outcome, net: round(net), commission: round(commission), upperLayerIncluded: Boolean(observation.upperLayerIncluded), observationPool: observation.observationPool || (observation.premierTrack === TRACK.REVERSE ? 'REVERSE_SEPARATE_LEDGER' : 'PREMIER'), samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
   };
   state.recentClosedIds = [closeId, ...state.recentClosedIds].slice(0, 2000);
-  state.lastTrades = [trade, ...state.lastTrades].slice(0, 150); state.updatedAt = closedAt; writeState(state); appendTrade(trade); return trade;
+  state.lastTrades = [trade, ...state.lastTrades].slice(0, 150);
+  const liveLeagueUpdate = updateLiveLeagueState(state, trade);
+  if (liveLeagueUpdate?.transition) trade.liveLeagueTransition = liveLeagueUpdate.transition;
+  state.updatedAt = closedAt; writeState(state); appendTrade(trade); return trade;
 }
 function activeRows(activePositions = []) {
   return accountingContinuity.activeBreakdown(activePositions).premierPositions.map(p => ({
@@ -680,12 +764,22 @@ function summaryModel(activePositions = [], { force = false } = {}) {
   const state = readState(); const league = build({ persist: false, force }); const stateRows = Object.values(state.byLab || {});
   const aggregate = premierTrackAggregate(stateRows);
   const accounting = premierAccounting(activePositions, aggregate);
-  const allEnriched = league.allCandidates.map(x => ({ ...enrichCandidate(x, stateRows, league), liveLeagueReview: liveLeagueReview(x.labKey, state) }));
-  const historicalPremier = allEnriched.filter(x => x.premierTrack === TRACK.HISTORICAL && !x.liveLeagueReview.demoted);
-  const livePromotedPremier = allEnriched.filter(x => x.liveLeagueReview.promoted).map(x => ({
+  const allEnriched = league.allCandidates.map(x => {
+    const enriched = enrichCandidate(x, stateRows, league);
+    return { ...enriched, liveLeagueReview: liveLeagueReview(x.labKey, state, enriched.premierTrack) };
+  });
+  const isBasePremier = row => [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(row?.premierTrack);
+  const historicalPremier = allEnriched.filter(x => isBasePremier(x) && x.liveLeagueReview.currentLeague !== 'SHADOW');
+  const livePromotedPremier = allEnriched.filter(x => !isBasePremier(x) && x.liveLeagueReview.complete && x.liveLeagueReview.currentLeague === 'PREMIER').map(x => ({
     ...x, labLeague: 'PREMIER', premierTrack: TRACK.LIVE, upperLayerIncluded: true, proofLevel: 'LAB_LIVE_N5_PROMOTED_PREMIER'
   }));
-  const liveDemoted = allEnriched.filter(x => x.liveLeagueReview.demoted);
+  const liveDemoted = allEnriched.filter(x => isBasePremier(x) && x.liveLeagueReview.complete && x.liveLeagueReview.currentLeague === 'SHADOW');
+  const liveConditionPremier = allEnriched.filter(x => x.liveLeagueReview.complete && x.liveLeagueReview.currentLeague === 'PREMIER');
+  const liveConditionShadow = allEnriched.filter(x => x.liveLeagueReview.complete && x.liveLeagueReview.currentLeague === 'SHADOW');
+  const transitions = Array.isArray(state.leagueTransitions) ? state.leagueTransitions : [];
+  const sessionTransitions = transitions.filter(x => Date.parse(x?.at || 0) >= PROCESS_STARTED_AT_MS);
+  const sessionPromotions = sessionTransitions.filter(x => x.type === 'SHADOW_TO_PREMIER');
+  const sessionDemotions = sessionTransitions.filter(x => x.type === 'PREMIER_TO_SHADOW');
   const effectivePremier = [...new Map([...historicalPremier, ...livePromotedPremier].map(x => [x.labKey, x])).values()];
   const recent5Premier = [];
   const reversePremier = league.reversePremier.map(x => enrichCandidate(x, stateRows, league));
@@ -693,7 +787,11 @@ function summaryModel(activePositions = [], { force = false } = {}) {
   const bottomShort = league.bottomShort.map(x => enrichCandidate(x, stateRows, league));
   return {
     version: VERSION, experimentId: state.experimentId,
-    league: { ...league, historicalPremier, livePromotedPremier, liveDemoted, livePromotedCount: livePromotedPremier.length, liveDemotedCount: liveDemoted.length, recent5Premier, reversePremier, bottomLong, bottomShort, premier: effectivePremier },
+    league: { ...league, historicalPremier, livePromotedPremier, liveDemoted,
+      livePromotedCount: sessionPromotions.length, liveDemotedCount: sessionDemotions.length,
+      sessionPromotions, sessionDemotions, recentTransitions: transitions.slice(0, 10),
+      liveConditionPremier, liveConditionShadow, liveConditionPremierCount: liveConditionPremier.length, liveConditionShadowCount: liveConditionShadow.length,
+      recent5Premier, reversePremier, bottomLong, bottomShort, premier: effectivePremier },
     aggregate, accounting,
     trackMetrics: {
       historical: groupMetrics(stateRows, TRACK.HISTORICAL), live: groupMetrics(stateRows, TRACK.LIVE), reverse: groupMetrics(stateRows, TRACK.REVERSE),
@@ -702,7 +800,8 @@ function summaryModel(activePositions = [], { force = false } = {}) {
     byLab: stateRows.map(row => ({ ...row, metrics: metrics(row.bucket) })), active: activeRows(activePositions),
     reversePipeline: { candidateLabs: league.reversePremierCount, ...state.reverseAudit },
     bottomCounterfactual: bottomCounterfactual(league),
-    lastTrades: state.lastTrades, updatedAt: state.updatedAt
+    lastTrades: state.lastTrades, liveLeagueByLab: state.liveLeagueByLab, leagueTransitions: state.leagueTransitions,
+    processStartedAt: PROCESS_STARTED_AT, updatedAt: state.updatedAt
   };
 }
 function candidateLine(row, { reverse = false } = {}) {
@@ -810,7 +909,7 @@ function audit() {
 
 module.exports = {
   VERSION, TRACK, STATE_FILE, MODEL_FILE, TRADES_FILE,
-  readState, writeState, metrics, liveLeagueThresholds, liveLeagueReview, oppositeSide, invertBits, reverseLabKey, reversePremierReady, reverseShadowReady, bottomPremierReady, nearProfitReady, recordReverseStage,
+  readState, writeState, metrics, liveLeagueThresholds, liveLeagueReview, updateLiveLeagueState, recentLabTrades, tradeOutcome, baseLeagueFromTrack, oppositeSide, invertBits, reverseLabKey, reversePremierReady, reverseShadowReady, bottomPremierReady, nearProfitReady, recordReverseStage,
   championTier, tierWithLiveReview, build, evaluate, bindReverseExecution, frozenExit, applyToPosition, snapshot, close, activeRows,
   premierAccounting, summaryModel, compactTelegramFromModel, compactTelegram, telegram, audit
 };

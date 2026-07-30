@@ -18,6 +18,7 @@ const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const identityChain = require('./66_identity_chain_repair.js');
+const operationTransparency = require('./82_st2_operation_transparency.js');
 
 function ondalikSayisi(step) {
     const n = Number(step);
@@ -379,29 +380,7 @@ const m = {
             : '';
 
         const telegramGonderildi = ayarlar.telegramIslemAcilisMesaji === true ? await h.telegramMesajGonder(
-            `${yeniPozisyon.renkoPremierDecision?.premier ? '🏆 <b>[EXACT-CONTEXT PREMIER SANAL POZİSYON]</b>' : '👻 <b>[EXACT-CONTEXT SHADOW ÖĞRENME]</b>'}\n` +
-            (yeniPozisyon.renkoPremierDecision?.premier ? `💎 <b>PREMIER KARARI</b> | ${yeniPozisyon.renkoPremierDecision.reason || 'HISTORICAL_CONTEXT_WINNER'}\n` : `🌱 SHADOW KARARI | ${yeniPozisyon.renkoPremierDecision?.reason || 'CONTEXT_NOT_PROVEN_SHADOW'} | bağımsız N3 terfi takibi\n`) +
-            `🔀 ${symbol} (${yon})\n` +
-            (yeniPozisyon.labPremierDecision?.reverseExecution ? `🔁 Ters Premier kaynağı: ${yeniPozisyon.labPremierDecision.sourceLabDnaLabel || 'LAB #YOK'} ${yeniPozisyon.labPremierDecision.sourceSignalSide || ''} → ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} ${yon}\n` : '') +
-            `🪪 ${yeniPozisyon.realOrderReadiness?.dnaLabel || yeniPozisyon.dnaLabel || 'DNA #YOK'}\n` +
-            `🧩 ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
-            `🧬 DNA: ${yeniPozisyon.realOrderReadiness?.key || 'YOK'}\n` +
-            `🧬 Exact Context: ${yeniPozisyon.renkoPremierDecision?.dnaKey || 'YOK'}\n` +
-            `🎯 Mod: ${yeniPozisyon.renkoPremierDecision?.executionMode || 'SHADOW'} | Kaynak: ${yeniPozisyon.renkoPremierDecision?.source || 'NONE'} | Giriş: ${Number(yeniPozisyon.renkoPremierDecision?.activeBrick || yeniPozisyon.girisAnalizi?.renkoEntryBrickDistance || 0.75).toFixed(2)} tuğla\n` +
-            `🎯 Atanan Exit: ${yeniPozisyon.executionExitAssignment?.label || 'Mevcut Kademe Sistemi'}${yeniPozisyon.executionExitAssignment?.activeForPosition ? ' (AKTİF)' : ' (KADEME FALLBACK)'}\n` +
-            `📊 Exit Kanıtı: N${Number(yeniPozisyon.executionExitAssignment?.samples || 0)} | Beat %${Number(yeniPozisyon.executionExitAssignment?.beatRate || 0).toFixed(1)} | PF ${Number(yeniPozisyon.executionExitAssignment?.profitFactor || 0).toFixed(2)} | Net ${Number(yeniPozisyon.executionExitAssignment?.netUsdt || 0).toFixed(4)}\n` +
-            `🧭 Seçim Kapsamı: ${yeniPozisyon.executionExitAssignment?.scope || 'ACTUAL_FALLBACK'}\n` +
-            `🔎 Seçim Sebebi: ${yeniPozisyon.executionExitAssignment?.reason || 'Güvenli kademe fallback'}\n` +
-            `🔐 Plan Kimliği: ${yeniPozisyon.executionExitAssignment?.assignmentId || 'YOK'}\n` +
-            `🛡 Risk Profili [${yeniPozisyon.labLifecycleProfile?.scope || 'VARSAYILAN'}]: Stop %${Number(yeniPozisyon.labLifecycleProfile?.stopPct ?? ayarlar.sabitStopYuzdesi ?? 1.5).toFixed(2)} | BE %${Number(yeniPozisyon.labLifecycleProfile?.beTriggerPct ?? ayarlar.breakevenTetikYuzde ?? 0.4).toFixed(2)}/+%${Number(yeniPozisyon.labLifecycleProfile?.beBufferPct ?? ayarlar.breakevenTamponYuzde ?? 0.12).toFixed(2)} | N${Number(yeniPozisyon.labLifecycleProfile?.closed || 0)}\n` +
-            `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
-            `📦 Miktar: ${guvenliMiktar}\n` +
-            `🛡️ Sanal SL: ${sl.toFixed(pPrecision)}\n` +
-            `🎯 Sanal Final TP: ${tp.toFixed(pPrecision)}\n` +
-            `🆔 ${sanalId}\n` +
-            `🕒 İşlem Açılış: ${blackbox.tarihSaat(yeniPozisyon.acilisZamani)}` +
-            blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
-            analizMesaji
+            operationTransparency.openingText(yeniPozisyon, { real: false, pricePrecision: pPrecision })
         ).then(() => true).catch(err => {
             console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`);
             return false;
@@ -626,19 +605,7 @@ const m = {
             kaliciHafiza.yeniEmirSay();
 
             const gercekTelegramGonderildi = ayarlar.telegramIslemAcilisMesaji === true ? await h.telegramMesajGonder(
-                `🚀 <b>[POZİSYON AÇILDI]</b>\n` +
-                `🔀 ${symbol} (${yon})\n` +
-            (yeniPozisyon.labPremierDecision?.reverseExecution ? `🔁 Ters Premier kaynağı: ${yeniPozisyon.labPremierDecision.sourceLabDnaLabel || 'LAB #YOK'} ${yeniPozisyon.labPremierDecision.sourceSignalSide || ''} → ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} ${yon}\n` : '') +
-                `🪪 ${yeniPozisyon.dnaLabel || 'DNA #YOK'} | ${yeniPozisyon.labDnaLabel || 'LAB #YOK'} | ${yeniPozisyon.fullDnaLabel || 'FULL #YOK'}\n` +
-                `💰 Giriş: ${canliFiyat.toFixed(pPrecision)}\n` +
-                `📦 Miktar: ${guvenliMiktar}\n` +
-                `🛡️ Borsaya İletilen SL: ${sl.toFixed(pPrecision)}\n` +
-                `🧬 Risk Profili [${yeniPozisyon.labLifecycleProfile?.scope || 'VARSAYILAN'}]: Stop %${Number(yeniPozisyon.labLifecycleProfile?.stopPct ?? ayarlar.sabitStopYuzdesi ?? 1.5).toFixed(2)} | BE %${Number(yeniPozisyon.labLifecycleProfile?.beTriggerPct ?? ayarlar.breakevenTetikYuzde ?? 0.4).toFixed(2)}/+%${Number(yeniPozisyon.labLifecycleProfile?.beBufferPct ?? ayarlar.breakevenTamponYuzde ?? 0.12).toFixed(2)}\n` +
-                `🎯 Borsaya İletilen Final TP: ${tp.toFixed(pPrecision)}` +
-                realOrderBridge.telegramText(yeniPozisyon.realOrderReadiness) +
-                dnaExitSelector.openingText(yeniPozisyon.exitPlanShadow) +
-              blackbox.telegramSnapshotMetni(yeniPozisyon.blackboxAcilis, 'BLACKBOX AÇILIŞ FOTOĞRAFI') +
-                (girisAnalizi?.superTrendEtki ? `\n📈 ST Etki: ${girisAnalizi.superTrendEtki.puan}/20 | Yaş: ${girisAnalizi.superTrendEtki.yasMum} | Mesafe: %${Number(girisAnalizi.superTrendEtki.mesafeYuzde || 0).toFixed(2)} | ${girisAnalizi.superTrendEtki.durum}` : '')
+                operationTransparency.openingText(yeniPozisyon, { real: true, pricePrecision: pPrecision })
             ).then(() => true).catch(err => {
                 console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`);
                 return false;

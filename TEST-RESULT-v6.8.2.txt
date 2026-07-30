@@ -1,0 +1,50 @@
+AGROS ST2 v6.8.2 — TEST RESULT
+Date: 2026-07-30
+
+COMMAND
+npm test
+
+RESULT: PASS
+
+1) Full source syntax
+   PASS — 101 JavaScript files
+
+2) Safe adaptive ATR/MFE + Telegram delivery regression
+   PASS
+
+3) Persistent LAB lifecycle
+   PASS — per-LAB last-5 survives 150 unrelated LAB closes
+   PASS — SHADOW -> PREMIER true transition
+   PASS — PREMIER -> SHADOW true transition
+   PASS — transition counts persist after state write/read
+   PASS — positive-net explicit BE remains BE
+
+4) Telegram startup reliable delivery
+   PASS
+
+5) Report reconciliation
+   PASS — Shadow N = TP + SL + BE
+   PASS — uncut Telegram handoff
+   PASS — 6sa duration label
+   PASS — ST2 remains SANAL, 20x, max 100
+
+6) Operation transparency
+   PASS — opening decision/plan sections
+   PASS — closing K0/K1/K2/K3 lifecycle sections
+   PASS — operation and scientific messages separated
+   PASS — manual/external close excluded from scientific update
+
+7) Exit method assignment reconciliation
+   PASS — pre-takeover SL included
+   PASS — post-takeover profit included
+   PASS — assigned total = classified closed total
+
+8) Global optimizer reconciliation
+   PASS — triggered actual N equals triggered replay N
+   PASS — theoretical total = non-triggered actual + triggered replay
+
+DEPENDENCY NOTE
+A fresh npm dependency installation could not be completed in this container because the configured package path returned a 404 for ws-7.5.11. The complete source syntax suite and all project regression tests were executed successfully using local no-op initialization stubs only for dotenv and binance-api-node. On the user's local/AWS environment, `npm ci && npm test` remains a mandatory deployment gate before PM2 restart.
+
+CLEAN OVERLAY VERIFICATION
+The final ZIP was extracted over a fresh copy of the original ST2 v6.7.4 full source. The complete `npm test` chain passed again with the same results. This verifies that the patch manifest contains every required changed/new file.

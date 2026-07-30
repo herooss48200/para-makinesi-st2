@@ -238,16 +238,12 @@ function telegramGuvenliMetin(metin) {
 }
 
 function kisalt(metin, limit = TELEGRAM_GUVENLI_LIMIT) {
-    const text = telegramGuvenliMetin(metin);
-    if (text.length <= limit) return text;
-    // Canlı panel hiçbir zaman yarım HTML veya güvenlik uyarısı üretmez.
-    // Ayrıntılı bilimsel bölüm ayrı Telegram mesajında gönderilir.
-    return text
-        .replace(/<\/?pre>/g, '')
-        .replace(/<\/?b>/g, '')
-        .replace(/<\/?i>/g, '')
-        .replace(/<[^>]*>/g, '')
-        .slice(0, limit);
+    // v6.8.1: Canlı rapor burada kesilmez. 1_hafiza.telegramMesajGonder
+    // metni satır sınırlarında güvenli parçalara ayırır ve (1/N), (2/N) başlıklarıyla gönderir.
+    // Önceden kullanılan slice(0, limit), son satırı "XRPU" gibi yarım bırakabiliyordu.
+    // Parametre geriye dönük imza uyumu için korunur.
+    void limit;
+    return telegramGuvenliMetin(metin);
 }
 
 
@@ -475,7 +471,9 @@ ${gercekOzet}
     }
 
 
-    mesaj += `\n🏆 <b>En Karlı Aktif Premier (${enKarli.length}/${aktifler.length}, maks. 10)</b>\n`;
+    const pozitifAktif = sirali.filter(p => Number(p?.anlikKarYuzde ?? p?.karYuzde ?? p?.pnlPct ?? 0) > 0).length;
+    mesaj += `\n📊 <b>AKTİF PREMIER — ANLIK PERFORMANS SIRALAMASI (${enKarli.length}/${aktifler.length}, maks. 10)</b>\n`;
+    if (aktifler.length && pozitifAktif === 0) mesaj += `ℹ️ Şu anda kârda Premier bulunmuyor.\n`;
     mesaj += enKarli.length
         ? enKarli.map(pozisyonSatiri).join('\n')
         : `Aktif pozisyon yok`;

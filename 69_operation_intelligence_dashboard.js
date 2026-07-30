@@ -2,15 +2,65 @@
  * AGROS v5.3.5 — LIVE OPERATIONS + SELECTION INTELLIGENCE 2.0
  * Raporlama/karar-açıklama katmanıdır. Trade Engine kapılarını değiştirmez.
  */
-const VERSION = 'v6.7.3-LAB-LIVE-LEAGUE-TRUTH';
+const VERSION = 'v6.8.2-OPERATION-AND-LIFECYCLE-TRANSPARENCY';
 const runtimeVersion = require('./versiyon.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 const globalReconciliation = require('./78_st2_global_historical_reconciliation.js');
+const winningIntelligence = require('./75_st2_winning_intelligence.js');
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,v))}
 function signed(v,d=2){const x=n(v);return `${x>=0?'+':''}${x.toFixed(d)}`}
 function pf(v){return n(v)>=999?'∞':n(v).toFixed(2)}
+function scientificOutcome(row){
+  const explicit=String(row?.result?.outcome||row?.result?.sonuc||'').toUpperCase();
+  if(['TP','SL','BE'].includes(explicit)) return explicit;
+  const net=winningIntelligence.actualNet(row);
+  return net>1e-9?'TP':(net<-1e-9?'SL':'BE');
+}
+function scientificPremierRow(row){
+  const pos=row?.pos||{};
+  const frozen=pos?.labPremierDecision||{};
+  const observation=pos?.labPremierObservation||pos?.premierObservation||{};
+  const track=String(frozen?.premierTrack||observation?.premierTrack||pos?.premierTrackAtOpen||'').toUpperCase();
+  const shadowOnly=pos?.leagueShadowOnly===true||frozen?.virtualShadowOnly===true
+    ||['REVERSE_PREMIER','REVERSE_SHADOW','BOTTOM_PREMIER_LONG','BOTTOM_PREMIER_SHORT'].includes(track);
+  const upper=frozen?.upperLayerIncluded===true||observation?.upperLayerIncluded===true
+    ||pos?.renkoPremierDecision?.premier===true;
+  return upper&&!shadowOnly;
+}
+function summarizeScientificRows(rows=[]){
+  const out={n:0,tp:0,sl:0,be:0,net:0,grossProfit:0,grossLoss:0};
+  for(const row of rows){
+    const net=winningIntelligence.actualNet(row);
+    const outcome=scientificOutcome(row);
+    out.n++; out.net+=n(net);
+    if(net>1e-9) out.grossProfit+=net;
+    else if(net<-1e-9) out.grossLoss+=Math.abs(net);
+    if(outcome==='TP') out.tp++;
+    else if(outcome==='BE') out.be++;
+    else out.sl++;
+  }
+  out.wr=(out.tp+out.sl)?out.tp/(out.tp+out.sl)*100:0;
+  out.pf=out.grossLoss>0?out.grossProfit/out.grossLoss:(out.grossProfit>0?999:0);
+  out.expectancy=out.n?out.net/out.n:0;
+  out.reconciled=out.n===out.tp+out.sl+out.be;
+  return out;
+}
+function scientificLedgerPartitions(rows=null){
+  const scientificRows=Array.isArray(rows)
+    ? rows
+    : globalReconciliation.readJsonl(globalReconciliation.LIVE_LEDGER,'SCIENTIFIC_CLOSE');
+  const premierRows=[]; const shadowRows=[];
+  for(const row of scientificRows){
+    if(scientificPremierRow(row)) premierRows.push(row); else shadowRows.push(row);
+  }
+  return {
+    total:summarizeScientificRows(scientificRows),
+    premier:summarizeScientificRows(premierRows),
+    shadow:summarizeScientificRows(shadowRows)
+  };
+}
 function componentScore(candidate, lifeRow){
   const h=candidate?.historical||{}; const live=candidate?.liveMetrics||{};
   const hist=clamp(50+n(h.expectancy)*70+(n(h.profitFactor)-1)*18+Math.log10(Math.max(1,n(h.total)))*8);
@@ -59,31 +109,29 @@ function telegram(activePositions=[], prebuilt=null){
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
   t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
   t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
-  // Shadow sonucu, aynı bilimsel ledger toplamından Premier kasası çıkarılarak üretilir.
-  // Böylece Premier ve Shadow ayrı görünür; toplam ekonomiyle mutabakat korunur.
-  const totalEconomy = globalReconciliation.summary().actual?.all || {};
-  const shadowClosed = Math.max(0, n(totalEconomy.n) - n(a.closed));
-  const shadowWins = Math.max(0, n(totalEconomy.wins) - n(a.tp));
-  const shadowLosses = Math.max(0, n(totalEconomy.losses) - n(a.sl));
-  const shadowBe = Math.max(0, n(totalEconomy.be) - n(a.be));
-  const shadowNet = n(totalEconomy.net) - n(a.net);
-  const shadowGrossProfit = Math.max(0, n(totalEconomy.grossProfit) - n(a.grossProfit));
-  const shadowGrossLoss = Math.max(0, n(totalEconomy.grossLoss) - n(a.grossLoss));
-  const shadowPf = shadowGrossLoss > 0 ? shadowGrossProfit / shadowGrossLoss : (shadowGrossProfit > 0 ? 999 : 0);
-  const shadowDecisive = shadowWins + shadowLosses;
-  const shadowWr = shadowDecisive ? shadowWins / shadowDecisive * 100 : 0;
-  const shadowExp = shadowClosed ? shadowNet / shadowClosed : 0;
-  t+=`👻 Shadow sonuçları: N${shadowClosed} | ✅${shadowWins} ❌${shadowLosses} ⚖️${shadowBe} | WR %${shadowWr.toFixed(1)} | Net ${signed(shadowNet,4)} | PF ${pf(shadowPf)} | Exp ${signed(shadowExp,4)}\n`;
+  // v6.8.1: Shadow sonucu doğrudan bilimsel ledger'ın Shadow satırlarından üretilir.
+  // Eski yöntem, toplam ekonomide net işaretine göre sayılan wins/losses değerlerinden
+  // Premier'in açık TP/SL/BE sayaçlarını çıkarıyordu. Pozitif netli BE kayıtlarında
+  // bu iki sınıflandırma çakışıyor ve N104 yanında 67+39+0=106 gibi sonuç doğuruyordu.
+  const scientificPartitions=scientificLedgerPartitions();
+  const shadow=scientificPartitions.shadow;
+  t+=`👻 Shadow sonuçları: N${shadow.n} | ✅${shadow.tp} ❌${shadow.sl} ⚖️${shadow.be} | WR %${shadow.wr.toFixed(1)} | Net ${signed(shadow.net,4)} | PF ${pf(shadow.pf)} | Exp ${signed(shadow.expectancy,4)} ${shadow.reconciled?'✅':'⚠️'}\n`;
   if(n(r.opened)||n(r.active)||n(r.closed)||d.candidates.length){
     t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;
   }
-  t+=`🏆 Ligler: Exact Premier ${renkoPremierPatterns} | Exact Shadow ${renkoShadowDnas} | Canlı yükselen ${n(l.livePromotedCount)} | Canlı düşen ${n(l.liveDemotedCount)} | Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
+  t+=`🏆 Ligler: Exact Premier ${renkoPremierPatterns} | Exact Shadow ${renkoShadowDnas} | Bu oturum terfi ${n(l.livePromotedCount)} | Bu oturum düşüş ${n(l.liveDemotedCount)} | Canlı koşul Premier ${n(l.liveConditionPremierCount)} | Canlı koşul Shadow ${n(l.liveConditionShadowCount)}\n`;
+  t+=`🧪 Diğer ligler: Negative ${n(l.reversePremierCount)} | LAB ${n(l.labLeagueCount)} | Yakın ${n(l.nearProfitCount)}\n`;
+  const transitionRows=[...(l.sessionPromotions||[]),...(l.sessionDemotions||[])].sort((a,b)=>Date.parse(b.at||0)-Date.parse(a.at||0)).slice(0,5);
+  if(transitionRows.length){
+    t+='🔄 <b>GERÇEK LİG HAREKETLERİ</b>\n';
+    t+=transitionRows.map(x=>`${x.type==='SHADOW_TO_PREMIER'?'⬆️':'⬇️'} ${x.labKey||'LAB'} | ${x.previousLeague} → ${x.newLeague} | N${n(x.metrics?.closed)} Net${signed(x.metrics?.net)} PF${pf(x.metrics?.profitFactor)} | ${x.reason}`).join('\n')+'\n';
+  }
   t+=`📦 Premier gözlem defteri: Canlı bilimsel ${n(ac.activeScientific)} | Restart-GAP ${n(ac.activeGap)} | GAP kapanan ${n(ac.closedGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;
   const top=d.premier.slice(0,5);
   if(top.length){
     t+='\n🏆 <b>PREMIER KARAR VE FORM ÖZETİ</b>\n';
-    t+=top.map(x=>`${x.labDnaLabel} | Skor ${x.selectionI2.score} | ${x.form} | Yeni N${n(x.liveMetrics?.closed)} Net${signed(x.liveMetrics?.net)}`).join('\n');
+    t+=top.map(x=>{const review=x.liveLeagueReview||{};const min=n(review.thresholds?.minClosed,5);const decision=review.complete?`Canlı lig: ${review.currentLeague}`:`Canlı lig: N${n(review.metrics?.closed)}/${min} — karar bekliyor`;return `${x.labDnaLabel} | Skor ${x.selectionI2.score} | Form ${x.form} | ${decision} | Net${signed(review.metrics?.net??x.liveMetrics?.net)}`}).join('\n');
   }
   if(d.candidates.length){
     t+='\n\n☠️ <b>NEGATIVE LEAGUE / REVERSE ADAYLARI</b>\n';
@@ -98,4 +146,4 @@ function telegram(activePositions=[], prebuilt=null){
   const yorum=commentary(d); if(yorum.length)t+='\n\n🧠 <b>AGROS YORUMU</b>\n'+yorum.join('\n');
   return t;
 }
-module.exports={VERSION,componentScore,build,commentary,telegram};
+module.exports={VERSION,componentScore,build,commentary,telegram,scientificOutcome,scientificPremierRow,summarizeScientificRows,scientificLedgerPartitions};

@@ -1,0 +1,39 @@
+AGROS ST2 v6.8.2 — PATCH MANIFEST
+
+Changed/new runtime files:
+22_exit_replay_engine.js
+2_rapor.js
+4_pozisyon.js
+52_exit_method_scoreboard.js
+62_lab_premier_league.js
+69_operation_intelligence_dashboard.js
+78_st2_global_historical_reconciliation.js
+82_st2_operation_transparency.js
+8_blackbox.js
+motor.js
+versiyon.js
+
+Test/build files:
+package.json
+package-lock.json
+test_v672_single_delivery_safe_exit.js
+test_v673_live_lab_league.js
+test_v674_full_source_syntax.js
+test_v681_live_report_reconciliation.js
+test_v682_operation_transparency.js
+
+Documentation:
+AWS-ST2-v6.8.2.md
+CHANGELOG-v6.8.2.md
+TEST-RESULT-v6.8.2.txt
+TEST-LOG-v6.8.2.txt
+PATCH-MANIFEST-v6.8.2.txt
+
+Excluded by design:
+.env
+node_modules/
+data/
+state/ledger files
+logs and logs-st2/
+.git/
+.tmp*/
