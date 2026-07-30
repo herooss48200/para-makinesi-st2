@@ -425,4 +425,4 @@ function periyodikRaporGonderildiIsaretle() {
   const o = ozetEnsure();
   o.lastTelegramReportTradeCount = o.totalTrades;
 }
-module.exports={exitProfileAuthority, normalizeInput,algorithms,replayTrade,buildModel,kapanisMetni,telegramOzetMetni,periyodikRaporGerekli,periyodikRaporMetni,periyodikRaporGonderildiIsaretle };
+module.exports={exitProfileAuthority, normalizeInput,algorithms,replayTrade,buildModel,kapanisMetni,periyodikRaporGerekli,periyodikRaporMetni,periyodikRaporGonderildiIsaretle };
