@@ -1,0 +1,34 @@
+AGROS ST2 v6.9.0 FINAL CLEAN FULL PACKAGE
+
+INCLUDED
+- Complete top-level runtime JavaScript source: 0_*.js through 83_*.js
+- bot.js, motor.js, ayarlar.js, revizyon.js, versiyon.js
+- ecosystem.config.js
+- package.json and package-lock.json
+- .gitignore
+- Current regression tests required by npm test
+- CHANGELOG-v6.9.0.md
+- AWS-ST2-v6.9.0.md
+- TEST-RESULT-v6.9.0.txt
+- PACKAGE-MANIFEST-v6.9.0.txt
+
+EXCLUDED
+- .env and all secrets
+- .git
+- node_modules
+- data, state, ledger, backups and runtime learning records
+- logs, logs-st2
+- replay-results and generated analytics outputs
+- .tmp* and temporary folders/files
+- old version notes, old test logs and old patch manifests
+- scripts_st2_clean_reset.js (destructive maintenance utility; not required for runtime)
+
+PACKAGE TYPE
+- Full working source package, not a partial patch.
+- Existing AWS/local .env and data must be preserved during deployment.
+
+PACKAGE COUNTS
+- 109 files total
+- 93 runtime JavaScript files
+- 9 regression tests
+- 7 package/config/current-document files

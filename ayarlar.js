@@ -64,6 +64,14 @@ const ayarlar = {
     labCanliLigMinPF: 1,
     labCanliLigMinNet: 0,
     labCanliLigMinExpectancy: 0,
+
+    // v6.9.0: Premier katı geçti/kaldı kapısı yerine açıklanabilir kalite puanı ve göreceli sıralama.
+    // Güvenlik tabanı korunur: exact-context, tamamlanmış tarihsel havuz ve minimum örnek zorunludur.
+    renkoPremierScoreAktif: true,
+    renkoPremierScoreMinOrnek: 3,
+    renkoPremierScoreMin: 55,
+    renkoPremierScoreGoreceliYuzdelik: 0.40,
+    renkoPremierScoreMaxDinamikEsik: 70,
     labStopAdaylariYuzde: [0.8, 1.0, 1.2, 1.5, 1.8, 2.1, 2.4],
     labBeTetikAdaylariYuzde: [0.30, 0.40, 0.60, 0.80],
     labBeAdaylariYuzde: [0.08, 0.12, 0.16, 0.20, 0.25, 0.30],
@@ -448,7 +456,7 @@ const ayarlar = {
     // SİSTEM VE VERİ TARAMA
     // ========================================
     pingInterval: 500,
-    taranacakCoinSayisi: 100,
+    taranacakCoinSayisi: 200,
     // null/0 bırakılırsa varsayılan süre kullanılır. Canlı sniper tetik aktif olduğu için ST cache 10 sn'de bir tazelenir,
     // emir kararı ise her ana döngüde canlı fiyatla tekrar hesaplanır.
     pusuVeriTazelemeMs: null,

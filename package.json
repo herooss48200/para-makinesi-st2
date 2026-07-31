@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.8.4-minimal-telegram-operation-proof",
-  "description": "AGROS ST2 v6.8.4: kısa Telegram operasyon ekranı; açılış giriş/exit atama kanıtı, takeover ve kapanış replay karşılaştırması görünür.",
+  "version": "6.9.0-final-premier-score-200-coin",
+  "description": "AGROS ST2 v6.9.0 final: 200 coin evreni, açıklanabilir Premier kalite puanı ve Entry/Exit/Takeover replay ayrımı.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -16,7 +16,8 @@
     "migrate:exit-replay": "node 24_exit_replay_migration.js",
     "build:exit-runtime": "node --max-old-space-size=768 58_dynamic_exit_runtime_index.js",
     "test:v683": "node test_v683_minimal_telegram_operations.js",
-    "test:v684": "node test_v684_operation_proof_telegram.js"
+    "test:v684": "node test_v684_operation_proof_telegram.js",
+    "test:v690": "node test_v690_final_premier_score_200_coin.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

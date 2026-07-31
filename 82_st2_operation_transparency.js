@@ -1,186 +1,163 @@
 'use strict';
 /**
- * AGROS ST2 v6.8.2 — OPERATION TRANSPARENCY
- * Telegram opening/closing messages explain the immutable plan and the dynamic
- * management path. This module is reporting-only and never changes Trade Engine math.
+ * AGROS ST2 v6.9.0 — FINAL OPERATION TRANSPARENCY
+ * Reporting-only: Trade Engine, entry, stop, BE and exit mathematics are unchanged.
  */
 const ayarlar = require('./ayarlar.js');
+const premierQuality = require('./83_st2_premier_quality_score.js');
 
-const VERSION = 'v6.8.4-OPERATION-PROOF-TELEGRAM';
+const VERSION = 'v6.9.0-FINAL-PREMIER-SCORE-REPLAY-SEPARATION';
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function html(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function signed(v, digits = 4) { const x = n(v); return `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`; }
 function pct(v, digits = 2) { const x = n(v); return `${x >= 0 ? '+' : ''}%${x.toFixed(digits)}`; }
+function price(v, digits = 6) { const x = n(v, NaN); return Number.isFinite(x) ? x.toFixed(Math.max(0, digits)) : 'YOK'; }
+function compactEvidenceValue(v, digits = 4) { const x = Number(v); return Number.isFinite(x) ? `${x >= 0 ? '+' : ''}${x.toFixed(digits)}` : 'YOK'; }
+function resultLabel(outcome) { return ({ TP: 'KÂRLI', SL: 'ZARARLI', BE: 'BAŞABAŞ' })[String(outcome || '').toUpperCase()] || String(outcome || 'BELİRSİZ'); }
 function timeText(v) {
   if (!v) return 'YOK';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return 'YOK';
+  const d = new Date(v); if (Number.isNaN(d.getTime())) return 'YOK';
   try { return d.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
   catch (_) { return d.toISOString().slice(11, 19); }
 }
-function price(v, digits = 6) { const x = n(v, NaN); return Number.isFinite(x) ? x.toFixed(Math.max(0, digits)) : 'YOK'; }
-function resultLabel(outcome) { return ({ TP: 'KÂRLI', SL: 'ZARARLI', BE: 'BAŞABAŞ' })[String(outcome || '').toUpperCase()] || String(outcome || 'BELİRSİZ'); }
 function entrySource(pos) {
-  const ga = pos?.girisAnalizi || {};
-  const gate = ga?.historicalEntryGate || {};
+  const gate = pos?.girisAnalizi?.historicalEntryGate || {};
   return pos?.renkoPremierDecision?.source || gate?.decision?.source || gate?.evidence?.source || 'VARSAYILAN/GÜVENLİ BAŞLANGIÇ';
 }
 function contextLines(pos) {
   const snap = pos?.blackboxAcilis || {};
-  const btc = snap?.uyum?.btc?.metin || 'YOK';
-  const coin = snap?.uyum?.coin?.metin || 'YOK';
-  const total = snap?.uyum?.toplam?.metin || 'YOK';
-  const bb = snap?.coin?.bollinger?.bolge || pos?.girisAnalizi?.renkoBbState || 'YOK';
-  return { btc, coin, total, bb };
-}
-function compactEvidenceValue(v, digits = 4) {
-  const x = Number(v);
-  return Number.isFinite(x) ? `${x >= 0 ? '+' : ''}${x.toFixed(digits)}` : 'YOK';
+  return {
+    btc: snap?.uyum?.btc?.metin || 'YOK', coin: snap?.uyum?.coin?.metin || 'YOK',
+    total: snap?.uyum?.toplam?.metin || 'YOK',
+    bb: snap?.coin?.bollinger?.bolge || pos?.girisAnalizi?.renkoBbState || 'YOK'
+  };
 }
 function entryEvidence(pos) {
   const d = pos?.renkoPremierDecision || pos?.girisAnalizi?.historicalEntryGate?.decision || {};
   const e = pos?.girisAnalizi?.historicalEntryGate?.evidence || {};
-  const h = d?.historical || e?.historical || {};
+  const historical = d?.historical || e?.historical || {};
   const live = d?.live || e?.live || {};
-  const samples = n(d.closed, n(d.historicalN, n(e.n, n(h.n, n(live.n, 0)))));
   return {
-    samples,
-    pf: n(d.pf, n(e.pf, n(h.pf, n(live.pf, NaN)))),
-    expectancy: n(d.expectancy, n(e.expectancy, n(h.expectancy, n(live.expectancy, NaN)))),
-    net: n(d.net, n(e.net, n(h.net, n(live.net, NaN)))),
-    reason: d.reason || d.decision?.reason || e.reason || 'KANIT DETAYI YOK'
+    samples: n(d.closed, n(d.historicalN, n(e.n, n(historical.n, n(live.n))))),
+    pf: n(d.pf, n(e.pf, n(historical.pf, n(live.pf, NaN)))),
+    expectancy: n(d.expectancy, n(e.expectancy, n(historical.expectancy, n(live.expectancy, NaN)))),
+    net: n(d.net, n(e.net, n(historical.net, n(live.net, NaN)))),
+    reason: d.reason || d.decision?.reason || e.reason || 'ENTRY_REPLAY_KANITI_YOK'
   };
 }
 function exitEvidence(pos) {
   const e = pos?.executionExitAssignment || {};
+  const samples = n(e.samples, n(e.sampleCount));
+  const ready = e.ready === true || e.activeForPosition === true;
   return {
-    ready: e.ready === true || e.activeForPosition === true,
-    label: e.label || e.selectedAlgorithmLabel || 'Mevcut Kademe Sistemi',
-    samples: n(e.samples),
-    beatRate: n(e.beatRate, NaN),
-    profitFactor: n(e.profitFactor, NaN),
-    netUsdt: n(e.netUsdt, NaN),
-    reason: e.reason || 'GÜVENLİ KADEME FALLBACK'
+    ready, status: ready ? 'AKTİF ATAMA' : 'FALLBACK', samples,
+    label: e.label || e.algorithmLabel || 'Mevcut Kademe Sistemi',
+    beatRate: n(e.beatRate, NaN), profitFactor: n(e.profitFactor, n(e.pf, NaN)),
+    netUsdt: n(e.netUsdt, n(e.net, NaN)),
+    reason: e.reason || (samples > 0 ? 'EXIT_REPLAY_ATAMASI_VAR' : 'EXIT_FALLBACK_N0')
+  };
+}
+function takeoverReplayEvidence(pos) {
+  const a = pos?.renkoExitAssignment || {};
+  const samples = n(a.profileSamples);
+  const source = a.takeoverSource || 'SAFE_DEFAULT';
+  return {
+    samples, confidence: n(a.profileConfidence), source,
+    status: samples > 0 ? 'TAKEOVER REPLAY AKTİF' : 'TAKEOVER REPLAY N0 / SAFE DEFAULT',
+    reason: samples > 0 ? (source === 'ONLINE_LEARNED_PROFILE' ? 'TAKEOVER_REPLAY_LEARNED_PROFILE' : source) : 'TAKEOVER_REPLAY_N0_SAFE_DEFAULT',
+    takeoverPct: n(a.assignedTakeoverPct, NaN), atrMultiplier: n(a.assignedAtrMultiplier, NaN),
+    captureRatio: n(a.assignedCaptureRatio, NaN), safeFloorPct: n(a.assignedSafeFloorPct, NaN)
+  };
+}
+function premierScoreEvidence(pos) {
+  const q = pos?.renkoPremierDecision?.premierScore || pos?.labPremierDecision?.premierScore || pos?.girisAnalizi?.historicalEntryGate?.premierScore || {};
+  return {
+    score: n(q.score), threshold: n(q.threshold), rank: n(q.rank), cohortSize: n(q.cohortSize),
+    selected: q.selected === true, explanation: q.explanation || q.reason || pos?.renkoPremierDecision?.reason || 'PREMIER_SCORE_KANITI_YOK',
+    components: premierQuality.componentText(q)
   };
 }
 function plan(pos) {
   const a = pos?.renkoExitAssignment || {};
-  const risk = pos?.labLifecycleProfile || {};
   return {
-    stopPct: n(risk.stopPct, n(ayarlar.sabitStopYuzdesi, 1.5)),
-    beTriggerPct: n(risk.beTriggerPct, n(ayarlar.breakevenTetikYuzde, 0.4)),
-    beBufferPct: n(risk.beBufferPct, n(ayarlar.breakevenTamponYuzde, 0.12)),
-    takeoverPct: n(a.assignedTakeoverPct, NaN),
-    safeFloorPct: n(a.assignedSafeFloorPct, NaN),
-    atrMultiplier: n(a.assignedAtrMultiplier, NaN),
-    captureRatio: n(a.assignedCaptureRatio, NaN),
-    profileSamples: n(a.profileSamples),
-    source: a.takeoverSource || 'GÜVENLİ BAŞLANGIÇ PROFİLİ',
-    assignedAt: a.assignedAt || null
+    stopPct: n(ayarlar.sabitStopYuzdesi, 1.5), beTriggerPct: n(pos?.labBeTetikYuzde, n(ayarlar.breakevenTetikYuzde, 0.25)),
+    beBufferPct: n(pos?.labBeTamponYuzde, n(ayarlar.breakevenTamponYuzde, 0.05)),
+    takeoverPct: n(a.assignedTakeoverPct, NaN), safeFloorPct: n(a.assignedSafeFloorPct, NaN),
+    atrMultiplier: n(a.assignedAtrMultiplier, NaN), captureRatio: n(a.assignedCaptureRatio, NaN),
+    profileSamples: n(a.profileSamples), source: a.takeoverSource || 'GÜVENLİ BAŞLANGIÇ PROFİLİ'
   };
 }
 function openingText(pos, options = {}) {
   const digits = Number.isInteger(options.pricePrecision) ? options.pricePrecision : 6;
-  const ga = pos?.girisAnalizi || {};
-  const p = plan(pos);
-  const ctx = contextLines(pos);
-  const entryProof = entryEvidence(pos);
-  const exitProof = exitEvidence(pos);
+  const ga = pos?.girisAnalizi || {}; const p = plan(pos); const ctx = contextLines(pos);
+  const entry = entryEvidence(pos); const exit = exitEvidence(pos); const takeover = takeoverReplayEvidence(pos); const quality = premierScoreEvidence(pos);
   const brick = n(pos?.renkoPremierDecision?.activeBrick, n(ga.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)));
-  const defaultBrick = n(ayarlar.renkoGirisVarsayilanTugla, 0.75);
-  const learned = Math.abs(brick - defaultBrick) > 1e-9;
+  const learned = Math.abs(brick - n(ayarlar.renkoGirisVarsayilanTugla, 0.75)) > 1e-9;
   const league = pos?.labPremierDecision?.upperLayerIncluded === true ? 'PREMIER' : 'SHADOW';
-  const proof = pos?.labPremierDecision?.proofLevel || pos?.renkoPremierDecision?.reason || 'KANIT YOK';
-  const exitLabel = pos?.executionExitAssignment?.label || 'Mevcut Kademe Sistemi';
+  const transition = pos?.labPremierDecision?.scoreTransition || null;
+  const transitionText = transition ? `${transition.from} → ${transition.to}${transition.changed ? ' (DEĞİŞTİ)' : ' (KORUNDU)'}` : 'İLK SCORE KARARI';
   const mode = options.real === true ? 'GERÇEK' : 'SANAL';
-  const stopLabel = options.real === true ? 'Borsaya iletilen başlangıç SL' : 'Başlangıç SL';
-  const tpLabel = options.real === true ? 'Borsaya iletilen güvenlik TP' : 'Güvenlik/Final TP';
-  const capture = Number.isFinite(p.captureRatio) ? `%${(p.captureRatio * 100).toFixed(0)}` : 'YOK';
   return `🚀 <b>ST2 ${mode} POZİSYON AÇILDI</b>\n\n` +
-    `🔀 <b>${html(pos?.sym)} ${html(pos?.yon)}</b>\n` +
-    `🪪 ${html(pos?.dnaLabel || pos?.realOrderReadiness?.dnaLabel || 'DNA #YOK')} | ${html(pos?.labDnaLabel || 'LAB #YOK')} | ${html(pos?.fullDnaLabel || 'FULL #YOK')}\n` +
-    `🏆 Lig: <b>${league}</b> | Kanıt: ${html(proof)}\n\n` +
-    `🚪 <b>GİRİŞ KARARI</b>\n` +
+    `🔀 <b>${html(pos?.sym)} ${html(pos?.yon)}</b> | 🏆 <b>${league}</b>\n` +
+    `🪪 ${html(pos?.dnaLabel || 'DNA #YOK')} | ${html(pos?.labDnaLabel || 'LAB #YOK')} | ${html(pos?.fullDnaLabel || 'FULL #YOK')}\n` +
+    `⭐ Premier Score: <b>${quality.score.toFixed(1)}/${quality.threshold.toFixed(1)}</b> | Sıra #${quality.rank}/${quality.cohortSize}\n` +
+    `🔄 Score geçişi: ${html(transitionText)}\n` +
+    `🧾 ${html(quality.explanation)}\n` +
+    `📐 ${html(quality.components)}\n\n` +
+    `🚪 <b>GİRİŞ KARARI / ENTRY REPLAY</b>\n` +
     `Giriş seviyesi: <b>${brick.toFixed(2)} tuğla</b> | ${learned ? 'Entry Evolution öğrenilmiş atama' : 'Varsayılan/güvenli giriş'}\n` +
     `Seçim kaynağı: ${html(entrySource(pos))}\n` +
-    `Giriş kanıtı: N${entryProof.samples} | PF ${Number.isFinite(entryProof.pf) ? entryProof.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entryProof.expectancy)} | Net ${compactEvidenceValue(entryProof.net)}\n` +
-    `Karar gerekçesi: ${html(entryProof.reason)}\n` +
-    `Referans: ${price(ga.referansSeviye, digits)} | Tetik: ${price(ga.tetikFiyati, digits)} | Gerçek giriş: ${price(pos?.girisFiyati, digits)}\n\n` +
-    `🌍 <b>AÇILIŞ BAĞLAMI</b>\n` +
-    `BTC uyumu: ${html(ctx.btc)} | Coin uyumu: ${html(ctx.coin)} | Toplam: ${html(ctx.total)}\n` +
-    `BB: ${html(ctx.bb)}\n\n` +
+    `Giriş kanıtı: N${entry.samples} | PF ${Number.isFinite(entry.pf) ? entry.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entry.expectancy)} | Net ${compactEvidenceValue(entry.net)}\n` +
+    `Neden: ${html(entry.reason)} | Referans ${price(ga.referansSeviye, digits)} → Tetik ${price(ga.tetikFiyati, digits)} → Giriş ${price(pos?.girisFiyati, digits)}\n\n` +
+    `🌍 <b>AÇILIŞ BAĞLAMI</b>\nBTC ${html(ctx.btc)} | Coin ${html(ctx.coin)} | Toplam ${html(ctx.total)} | BB ${html(ctx.bb)}\n\n` +
+    `🧪 <b>EXIT REPLAY</b>\n` +
+    `Exit replay kanıtı: ${exit.status} | N${exit.samples} | Beat ${Number.isFinite(exit.beatRate) ? `%${exit.beatRate.toFixed(1)}` : 'YOK'} | PF ${Number.isFinite(exit.profitFactor) ? exit.profitFactor.toFixed(2) : 'YOK'} | Net ${compactEvidenceValue(exit.netUsdt)}\n` +
+    `Exit planı: ${html(exit.label)} | Neden: ${html(exit.reason)}\n\n` +
+    `🧬 <b>TAKEOVER REPLAY</b>\n` +
+    `${html(takeover.status)} | N${takeover.samples} | Güven %${(takeover.confidence * 100).toFixed(1)} | ${html(takeover.reason)}\n` +
+    `Takeover: ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | ATR ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE %${Number.isFinite(p.captureRatio) ? (p.captureRatio * 100).toFixed(0) : 'YOK'}\n\n` +
     `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\n` +
-    `${stopLabel}: ${price(pos?.sl, digits)} (%-${p.stopPct.toFixed(2)})\n` +
-    `${tpLabel}: ${price(pos?.tp, digits)}\n` +
-    `Başlangıç aşaması: <b>K0</b> | BE planı: +%${p.beTriggerPct.toFixed(2)} → +%${p.beBufferPct.toFixed(2)} koruma\n` +
-    `Takeover: ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | Güvenli taban: ${Number.isFinite(p.safeFloorPct) ? `+%${p.safeFloorPct.toFixed(2)}` : 'YOK'}\n` +
-    `ATR takip: ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}× ATR` : 'YOK'} | MFE yakalama hedefi: ${capture}\n` +
-    `Exit planı: ${html(exitLabel)} | Profil kaynağı: ${html(p.source)}${p.profileSamples ? ` N${p.profileSamples}` : ''}\n` +
-    `Exit replay kanıtı: ${exitProof.ready ? 'AKTİF ATAMA' : 'FALLBACK'} | N${exitProof.samples} | Beat ${Number.isFinite(exitProof.beatRate) ? `%${exitProof.beatRate.toFixed(1)}` : 'YOK'} | PF ${Number.isFinite(exitProof.profitFactor) ? exitProof.profitFactor.toFixed(2) : 'YOK'} | Net ${compactEvidenceValue(exitProof.netUsdt)}\n` +
-    `Exit gerekçesi: ${html(exitProof.reason)}\n\n` +
-    `🔒 <b>SABİTLENENLER</b>: Giriş seçimi, başlangıç risk profili, takeover/ATR/MFE parametreleri bu pozisyon kapanana kadar değişmez.\n` +
-    `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: MFE zirvesi, ATR/MFE koruma seviyesi ve gerçek kapanış fiyatı piyasa yoluyla güncellenir.`;
+    `Başlangıç SL ${price(pos?.sl, digits)} (-%${p.stopPct.toFixed(2)}) | Güvenlik TP ${price(pos?.tp, digits)} | K0 → BE +%${p.beTriggerPct.toFixed(2)}\n` +
+    `🔒 <b>SABİTLENENLER</b>: Giriş, başlangıç risk profili ve atanan replay profilleri kapanana kadar değişmez.\n` +
+    `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: MFE zirvesi, ATR/MFE koruması ve gerçekleşen kapanış fiyatı.`;
 }
 function timelineSummary(pos, digits = 6) {
   const events = Array.isArray(pos?.renkoProtectionTimeline) ? pos.renkoProtectionTimeline : [];
-  const assignment = events.find(e => e?.type === 'ASSIGNMENT');
   const takeover = events.find(e => e?.type === 'TAKEOVER_ACTIVE');
-  const peaks = events.filter(e => e?.type === 'NEW_PEAK');
-  const stops = events.filter(e => e?.type === 'STOP_MOVED');
-  const lines = [];
-  lines.push(`${timeText(pos?.acilisZamani || assignment?.at)} — K0 başlangıç koruması aktif`);
-  if (pos?.breakevenAktif === true) lines.push(`${timeText(pos?.breakevenAktifAt || pos?.breakevenZamani)} — K1 BE/BE+ koruması aktif`);
-  if (takeover) lines.push(`${timeText(takeover.at)} — K2 ATR + MFE takeover devraldı | Fiyat ${price(takeover.price, digits)} | Kâr ${pct(takeover.profitPct, 2)}`);
-  if (peaks.length) {
-    const last = peaks[peaks.length - 1];
-    lines.push(`${timeText(last.at)} — Yeni MFE zirvesi | ${pct(last.peakProfitPct, 3)} | Fiyat ${price(last.price, digits)}`);
-  }
-  if (stops.length) {
-    const first = stops[0]; const last = stops[stops.length - 1];
-    lines.push(`${timeText(first.at)} — İlk dinamik stop | ${price(first.stop, digits)} | ${html(first.reasonLabel || first.reason)}`);
-    if (stops.length > 1) lines.push(`${timeText(last.at)} — Son dinamik stop | ${price(last.stop, digits)} | Toplam güncelleme ${stops.length}`);
-  }
-  if (!takeover) lines.push(`Takeover eşiğine ulaşılmadı; işlem K0/K1 başlangıç yönetiminde kapandı.`);
-  return { lines, assignment, takeover, peaks, stops };
+  const peaks = events.filter(e => e?.type === 'NEW_PEAK'); const stops = events.filter(e => e?.type === 'STOP_MOVED');
+  const lines = [`${timeText(pos?.acilisZamani)} — K0 başlangıç koruması`];
+  if (pos?.breakevenAktif === true) lines.push(`${timeText(pos?.breakevenAktifAt || pos?.breakevenZamani)} — K1 BE/BE+`);
+  if (takeover) lines.push(`${timeText(takeover.at)} — K2 Takeover | ${price(takeover.price, digits)} | ${pct(takeover.profitPct, 2)}`);
+  if (peaks.length) { const x = peaks.at(-1); lines.push(`${timeText(x.at)} — MFE zirvesi ${pct(x.peakProfitPct, 3)}`); }
+  if (stops.length) { const x = stops.at(-1); lines.push(`${timeText(x.at)} — Son dinamik stop ${price(x.stop, digits)} | Güncelleme ${stops.length}`); }
+  if (!takeover) lines.push('Takeover eşiğine ulaşılmadı; K0/K1 yönetiminde kapandı.');
+  return { lines, takeover, peaks, stops };
 }
 function closingText(pos, ctx = {}) {
   const digits = Number.isInteger(ctx.pricePrecision) ? ctx.pricePrecision : 6;
-  const p = plan(pos); const tl = timelineSummary(pos, digits);
-  const entryProof = entryEvidence(pos);
-  const exitProof = exitEvidence(pos);
-  const replay = ctx.replayValidation || null;
-  const mfe = n(pos?.journey?.mfeYuzde, n(ctx.mfePct, 0));
-  const mae = n(pos?.journey?.maeYuzde, n(ctx.maePct, 0));
-  const move = n(ctx.fiyatKarYuzdesi);
+  const p = plan(pos); const tl = timelineSummary(pos, digits); const entry = entryEvidence(pos); const exit = exitEvidence(pos);
+  const takeoverProof = takeoverReplayEvidence(pos); const quality = premierScoreEvidence(pos); const replay = ctx.replayValidation || null;
+  const mfe = n(pos?.journey?.mfeYuzde, n(ctx.mfePct)); const mae = n(pos?.journey?.maeYuzde, n(ctx.maePct)); const move = n(ctx.fiyatKarYuzdesi);
   const capture = mfe > 0 ? Math.max(0, Math.min(999, move / mfe * 100)) : 0;
   const giveback = mfe > 0 ? Math.max(0, (mfe - move) / mfe * 100) : 0;
-  const takeover = tl.takeover || pos?.renkoExitActivated === true;
-  const stage = pos?.renkoProtectionStage || (takeover ? 'K2' : (pos?.breakevenAktif ? 'K1' : 'K0'));
-  const exitSource = pos?.renkoExitLastStopSourceLabel || ctx.reason || 'Bilinmiyor';
+  const takeover = Boolean(tl.takeover || pos?.renkoExitActivated === true);
+  const replayReason = ctx.replayUnavailableReason || 'EXIT_REPLAY_REASON_NOT_PROVIDED';
+  const replayBlock = replay
+    ? `🧪 <b>EXIT REPLAY KANITI</b>\nSeçilen ${html(replay.selectedAlgorithmLabel || exit.label)} | Gerçek ${compactEvidenceValue(replay.actualNetUsdt)} | Replay ${compactEvidenceValue(replay.selectedNetUsdt)} USDT\nFark: ${compactEvidenceValue(replay.deltaVsActualUsdt)} USDT | ${replay.selectedWouldWin ? 'REPLAY ÜSTÜN' : 'GERÇEK KADEME ÜSTÜN/EŞİT'}`
+    : `🧪 <b>EXIT REPLAY KANITI</b>\nÜretilemedi: <b>${html(replayReason)}</b> | Exit ${exit.status} N${exit.samples}`;
   return `${ctx.emoji || '🏁'} <b>${html(ctx.title || 'ST2 POZİSYON KAPANDI')}</b>\n\n` +
-    `🔀 <b>${html(pos?.sym)} ${html(pos?.yon)}</b>\n` +
-    `🪪 ${html(ctx.dnaLabel || pos?.dnaLabel || 'DNA #YOK')} | ${html(ctx.labDnaLabel || pos?.labDnaLabel || 'LAB #YOK')} | ${html(ctx.fullDnaLabel || pos?.fullDnaLabel || 'FULL #YOK')}\n` +
-    `🏆 Açılış ligi: ${html(ctx.league || pos?.labLeagueAtOpen || 'YOK')} | Kanıt: ${html(ctx.proof || pos?.labProofLevelAtOpen || 'YOK')}\n\n` +
-    `⏱️ <b>İŞLEM</b>\n` +
-    `Açılış: ${html(ctx.openedAtText || 'YOK')} | Kapanış: ${html(ctx.closedAtText || 'YOK')} | Süre: ${html(ctx.durationText || 'YOK')}\n` +
-    `Giriş: ${price(pos?.girisFiyati, digits)} | Çıkış: ${price(ctx.exitPrice, digits)}\n\n` +
-    `🚪 <b>GİRİŞ KARARI</b>\n` +
-    `Seçilen giriş: ${n(pos?.girisAnalizi?.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)).toFixed(2)} tuğla | Kaynak: ${html(entrySource(pos))}\n` +
-    `Açılış giriş kanıtı: N${entryProof.samples} | PF ${Number.isFinite(entryProof.pf) ? entryProof.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entryProof.expectancy)}\n\n` +
-    `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\n` +
-    `Başlangıç stopu: -%${p.stopPct.toFixed(2)} | Takeover: ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | Güvenli taban: ${Number.isFinite(p.safeFloorPct) ? `+%${p.safeFloorPct.toFixed(2)}` : 'YOK'}\n` +
-    `ATR: ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE hedefi: ${Number.isFinite(p.captureRatio) ? `%${(p.captureRatio * 100).toFixed(0)}` : 'YOK'}\n` +
-    `Atanan exit: ${html(exitProof.label)} | ${exitProof.ready ? 'AKTİF' : 'FALLBACK'} | N${exitProof.samples} | Beat ${Number.isFinite(exitProof.beatRate) ? `%${exitProof.beatRate.toFixed(1)}` : 'YOK'} | PF ${Number.isFinite(exitProof.profitFactor) ? exitProof.profitFactor.toFixed(2) : 'YOK'}\n\n` +
-    `🔄 <b>GERÇEKLEŞEN YÖNETİM — SON AŞAMA ${html(stage)}</b>\n` +
-    tl.lines.map(x => `• ${x}`).join('\n') + `\n` +
-    `Takeover: <b>${takeover ? 'EVET' : 'HAYIR'}</b> | BE/BE+: ${pos?.breakevenAktif === true ? 'EVET' : 'HAYIR'} | Stop güncelleme: ${tl.stops.length}\n` +
-    `Kapanış yönetim kaynağı: ${html(exitSource)}\n\n` +
-    `📈 <b>FİYAT YOLU VE KORUMA</b>\n` +
-    `MFE: ${pct(mfe, 3)} | MAE: ${pct(mae, 3)} | Yakalanan hareket: ${pct(move, 3)}\n` +
-    `MFE Capture: %${capture.toFixed(1)} | Geri verilen kâr: %${giveback.toFixed(1)}\n\n` +
-    (replay ? `🧪 <b>REPLAY KANITI</b>\nSeçilen: ${html(replay.selectedAlgorithmLabel || exitProof.label)} | Gerçek kademe ${compactEvidenceValue(replay.actualNetUsdt)} USDT | Replay ${compactEvidenceValue(replay.selectedNetUsdt)} USDT\nFark: ${compactEvidenceValue(replay.deltaVsActualUsdt)} USDT | ${replay.selectedWouldWin ? 'REPLAY ÜSTÜN' : 'GERÇEK KADEME ÜSTÜN/EŞİT'}\n\n` : `🧪 <b>REPLAY KANITI</b>\nBu kapanış için karşılaştırma üretilemedi veya fallback kullanıldı.\n\n`) +
-    `🏁 <b>KAPANIŞ</b>\n` +
-    `Sonuç: <b>${html(resultLabel(ctx.outcome))}</b> | Ana neden: ${html(ctx.reason || 'YOK')}\n` +
-    `Brüt PNL: ${signed(ctx.grossPnl)} USDT | Komisyon: -${Math.abs(n(ctx.commission)).toFixed(4)} USDT | Net PNL: <b>${signed(ctx.netPnl)} USDT</b>${ctx.shadowOnly ? ' | 👻 Üst kasa dışı' : ''}`;
+    `🔀 <b>${html(pos?.sym)} ${html(pos?.yon)}</b> | 🏆 ${html(ctx.league || pos?.labLeagueAtOpen || 'YOK')}\n` +
+    `⭐ Açılış Premier Score ${quality.score.toFixed(1)}/${quality.threshold.toFixed(1)} | Sıra #${quality.rank}/${quality.cohortSize}\n` +
+    `⏱️ ${html(ctx.openedAtText || 'YOK')} → ${html(ctx.closedAtText || 'YOK')} | ${html(ctx.durationText || 'YOK')}\n` +
+    `Giriş ${price(pos?.girisFiyati, digits)} → Çıkış ${price(ctx.exitPrice, digits)}\n\n` +
+    `🚪 <b>GİRİŞ KARARI / ENTRY REPLAY</b>\nGiriş ${n(pos?.girisAnalizi?.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)).toFixed(2)} tuğla | N${entry.samples} | PF ${Number.isFinite(entry.pf) ? entry.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entry.expectancy)}\n\n` +
+    `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\nSL -%${p.stopPct.toFixed(2)} | Takeover ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | ATR ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE hedef ${Number.isFinite(p.captureRatio) ? `%${(p.captureRatio * 100).toFixed(0)}` : 'YOK'}\n\n` +
+    `🧪 <b>EXIT REPLAY</b>\nExit ${exit.status} N${exit.samples} | ${html(exit.label)} | ${html(exit.reason)}\n\n` +
+    `🧬 <b>TAKEOVER REPLAY</b>\n${html(takeoverProof.status)} | N${takeoverProof.samples} | ${html(takeoverProof.reason)}\n\n` +
+    `🔄 <b>GERÇEKLEŞEN YÖNETİM</b>\n${tl.lines.map(x => `• ${x}`).join('\n')}\nTakeover: <b>${takeover ? 'EVET' : 'HAYIR'}</b> | BE/BE+: ${pos?.breakevenAktif === true ? 'EVET' : 'HAYIR'} | Stop güncelleme ${tl.stops.length}\n\n` +
+    `📈 <b>FİYAT YOLU VE KORUMA</b>\nMFE ${pct(mfe, 3)} | MAE ${pct(mae, 3)} | Yakalanan ${pct(move, 3)} | MFE Capture: %${capture.toFixed(1)} | Giveback %${giveback.toFixed(1)}\n\n` +
+    `${replayBlock}\n\n` +
+    `🏁 <b>KAPANIŞ</b>\nSonuç <b>${html(resultLabel(ctx.outcome))}</b> | Neden ${html(ctx.reason || 'YOK')}\n` +
+    `Brüt ${signed(ctx.grossPnl)} | Komisyon -${Math.abs(n(ctx.commission)).toFixed(4)} | Net <b>${signed(ctx.netPnl)} USDT</b>${ctx.shadowOnly ? ' | 👻 Üst kasa dışı' : ''}`;
 }
-module.exports = { VERSION, n, plan, entrySource, entryEvidence, exitEvidence, openingText, timelineSummary, closingText };
+module.exports = { VERSION, n, plan, entrySource, entryEvidence, exitEvidence, takeoverReplayEvidence, premierScoreEvidence, openingText, timelineSummary, closingText };

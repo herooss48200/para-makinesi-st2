@@ -1,0 +1,36 @@
+AGROS ST2 v6.9.0 — FINAL PREMIER SCORE + 200 COIN
+TEST DATE: 2026-07-31
+BASE: e748ce1 / v6.8.4
+
+RESULT: PASS
+
+npm test:
+- test:syntax PASS — all JavaScript source syntax
+- test:v672 PASS — single delivery + safe adaptive exit
+- test:v673 PASS — persistent LAB lifecycle compatibility
+- test:v674 PASS — reliable startup delivery
+- test:v681 PASS — live report reconciliation
+- test:v682 PASS — operation lifecycle and scientific separation
+- test:v683 PASS — minimal Telegram and one-message limit
+- test:v684 PASS — operation proof Telegram
+- test:v690 PASS — 200 coin + Premier Score + relative ranking + replay separation + exact replay reasons
+
+Additional checks:
+- git diff --check PASS
+- package-lock root version reconciled
+- Trade Engine / stop / BE / entry mathematics unchanged
+- final package forbidden-file scan PASS
+
+Test environment note:
+The uploaded source did not contain node_modules and the isolated registry was unavailable. Existing tests were executed with temporary local stubs only for dotenv and binance-api-node module loading; tests themselves use mocks and do not send orders or network requests. The stubs are excluded from the final ZIP.
+
+Final clean package validation:
+- 109 files total
+- 93 runtime JavaScript files
+- 9 regression test files
+- local require dependency audit PASS
+- package script target audit PASS
+- node --check for all 102 JavaScript files PASS
+- forbidden path/file scan PASS
+- sensitive .env value leakage scan PASS
+- clean package npm test PASS with external module-loading stubs only

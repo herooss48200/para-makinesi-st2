@@ -11,6 +11,9 @@ const client = Binance({
 
 const state = {
     semboller: [],
+    sembolEvreniKaniti: null,
+    sembolVeriSagligi: { durum: 'BEKLIYOR', istenen: 0, secilen: 0, mumHazir: 0, superTrendHazir: 0, hata: 0, sonGuncelleme: null },
+    st2TaramaSagligi: { durum: 'BEKLIYOR', evren: 0, taranan: 0, veriEksik: 0, sureMs: 0, sonTamamlanma: null },
     basamaklar: {},
     canliFiyatlar: {},
     yerelPusuHafizasi: {},

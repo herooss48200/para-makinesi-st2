@@ -49,7 +49,7 @@ async function baslat() {
                 const earlyMessage = [
                     '🚀 AGROS ST2 BAŞLATILIYOR',
                     `🧩 Sürüm: ${versiyonBilgi.botSurumu}`,
-                    `📡 İzlenen sembol: ${h.state.semboller.length}`,
+                    `📡 İzlenen evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)}`,
                     `💼 Korunan sanal pozisyon: ${h.state.aktifPozisyonlar.length}`,
                     '⏳ Tarihsel veri ve Renko hazırlığı sürüyor; işlem defteri korunuyor.'
                 ].join('\n');
@@ -104,7 +104,7 @@ async function baslat() {
             console.log(`🧩 [LEGACY COMPATIBILITY MEMORY] ${adaptiveLeague.VERSION} | Kimlik/audit uyumluluğu ${leagueState ? 'OK' : 'OK'} | Premier/Shadow yetkisi YOK | Eski observation kapanan ${Number(observation?.closed || 0)}`);
             console.log(`🧩 [LEGACY EXIT COMPATIBILITY] ${labPremier.VERSION} | Eski kayıt ${Number(labModel?.premierCount || 0)} | İleri kayıt ${Number(labModel?.forwardVerifiedCount || 0)} | Exit uyumluluğu ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'} | Yeni Premier yetkisi YOK`);
             console.log('🛡️ [RAM-SAFE] Ağır replay yalnız model eskiyse bir kez, sonrasında kontrollü 25 kapanış aralığında güncellenir.');
-            console.log('🧬 [ST2 EXACT-CONTEXT RUNTIME ACTIVE] POZİTİF_CONTEXT=PREMIER | NEGATİF/BİLİNMEYEN=SHADOW | SHADOW_N3_TERFİ=AKTİF | LEGACY=COMPATIBILITY_ONLY | GERÇEK=FAIL_CLOSED');
+            console.log('🧬 [ST2 PREMIER SCORE RUNTIME ACTIVE] EXACT_CONTEXT + PF + EXPECTANCY + CANLI_FORM + ENTRY + TAKEOVER + ÖRNEK_GÜVENİ | GÖRECELİ_SIRALAMA=AKTİF | GERÇEK=FAIL_CLOSED');
         } catch (err) {
             console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
         }
@@ -114,12 +114,11 @@ async function baslat() {
             `🧪 Emir Modu: ${emirModu}\n` +
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
             `📊 Strateji: ${ayarlar.renkoOnayPeriyodu || '1m'} Renko SuperTrend onayı + ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} Renko pusu + canlı fiyat tetik\n` +
-            `📡 İzlenen Sembol: ${h.state.semboller.length}\n` +
+            `📡 İzlenen Evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)} | Veri ${h.state.sembolVeriSagligi?.durum || 'BEKLIYOR'}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
-            `🧬 Sanal öğrenme: Renko exact-context Premier/Shadow\n` +
-            `🏆 Tarihsel pozitif exact-context: Premier sanal işlem\n` +
-            `👻 Negatif veya bilinmeyen exact-context: Shadow sanal öğrenme\n` +
-            `🔄 Shadow terfisi: bağımsız tamamlanmış N3 blok + Net>0 + PF≥1.30 + Exp>0 + en az 2/3 kazanım\n` +
+            `🧬 Sanal öğrenme: Renko exact-context + Premier kalite puanı\n` +
+            `⭐ Premier seçimi: PF + expectancy + canlı form + Entry + Takeover + örnek güveni\n` +
+            `📊 Karar: minimum kalite eşiği + göreceli sıralama; geçiş nedeni açık\n` +
             `🔒 Gerçek emir: fail-closed\n` +
             `🛡️ Binance minimumu karşılanmazsa emir güvenle atlanır.\n` +
             `🗃️ Eski muhasebe/başarı sayıları korunuyor; açılış ekranında gizlendi.\n\n` +
@@ -158,7 +157,7 @@ async function baslat() {
             } else {
                 console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
             }
-            // ST2 canlı paneli ilk 100-coin Renko taraması ve tekil açılış pusu özeti tamamlanmadan başlamaz.
+            // ST2 canlı paneli yapılandırılmış coin evreninin ilk Renko taraması ve tekil açılış pusu özeti tamamlanmadan başlamaz.
             // Böylece ağır panel üretimi ilk taramayı ve kritik pusu mesajını geciktirmez.
             if (ayarlar.entryStrategyMode !== 'ST2_RENKO') startupPanelPlanla('GENEL_STARTUP');
         };

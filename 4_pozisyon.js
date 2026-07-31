@@ -1118,6 +1118,14 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         console.log(`⚠️ [ACCOUNTING CONTINUITY CLOSE] ${pos.sym} ${pos.yon} | ${err.message}`);
     }
 
+    const hamFiyatYoluVar = Array.isArray(pos?.execution?.pricePath) && pos.execution.pricePath.length > 0;
+    let replayUnavailableReason = null;
+    if (restartGapIslemi) replayUnavailableReason = 'RESTART_GAP_SCIENTIFICALLY_EXCLUDED';
+    else if (manuelDisKapanis) replayUnavailableReason = 'MANUAL_EXTERNAL_CLOSE_SCIENTIFICALLY_EXCLUDED';
+    else if (!exitReplayRecord && !hamFiyatYoluVar) replayUnavailableReason = 'PRICE_PATH_MISSING';
+    else if (!exitReplayRecord) replayUnavailableReason = 'EXIT_REPLAY_ENGINE_RETURNED_NULL';
+    else if (!exitReplayRecord?.shadowExitValidation) replayUnavailableReason = 'EXIT_REPLAY_SELECTION_VALIDATION_NOT_AVAILABLE';
+
     const operasyonMesaji = operationTransparency.closingText(pos, {
         emoji,
         title: baslik,
@@ -1138,7 +1146,8 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         commission: toplamKomisyon,
         netPnl: netKarZarar,
         shadowOnly: leagueShadowOnly,
-        replayValidation: exitReplayRecord?.shadowExitValidation || null
+        replayValidation: exitReplayRecord?.shadowExitValidation || null,
+        replayUnavailableReason
     }) +
     (restartGapIslemi ? restartGap.telegramMetni(pos) : '') +
     (manuelDisKapanis ? `\n\n⚠️ <b>MANUEL/DIŞ KAPANIŞ</b>\nBilimsel öğrenme ve metot çetelesi bu kapanış için güncellenmedi.` : '');

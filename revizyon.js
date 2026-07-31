@@ -28,6 +28,7 @@ async function sembolHavuzu(worker) {
 }
 
 async function derinGecmisiInsaEt() {
+    const baslangic=Date.now();
     console.log('📥 Başlangıç verileri çekiliyor...');
     h.state.yerelPusuHafizasi={}; h.state.canliFiyatlar={}; h.state.sniperMumlar={}; h.state.sniperCanliMumlar={}; h.state.sniperSuperTrend={}; h.state.sniperSuperTrendCanli={}; h.state.trendMumlar={}; h.state.trendCanliMumlar={}; h.state.trendSuperTrend={}; h.state.trendSuperTrendCanli={}; h.state.sonPusuMumZamani={};
     const tumSemboller=[...(h.state.semboller || [])];
@@ -40,13 +41,15 @@ async function derinGecmisiInsaEt() {
     const hata=sonuclar.filter(x=>!x.ok).length;
     // Geçici ağ hatası yaşayan sembolleri kalıcı olarak takip listesinden çıkarmıyoruz.
     h.state.semboller=tumSemboller;
-    console.log(`✅ Başlangıç mum verisi: ${gecerli.length}/${h.state.semboller.length} coin hazır${hata ? ` | sonraki turda tekrar denenecek: ${hata}` : ''}.`);
+    h.state.sembolVeriSagligi={...(h.state.sembolVeriSagligi||{}),durum:hata===0&&gecerli.length===h.state.semboller.length?'HEALTHY':'DEGRADED',istenen:Number(ayarlar.taranacakCoinSayisi||200),secilen:h.state.semboller.length,mumHazir:gecerli.length,mumHata:hata,baslangicMumMs:Date.now()-baslangic,sonGuncelleme:new Date().toISOString()};
+    console.log(`✅ Başlangıç mum verisi: ${gecerli.length}/${h.state.semboller.length} coin hazır${hata ? ` | sonraki turda tekrar denenecek: ${hata}` : ''} | Süre ${Date.now()-baslangic} ms.`);
     await superTrendHesapla(true);
     setInterval(()=>{ pusuVerileriniTazele().catch(e=>console.error('❌ Pusu tazeleme üst hata:',e.message)); }, ayarlar.pusuVeriTazelemeMs || 30000);
     setInterval(()=>{ superTrendHesapla(false).catch(e=>console.error('❌ SuperTrend üst hata:',e.message)); }, ayarlar.superTrendTazelemeMs || 10000);
 }
 
 async function pusuVerileriniTazele() {
+    const baslangic=Date.now();
     if (pusuTazelemeCalisiyor) { console.log('⏭️ [NETWORK GUARD] Önceki 15m tazeleme sürüyor; çakışan tur atlandı.'); return; }
     pusuTazelemeCalisiyor=true;
     try {
@@ -58,11 +61,13 @@ async function pusuVerileriniTazele() {
         });
         const hata=sonuclar.filter(x=>!x.ok).length;
         h.state.sonPusuTaramaZamani=Date.now();
-        if(guncellenen>0 || hata>0) console.log(`📊 [${new Date().toLocaleTimeString()}] ${ayarlar.pusuPeriyodu} veriler tazelendi: ${guncellenen} coin | yeni kapanan mum: ${yeniMum} | ağ hatası: ${hata}`);
+        h.state.sembolVeriSagligi={...(h.state.sembolVeriSagligi||{}),durum:hata===0&&guncellenen===h.state.semboller.length?'HEALTHY':'DEGRADED',mumHazir:guncellenen,mumHata:hata,pusuTazelemeMs:Date.now()-baslangic,sonGuncelleme:new Date().toISOString()};
+        if(guncellenen>0 || hata>0) console.log(`📊 [${new Date().toLocaleTimeString()}] ${ayarlar.pusuPeriyodu} veriler tazelendi: ${guncellenen} coin | yeni kapanan mum: ${yeniMum} | ağ hatası: ${hata} | süre ${Date.now()-baslangic} ms`);
     } finally { pusuTazelemeCalisiyor=false; }
 }
 
 async function superTrendHesapla(baslangic=false) {
+    const baslamaZamani=Date.now();
     if(superTrendCalisiyor && !baslangic) { console.log('⏭️ [NETWORK GUARD] Önceki SuperTrend tazelemesi sürüyor; çakışan tur atlandı.'); return; }
     superTrendCalisiyor=true;
     try {
@@ -78,7 +83,8 @@ async function superTrendHesapla(baslangic=false) {
         });
         hatali += sonuclar.filter(x=>!x.ok).length;
         h.state.sonSniperGuncellemeZamani=Date.now(); h.state.sonTrendGuncellemeZamani=Date.now();
-        if(baslangic || trendGuncellenen>0 || hatali>0) console.log(`📊 [${new Date().toLocaleTimeString()}] Sniper veri (${ayarlar.sniperPeriyodu}): ${sniperGuncellenen} coin | SuperTrend trend/onay (${stPeriyodu}): ${trendGuncellenen} coin güncellendi, ${hatali} coin hatalı.`);
+        h.state.sembolVeriSagligi={...(h.state.sembolVeriSagligi||{}),durum:hatali===0&&trendGuncellenen===h.state.semboller.length?'HEALTHY':'DEGRADED',sniperHazir:sniperGuncellenen,superTrendHazir:trendGuncellenen,superTrendHata:hatali,superTrendTazelemeMs:Date.now()-baslamaZamani,sonGuncelleme:new Date().toISOString()};
+        if(baslangic || trendGuncellenen>0 || hatali>0) console.log(`📊 [${new Date().toLocaleTimeString()}] Sniper veri (${ayarlar.sniperPeriyodu}): ${sniperGuncellenen} coin | SuperTrend trend/onay (${stPeriyodu}): ${trendGuncellenen} coin güncellendi, ${hatali} coin hatalı | süre ${Date.now()-baslamaZamani} ms.`);
     } finally { superTrendCalisiyor=false; }
 }
 module.exports={ derinGecmisiInsaEt, pusuVerileriniTazele, superTrendHesapla };

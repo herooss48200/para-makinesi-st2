@@ -198,6 +198,8 @@ function pozisyonSatiri(p) {
     const stateLabel = protectionView.label;
 
     satir += ` | ${stage} ${stateLabel}`;
+    const premierScore = p?.renkoPremierDecision?.premierScore || p?.labPremierDecision?.premierScore || {};
+    if (Number.isFinite(Number(premierScore.score))) satir += ` | Skor ${Number(premierScore.score).toFixed(1)}/${Number(premierScore.threshold || 0).toFixed(1)} #${Number(premierScore.rank || 0)}/${Number(premierScore.cohortSize || 0)}`;
     if (Number.isFinite(takeover)) satir += ` | Takeover %${takeover.toFixed(2)}`;
     if (Number.isFinite(atrMultiplier) && atrMultiplier > 0) satir += ` | ATR ${atrMultiplier.toFixed(2)}×`;
     else if (Number.isFinite(trail) && trail > 0) satir += ` | Trail ${trail.toFixed(2)}T`;
@@ -354,6 +356,39 @@ function st2AnaRaporOgrenmeOzeti() {
 }
 
 
+function st2VeriSagligiOzeti() {
+    const evren = h.state.sembolEvreniKaniti || {};
+    const veri = h.state.sembolVeriSagligi || {};
+    const tarama = h.state.st2TaramaSagligi || {};
+    const istenen = Number(evren.requested || veri.istenen || ayarlar.taranacakCoinSayisi || 200);
+    const secilen = Number(evren.count || veri.secilen || h.state.semboller?.length || 0);
+    const durumlar = [evren.status, veri.durum, tarama.durum].filter(Boolean);
+    const durum = durumlar.includes('CRITICAL') ? 'CRITICAL' : (durumlar.includes('DEGRADED') ? 'DEGRADED' : (durumlar.length ? 'HEALTHY' : 'BEKLIYOR'));
+    return {
+        istenen, secilen, durum,
+        evrenMs: Number(evren.durationMs || veri.evrenYuklemeMs || 0),
+        mumHazir: Number(veri.mumHazir || 0), superTrendHazir: Number(veri.superTrendHazir || 0),
+        hata: Number(veri.hata || 0) + Number(veri.mumHata || 0) + Number(veri.superTrendHata || 0),
+        taranan: Number(tarama.taranan || 0), veriEksik: Number(tarama.veriEksik || 0), taramaMs: Number(tarama.sureMs || 0)
+    };
+}
+
+function st2ReplayKatmanOzeti(positions = []) {
+    const rows = Array.isArray(positions) ? positions : [];
+    const exitAssignments = rows.map(p => p?.executionExitAssignment).filter(Boolean);
+    const exitReady = exitAssignments.filter(x => x.ready === true || x.activeForPosition === true).length;
+    const exitFallback = exitAssignments.length - exitReady;
+    const exitSamples = exitAssignments.reduce((a, x) => a + Number(x.samples || x.sampleCount || 0), 0);
+    const takeover = renkoExitEvolution.summary(rows);
+    const takeoverClosed = (takeover.profiles || []).reduce((a, x) => a + Number(x.closed || 0), 0);
+    const takeoverLearned = (takeover.profiles || []).filter(x => Number(x?.online?.samples || 0) > 0 || String(x?.online?.status || '').includes('ONLINE')).length;
+    return {
+        exitReady, exitFallback, exitSamples,
+        takeoverProfiles: Number(takeover.profiles?.length || 0), takeoverClosed, takeoverLearned,
+        takeoverAssigned: Number(takeover.runtime?.assigned || 0), takeoverActivated: Number(takeover.runtime?.activated || 0)
+    };
+}
+
 function minimalCanliRaporMetniOlustur() {
     const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
     const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
@@ -363,6 +398,8 @@ function minimalCanliRaporMetniOlustur() {
     const pusuLong = pusular.filter(x => String(x.yon || '').toUpperCase() === 'LONG').length;
     const pusuShort = pusular.filter(x => String(x.yon || '').toUpperCase() === 'SHORT').length;
     const evo = renkoEntryEvolution.summary();
+    const veriSagligi = st2VeriSagligiOzeti();
+    const replayKatman = st2ReplayKatmanOzeti(tumAktifler);
     const op = operationIntelligence.build(tumAktifler);
     const aggregate = op.model?.aggregate || {};
     const accounting = op.model?.accounting || {};
@@ -382,10 +419,14 @@ function minimalCanliRaporMetniOlustur() {
         `📊 AGROS ST2 OPERASYON — ${require('./versiyon.js').botSurumu}`,
         `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
         `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Premier ${premierAktifler.length} | Shadow ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
+        `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
+        `📡 Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Tarama ${veriSagligi.taranan}/${veriSagligi.secilen} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
         `💰 Premier N${Number(aggregate.closed || 0)} | ✅${Number(aggregate.tp || 0)} ❌${Number(aggregate.sl || 0)} ⚖️${Number(aggregate.be || 0)} | Net ${sign(aggregate.net)} | PF ${pfMetni(aggregate.profitFactor)}`,
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
-        `🧠 Entry Evolution N${Number(evo.total?.closed || 0)} | ✅${Number(evo.total?.tp || 0)} ❌${Number(evo.total?.sl || 0)} ⚖️${Number(evo.total?.be || 0)} | Net ${sign(evo.total?.net)} | Atama ${Number(evo.total?.assigned || 0)}`
+        `🚪 Entry Replay N${Number(evo.total?.closed || 0)} | Net ${sign(evo.total?.net)} | Atama ${Number(evo.total?.assigned || 0)}`,
+        `🧪 Exit Replay Hazır ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Kanıt N${replayKatman.exitSamples}`,
+        `🧬 Takeover Replay Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Öğrenilmiş ${replayKatman.takeoverLearned} | Aktif ${replayKatman.takeoverActivated}/${replayKatman.takeoverAssigned}`
     ];
     if (sirali.length) {
         lines.push('', `📦 AKTİF PREMIER (${sirali.length}/${premierAktifler.length})`);
@@ -466,12 +507,17 @@ function canliRaporMetniOlustur() {
         const entryEvolutionModel = renkoEntryEvolution.summary();
         const golgeSonuc = entryEvolutionModel.total || {};
         const adaptiveSummary = adaptiveDnaEntry.summary();
+        const veriSagligi = st2VeriSagligiOzeti();
+        const replayKatman = st2ReplayKatmanOzeti(tumAktifler);
         const renkoPremierPattern = Number(adaptiveSummary.health?.historicalPremierProfiles || 0);
         const renkoShadowDna = Math.max(0, Number(adaptiveSummary.health?.historicalProfiles || 0) - renkoPremierPattern);
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
         mesaj += `🧬 Tarihsel exact Premier: ${renkoPremierPattern} | Exact Shadow/izleme: ${renkoShadowDna} | Canlı Premier pozisyon: ${aktifler.length}\n`;
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
-        mesaj += `🧪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Replay Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
+        mesaj += `🌐 Evren: ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum} | Tarama ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}\n`;
+        mesaj += `🚪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
+        mesaj += `🧪 Exit Replay: Hazır ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Kanıt N${replayKatman.exitSamples}\n`;
+        mesaj += `🧬 Takeover Replay: Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Öğrenilmiş ${replayKatman.takeoverLearned} | Aktif ${replayKatman.takeoverActivated}/${replayKatman.takeoverAssigned}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 `;
@@ -487,7 +533,7 @@ function canliRaporMetniOlustur() {
         if (pusuKararNedenleri.length) mesaj += `🔎 <b>Pusu karar nedenleri:</b> ${pusuKararNedenleri.map(([k,v])=>`${k} ${v}`).join(' | ')}
 `;
         if (aktifShadowlar.length) {
-            const shadowRows=aktifShadowlar.slice(0,3).map(p=>`${pozisyonSembol(p)} ${pozisyonYon(p)} | DNA ${p?.renkoPremierDecision?.dnaKey ? adaptiveDnaIntelligence.shortId(p.renkoPremierDecision.dnaKey) : 'YOK'} | ${p?.renkoPremierDecision?.reason||'SHADOW'} | N3 ${Number(p?.renkoPremierDecision?.liveN||0)}/3`);
+            const shadowRows=aktifShadowlar.slice(0,3).map(p=>{ const q=p?.renkoPremierDecision?.premierScore||{}; return `${pozisyonSembol(p)} ${pozisyonYon(p)} | DNA ${p?.renkoPremierDecision?.dnaKey ? adaptiveDnaIntelligence.shortId(p.renkoPremierDecision.dnaKey) : 'YOK'} | Skor ${Number(q.score||0).toFixed(1)}/${Number(q.threshold||0).toFixed(1)} #${Number(q.rank||0)}/${Number(q.cohortSize||0)} | ${q.reason||p?.renkoPremierDecision?.reason||'SHADOW'}`; });
             mesaj += `👻 <b>Aktif Shadow kanıtı:</b> ${shadowRows.join(' || ')}${aktifShadowlar.length>3?` | +${aktifShadowlar.length-3} kayıt`:''}
 `;
         }

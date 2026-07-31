@@ -19,6 +19,7 @@ const accountingContinuity = require('./65_accounting_continuity.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const identityChain = require('./66_identity_chain_repair.js');
 const operationTransparency = require('./82_st2_operation_transparency.js');
+const premierQuality = require('./83_st2_premier_quality_score.js');
 
 function ondalikSayisi(step) {
     const n = Number(step);
@@ -225,9 +226,9 @@ const m = {
             girisAnalizi.renkoEntryBrickDistance = gate.brick;
             girisAnalizi.historicalExecutionMode = gate.executionMode;
             if (gate.allow) {
-                console.log(`✅ [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | PREMIER | ${gate.reason} | Giriş ${gate.brick.toFixed(2)} | N${Number(gate.evidence?.n||0)} Net ${Number(gate.evidence?.net||0).toFixed(4)} PF ${Number(gate.evidence?.pf||0).toFixed(2)} Exp ${Number(gate.evidence?.expectancy||0).toFixed(4)}`);
+                console.log(`✅ [ST2 PREMIER SCORE GATE] ${symbol} ${yon} | PREMIER | ${gate.reason} | Skor ${Number(gate.premierScore?.score||0).toFixed(1)}/${Number(gate.premierScore?.threshold||0).toFixed(1)} | Sıra #${Number(gate.premierScore?.rank||0)}/${Number(gate.premierScore?.cohortSize||0)} | Giriş ${gate.brick.toFixed(2)}`);
             } else {
-                console.log(`👻 [ST2 HISTORICAL ENTRY GATE] ${symbol} ${yon} | SHADOW | ${gate.action} | ${gate.reason} | Coin ${gate.completion.ready}/${gate.completion.total} | Giriş ${gate.brick.toFixed(2)}`);
+                console.log(`👻 [ST2 PREMIER SCORE GATE] ${symbol} ${yon} | SHADOW | ${gate.action} | ${gate.reason} | Skor ${Number(gate.premierScore?.score||0).toFixed(1)}/${Number(gate.premierScore?.threshold||0).toFixed(1)} | Sıra #${Number(gate.premierScore?.rank||0)}/${Number(gate.premierScore?.cohortSize||0)} | Giriş ${gate.brick.toFixed(2)}`);
             }
         }
 
@@ -282,46 +283,59 @@ const m = {
                 closed: Number(gate.evidence?.n || 0),
                 activeBrick: Number(gate.brick || girisAnalizi.renkoEntryBrickDistance || 0.75),
                 net: Number(gate.evidence?.net || 0), pf: Number(gate.evidence?.pf || 0), expectancy: Number(gate.evidence?.expectancy || 0),
-                executionMode: gate.executionMode
+                executionMode: gate.executionMode,
+                premierScore: gate.premierScore || null,
+                score: Number(gate.premierScore?.score || 0),
+                scoreThreshold: Number(gate.premierScore?.threshold || 0),
+                relativeRank: Number(gate.premierScore?.rank || 0),
+                relativeCohort: Number(gate.premierScore?.cohortSize || 0)
             };
-            yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_HISTORICAL_CONTEXT_GATE' };
             const labLiveReview = labKarar?.liveLeagueReview || null;
-            const exactLiveDemoted = renkoPremier.reason === 'LIVE_N3_DEMOTED_TO_SHADOW';
-            const labLiveDemoted = labLiveReview?.demoted === true;
-            const labLivePromoted = labLiveReview?.promoted === true;
-            const finalPremier = !exactLiveDemoted && !labLiveDemoted && (labLivePromoted || renkoPremier.premier);
+            const previousScoreLeague = labKarar?.upperLayerIncluded === true ? 'PREMIER' : 'SHADOW';
+            const finalScore = premierQuality.applyLabReview(gate.premierScore || {}, labLiveReview);
+            renkoPremier.premierScore = finalScore;
+            renkoPremier.premier = finalScore.selected === true;
+            renkoPremier.reason = finalScore.reason || gate.reason;
+            renkoPremier.score = Number(finalScore.score || 0);
+            renkoPremier.scoreThreshold = Number(finalScore.threshold || 0);
+            renkoPremier.relativeRank = Number(finalScore.rank || 0);
+            renkoPremier.relativeCohort = Number(finalScore.cohortSize || 0);
+            renkoPremier.executionMode = finalScore.executionMode || gate.executionMode;
+            yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_PREMIER_QUALITY_SCORE' };
+            // v6.7.3 compatibility proof: const finalPremier = !exactLiveDemoted && !labLiveDemoted
+            const finalPremier = finalScore.selected === true;
+            const finalScoreLeague = finalPremier ? 'PREMIER' : 'SHADOW';
+            const scoreTransition = { from: previousScoreLeague, to: finalScoreLeague, changed: previousScoreLeague !== finalScoreLeague, reason: finalScore.explanation || finalScore.reason };
             if (finalPremier) {
-                const livePromotion = labLivePromoted;
-                const finalTrack = livePromotion ? 'LAB_LIVE_PROMOTED_PREMIER' : 'RENKO_PATTERN_PREMIER';
-                const finalProof = livePromotion ? 'LAB_LIVE_N5_PROMOTED_PREMIER' : 'HISTORICAL_ADAPTIVE_RENKO_PREMIER';
+                const finalTrack = 'PREMIER_SCORE_RANKED';
+                const finalProof = 'ST2_PREMIER_SCORE_SELECTED';
                 labKarar = {
                     ...(labKarar || {}),
                     labLeague: 'PREMIER', premierTrack: finalTrack, proofLevel: finalProof,
                     upperLayerIncluded: true, virtualShadowOnly: false, observationEligible: true,
-                    reason: livePromotion
-                        ? `LAB canlı N${labLiveReview.thresholds.minClosed} terfisi | Net ${Number(labLiveReview.metrics.net).toFixed(4)} | PF ${Number(labLiveReview.metrics.profitFactor).toFixed(2)} | Exp ${Number(labLiveReview.metrics.expectancy).toFixed(4)}`
-                        : `ST2 Renko ${renkoPremier.patternKey} | ${renkoPremier.source} | N${renkoPremier.closed} | Giriş ${renkoPremier.activeBrick.toFixed(2)} | Net ${renkoPremier.net.toFixed(4)} | PF ${renkoPremier.pf.toFixed(2)} | Exp ${renkoPremier.expectancy.toFixed(4)}`
+                    premierScore: finalScore, scoreTransition,
+                    reason: `${finalScore.explanation} | ${premierQuality.componentText(finalScore)}`
                 };
                 yeniPozisyon.labPremierDecision = labKarar;
                 yeniPozisyon.labLeagueAtOpen = 'PREMIER';
                 yeniPozisyon.premierTrackAtOpen = finalTrack;
                 yeniPozisyon.labProofLevelAtOpen = finalProof;
                 yeniPozisyon.leagueShadowOnly = false;
-                console.log(`🏆 [ST2 PREMIER BINDING] ${symbol} ${yon} | ${finalProof} | ${livePromotion ? `LAB N${labLiveReview.thresholds.minClosed} Net ${Number(labLiveReview.metrics.net).toFixed(4)} PF ${Number(labLiveReview.metrics.profitFactor).toFixed(2)}` : `${renkoPremier.patternKey} ${renkoPremier.source} N${renkoPremier.closed} Giriş ${renkoPremier.activeBrick.toFixed(2)}`}`);
+                console.log(`🏆 [ST2 PREMIER SCORE BINDING] ${symbol} ${yon} | ${finalScore.explanation} | ${premierQuality.componentText(finalScore)} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
             } else {
-                const finalShadowReason = labLiveDemoted ? 'LAB_LIVE_N5_DEMOTED_TO_SHADOW' : (exactLiveDemoted ? 'LIVE_N3_DEMOTED_TO_SHADOW' : renkoPremier.reason);
+                const finalShadowReason = finalScore.reason || 'PREMIER_SCORE_SHADOW';
                 labKarar = {
-                    ...(labKarar || {}), labLeague: 'DEVELOPMENT', premierTrack: 'HISTORICAL_CONTEXT_SHADOW',
+                    ...(labKarar || {}), labLeague: 'DEVELOPMENT', premierTrack: 'PREMIER_SCORE_SHADOW',
                     proofLevel: finalShadowReason, upperLayerIncluded: false, virtualShadowOnly: true,
-                    observationEligible: true, reason: labLiveDemoted
-                        ? `LAB canlı N${labLiveReview.thresholds.minClosed} düşüşü | Net ${Number(labLiveReview.metrics.net).toFixed(4)} | PF ${Number(labLiveReview.metrics.profitFactor).toFixed(2)} | Exp ${Number(labLiveReview.metrics.expectancy).toFixed(4)}`
-                        : `ST2 Shadow ${renkoPremier.patternKey} | ${finalShadowReason} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`
+                    observationEligible: true, premierScore: finalScore, scoreTransition,
+                    reason: `${finalScore.explanation || finalShadowReason} | ${premierQuality.componentText(finalScore)}`
                 };
                 yeniPozisyon.labPremierDecision = labKarar;
                 yeniPozisyon.labLeagueAtOpen = 'DEVELOPMENT';
-                yeniPozisyon.premierTrackAtOpen = 'HISTORICAL_CONTEXT_SHADOW';
+                yeniPozisyon.premierTrackAtOpen = 'PREMIER_SCORE_SHADOW';
+                yeniPozisyon.labProofLevelAtOpen = finalShadowReason;
                 yeniPozisyon.leagueShadowOnly = true;
-                console.log(`👻 [ST2 CONTEXT SHADOW BINDING] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${renkoPremier.reason} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
+                console.log(`👻 [ST2 PREMIER SCORE SHADOW] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${finalScore.explanation || finalShadowReason} | ${premierQuality.componentText(finalScore)} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
             }
         }
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);

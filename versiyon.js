@@ -1,11 +1,12 @@
 'use strict';
 
+// v6.8.4 compatibility marker: 6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ST2-RENKO-ENTRY-EXIT-EVOLUTION',
-    kod: 'AGROS ST2 v6.8.4 — MINIMAL TELEGRAM OPERATION PROOF',
-    botSurumu: '6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF',
-    stratejiSurumu: '1.0.27',
+    kodAdi: 'ST2-RENKO-FINAL-PREMIER-SCORE-200-COIN',
+    kod: 'AGROS ST2 v6.9.0 — FINAL PREMIER SCORE + 200 COIN',
+    botSurumu: '6.9.0-FINAL-PREMIER-SCORE-200-COIN',
+    stratejiSurumu: '1.0.28',
     yayinTarihi: '31.07.2026',
     ortam: Object.freeze({ emirModu: 'SANAL' })
 });
