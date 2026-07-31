@@ -42,9 +42,28 @@ function realAuthorization() {
   const enabled = ayarlar.gercekEmirYetkilendirmeAktif === true;
   const expected = String(ayarlar.gercekEmirOnayKodu || '').trim();
   const supplied = String(process.env.AGROS_REAL_ORDER_ARM || '').trim();
-  return { enabled, expectedConfigured: Boolean(expected), envConfigured: Boolean(supplied), valid: enabled && Boolean(expected) && supplied === expected };
+  const environment = String(process.env.AGROS_REAL_ORDER_ENV || '').trim().toUpperCase();
+  const baseUrl = String(process.env.BINANCE_BASE_URL || '').trim();
+  const testnet = /testnet/i.test(baseUrl);
+  const mainnet = /fapi\.binance\.com/i.test(baseUrl) && !testnet;
+  const environmentValid = environment === 'MAINNET' && (!ayarlar.gercekEmirAnaAgZorunlu || mainnet);
+  return {
+    enabled, expectedConfigured: Boolean(expected), envConfigured: Boolean(supplied),
+    armValid: enabled && Boolean(expected) && supplied === expected,
+    environment, baseUrlConfigured: Boolean(baseUrl), testnet, mainnet, environmentValid,
+    valid: enabled && Boolean(expected) && supplied === expected && environmentValid
+  };
 }
-function evaluate(pos, { realMode = false } = {}) {
+function liveRiskProfile() {
+  return {
+    notionalUsdt: num(ayarlar.gercekEmirSabitNotionalUsdt, 25),
+    leverage: Math.floor(num(ayarlar.gercekEmirSabitKaldirac, 5)),
+    marginType: String(ayarlar.gercekEmirMarjinTipi || 'ISOLATED').toUpperCase(),
+    maxActivePositions: Math.max(1, Math.floor(num(ayarlar.gercekEmirMaxAktifPozisyon, 1))),
+    protectionRequired: ayarlar.gercekEmirKorumaEmirleriZorunlu !== false
+  };
+}
+function evaluate(pos, { realMode = false, scoreDecision = null } = {}) {
   const key = signature(pos);
   const profile = pos?.dnaLeagueProfile || dnaLeague.attachToPosition(pos);
   const identity = key ? dnaIdentity.ensure(key, { source: 'REAL_ORDER_READINESS' }) : null;
@@ -61,10 +80,21 @@ function evaluate(pos, { realMode = false } = {}) {
   const currentLeague = profile?.league || 'UNRANKED';
   const worst = dnaLeague.isWorstDna(key);
   const virtualShadowOnly = !realMode && Boolean(worst);
+  const scoreAuthority = Boolean(realMode && scoreDecision);
+  const risk = liveRiskProfile();
 
   let realTier = null;
   let sizeMultiplier = 0;
-  if (realMode) {
+  if (scoreAuthority) {
+    realTier = 'PREMIER';
+    sizeMultiplier = 1;
+    if (scoreDecision.selected !== true) reasons.push('PREMIER_SCORE_NOT_SELECTED');
+    if (String(scoreDecision.policySource || '').toUpperCase() !== 'CALIBRATED') reasons.push('PREMIER_SCORE_MODEL_NOT_CALIBRATED');
+    if (Array.isArray(scoreDecision.hardReasons) && scoreDecision.hardReasons.length) reasons.push(...scoreDecision.hardReasons);
+    if (ayarlar.gercekEmirPremierKapisiAktif !== true) reasons.push('GERCEK_PREMIER_KAPISI_KAPALI');
+    if (!(risk.notionalUsdt > 0 && risk.notionalUsdt <= 25)) reasons.push('GERCEK_EMIR_NOTIONAL_25_USDT_DEGIL');
+    if (risk.leverage !== 5) reasons.push('GERCEK_EMIR_KALDIRAC_5X_DEGIL');
+  } else if (realMode) {
     const pair = profile?.pairMetrics || profile || {};
     const premier = currentLeague === 'PREMIER';
     const championship = currentLeague === 'CHAMPIONSHIP';
@@ -91,13 +121,11 @@ function evaluate(pos, { realMode = false } = {}) {
     }
   } else {
     if (virtualShadowOnly) reasons.push('DYNAMIC_WORST_10_SHADOW_ONLY');
-    // Alt öğrenme katmanı: lig giriş engeli değildir. UNRANKED/Development dahil
-    // tüm geçerli strateji tetikleri sanal işlem açarak DNA + exit yarışına veri üretir.
-    // Lig yalnızca gözlem/etiket bilgisidir; gerçek emir yetkisini aşağıdaki realMode kapısı verir.
   }
 
-  if (realMode) {
-    if (!auth.valid) reasons.push('GERCEK_EMIR_YETKISI_YOK');
+  if (realMode && !auth.valid) {
+    if (!auth.armValid) reasons.push('GERCEK_EMIR_YETKISI_YOK');
+    if (!auth.environmentValid) reasons.push(auth.testnet ? 'MAINNET_ZORUNLU_TESTNET_BAGLI' : 'GERCEK_EMIR_MAINNET_ORTAMI_YOK');
   }
 
   const decision = {
@@ -118,6 +146,9 @@ function evaluate(pos, { realMode = false } = {}) {
     virtualShadowOnly,
     realTier,
     sizeMultiplier: realMode ? sizeMultiplier : 1,
+    scoreAuthority,
+    premierScore: scoreDecision || null,
+    liveRisk: realMode ? risk : null,
     leagueModelAgeMinutes: Number.isFinite(age) ? Number(age.toFixed(2)) : null,
     premierValidation: profile ? dnaLeague.premierValidation(profile) : null,
     todayRealCandidate: currentLeague === 'PREMIER' && Boolean(profile && dnaLeague.premierValidation(profile).eligible) && Boolean(exitPlan?.ready) && exitPlan?.selectionQuality === 'POSITIVE_CONFIRMED' && Boolean(forwardProof?.eligible),
@@ -146,7 +177,7 @@ function evaluate(pos, { realMode = false } = {}) {
       planVersion: exitPlan?.version || null,
       planCreatedAt: exitPlan?.createdAt || null
     },
-    authorization: realMode ? { enabled: auth.enabled, expectedConfigured: auth.expectedConfigured, envConfigured: auth.envConfigured, valid: auth.valid } : undefined
+    authorization: realMode ? { ...auth } : undefined
   };
   decision.exit.assignmentId = `${decision.dnaLabel}|${decision.key}|${decision.exit.algorithmId}|${decision.exit.planCreatedAt || decision.at}`;
   pos.realOrderReadiness = decision;
@@ -302,4 +333,4 @@ function telegramText(d) {
     `🔎 Exit Sebebi: ${d.exit?.reason || 'YOK'}\n` +
     (!d.allowed ? `📌 Sebep: ${d.reasons.join(', ')}` : (d.mode === 'VIRTUAL' ? `🧪 Alt öğrenme katmanı: tüm geçerli DNA'lar açık | Lig yalnız etiket` : `🔒 Gerçek katman: ${d.realTier} | Boyut x${num(d.sizeMultiplier, 1).toFixed(2)} | Güncel kazanan exit`));
 }
-module.exports = { VERSION, AUDIT_JSONL, PREPARATION_JSON, evaluate, buildPreparation, preparationTelegram, copyDecisionToPosition, telegramText, realAuthorization };
+module.exports = { VERSION, AUDIT_JSONL, PREPARATION_JSON, evaluate, buildPreparation, preparationTelegram, copyDecisionToPosition, telegramText, realAuthorization, liveRiskProfile };

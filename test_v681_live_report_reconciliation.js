@@ -6,9 +6,11 @@ const ayarlar = require('./ayarlar.js');
 const blackbox = require('./8_blackbox.js');
 const operation = require('./69_operation_intelligence_dashboard.js');
 
-// Bu paket ST2 geliştirme/sanal tabanıdır; ST151GERCEK risk ayarlarını taşımaz.
-assert.strictEqual(ayarlar.sanalEmirModu, true, 'ST2 geliştirme sürümü sanal kalmalı');
-assert.strictEqual(Number(ayarlar.mevcutKaldirac), 20, 'ST2 mevcut sanal kaldıraç matematiği değişmemeli');
+// v6.9.3 kontrollü gerçek emir fazı: yalnız env arm + mainnet + kalibre Premier ile açılır.
+assert.strictEqual(ayarlar.sanalEmirModu, false, 'ST2 kontrollü gerçek emir modunda olmalı');
+assert.strictEqual(Number(ayarlar.mevcutKaldirac), 5, 'gerçek emir kaldıraç sınırı 5x olmalı');
+assert.strictEqual(Number(ayarlar.gercekEmirSabitNotionalUsdt), 25, 'gerçek emir notional 25 USDT olmalı');
+assert(Number.isInteger(Number(ayarlar.gercekEmirMaxAktifPozisyon)) && Number(ayarlar.gercekEmirMaxAktifPozisyon) >= 1, 'gerçek emir aktif pozisyon limiti ayarlardan pozitif tam sayı olmalı');
 assert.strictEqual(Number(ayarlar.maxPozisyonSayisi), 100, 'ST2 mevcut sanal kapasitesi değişmemeli');
 assert.strictEqual(Number(ayarlar.gunlukMaxYeniEmir), 0, 'günlük emir sayısı limitsiz kalmalı');
 

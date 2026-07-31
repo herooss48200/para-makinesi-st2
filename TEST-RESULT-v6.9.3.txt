@@ -1,0 +1,18 @@
+AGROS ST2 v6.9.3 — LIVE 5X / 25 USDT + PREMIER LEDGER FINAL
+
+npm test: PASSED
+- Full source syntax: PASSED (109 JS)
+- v6.7.2 through v6.9.2 regressions: PASSED
+- v6.9.3 live guard + calibrated Premier ledger: PASSED
+- Premier calibration benchmark: 392,000 models / 523 ms (container)
+- Mainnet + arm + calibrated Premier authorization: PASSED
+- Testnet fail-closed rejection: PASSED
+
+Safety assertions:
+- Fixed notional: 25 USDT
+- Fixed leverage: 5x
+- Margin: ISOLATED
+- Maximum active real positions: 1
+- SL + TP mandatory; missing protection triggers reduce-only MARKET rollback
+- Calibration must be ACTIVE/CALIBRATED
+- .env, data, state, ledger, logs and node_modules excluded from patch

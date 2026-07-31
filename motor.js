@@ -117,6 +117,116 @@ function fiyatKlip(sym, fiyat) {
     return Number.isFinite(sonuc) && sonuc > 0 ? sonuc : 0;
 }
 
+
+function st2PremierScoreBagla(pos, girisAnalizi, symbol, yon) {
+    let labKarar = pos?.labPremierDecision || null;
+    if (!pos || girisAnalizi?.entryStrategy !== 'ST2_RENKO') return labKarar;
+    const gate = girisAnalizi.historicalEntryGate || adaptiveDnaEntry.gateDecision({ ...pos, ...girisAnalizi, girisAnalizi }, Number(girisAnalizi.renkoEntryBrickDistance || 0.75));
+    const renkoPremier = {
+        premier: gate.allow === true,
+        reason: gate.reason,
+        patternKey: `${gate.context?.yon || yon}|${gate.context?.pattern || girisAnalizi.patternKodu || 'UNKNOWN'}`,
+        dnaKey: adaptiveDnaEntry.dnaKey(gate.context || adaptiveDnaEntry.contextFrom(girisAnalizi)),
+        source: gate.decision?.source || gate.evidence?.source || 'NONE',
+        closed: Number(gate.evidence?.n || 0),
+        activeBrick: Number(gate.brick || girisAnalizi.renkoEntryBrickDistance || 0.75),
+        net: Number(gate.evidence?.net || 0), pf: Number(gate.evidence?.pf || 0), expectancy: Number(gate.evidence?.expectancy || 0),
+        executionMode: gate.executionMode,
+        premierScore: gate.premierScore || null,
+        score: Number(gate.premierScore?.score || 0),
+        scoreThreshold: Number(gate.premierScore?.threshold || 0),
+        relativeRank: Number(gate.premierScore?.rank || 0),
+        relativeCohort: Number(gate.premierScore?.cohortSize || 0)
+    };
+    const labLiveReview = labKarar?.liveLeagueReview || null;
+    const previousScoreLeague = labKarar?.upperLayerIncluded === true ? 'PREMIER' : 'SHADOW';
+    const finalScore = premierQuality.applyLabReview(gate.premierScore || {}, labLiveReview);
+    renkoPremier.premierScore = finalScore;
+    renkoPremier.premier = finalScore.selected === true;
+    renkoPremier.reason = finalScore.reason || gate.reason;
+    renkoPremier.score = Number(finalScore.score || 0);
+    renkoPremier.scoreThreshold = Number(finalScore.threshold || 0);
+    renkoPremier.relativeRank = Number(finalScore.rank || 0);
+    renkoPremier.relativeCohort = Number(finalScore.cohortSize || 0);
+    renkoPremier.executionMode = finalScore.executionMode || gate.executionMode;
+    pos.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_PREMIER_QUALITY_SCORE' };
+    // v6.7.3 compatibility proof: const finalPremier = !exactLiveDemoted && !labLiveDemoted
+    const finalPremier = finalScore.selected === true;
+    const finalScoreLeague = finalPremier ? 'PREMIER' : 'SHADOW';
+    const scoreTransition = { from: previousScoreLeague, to: finalScoreLeague, changed: previousScoreLeague !== finalScoreLeague, reason: finalScore.explanation || finalScore.reason };
+    if (finalPremier) {
+        const finalTrack = 'PREMIER_SCORE_RANKED';
+        const finalProof = 'ST2_PREMIER_SCORE_SELECTED';
+        const calibrated = String(finalScore.policySource || '').toUpperCase() === 'CALIBRATED';
+        labKarar = {
+            ...(labKarar || {}),
+            labLeague: 'PREMIER', premierTrack: finalTrack, proofLevel: finalProof,
+            upperLayerIncluded: true, virtualShadowOnly: false, observationEligible: true,
+            realTradingAuthorized: Boolean(pos.sanal === false && calibrated && ayarlar.labPremierGercekEmirYetkisi === true),
+            premierScore: finalScore, scoreTransition,
+            reason: `${finalScore.explanation} | ${premierQuality.componentText(finalScore)}`
+        };
+        pos.labPremierDecision = labKarar;
+        pos.labLeagueAtOpen = 'PREMIER';
+        pos.premierTrackAtOpen = finalTrack;
+        pos.labProofLevelAtOpen = finalProof;
+        pos.leagueShadowOnly = false;
+        console.log(`🏆 [ST2 PREMIER SCORE BINDING] ${symbol} ${yon} | ${finalScore.explanation} | ${premierQuality.componentText(finalScore)} | Giriş ${renkoPremier.activeBrick.toFixed(2)} | Model ${finalScore.policySource || 'DEFAULT'}`);
+    } else {
+        const finalShadowReason = finalScore.reason || 'PREMIER_SCORE_SHADOW';
+        labKarar = {
+            ...(labKarar || {}), labLeague: 'DEVELOPMENT', premierTrack: 'PREMIER_SCORE_SHADOW',
+            proofLevel: finalShadowReason, upperLayerIncluded: false, virtualShadowOnly: true,
+            observationEligible: true, realTradingAuthorized: false, premierScore: finalScore, scoreTransition,
+            reason: `${finalScore.explanation || finalShadowReason} | ${premierQuality.componentText(finalScore)}`
+        };
+        pos.labPremierDecision = labKarar;
+        pos.labLeagueAtOpen = 'DEVELOPMENT';
+        pos.premierTrackAtOpen = 'PREMIER_SCORE_SHADOW';
+        pos.labProofLevelAtOpen = finalShadowReason;
+        pos.leagueShadowOnly = true;
+        console.log(`👻 [ST2 PREMIER SCORE SHADOW] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${finalScore.explanation || finalShadowReason} | ${premierQuality.componentText(finalScore)} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
+    }
+    return labKarar;
+}
+
+function canliRiskProfili() {
+    return realOrderBridge.liveRiskProfile();
+}
+
+function hedefNotionalUsdt() {
+    return ayarlar.sanalEmirModu
+        ? Number(ayarlar.calisilmakIstenenUsdtMiktar || 0) * Number(ayarlar.mevcutKaldirac || 1)
+        : Number(canliRiskProfili().notionalUsdt || 25);
+}
+
+function aktifGercekPozisyonSayisi() {
+    return (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false).length;
+}
+
+
+async function gercekAcilisRollback(symbol, yon, sebep) {
+    const kapatmaYonu = yon === 'LONG' ? 'SELL' : 'BUY';
+    try {
+        const acikEmirler = await h.client.futuresOpenOrders({ symbol }).catch(() => []);
+        for (const emir of acikEmirler || []) {
+            await h.client.futuresCancelOrder({ symbol, orderId: emir.orderId }).catch(() => {});
+        }
+        const pozisyonlar = await h.client.futuresPositionRisk();
+        const hedef = (pozisyonlar || []).find(row => row.symbol === symbol);
+        const miktar = Math.abs(Number(hedef?.positionAmt || 0));
+        if (miktar > 0) {
+            const guvenli = miktarKlip(symbol, miktar);
+            await h.client.futuresOrder({ symbol, side: kapatmaYonu, type: 'MARKET', quantity: guvenli.toString(), reduceOnly: true, newOrderRespType: 'RESULT' });
+        }
+        console.error(`🧯 [GERÇEK AÇILIŞ GERİ ALINDI] ${symbol} ${yon} | ${sebep}`);
+        return true;
+    } catch (err) {
+        console.error(`🚨 [GERÇEK AÇILIŞ ROLLBACK HATASI] ${symbol} ${yon} | ${sebep} | ${err.message || err}`);
+        return false;
+    }
+}
+
 const m = {
     pusuSenaryosuTespit: (sonMum, oncekiMum, bollinger, yon) => {
         if (!sonMum || !bollinger || !bollinger.upper.length || !bollinger.lower.length) {
@@ -270,74 +380,8 @@ const m = {
         const karar = yeniPozisyon.realOrderReadiness;
         // Önceden dondurulan LAB kararı yeniden uygulanır; yeni karar/kimlik üretilmez.
         let labKarar = labPremier.applyToPosition(yeniPozisyon, yeniPozisyon.labPremierDecision);
-        // ST2 Renko Entry Evolution Premier köprüsü: ikinci emir açmaz; aynı sanal pozisyonu
-        // yalnız Renko bilimsel üst kasasında sınıflandırır. Gerçek emir/Trade Engine yetkisi değişmez.
-        if (girisAnalizi?.entryStrategy === 'ST2_RENKO') {
-            const gate = girisAnalizi.historicalEntryGate || adaptiveDnaEntry.gateDecision({ ...yeniPozisyon, ...girisAnalizi, girisAnalizi }, Number(girisAnalizi.renkoEntryBrickDistance || 0.75));
-            const renkoPremier = {
-                premier: gate.allow === true,
-                reason: gate.reason,
-                patternKey: `${gate.context?.yon || yon}|${gate.context?.pattern || girisAnalizi.patternKodu || 'UNKNOWN'}`,
-                dnaKey: adaptiveDnaEntry.dnaKey(gate.context || adaptiveDnaEntry.contextFrom(girisAnalizi)),
-                source: gate.decision?.source || gate.evidence?.source || 'NONE',
-                closed: Number(gate.evidence?.n || 0),
-                activeBrick: Number(gate.brick || girisAnalizi.renkoEntryBrickDistance || 0.75),
-                net: Number(gate.evidence?.net || 0), pf: Number(gate.evidence?.pf || 0), expectancy: Number(gate.evidence?.expectancy || 0),
-                executionMode: gate.executionMode,
-                premierScore: gate.premierScore || null,
-                score: Number(gate.premierScore?.score || 0),
-                scoreThreshold: Number(gate.premierScore?.threshold || 0),
-                relativeRank: Number(gate.premierScore?.rank || 0),
-                relativeCohort: Number(gate.premierScore?.cohortSize || 0)
-            };
-            const labLiveReview = labKarar?.liveLeagueReview || null;
-            const previousScoreLeague = labKarar?.upperLayerIncluded === true ? 'PREMIER' : 'SHADOW';
-            const finalScore = premierQuality.applyLabReview(gate.premierScore || {}, labLiveReview);
-            renkoPremier.premierScore = finalScore;
-            renkoPremier.premier = finalScore.selected === true;
-            renkoPremier.reason = finalScore.reason || gate.reason;
-            renkoPremier.score = Number(finalScore.score || 0);
-            renkoPremier.scoreThreshold = Number(finalScore.threshold || 0);
-            renkoPremier.relativeRank = Number(finalScore.rank || 0);
-            renkoPremier.relativeCohort = Number(finalScore.cohortSize || 0);
-            renkoPremier.executionMode = finalScore.executionMode || gate.executionMode;
-            yeniPozisyon.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_PREMIER_QUALITY_SCORE' };
-            // v6.7.3 compatibility proof: const finalPremier = !exactLiveDemoted && !labLiveDemoted
-            const finalPremier = finalScore.selected === true;
-            const finalScoreLeague = finalPremier ? 'PREMIER' : 'SHADOW';
-            const scoreTransition = { from: previousScoreLeague, to: finalScoreLeague, changed: previousScoreLeague !== finalScoreLeague, reason: finalScore.explanation || finalScore.reason };
-            if (finalPremier) {
-                const finalTrack = 'PREMIER_SCORE_RANKED';
-                const finalProof = 'ST2_PREMIER_SCORE_SELECTED';
-                labKarar = {
-                    ...(labKarar || {}),
-                    labLeague: 'PREMIER', premierTrack: finalTrack, proofLevel: finalProof,
-                    upperLayerIncluded: true, virtualShadowOnly: false, observationEligible: true,
-                    premierScore: finalScore, scoreTransition,
-                    reason: `${finalScore.explanation} | ${premierQuality.componentText(finalScore)}`
-                };
-                yeniPozisyon.labPremierDecision = labKarar;
-                yeniPozisyon.labLeagueAtOpen = 'PREMIER';
-                yeniPozisyon.premierTrackAtOpen = finalTrack;
-                yeniPozisyon.labProofLevelAtOpen = finalProof;
-                yeniPozisyon.leagueShadowOnly = false;
-                console.log(`🏆 [ST2 PREMIER SCORE BINDING] ${symbol} ${yon} | ${finalScore.explanation} | ${premierQuality.componentText(finalScore)} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
-            } else {
-                const finalShadowReason = finalScore.reason || 'PREMIER_SCORE_SHADOW';
-                labKarar = {
-                    ...(labKarar || {}), labLeague: 'DEVELOPMENT', premierTrack: 'PREMIER_SCORE_SHADOW',
-                    proofLevel: finalShadowReason, upperLayerIncluded: false, virtualShadowOnly: true,
-                    observationEligible: true, premierScore: finalScore, scoreTransition,
-                    reason: `${finalScore.explanation || finalShadowReason} | ${premierQuality.componentText(finalScore)}`
-                };
-                yeniPozisyon.labPremierDecision = labKarar;
-                yeniPozisyon.labLeagueAtOpen = 'DEVELOPMENT';
-                yeniPozisyon.premierTrackAtOpen = 'PREMIER_SCORE_SHADOW';
-                yeniPozisyon.labProofLevelAtOpen = finalShadowReason;
-                yeniPozisyon.leagueShadowOnly = true;
-                console.log(`👻 [ST2 PREMIER SCORE SHADOW] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${finalScore.explanation || finalShadowReason} | ${premierQuality.componentText(finalScore)} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
-            }
-        }
+        // Kalibre edilmiş ST2 Premier kararı sanal ve gerçek yol için tek fonksiyonda dondurulur.
+        labKarar = st2PremierScoreBagla(yeniPozisyon, girisAnalizi, symbol, yon);
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         // Eski Family Premier gözlemi yeni pozisyonlarda üst katman değildir; yalnız açık eski pozisyonların kapanış uyumu korunur.
         try { if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] PREMIER_OBSERVATION_ERROR ${symbol} ${yon} | ${e.message}`); }
@@ -415,6 +459,13 @@ const m = {
                 console.log(`🖐️ [MANUEL KAPANIŞ KİLİDİ] ${symbol} ${yon} | ${new Date(manualLockUntil).toISOString()} tarihine kadar yeniden giriş yok`);
                 return false;
             }
+            if (!ayarlar.sanalEmirModu) {
+                const risk = canliRiskProfili();
+                if (aktifGercekPozisyonSayisi() >= risk.maxActivePositions) {
+                    console.log(`🚫 [GERÇEK EMİR AKTİF POZİSYON LİMİTİ] ${symbol} ${yon} | ${aktifGercekPozisyonSayisi()}/${risk.maxActivePositions}`);
+                    return false;
+                }
+            }
             const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
             if (!izin.uygun) {
                 console.log(`🛡️ [EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
@@ -423,7 +474,7 @@ const m = {
             }
 
             const kural = h.state.basamaklar[symbol] || {};
-            const toplamDolar = ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac;
+            const toplamDolar = hedefNotionalUsdt();
             const hamMiktar = toplamDolar / canliFiyat;
             const guvenliMiktar = miktarKlip(symbol, hamMiktar);
             const minQty = kural.minQty || 0;
@@ -490,8 +541,14 @@ const m = {
                 hazirKimlik.girisAnalizi = { ...(hazirKimlik.girisAnalizi || {}), originalSignalSide: yon, reverseExecutionSide: islemYonu };
                 console.log(`🔁 [TERS PREMIER YÖNÜ] ${symbol} ${yon} sinyali → ${islemYonu} sanal yürütme | ${hazirKimlik.labPremierDecision?.sourceLabDnaLabel || 'LAB #YOK'} → ${hazirKimlik.labPremierDecision?.labDnaLabel || 'LAB #YOK'}`);
             }
+            let labGercekKarar = ayarlar.sanalEmirModu ? null : hazirKimlik.labPremierDecision;
+            if (!ayarlar.sanalEmirModu) {
+                labGercekKarar = st2PremierScoreBagla(hazirKimlik, hazirKimlik.girisAnalizi || etkinGirisAnalizi, symbol, islemYonu);
+                const canliKarar = realOrderBridge.evaluate(hazirKimlik, { realMode: true, scoreDecision: labGercekKarar?.premierScore || null });
+                labGercekKarar.realTradingAuthorized = Boolean(canliKarar.allowed && labGercekKarar?.upperLayerIncluded === true);
+                labPremier.applyToPosition(hazirKimlik, labGercekKarar);
+            }
             const ortakKarar = hazirKimlik.realOrderReadiness;
-            const labGercekKarar = ayarlar.sanalEmirModu ? null : hazirKimlik.labPremierDecision;
 
             if (ayarlar.sanalEmirModu) {
                 console.log(`🧪 [SANAL EMİR MODU] Binance'e emir gönderilmeyecek: ${symbol} ${islemYonu}`);
@@ -512,73 +569,110 @@ const m = {
             }
 
             const ligBoyutCarpani = Math.max(0.01, Math.min(1, Number(ortakKarar.sizeMultiplier || 1)));
+            const risk = canliRiskProfili();
             const gercekMiktar = miktarKlip(symbol, guvenliMiktar * ligBoyutCarpani);
             const gercekNotional = gercekMiktar * canliFiyat;
-            if (!gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional) {
-                console.log(`🚫 [LİG BOYUTU MİNİMUM ALTINDA] ${symbol} ${yon} | Lig ${ortakKarar.realTier} | Çarpan x${ligBoyutCarpani.toFixed(2)} | Notional ${gercekNotional.toFixed(4)} < ${minNotional}`);
+            const onEmirSapmaYuzde = risk.notionalUsdt > 0 ? Math.abs((gercekNotional - risk.notionalUsdt) / risk.notionalUsdt) * 100 : 999;
+            const maksNotionalSapmaYuzde = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde || 2);
+            if (!gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional || onEmirSapmaYuzde > maksNotionalSapmaYuzde) {
+                console.log(`🚫 [GERÇEK BOYUT FAIL-CLOSED] ${symbol} ${yon} | Hedef ${risk.notionalUsdt.toFixed(2)} | Hesap ${gercekNotional.toFixed(4)} | Sapma %${onEmirSapmaYuzde.toFixed(3)} | Min ${minNotional}`);
                 return false;
             }
 
-            console.log(`⚙️ [BINANCE API] ${symbol} ${yon} ${ortakKarar.realTier} onaylı | Boyut x${ligBoyutCarpani.toFixed(2)} | Market + Koruma Emirleri Hazırlanıyor...`);
+            const borsaPozisyonlari = await h.client.futuresPositionRisk();
+            const acikBorsaPozisyonlari = (borsaPozisyonlari || []).filter(row => Math.abs(Number(row?.positionAmt || 0)) > 0);
+            if (acikBorsaPozisyonlari.length >= risk.maxActivePositions) {
+                console.log(`🚫 [BINANCE GERÇEK POZİSYON LİMİTİ] ${symbol} ${yon} | Borsa ${acikBorsaPozisyonlari.length}/${risk.maxActivePositions}`);
+                return false;
+            }
+            const sembolAcikEmirleri = await h.client.futuresOpenOrders({ symbol });
+            if ((sembolAcikEmirleri || []).length > 0) {
+                console.log(`🚫 [BINANCE AÇIK EMİR ÇAKIŞMASI] ${symbol} | Açık emir ${(sembolAcikEmirleri || []).length}`);
+                return false;
+            }
 
-            await h.client.futuresLeverage({ symbol, leverage: ayarlar.mevcutKaldirac });
-            await h.client.futuresMarginType({ symbol, marginType: 'CROSSED' }).catch(() => {});
+            const kaldirac = risk.leverage;
+            const marjinTipi = risk.marginType;
+            console.log(`⚙️ [BINANCE API] ${symbol} ${islemYonu} ${ortakKarar.realTier} onaylı | ${risk.notionalUsdt.toFixed(2)} USDT notional | ${kaldirac}x ${marjinTipi} | Market + zorunlu koruma hazırlanıyor...`);
 
-            const emirYonu = yon === 'LONG' ? 'BUY' : 'SELL';
-            const karsiYon = yon === 'LONG' ? 'SELL' : 'BUY';
+            await h.client.futuresMarginType({ symbol, marginType: marjinTipi }).catch(err => {
+                const text = String(err?.message || err || '');
+                if (!text.includes('-4046') && !/no need to change margin type/i.test(text)) throw err;
+            });
+            const leverageResult = await h.client.futuresLeverage({ symbol, leverage: kaldirac });
+            if (Number(leverageResult?.leverage || kaldirac) !== kaldirac) {
+                throw new Error(`KALDIRAC_DOGRULANAMADI:${leverageResult?.leverage || 'YOK'}/${kaldirac}`);
+            }
 
-            console.log(`📤 [EMİR GÖNDERİLİYOR] ${symbol} ${emirYonu} ${gercekMiktar} @ Market | ${ortakKarar.realTier} x${ligBoyutCarpani.toFixed(2)}`);
+            const emirYonu = islemYonu === 'LONG' ? 'BUY' : 'SELL';
+            const karsiYon = islemYonu === 'LONG' ? 'SELL' : 'BUY';
 
+            console.log(`📤 [GERÇEK EMİR GÖNDERİLİYOR] ${symbol} ${emirYonu} ${gercekMiktar} @ MARKET | Hedef ${risk.notionalUsdt.toFixed(2)} USDT | ${kaldirac}x`);
             const sonuc = await h.client.futuresOrder({
                 symbol,
                 side: emirYonu,
                 type: 'MARKET',
-                quantity: gercekMiktar.toString()
+                quantity: gercekMiktar.toString(),
+                newOrderRespType: 'RESULT'
             });
+            if (!sonuc?.orderId) throw new Error('GERCEK_GIRIS_ORDER_ID_YOK');
 
-            console.log(`📥 [EMİR CEVABI] ${symbol} Order ID: ${sonuc?.orderId || 'YOK'}`);
+            const gerceklesenMiktar = miktarKlip(symbol, Number(sonuc.executedQty || gercekMiktar));
+            const gerceklesenFiyat = Number(sonuc.avgPrice || sonuc.price || canliFiyat);
+            const gerceklesenNotional = gerceklesenMiktar * gerceklesenFiyat;
+            const notionalSapmaYuzde = risk.notionalUsdt > 0 ? ((gerceklesenNotional - risk.notionalUsdt) / risk.notionalUsdt) * 100 : 0;
+            const maksSapma = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde || 2);
+            const slippageYuzde = canliFiyat > 0
+                ? (islemYonu === 'LONG' ? ((gerceklesenFiyat - canliFiyat) / canliFiyat) : ((canliFiyat - gerceklesenFiyat) / canliFiyat)) * 100
+                : 0;
 
-            if (!sonuc || !sonuc.orderId) return false;
+            console.log(`📥 [GERÇEK EMİR DOLDU] ${symbol} | Order ${sonuc.orderId} | Qty ${gerceklesenMiktar} | Fill ${gerceklesenFiyat} | Notional ${gerceklesenNotional.toFixed(4)} | Sapma ${notionalSapmaYuzde.toFixed(3)}% | Slippage ${slippageYuzde.toFixed(4)}%`);
+            if (!gerceklesenMiktar || gerceklesenMiktar < minQty || gerceklesenNotional < minNotional || Math.abs(notionalSapmaYuzde) > maksSapma) {
+                await gercekAcilisRollback(symbol, islemYonu, `DOLUM_BOYUTU_GUVENSIZ:${gerceklesenNotional.toFixed(4)}USDT`);
+                return false;
+            }
+
+            sl = fiyatKlip(symbol, islemYonu === 'LONG' ? gerceklesenFiyat * (1 - etkinStopOrani) : gerceklesenFiyat * (1 + etkinStopOrani));
+            tp = fiyatKlip(symbol, islemYonu === 'LONG' ? gerceklesenFiyat * (1 + tpOrani) : gerceklesenFiyat * (1 - tpOrani));
+            hazirKimlik.girisFiyati = gerceklesenFiyat;
+            hazirKimlik.miktar = gerceklesenMiktar;
+            hazirKimlik.sl = sl;
+            hazirKimlik.tp = tp;
 
             console.log(`📤 [SL GÖNDERİLİYOR] ${symbol} STOP_MARKET @ ${sl.toFixed(pPrecision)}`);
             const slSonuc = await h.client.futuresOrder({
-                symbol,
-                side: karsiYon,
-                type: 'STOP_MARKET',
-                stopPrice: sl.toFixed(pPrecision),
-                closePosition: true,
-                workingType: 'MARK_PRICE'
-            }).catch(e => {
-                console.error(`❌ [SL EMRİ HATASI] ${symbol}:`, e.message || e);
-                return null;
-            });
-
-            if (slSonuc?.orderId) console.log(`✅ [SL BAŞARILI] ${symbol} Order ID: ${slSonuc.orderId}`);
-            else console.log(`⚠️ [SL BAŞARISIZ] ${symbol} Stop emri gönderilemedi!`);
+                symbol, side: karsiYon, type: 'STOP_MARKET', stopPrice: sl.toFixed(pPrecision),
+                closePosition: true, workingType: 'MARK_PRICE'
+            }).catch(e => { console.error(`❌ [SL EMRİ HATASI] ${symbol}:`, e.message || e); return null; });
 
             console.log(`📤 [TP GÖNDERİLİYOR] ${symbol} TAKE_PROFIT_MARKET @ ${tp.toFixed(pPrecision)}`);
             const tpSonuc = await h.client.futuresOrder({
-                symbol,
-                side: karsiYon,
-                type: 'TAKE_PROFIT_MARKET',
-                stopPrice: tp.toFixed(pPrecision),
-                closePosition: true,
-                workingType: 'MARK_PRICE'
-            }).catch(e => {
-                console.error(`❌ [TP EMRİ HATASI] ${symbol}:`, e.message || e);
-                return null;
-            });
+                symbol, side: karsiYon, type: 'TAKE_PROFIT_MARKET', stopPrice: tp.toFixed(pPrecision),
+                closePosition: true, workingType: 'MARK_PRICE'
+            }).catch(e => { console.error(`❌ [TP EMRİ HATASI] ${symbol}:`, e.message || e); return null; });
 
-            if (tpSonuc?.orderId) console.log(`✅ [TP BAŞARILI] ${symbol} Order ID: ${tpSonuc.orderId}`);
-            else console.log(`⚠️ [TP BAŞARISIZ] ${symbol} TP emri gönderilemedi!`);
+            if (risk.protectionRequired && (!slSonuc?.orderId || !tpSonuc?.orderId)) {
+                const missing = `${!slSonuc?.orderId ? 'SL' : ''}${!slSonuc?.orderId && !tpSonuc?.orderId ? '+' : ''}${!tpSonuc?.orderId ? 'TP' : ''}`;
+                await gercekAcilisRollback(symbol, islemYonu, `KORUMA_EMRI_EKSIK:${missing}`);
+                await h.telegramMesajGonder(`🚨 GERÇEK EMİR GERİ ALINDI\n${symbol} ${islemYonu}\nEksik koruma: ${missing}\nPozisyon fail-closed market emirle kapatıldı.`).catch(() => {});
+                return false;
+            }
+            console.log(`✅ [GERÇEK KORUMA HAZIR] ${symbol} | SL ${slSonuc?.orderId || 'YOK'} | TP ${tpSonuc?.orderId || 'YOK'}`);
 
             const yeniPozisyon = {
                 sym: symbol,
-                yon,
-                girisFiyati: canliFiyat,
+                yon: islemYonu,
+                girisFiyati: gerceklesenFiyat,
                 sl,
                 tp,
-                miktar: gercekMiktar,
+                miktar: gerceklesenMiktar,
+                hedefNotionalUsdt: risk.notionalUsdt,
+                gerceklesenNotionalUsdt: Number(gerceklesenNotional.toFixed(6)),
+                kaldirac,
+                marjinTipi,
+                slippageYuzde: Number(slippageYuzde.toFixed(6)),
+                girisEmriCevabi: { orderId: sonuc.orderId, executedQty: sonuc.executedQty || gerceklesenMiktar, avgPrice: sonuc.avgPrice || gerceklesenFiyat },
+                korumaEmirleri: { slOrderId: slSonuc?.orderId || null, tpOrderId: tpSonuc?.orderId || null },
                 ligBoyutCarpani,
                 gercekLig: ortakKarar.realTier,
                 sanal: false,
@@ -597,6 +691,7 @@ const m = {
             identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
             identityChain.assertPrepared(yeniPozisyon);
             premierObservation.snapshot(yeniPozisyon);
+            labPremier.snapshot(yeniPozisyon);
             yeniPozisyon.dualLayerAudit = {
                 singlePosition: true,
                 learningLayer: true,
@@ -613,7 +708,7 @@ const m = {
             if (gercekBlackboxKaydi?.ok) identityChain.markStage(yeniPozisyon, 'BLACKBOX');
             else console.log(`⚠️ [IDENTITY CHAIN] BLACKBOX aşaması tamamlanamadı: ${symbol} ${yon} | ${gercekBlackboxKaydi?.error || 'BILINMEYEN'}`);
 
-            if (yon === 'LONG') h.state.alinanlar.push(symbol);
+            if (islemYonu === 'LONG') h.state.alinanlar.push(symbol);
             else h.state.aktifShortlar.push(symbol);
             h.state.basariOzeti.toplamAcilanEmir = (h.state.basariOzeti.toplamAcilanEmir || 0) + 1;
             kaliciHafiza.yeniEmirSay();

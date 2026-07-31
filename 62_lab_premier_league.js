@@ -38,7 +38,8 @@ const TRACK = Object.freeze({
   LAB: 'LAB_LEAGUE',
   LIVE: 'LAB_LIVE_PROMOTED_PREMIER',
   SHADOW: 'HISTORICAL_CONTEXT_SHADOW',
-  RENKO: 'RENKO_PATTERN_PREMIER'
+  RENKO: 'RENKO_PATTERN_PREMIER',
+  SCORE: 'PREMIER_SCORE_RANKED'
 });
 
 function num(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
@@ -60,7 +61,7 @@ function blankState() {
   };
 }
 function baseLeagueFromTrack(track) {
-  return [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(String(track || '').toUpperCase()) ? 'PREMIER' : 'SHADOW';
+  return [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE, TRACK.SCORE].includes(String(track || '').toUpperCase()) ? 'PREMIER' : 'SHADOW';
 }
 function normalizeLiveLeagueEntry(raw = {}, labKey = '') {
   return {
@@ -109,7 +110,7 @@ function normalizeState(raw) {
   // v5.3 ters işlemleri yanlışlıkla ana aggregate'e yazılmış olabilir.
   const historicalAggregate = blankBucket();
   for (const row of Object.values(out.byLab)) {
-    if ([TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(row?.premierTrack)) addBucket(historicalAggregate, row.bucket || {});
+    if ([TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE, TRACK.SCORE].includes(row?.premierTrack)) addBucket(historicalAggregate, row.bucket || {});
   }
   if (Object.values(out.byLab).some(row => row?.premierTrack)) out.aggregate = historicalAggregate;
   return out;
@@ -552,7 +553,7 @@ function applyToPosition(pos, decision = null) {
 }
 function bucketKeyFor(decision) {
   if (decision?.premierTrack === TRACK.REVERSE) return `REVERSE|${decision.sourceLabKey || 'YOK'}|${decision.labKey || 'YOK'}`;
-  if ([TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE, TRACK.SHADOW].includes(decision?.premierTrack)) return `${decision.premierTrack}|${decision.labKey || 'LAB-YOK'}`;
+  if ([TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE, TRACK.SCORE, TRACK.SHADOW].includes(decision?.premierTrack)) return `${decision.premierTrack}|${decision.labKey || 'LAB-YOK'}`;
   if (decision?.premierTrack === TRACK.BOTTOM_LONG || decision?.premierTrack === TRACK.BOTTOM_SHORT) {
     return `${decision.premierTrack}|${decision.labKey || 'LAB-YOK'}`;
   }
@@ -584,8 +585,11 @@ function ensureLabBucket(state, decision) {
   row.reverseSourceLabKey = decision.sourceLabKey || row.reverseSourceLabKey || null;
   updateExitHistory(row, decision); return row;
 }
+function anaPremierTrack(track) {
+  return [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE, TRACK.SCORE].includes(String(track || ''));
+}
 function snapshot(pos) {
-  if (!pos || pos.sanal === false || ayarlar.labPremierAktif === false) return null;
+  if (!pos || ayarlar.labPremierAktif === false) return null;
   const decision = pos.labPremierDecision || applyToPosition(pos); if (!decision?.observationEligible && !decision?.upperLayerIncluded) return null;
   const observation = {
     version: VERSION, openedAt: new Date().toISOString(), symbol: pos.sym || '', side: pos.yon || '',
@@ -596,10 +600,10 @@ function snapshot(pos) {
     exitAlgorithmId: decision.exitValidated ? (decision.exit?.algorithmId || 'ACTUAL') : 'ACTUAL',
     exitAlgorithmLabel: decision.exitValidated ? (decision.exit?.algorithmLabel || 'Mevcut Kademe Sistemi') : 'Mevcut Kademe Sistemi',
     exitAssignmentId: pos.executionExitAssignment?.assignmentId || null,
-    upperLayerIncluded: Boolean(decision.upperLayerIncluded), observationPool: decision.premierTrack === TRACK.REVERSE ? 'REVERSE_SEPARATE_LEDGER' : 'PREMIER', samePosition: true, secondOrderCreated: false, realTradingAuthorized: false
+    upperLayerIncluded: Boolean(decision.upperLayerIncluded), observationPool: decision.premierTrack === TRACK.REVERSE ? 'REVERSE_SEPARATE_LEDGER' : 'PREMIER', samePosition: true, secondOrderCreated: false, realTradingAuthorized: Boolean(pos.sanal === false && decision.realTradingAuthorized === true)
   };
   pos.labPremierObservation = observation;
-  const state = readState(); if (decision.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(decision.premierTrack)) { state.aggregate.opened++; state.aggregate.active++; }
+  const state = readState(); if (decision.upperLayerIncluded && anaPremierTrack(decision.premierTrack)) { state.aggregate.opened++; state.aggregate.active++; }
   if (decision.premierTrack === TRACK.REVERSE) { state.reverseAudit.opened = num(state.reverseAudit.opened) + 1; state.reverseAudit.last = [{ at: observation.openedAt, stage: 'OPENED', symbol: pos.sym || '', sourceLabKey: decision.sourceLabKey, targetLabKey: decision.labKey }, ...(state.reverseAudit.last || [])].slice(0, 50); }
   const row = ensureLabBucket(state, decision); row.bucket.opened++; row.bucket.active++; row.lastUpdatedAt = observation.openedAt;
   state.updatedAt = observation.openedAt; writeState(state); return observation;
@@ -620,7 +624,7 @@ function close(pos, result = {}) {
   if (!observation) {
     const d = pos?.labPremierDecision || null;
     const track = String(d?.premierTrack || pos?.premierTrackAtOpen || '').toUpperCase();
-    const isMainPremier = d?.upperLayerIncluded === true && [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(track);
+    const isMainPremier = d?.upperLayerIncluded === true && anaPremierTrack(track);
     if (!isMainPremier) return null;
     observation = {
       version: VERSION, openedAt: pos?.acilisZamani ? new Date(pos.acilisZamani).toISOString() : new Date().toISOString(),
@@ -640,7 +644,7 @@ function close(pos, result = {}) {
   const closeId = String(pos?.closeId || result?.closeId || pos?.tradeId || pos?.sanalOrderId || `${observation.symbol}|${observation.side}|${observation.openedAt}`);
   state.recentClosedIds = Array.isArray(state.recentClosedIds) ? state.recentClosedIds : [];
   if (state.recentClosedIds.includes(closeId)) return null;
-  if (observation.upperLayerIncluded && [TRACK.HISTORICAL, TRACK.RENKO, TRACK.LIVE].includes(observation.premierTrack)) applyClosed(state.aggregate, net, commission, outcome);
+  if (observation.upperLayerIncluded && anaPremierTrack(observation.premierTrack)) applyClosed(state.aggregate, net, commission, outcome);
   const decision = pos.labPremierDecision || {
     labKey: observation.labKey, labDnaId: observation.labDnaId, labDnaLabel: observation.labDnaLabel,
     familyDnaLabel: observation.familyDnaLabel, proofLevel: observation.proofLevel, premierTrack: observation.premierTrack,

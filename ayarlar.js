@@ -14,8 +14,9 @@ const ayarlar = {
     // ========================================
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
+    // v6.9.3 LIVE: 25 USDT notional / 5x = yaklaşık 5 USDT marjin.
     calisilmakIstenenUsdtMiktar: 5,
-    mevcutKaldirac: 20,
+    mevcutKaldirac: 5,
     maxPozisyonSayisi: 100,
 
     // ========================================
@@ -23,7 +24,7 @@ const ayarlar = {
     // ========================================
     // true  = Binance'e emir göndermez, sanal pozisyon açar/kapatır.
     // false = Binance Futures'a gerçek/testnet emir gönderir.
-    sanalEmirModu: true,
+    sanalEmirModu: false,
     sanalKomisyonOrani: 0.0005,
 
     // ========================================
@@ -561,7 +562,7 @@ const ayarlar = {
     sanalDynamicExitMaksPathNoktasi: 240,
     // Gerçek emir modu ayrıca açıldığında Premier işlem aynı dinamik exit planıyla yönetilebilir.
     // Varsayılan kapalıdır; gerçek emir yetkisi ve test onayı olmadan etkinleşmez.
-    gercekDynamicExitAktif: false,
+    gercekDynamicExitAktif: true,
     // v3.12.0 DNA League Engine - otomatik Premier/Championship/Gelişim/Tarihsel ligleri.
     // İlk sürüm karar ve metadata katmanıdır; gerçek emir filtresi ayrıca açılacaktır.
     dnaLeagueAktif: true,
@@ -598,9 +599,16 @@ const ayarlar = {
     // Canlı portföy ekranında eski 2246+ işlem muhasebesini gösterme; veri dosyada korunur.
     canliRaporEskiMuhasebeGoster: false,
     // Üç günlük doğrulama tamamlanmadan true yapılmaz.
-    gercekEmirYetkilendirmeAktif: false,
-    // Gerçek moda geçerken değiştirilir ve AWS ortamında AGROS_REAL_ORDER_ARM ile aynı değer verilir.
-    gercekEmirOnayKodu: 'UC_GUN_TEST_SONRASI_DEGISTIR',
+    gercekEmirYetkilendirmeAktif: true,
+    // AWS .env: AGROS_REAL_ORDER_ARM=LIVE_5X_25USDT ve AGROS_REAL_ORDER_ENV=MAINNET zorunludur.
+    gercekEmirOnayKodu: 'LIVE_5X_25USDT',
+    gercekEmirSabitNotionalUsdt: 25,
+    gercekEmirSabitKaldirac: 5,
+    gercekEmirMarjinTipi: 'ISOLATED',
+    gercekEmirMaxAktifPozisyon: 5,
+    gercekEmirKorumaEmirleriZorunlu: true,
+    gercekEmirMaksNotionalSapmaYuzde: 2,
+    gercekEmirAnaAgZorunlu: true,
     // Lig modeli bu süreden eskiyse gerçek emir fail-closed engellenir.
     gercekEmirLigModelMaksYasDakika: 360,
     // v4.6.1 - Tarihsel Premier + Exit tek başına gerçek emir kanıtı sayılmaz.
@@ -679,7 +687,7 @@ const ayarlar = {
     labPremierEntryProvenFallbackAktif: true,
     labPremierIleriDogrulamaZorunlu: false,
     labPremierChampionshipUstKatmanAktif: false,
-    labPremierGercekEmirYetkisi: false,
+    labPremierGercekEmirYetkisi: true,
 
     // v5.2.0 - Gerçek emir öncesi bilimsel Stop/BE/Exit/Shadow/Premier denetimi.
     // Yalnız raporlama yapar; Trade Engine ve gerçek emir yetkisi değişmez.

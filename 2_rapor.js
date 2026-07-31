@@ -144,7 +144,7 @@ function pozisyonKademe(p) {
 
 
 function anaPremierPozisyonuMu(p) {
-    if (!p || p.sanal === false) return false;
+    if (!p) return false;
     const karar = p.labPremierDecision || {};
     const gozlem = p.labPremierObservation || {};
     const track = String(karar.premierTrack || gozlem.premierTrack || p.premierTrackAtOpen || '').toUpperCase();
@@ -419,7 +419,7 @@ function minimalCanliRaporMetniOlustur() {
     const lines = [
         `📊 AGROS ST2 OPERASYON — ${require('./versiyon.js').botSurumu}`,
         `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
-        `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Premier ${premierAktifler.length} | Shadow ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
+        `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Premier ${premierAktifler.length} | Shadow ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
         `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
         `📡 Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Tarama ${veriSagligi.taranan}/${veriSagligi.secilen} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
         `💰 Premier N${Number(aggregate.closed || 0)} | ✅${Number(aggregate.tp || 0)} ❌${Number(aggregate.sl || 0)} ⚖️${Number(aggregate.be || 0)} | Net ${sign(aggregate.net)} | PF ${pfMetni(aggregate.profitFactor)}`,
