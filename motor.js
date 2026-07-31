@@ -20,6 +20,7 @@ const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const identityChain = require('./66_identity_chain_repair.js');
 const operationTransparency = require('./82_st2_operation_transparency.js');
 const premierQuality = require('./83_st2_premier_quality_score.js');
+const realExecution = require('./85_st2_real_order_execution.js');
 
 function ondalikSayisi(step) {
     const n = Number(step);
@@ -76,13 +77,18 @@ function miktarKapasiteEngeliniIsaretle(symbol, yon, audit) {
 }
 
 function miktarRedLoglaVePusuyuTemizle(symbol, yon, detay) {
+    const risk = ayarlar.sanalEmirModu ? null : canliRiskProfili();
+    const raporKaldirac = risk ? Number(risk.leverage) : Number(ayarlar.mevcutKaldirac);
+    const raporMarjin = risk
+        ? Number(risk.notionalUsdt) / Number(risk.leverage)
+        : Number(ayarlar.calisilmakIstenenUsdtMiktar);
     positionSizingAudit.logla(h.state, {
         symbol,
         yon,
         sebep: detay.sebep || 'MIKTAR_RED',
         fiyat: detay.canliFiyat,
-        marjin: ayarlar.calisilmakIstenenUsdtMiktar,
-        kaldirac: ayarlar.mevcutKaldirac,
+        marjin: raporMarjin,
+        kaldirac: raporKaldirac,
         toplamDolar: detay.toplamDolar,
         hamMiktar: detay.hamMiktar,
         guvenliMiktar: detay.guvenliMiktar,
@@ -197,35 +203,27 @@ function canliRiskProfili() {
 function hedefNotionalUsdt() {
     return ayarlar.sanalEmirModu
         ? Number(ayarlar.calisilmakIstenenUsdtMiktar || 0) * Number(ayarlar.mevcutKaldirac || 1)
-        : Number(canliRiskProfili().notionalUsdt || 25);
+        : Number(canliRiskProfili().notionalUsdt);
 }
 
 function aktifGercekPozisyonSayisi() {
     return (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false).length;
 }
 
-
-async function gercekAcilisRollback(symbol, yon, sebep) {
-    const kapatmaYonu = yon === 'LONG' ? 'SELL' : 'BUY';
-    try {
-        const acikEmirler = await h.client.futuresOpenOrders({ symbol }).catch(() => []);
-        for (const emir of acikEmirler || []) {
-            await h.client.futuresCancelOrder({ symbol, orderId: emir.orderId }).catch(() => {});
-        }
-        const pozisyonlar = await h.client.futuresPositionRisk();
-        const hedef = (pozisyonlar || []).find(row => row.symbol === symbol);
-        const miktar = Math.abs(Number(hedef?.positionAmt || 0));
-        if (miktar > 0) {
-            const guvenli = miktarKlip(symbol, miktar);
-            await h.client.futuresOrder({ symbol, side: kapatmaYonu, type: 'MARKET', quantity: guvenli.toString(), reduceOnly: true, newOrderRespType: 'RESULT' });
-        }
-        console.error(`🧯 [GERÇEK AÇILIŞ GERİ ALINDI] ${symbol} ${yon} | ${sebep}`);
-        return true;
-    } catch (err) {
-        console.error(`🚨 [GERÇEK AÇILIŞ ROLLBACK HATASI] ${symbol} ${yon} | ${sebep} | ${err.message || err}`);
-        return false;
-    }
+function gercekSembolKuraliGecerli(kural) {
+    if (!kural || typeof kural !== 'object') return false;
+    const stepSize = Number(kural.stepSize);
+    const tickSize = Number(kural.tickSize);
+    const minQty = Number(kural.minQty);
+    const minNotional = Number(kural.minNotional);
+    return Number.isFinite(stepSize) && stepSize > 0
+        && Number.isFinite(tickSize) && tickSize > 0
+        && Number.isFinite(minQty) && minQty > 0
+        && Number.isFinite(minNotional) && minNotional > 0
+        && Number.isInteger(Number(kural.quantityPrecision)) && Number(kural.quantityPrecision) >= 0
+        && Number.isInteger(Number(kural.pricePrecision)) && Number(kural.pricePrecision) >= 0;
 }
+
 
 const m = {
     pusuSenaryosuTespit: (sonMum, oncekiMum, bollinger, yon) => {
@@ -461,7 +459,14 @@ const m = {
             }
             if (!ayarlar.sanalEmirModu) {
                 const risk = canliRiskProfili();
-                if (aktifGercekPozisyonSayisi() >= risk.maxActivePositions) {
+                if (!(risk.notionalUsdt > 0)
+                    || !(Number.isInteger(risk.leverage) && risk.leverage >= 1 && risk.leverage <= 125)
+                    || !['ISOLATED', 'CROSSED'].includes(risk.marginType)
+                    || !(Number.isInteger(risk.maxActivePositions) && risk.maxActivePositions >= 0)) {
+                    console.log(`🚫 [GERÇEK RİSK AYARI FAIL-CLOSED] ${symbol} ${yon} | Notional ${risk.notionalUsdt} | Kaldıraç ${risk.leverage} | Marjin ${risk.marginType || 'YOK'} | Limit ${risk.maxActivePositions}`);
+                    return false;
+                }
+                if (risk.maxActivePositions === 0 || aktifGercekPozisyonSayisi() >= risk.maxActivePositions) {
                     console.log(`🚫 [GERÇEK EMİR AKTİF POZİSYON LİMİTİ] ${symbol} ${yon} | ${aktifGercekPozisyonSayisi()}/${risk.maxActivePositions}`);
                     return false;
                 }
@@ -474,6 +479,10 @@ const m = {
             }
 
             const kural = h.state.basamaklar[symbol] || {};
+            if (!ayarlar.sanalEmirModu && !gercekSembolKuraliGecerli(kural)) {
+                console.log(`🚫 [GERÇEK SEMBOL KURALI FAIL-CLOSED] ${symbol} ${yon} | step/tick/minQty/minNotional/precision eksik veya geçersiz`);
+                return false;
+            }
             const toplamDolar = hedefNotionalUsdt();
             const hamMiktar = toplamDolar / canliFiyat;
             const guvenliMiktar = miktarKlip(symbol, hamMiktar);
@@ -481,11 +490,19 @@ const m = {
             const minNotional = kural.minNotional || 5;
             const notional = guvenliMiktar * canliFiyat;
             const stepSize = kural.stepSize || Math.pow(10, -(kural.quantityPrecision ?? 2));
+            const auditAyarlar = ayarlar.sanalEmirModu ? ayarlar : (() => {
+                const risk = canliRiskProfili();
+                return {
+                    ...ayarlar,
+                    mevcutKaldirac: risk.leverage,
+                    calisilmakIstenenUsdtMiktar: risk.notionalUsdt / risk.leverage
+                };
+            })();
             const audit = positionSizingAudit.auditHesapla({
                 symbol,
                 yon,
                 canliFiyat,
-                ayarlar,
+                ayarlar: auditAyarlar,
                 kural: { ...kural, minQty, minNotional },
                 hamMiktar,
                 guvenliMiktar,
@@ -570,94 +587,92 @@ const m = {
 
             const ligBoyutCarpani = Math.max(0.01, Math.min(1, Number(ortakKarar.sizeMultiplier || 1)));
             const risk = canliRiskProfili();
-            const gercekMiktar = miktarKlip(symbol, guvenliMiktar * ligBoyutCarpani);
+            const hedefGercekNotional = risk.notionalUsdt * ligBoyutCarpani;
+            const gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
             const gercekNotional = gercekMiktar * canliFiyat;
-            const onEmirSapmaYuzde = risk.notionalUsdt > 0 ? Math.abs((gercekNotional - risk.notionalUsdt) / risk.notionalUsdt) * 100 : 999;
-            const maksNotionalSapmaYuzde = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde || 2);
-            if (!gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional || onEmirSapmaYuzde > maksNotionalSapmaYuzde) {
-                console.log(`🚫 [GERÇEK BOYUT FAIL-CLOSED] ${symbol} ${yon} | Hedef ${risk.notionalUsdt.toFixed(2)} | Hesap ${gercekNotional.toFixed(4)} | Sapma %${onEmirSapmaYuzde.toFixed(3)} | Min ${minNotional}`);
+            const onEmirSapmaYuzde = hedefGercekNotional > 0 ? Math.abs((gercekNotional - hedefGercekNotional) / hedefGercekNotional) * 100 : 999;
+            const maksNotionalSapmaYuzde = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde);
+            if (!Number.isFinite(maksNotionalSapmaYuzde) || maksNotionalSapmaYuzde < 0 ||
+                !gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional || onEmirSapmaYuzde > maksNotionalSapmaYuzde) {
+                console.log(`🚫 [GERÇEK BOYUT FAIL-CLOSED] ${symbol} ${yon} | Hedef ${hedefGercekNotional.toFixed(2)} | Hesap ${gercekNotional.toFixed(4)} | Sapma %${onEmirSapmaYuzde.toFixed(3)} | Min ${minNotional}`);
                 return false;
             }
 
-            const borsaPozisyonlari = await h.client.futuresPositionRisk();
-            const acikBorsaPozisyonlari = (borsaPozisyonlari || []).filter(row => Math.abs(Number(row?.positionAmt || 0)) > 0);
-            if (acikBorsaPozisyonlari.length >= risk.maxActivePositions) {
-                console.log(`🚫 [BINANCE GERÇEK POZİSYON LİMİTİ] ${symbol} ${yon} | Borsa ${acikBorsaPozisyonlari.length}/${risk.maxActivePositions}`);
-                return false;
-            }
-            const sembolAcikEmirleri = await h.client.futuresOpenOrders({ symbol });
-            if ((sembolAcikEmirleri || []).length > 0) {
-                console.log(`🚫 [BINANCE AÇIK EMİR ÇAKIŞMASI] ${symbol} | Açık emir ${(sembolAcikEmirleri || []).length}`);
+            const reservation = await realExecution.reserveEntry({
+                symbol, side: islemYonu, context: hazirKimlik,
+                maxActivePositions: risk.maxActivePositions, client: h.client
+            });
+            if (!reservation.ok) {
+                console.log(`🚫 [GERÇEK EMİR KALICI KİLİT/PREFLIGHT] ${symbol} ${islemYonu} | ${reservation.reason}`);
                 return false;
             }
 
             const kaldirac = risk.leverage;
             const marjinTipi = risk.marginType;
-            console.log(`⚙️ [BINANCE API] ${symbol} ${islemYonu} ${ortakKarar.realTier} onaylı | ${risk.notionalUsdt.toFixed(2)} USDT notional | ${kaldirac}x ${marjinTipi} | Market + zorunlu koruma hazırlanıyor...`);
+            let fill = null;
+            let protections = null;
+            try {
+                console.log(`⚙️ [BINANCE API] ${symbol} ${islemYonu} ${ortakKarar.realTier} onaylı | ${hedefGercekNotional.toFixed(2)} USDT notional | ${kaldirac}x ${marjinTipi} | idempotent Market + Algo Service koruması hazırlanıyor...`);
+                await h.client.futuresMarginType({ symbol, marginType: marjinTipi }).catch(err => {
+                    const text = String(err?.message || err || '');
+                    if (!text.includes('-4046') && !/no need to change margin type/i.test(text)) throw err;
+                });
+                const leverageResult = await h.client.futuresLeverage({ symbol, leverage: kaldirac });
+                if (Number(leverageResult?.leverage) !== kaldirac) {
+                    throw new Error(`KALDIRAC_DOGRULANAMADI:${leverageResult?.leverage || 'YOK'}/${kaldirac}`);
+                }
 
-            await h.client.futuresMarginType({ symbol, marginType: marjinTipi }).catch(err => {
-                const text = String(err?.message || err || '');
-                if (!text.includes('-4046') && !/no need to change margin type/i.test(text)) throw err;
-            });
-            const leverageResult = await h.client.futuresLeverage({ symbol, leverage: kaldirac });
-            if (Number(leverageResult?.leverage || kaldirac) !== kaldirac) {
-                throw new Error(`KALDIRAC_DOGRULANAMADI:${leverageResult?.leverage || 'YOK'}/${kaldirac}`);
+                console.log(`📤 [GERÇEK EMİR GÖNDERİLİYOR] ${symbol} ${islemYonu} ${gercekMiktar} @ MARKET | Client ${reservation.ids.entry}`);
+                fill = await realExecution.executeEntry({
+                    reservation, quantity: gercekMiktar, referencePrice: canliFiyat,
+                    minQty, minNotional, maxNotionalDeviationPct: maksNotionalSapmaYuzde,
+                    client: h.client
+                });
+
+                const gerceklesenMiktar = miktarKlip(symbol, fill.actualQty);
+                const gerceklesenFiyat = Number(fill.avgPrice);
+                const gerceklesenNotional = gerceklesenMiktar * gerceklesenFiyat;
+                const notionalSapmaYuzde = hedefGercekNotional > 0 ? ((gerceklesenNotional - hedefGercekNotional) / hedefGercekNotional) * 100 : 0;
+                const slippageYuzde = canliFiyat > 0
+                    ? (islemYonu === 'LONG' ? ((gerceklesenFiyat - canliFiyat) / canliFiyat) : ((canliFiyat - gerceklesenFiyat) / canliFiyat)) * 100
+                    : 0;
+                console.log(`📥 [GERÇEK FILL MUTABAKATI] ${symbol} | Order ${fill.order?.orderId || 'AMBIGUOUS_RECOVERED'} | Qty ${gerceklesenMiktar} | Fill ${gerceklesenFiyat} | Notional ${gerceklesenNotional.toFixed(4)} | Sapma ${notionalSapmaYuzde.toFixed(3)}% | Slippage ${slippageYuzde.toFixed(4)}%`);
+
+                sl = fiyatKlip(symbol, islemYonu === 'LONG' ? gerceklesenFiyat * (1 - etkinStopOrani) : gerceklesenFiyat * (1 + etkinStopOrani));
+                tp = fiyatKlip(symbol, islemYonu === 'LONG' ? gerceklesenFiyat * (1 + tpOrani) : gerceklesenFiyat * (1 - tpOrani));
+                hazirKimlik.girisFiyati = gerceklesenFiyat;
+                hazirKimlik.miktar = gerceklesenMiktar;
+                hazirKimlik.sl = sl;
+                hazirKimlik.tp = tp;
+
+                console.log(`📤 [ALGO KORUMA] ${symbol} | SL ${sl.toFixed(pPrecision)} | TP ${tp.toFixed(pPrecision)}`);
+                protections = await realExecution.installProtections({
+                    reservation, side: islemYonu,
+                    stopPrice: sl.toFixed(pPrecision), takeProfitPrice: tp.toFixed(pPrecision),
+                    client: h.client
+                });
+                console.log(`✅ [GERÇEK ALGO KORUMA HAZIR] ${symbol} | SL Algo ${protections.stop?.algoId || protections.stop?.clientAlgoId} | TP Algo ${protections.takeProfit?.algoId || protections.takeProfit?.clientAlgoId}`);
+            } catch (executionError) {
+                console.error(`🚨 [GERÇEK AÇILIŞ ZİNCİRİ HATASI] ${symbol} ${islemYonu} | ${executionError.message}`);
+                // Hata kaldıraç/marjin aşamasında da, emir cevabı belirsizken de oluşabilir.
+                // Kör varsayım yapılmaz: aynı kalıcı kimlikle Binance pozisyonu sorgulanır;
+                // pozisyon varsa reduce-only kapatılır, yoksa rezervasyon güvenli terminale alınır.
+                const rollback = await realExecution.rollbackEntry({
+                    reservation, side: islemYonu, reason: executionError.message, client: h.client
+                }).catch(err => ({ ok: false, reason: err.message }));
+                await h.telegramMesajGonder(
+                    `🚨 GERÇEK EMİR FAIL-CLOSED\n${symbol} ${islemYonu}\nHata: ${executionError.message}\nRollback/Mutabakat: ${rollback.ok ? 'DOĞRULANDI' : 'BAŞARISIZ — GLOBAL BLOCK'}`
+                ).catch(() => {});
+                return false;
             }
 
-            const emirYonu = islemYonu === 'LONG' ? 'BUY' : 'SELL';
-            const karsiYon = islemYonu === 'LONG' ? 'SELL' : 'BUY';
-
-            console.log(`📤 [GERÇEK EMİR GÖNDERİLİYOR] ${symbol} ${emirYonu} ${gercekMiktar} @ MARKET | Hedef ${risk.notionalUsdt.toFixed(2)} USDT | ${kaldirac}x`);
-            const sonuc = await h.client.futuresOrder({
-                symbol,
-                side: emirYonu,
-                type: 'MARKET',
-                quantity: gercekMiktar.toString(),
-                newOrderRespType: 'RESULT'
-            });
-            if (!sonuc?.orderId) throw new Error('GERCEK_GIRIS_ORDER_ID_YOK');
-
-            const gerceklesenMiktar = miktarKlip(symbol, Number(sonuc.executedQty || gercekMiktar));
-            const gerceklesenFiyat = Number(sonuc.avgPrice || sonuc.price || canliFiyat);
+            const gerceklesenMiktar = miktarKlip(symbol, fill.actualQty);
+            const gerceklesenFiyat = Number(fill.avgPrice);
             const gerceklesenNotional = gerceklesenMiktar * gerceklesenFiyat;
-            const notionalSapmaYuzde = risk.notionalUsdt > 0 ? ((gerceklesenNotional - risk.notionalUsdt) / risk.notionalUsdt) * 100 : 0;
-            const maksSapma = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde || 2);
+            const notionalSapmaYuzde = hedefGercekNotional > 0 ? ((gerceklesenNotional - hedefGercekNotional) / hedefGercekNotional) * 100 : 0;
             const slippageYuzde = canliFiyat > 0
                 ? (islemYonu === 'LONG' ? ((gerceklesenFiyat - canliFiyat) / canliFiyat) : ((canliFiyat - gerceklesenFiyat) / canliFiyat)) * 100
                 : 0;
-
-            console.log(`📥 [GERÇEK EMİR DOLDU] ${symbol} | Order ${sonuc.orderId} | Qty ${gerceklesenMiktar} | Fill ${gerceklesenFiyat} | Notional ${gerceklesenNotional.toFixed(4)} | Sapma ${notionalSapmaYuzde.toFixed(3)}% | Slippage ${slippageYuzde.toFixed(4)}%`);
-            if (!gerceklesenMiktar || gerceklesenMiktar < minQty || gerceklesenNotional < minNotional || Math.abs(notionalSapmaYuzde) > maksSapma) {
-                await gercekAcilisRollback(symbol, islemYonu, `DOLUM_BOYUTU_GUVENSIZ:${gerceklesenNotional.toFixed(4)}USDT`);
-                return false;
-            }
-
-            sl = fiyatKlip(symbol, islemYonu === 'LONG' ? gerceklesenFiyat * (1 - etkinStopOrani) : gerceklesenFiyat * (1 + etkinStopOrani));
-            tp = fiyatKlip(symbol, islemYonu === 'LONG' ? gerceklesenFiyat * (1 + tpOrani) : gerceklesenFiyat * (1 - tpOrani));
-            hazirKimlik.girisFiyati = gerceklesenFiyat;
-            hazirKimlik.miktar = gerceklesenMiktar;
-            hazirKimlik.sl = sl;
-            hazirKimlik.tp = tp;
-
-            console.log(`📤 [SL GÖNDERİLİYOR] ${symbol} STOP_MARKET @ ${sl.toFixed(pPrecision)}`);
-            const slSonuc = await h.client.futuresOrder({
-                symbol, side: karsiYon, type: 'STOP_MARKET', stopPrice: sl.toFixed(pPrecision),
-                closePosition: true, workingType: 'MARK_PRICE'
-            }).catch(e => { console.error(`❌ [SL EMRİ HATASI] ${symbol}:`, e.message || e); return null; });
-
-            console.log(`📤 [TP GÖNDERİLİYOR] ${symbol} TAKE_PROFIT_MARKET @ ${tp.toFixed(pPrecision)}`);
-            const tpSonuc = await h.client.futuresOrder({
-                symbol, side: karsiYon, type: 'TAKE_PROFIT_MARKET', stopPrice: tp.toFixed(pPrecision),
-                closePosition: true, workingType: 'MARK_PRICE'
-            }).catch(e => { console.error(`❌ [TP EMRİ HATASI] ${symbol}:`, e.message || e); return null; });
-
-            if (risk.protectionRequired && (!slSonuc?.orderId || !tpSonuc?.orderId)) {
-                const missing = `${!slSonuc?.orderId ? 'SL' : ''}${!slSonuc?.orderId && !tpSonuc?.orderId ? '+' : ''}${!tpSonuc?.orderId ? 'TP' : ''}`;
-                await gercekAcilisRollback(symbol, islemYonu, `KORUMA_EMRI_EKSIK:${missing}`);
-                await h.telegramMesajGonder(`🚨 GERÇEK EMİR GERİ ALINDI\n${symbol} ${islemYonu}\nEksik koruma: ${missing}\nPozisyon fail-closed market emirle kapatıldı.`).catch(() => {});
-                return false;
-            }
-            console.log(`✅ [GERÇEK KORUMA HAZIR] ${symbol} | SL ${slSonuc?.orderId || 'YOK'} | TP ${tpSonuc?.orderId || 'YOK'}`);
 
             const yeniPozisyon = {
                 sym: symbol,
@@ -666,17 +681,29 @@ const m = {
                 sl,
                 tp,
                 miktar: gerceklesenMiktar,
-                hedefNotionalUsdt: risk.notionalUsdt,
+                hedefNotionalUsdt: Number(hedefGercekNotional.toFixed(6)),
                 gerceklesenNotionalUsdt: Number(gerceklesenNotional.toFixed(6)),
+                notionalSapmaYuzde: Number(notionalSapmaYuzde.toFixed(6)),
                 kaldirac,
                 marjinTipi,
                 slippageYuzde: Number(slippageYuzde.toFixed(6)),
-                girisEmriCevabi: { orderId: sonuc.orderId, executedQty: sonuc.executedQty || gerceklesenMiktar, avgPrice: sonuc.avgPrice || gerceklesenFiyat },
-                korumaEmirleri: { slOrderId: slSonuc?.orderId || null, tpOrderId: tpSonuc?.orderId || null },
+                girisEmriCevabi: {
+                    orderId: fill.order?.orderId || null,
+                    clientOrderId: reservation.ids.entry,
+                    status: fill.order?.status || (fill.ambiguityRecovered ? 'AMBIGUOUS_RECOVERED' : null),
+                    executedQty: gerceklesenMiktar,
+                    avgPrice: gerceklesenFiyat
+                },
+                korumaEmirleri: {
+                    slAlgoId: protections.stop?.algoId || null,
+                    slClientAlgoId: protections.stop?.clientAlgoId || reservation.ids.stop,
+                    tpAlgoId: protections.takeProfit?.algoId || null,
+                    tpClientAlgoId: protections.takeProfit?.clientAlgoId || reservation.ids.takeProfit
+                },
                 ligBoyutCarpani,
                 gercekLig: ortakKarar.realTier,
                 sanal: false,
-                borsaOrderId: sonuc.orderId,
+                borsaOrderId: fill.order?.orderId || null,
                 acilisZamani: Date.now(),
                 mevcutTpYuzdesi: 0,
                 tpKademe: 0,
@@ -685,7 +712,7 @@ const m = {
                 labLifecycleProfile: hazirKimlik?.labLifecycleProfile || null,
                 labBeTetikYuzde: hazirKimlik?.labLifecycleProfile?.beTriggerPct,
                 labBeTamponYuzde: hazirKimlik?.labLifecycleProfile?.beBufferPct,
-                girisAnalizi
+                girisAnalizi: hazirKimlik.girisAnalizi || girisAnalizi
             };
             renkoExitEvolution.assign(yeniPozisyon);
             identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
@@ -700,6 +727,9 @@ const m = {
                 markedAt: new Date().toISOString()
             };
             exitMethodScoreboard.open(yeniPozisyon);
+            realExecution.markOpen(reservation, yeniPozisyon, protections, {
+                entryOrder: fill.order, ambiguityRecovered: fill.ambiguityRecovered
+            });
 
             h.state.aktifPozisyonlar.push(yeniPozisyon);
             try { accountingContinuity.trackAtOpen(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] ACCOUNTING_CONTINUITY_OPEN_ERROR ${symbol} ${yon} | ${e.message}`); }
@@ -741,26 +771,13 @@ const m = {
                 return true;
             }
 
-            await h.client.futuresLeverage({ symbol, leverage: ayarlar.mevcutKaldirac });
-            const kapatmaYonu = yon === 'LONG' ? 'SELL' : 'BUY';
-            const pozisyonlar = await h.client.futuresPositionRisk();
-            const hedef = pozisyonlar.find(p => p.symbol === symbol);
-            if (!hedef || parseFloat(hedef.positionAmt) === 0) return true;
-
-            const mutlakMiktar = Math.abs(parseFloat(hedef.positionAmt));
-            const guvenliKapatmaMiktari = miktarKlip(symbol, mutlakMiktar);
-            const sonuc = await h.client.futuresOrder({
-                symbol,
-                side: kapatmaYonu,
-                type: 'MARKET',
-                quantity: guvenliKapatmaMiktari.toString(),
-                reduceOnly: true
-            });
-
-            if (sonuc?.orderId) {
-                console.log(`✅ [KAPATILDI] ${symbol} ${yon} pozisyonu kapatıldı!`);
+            const sonuc = await realExecution.closePositionMarket(pos || { sym: symbol, yon, sanal: false }, 'TRADE_ENGINE_CLOSE', h.client);
+            if (sonuc.ok) {
+                if (pos) pos.realizedExecution = sonuc;
+                console.log(`✅ [GERÇEK KAPATMA MUTABAKATI] ${symbol} ${yon} | ${sonuc.exitPrice || 'FILL_BEKLENMEDI'} | Net ${Number(sonuc.netPnl || 0).toFixed(6)}`);
                 return true;
             }
+            console.error(`🚨 [GERÇEK KAPATMA BAŞARISIZ] ${symbol} ${yon} | ${sonuc.reason}`);
             return false;
         } catch (e) {
             console.error(`❌ [BINANCE API KAPATMA HATASI] ${symbol}:`, e.message || e);

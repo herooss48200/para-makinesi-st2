@@ -8,6 +8,7 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-v693-'));
 process.env.AGROS_DATA_DIR = temp;
 process.env.AGROS_REAL_ORDER_ARM = 'LIVE_TRADING_CONFIRMED';
 process.env.AGROS_REAL_ORDER_ENV = 'MAINNET';
+process.env.AGROS_REAL_ORDER_EXECUTION_ACK = 'V610_REVIEWED';
 process.env.BINANCE_BASE_URL = 'https://fapi.binance.com';
 
 const ayarlar = require('./ayarlar.js');
@@ -46,9 +47,12 @@ assert.strictEqual(state.aggregate.tp, 1);
 assert.strictEqual(Number(state.aggregate.net.toFixed(2)), 0.50);
 
 const motorSource = fs.readFileSync(require.resolve('./motor.js'), 'utf8');
-assert(motorSource.includes('KORUMA_EMRI_EKSIK'), 'SL/TP eksikse rollback zorunlu');
-assert(motorSource.includes('gercekAcilisRollback'), 'korumasız gerçek pozisyon açık bırakılamaz');
-assert(motorSource.includes("newOrderRespType: 'RESULT'"), 'gerçek dolum cevabı istenmeli');
+const executionSource = fs.readFileSync(require.resolve('./85_st2_real_order_execution.js'), 'utf8');
+assert(motorSource.includes('realExecution.rollbackEntry'), 'korumasız/şüpheli gerçek açılış kalıcı rollback katmanına gitmeli');
+assert(motorSource.includes('realExecution.installProtections'), 'SL/TP zorunlu Algo Service katmanından kurulmalı');
+assert(executionSource.includes("newClientOrderId: record.ids.entry"), 'gerçek giriş deterministik clientOrderId taşımalı');
+assert(executionSource.includes("newOrderRespType: 'RESULT'"), 'gerçek dolum cevabı istenmeli');
+assert(executionSource.includes('futuresCreateAlgoOrder'), 'USDⓈ-M koşullu emirler Algo Service üzerinden gönderilmeli');
 assert(motorSource.includes('risk.maxActivePositions'), 'ayar tabanlı aktif gerçek pozisyon limiti uygulanmalı');
 
 console.log('✅ AGROS ST2 v6.9.3 compatibility + calibrated Premier ledger passed');

@@ -1,0 +1,77 @@
+AGROS ST2 v6.10.0 — REAL ORDER EXECUTION SAFETY
+TEST DATE: 31.07.2026
+
+RESULT: PASS (source + regression + mocked exchange execution)
+
+1) ALL SOURCE SYNTAX
+PASS — 112 JavaScript files
+Command:
+  find . -maxdepth 1 -name '*.js' -print0 | xargs -0 -n1 node --check
+
+2) FULL PROJECT REGRESSION CHAIN
+PASS
+Command in isolated test environment:
+  NODE_PATH=/mnt/data/agros_fullfix/test_stubs/node_modules npm test
+
+Passed suites:
+- v6.7.2 single-delivery Telegram + safe adaptive exit
+- v6.8.2 persistent LAB lifecycle
+- v6.7.4 Telegram startup reliable delivery
+- v6.8.2 report reconciliation
+- v6.8.2 operation lifecycle/scientific separation
+- v6.8.3 minimal Telegram operations
+- v6.8.4 operation proof Telegram
+- v6.9.0 Premier Score + 200 coin
+- v6.9.1 chronological calibration
+- v6.9.2 fast Premier calibration
+- v6.9.3 live 5x/25 USDT compatibility
+- v6.9.5 strict configurable live risk
+- v6.10.0 real order execution safety
+
+3) v6.10.0 EXECUTION SAFETY SCENARIOS
+PASS
+- v6.10 deployment acknowledgement gate blocks stale ARM-only environments
+- deterministic fingerprint and client order IDs
+- persistent entry reservation
+- timeout after exchange acceptance without second entry order
+- actual Binance position/fill reconciliation
+- official Algo fields: algoStatus/orderType/actualOrderId normalization
+- Algo Service SL/TP; no conditional order through legacy regular endpoint
+- duplicate signal/symbol rejection
+- failed new stop keeps old protection
+- successful stop replacement creates/verifies new stop before canceling old
+- old-stop cancel failure rolls back the new stop and keeps one known protection
+- double-active stop cancellation failure quarantines and globally blocks
+- Algo cancellation is verified by status and open-order reconciliation
+- trigger prices are normalized to symbol tickSize/pricePrecision
+- reduce-only close and zero-position verification
+- actual user-trade PNL and commission aggregation
+- exact close-order fill binding; unrelated symbol trades are not used as fallback
+- delayed exit fill is retried; unresolved accounting fails closed
+- post-close stale protection cleanup is verified and fails closed on ambiguity
+- partial fill remainder cancellation and actual quantity ownership
+- restart adoption of external position and protection installation
+- Algo actualOrderId is linked to exact close fills
+- Algo stop classification is not manual close
+- unresolved Algo status is not guessed as a manual close
+- price proximity alone cannot misclassify a manual close as Algo SL/TP
+- account-wide orphan AGST2 regular/Algo orders are removed on restart
+- primary state corruption recovery from backup
+- corrupt primary does not overwrite valid backup
+- null/empty numeric fields do not silently become zero
+- primary + backup corruption fails closed
+- startup cannot continue with unrecoverable execution state
+
+4) DEPENDENCY/API COMPATIBILITY
+- package.json requires binance-api-node ^0.13.10; package-lock resolves exactly 0.13.10.
+- Source requires futuresCreateAlgoOrder/futuresGetAlgoOrder/futuresGetOpenAlgoOrders/futuresCancelAlgoOrder.
+- Public library type definitions were checked for these methods and request fields.
+
+5) ENVIRONMENT LIMITATION
+A clean npm ci was attempted in this execution environment but the internal npm mirror returned E404 for:
+  ws-7.5.11.tgz
+
+This is a package mirror availability failure, not a source/test failure. The full regression suite was therefore executed with isolated test-only module stubs outside the source tree. No stub, node_modules, data, state, ledger, .env or log file is included in the delivery ZIP.
+
+6) LIVE EXCHANGE LIMITATION
+No real Binance mainnet order was sent from this environment. Mainnet verification must follow AWS-ST2-v6.10.0.md with ARM disabled first, then a minimum-size controlled order after restart/protection reconciliation.

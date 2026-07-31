@@ -20,6 +20,7 @@ const exitMethodScoreboard = require('./52_exit_method_scoreboard.js');
 const hierarchyIdentity = require('./60_hierarchical_dna_identity_registry.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const operationTransparency = require('./82_st2_operation_transparency.js');
+const realExecution = require('./85_st2_real_order_execution.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -960,19 +961,35 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
     kapananPozisyonAnahtarlari.add(kapanisAnahtari);
 
     const komisyonOrani = ayarlar.sanalKomisyonOrani ?? 0.0005;
-    const pozisyonDegeri = pozisyonDegeriHesapla(pos);
-    const toplamKomisyon = pozisyonDegeri * komisyonOrani * 2;
+    const hamGercekMuhasebe = pos?.sanal === false ? pos?.realizedExecution : null;
+    const gercekMuhasebe = hamGercekMuhasebe?.source === 'BINANCE_USER_TRADES'
+        && Number(hamGercekMuhasebe?.exitPrice) > 0
+        && Number.isFinite(Number(hamGercekMuhasebe?.realizedPnl));
+    if (gercekMuhasebe) kapanisFiyati = Number(hamGercekMuhasebe.exitPrice);
+
+    const pozisyonDegeri = gercekMuhasebe
+        ? Math.abs(Number(hamGercekMuhasebe.entryPrice || pos.girisFiyati || 0) * Number(pos.miktar || 0))
+        : pozisyonDegeriHesapla(pos);
+    const toplamKomisyon = gercekMuhasebe
+        ? Math.max(0, Number(hamGercekMuhasebe.commission || 0))
+        : pozisyonDegeri * komisyonOrani * 2;
     const fiyatKarYuzdesi = pos.yon === 'LONG'
         ? ((kapanisFiyati - pos.girisFiyati) / pos.girisFiyati) * 100
         : ((pos.girisFiyati - kapanisFiyati) / pos.girisFiyati) * 100;
-    const brutKarZarar = pozisyonDegeri * (fiyatKarYuzdesi / 100);
-    const netKarZarar = brutKarZarar - toplamKomisyon;
+    const brutKarZarar = gercekMuhasebe
+        ? Number(hamGercekMuhasebe.realizedPnl || 0)
+        : pozisyonDegeri * (fiyatKarYuzdesi / 100);
+    const netKarZarar = gercekMuhasebe
+        ? Number(hamGercekMuhasebe.netPnl || (brutKarZarar - toplamKomisyon))
+        : brutKarZarar - toplamKomisyon;
     const netPozisyonYuzdesi = pozisyonDegeri > 0 ? (netKarZarar / pozisyonDegeri) * 100 : 0;
-    const netMarjinYuzdesi = (ayarlar.calisilmakIstenenUsdtMiktar || 0) > 0
-        ? (netKarZarar / ayarlar.calisilmakIstenenUsdtMiktar) * 100
-        : 0;
+    const gercekMarjinTabani = Number(pos.gerceklesenNotionalUsdt || pozisyonDegeri) / Math.max(1, Number(pos.kaldirac || 1));
+    const marjinTabani = pos?.sanal === false ? gercekMarjinTabani : Number(ayarlar.calisilmakIstenenUsdtMiktar || 0);
+    const netMarjinYuzdesi = marjinTabani > 0 ? (netKarZarar / marjinTabani) * 100 : 0;
     const duzeltilmisSebep = kapanisSebebiDuzenle(pos, sebep, kapanisFiyati);
-    const manuelDisKapanis = pos?.manualExternalClose === true || /MANUAL_EXTERNAL_CLOSE|MANUAL_OVERRIDE/i.test(String(sebep || duzeltilmisSebep || ''));
+    const manuelDisKapanis = pos?.manualExternalClose === true
+        || pos?.scientificLearningExcluded === true
+        || /MANUAL_EXTERNAL_CLOSE|MANUAL_OVERRIDE/i.test(String(sebep || duzeltilmisSebep || ''));
 
     const kararTrack = String(pos?.labPremierDecision?.premierTrack || pos?.premierTrackAtOpen || '').toUpperCase();
     const deneyTrack = ['REVERSE_PREMIER', 'BOTTOM_PREMIER_LONG', 'BOTTOM_PREMIER_SHORT'].includes(kararTrack);
@@ -1084,6 +1101,10 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         netPozisyonYuzdesi: Number(netPozisyonYuzdesi.toFixed(4)),
         netMarjinYuzdesi: Number(netMarjinYuzdesi.toFixed(4)),
         komisyon: Number(toplamKomisyon.toFixed(6)),
+        gercekMuhasebe: Boolean(gercekMuhasebe),
+        muhasebeKaynagi: gercekMuhasebe ? hamGercekMuhasebe.source : 'ESTIMATE',
+        muhasebeTam: gercekMuhasebe ? hamGercekMuhasebe.accountingExact !== false : false,
+        commissionByAsset: gercekMuhasebe ? (hamGercekMuhasebe.commissionByAsset || {}) : {},
         leagueShadowOnly,
         virtualAccountIncluded: !leagueShadowOnly
     };
@@ -1149,6 +1170,9 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         replayValidation: exitReplayRecord?.shadowExitValidation || null,
         replayUnavailableReason
     }) +
+    (gercekMuhasebe
+        ? `\n\n💳 <b>GERÇEK FILL MUHASEBESİ</b>\nKaynak: Binance User Trades | Fill ${hamGercekMuhasebe.tradeCount || 0} | Muhasebe ${hamGercekMuhasebe.accountingExact === false ? 'KISMİ (yabancı komisyon asseti ayrı)' : 'TAM'}`
+        : '') +
     (restartGapIslemi ? restartGap.telegramMetni(pos) : '') +
     (manuelDisKapanis ? `\n\n⚠️ <b>MANUEL/DIŞ KAPANIŞ</b>\nBilimsel öğrenme ve metot çetelesi bu kapanış için güncellenmedi.` : '');
 
@@ -1493,108 +1517,119 @@ async function izSurmeyiGuncelle() {
         if (borsaMiktar === 0) {
             if (pos.kapanisIsleniyor) continue;
             pos.kapanisIsleniyor = true;
-            pos.manualExternalClose = true;
-            pos.manualCloseLockUntil = Date.now() + Number(ayarlar.manuelKapanisYenidenGirisKilidiMs || 3600000);
-            h.state.manualCloseLocks = h.state.manualCloseLocks || {};
-            h.state.manualCloseLocks[`${pos.sym}|${pos.yon}`] = pos.manualCloseLockUntil;
             try {
-                const acikEmirler = await h.client.futuresOpenOrders({ symbol: pos.sym }).catch(() => []);
-                for (const emir of acikEmirler || []) await h.client.futuresCancelOrder({ symbol: pos.sym, orderId: emir.orderId }).catch(() => {});
+                const mutabakat = await realExecution.finalizeExchangeClose(pos, canliFiyat, h.client);
+                pos.realizedExecution = mutabakat;
+                pos.manualExternalClose = mutabakat.manual === true || pos.scientificLearningExcluded === true;
+                if (mutabakat.manual === true) {
+                    pos.manualCloseLockUntil = Date.now() + Number(ayarlar.manuelKapanisYenidenGirisKilidiMs || 3600000);
+                    h.state.manualCloseLocks = h.state.manualCloseLocks || {};
+                    h.state.manualCloseLocks[`${pos.sym}|${pos.yon}`] = pos.manualCloseLockUntil;
+                }
+                console.log(`🔎 [GERÇEK KAPANIŞ MUTABAKATI] ${pos.sym} ${pos.yon} | ${mutabakat.reason} | Fill ${mutabakat.exitPrice || canliFiyat} | Net ${Number(mutabakat.netPnl || 0).toFixed(6)}`);
                 h.state.aktifPozisyonlar.splice(i, 1);
                 pozisyonListelerindenSil(pos);
-                await kapanisRaporla(pos, canliFiyat, 'MANUAL_EXTERNAL_CLOSE');
-                kaliciHafiza.kaydet('manuel-external-close');
+                await kapanisRaporla(pos, mutabakat.exitPrice || canliFiyat, mutabakat.reason);
+                kaliciHafiza.kaydet(mutabakat.manual ? 'manuel-external-close' : 'gercek-algo-close-mutabakati');
                 await rapor.raporGonder(true);
             } catch (err) {
                 pos.kapanisIsleniyor = false;
-                console.error(`❌ [MANUEL KAPANIŞ UZLAŞTIRMA] ${pos.sym} ${pos.yon} | ${err.message}`);
+                console.error(`❌ [GERÇEK KAPANIŞ UZLAŞTIRMA] ${pos.sym} ${pos.yon} | ${err.message}`);
             }
             continue;
         }
 
-        // v4.2.6: Üst gerçek emir katmanı, yalnız ayrıca etkinleştirildiğinde ve
-        // pozisyon Premier kapısından geçmişse aynı güncel DNA exit planını uygular.
-        // Kapanıştan önce eski koruma emirleri iptal edilir; ardından reduce-only market kapanış yapılır.
-        if (borsaMiktar > 0) {
-            const realDynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
-            const realRenkoKarar = ayarlar.renkoCikisEvolutionAktif === true ? renkoExitEvolution.update(pos, canliFiyat) : { active:false };
-            if (realRenkoKarar.justActivated && ayarlar.telegramRenkoDevralmaMesaji === true && !pos.renkoExitTakeoverNotified) {
-                await h.telegramMesajGonder(renkoExitEvolution.takeoverText(pos));
-                pos.renkoExitTakeoverNotified = true;
-                kaliciHafiza.kaydet('renko-exit-devraldi-gercek');
-            }
-            if (!realRenkoKarar.active && realDynamicKarar.close) {
-                if (pos.kapanisIsleniyor) continue;
-                pos.kapanisIsleniyor = true;
-                try {
-                    const acikEmirler = await h.client.futuresOpenOrders({ symbol: pos.sym }).catch(() => []);
-                    for (const emir of acikEmirler || []) {
-                        await h.client.futuresCancelOrder({ symbol: pos.sym, orderId: emir.orderId }).catch(() => {});
-                    }
-                    const kapandi = await m.pozisyonKapat(pos.sym, pos.yon);
-                    if (!kapandi) throw new Error('Dinamik gerçek kapanış emri onaylanmadı');
-                    pos.dynamicExitApplied = realDynamicKarar;
-                    console.log(`🧬 [GERÇEK DYNAMIC EXIT] ${pos.sym} ${pos.yon} | ${realDynamicKarar.algorithmLabel} | ${realDynamicKarar.reason}`);
-                    h.state.aktifPozisyonlar.splice(i, 1);
-                    pozisyonListelerindenSil(pos);
-                    await kapanisRaporla(pos, realDynamicKarar.price, realDynamicKarar.reason);
-                    kaliciHafiza.kaydet('gercek-dynamic-exit-kapandi');
-                    await rapor.raporGonder(true);
-                } catch (err) {
-                    pos.kapanisIsleniyor = false;
-                    console.error(`❌ [GERÇEK DYNAMIC EXIT HATASI] ${pos.sym} ${pos.yon} | ${err.message}`);
-                }
+        // Önceki turda yeni stop kurulamadıysa algoritma kademesini ilerletmeden aynı adayı tekrar dene.
+        if (Number(pos.pendingRealStopPrice) > 0) {
+            const pendingStop = Number(pos.pendingRealStopPrice);
+            const retry = await realExecution.replaceStopAtomic(pos, pendingStop, h.client);
+            if (!retry.ok) {
+                console.error(`⏳ [GERÇEK STOP YENİDEN DENEME] ${pos.sym} ${pos.yon} | Eski koruma aktif | ${retry.reason}`);
+                realExecution.persistPosition(pos, 'REAL_STOP_RETRY_PENDING');
                 continue;
             }
+            const oldStop = Number(pos.sl);
+            pos.sl = pendingStop;
+            delete pos.pendingRealStopPrice;
+            exitOptimizer.stopKaydet(pos, oldStop, pendingStop, canliFiyat, { kaynak: 'BINANCE_ALGO_ATOMIC_RETRY' });
+            realExecution.persistPosition(pos, 'REAL_STOP_RETRY_SUCCEEDED');
+            console.log(`✅ [GERÇEK STOP YENİDEN DENEME BAŞARILI] ${pos.sym} ${pos.yon} | ${oldStop.toFixed(pPrecision)} → ${pendingStop.toFixed(pPrecision)}`);
         }
 
-        if (borsaMiktar === 0) {
+        // Gerçek stop algoritması aday stopu pozisyon nesnesinde değiştirir. Borsa güncellemesi
+        // başarısız olursa yerel stopun eski korumadan kopmaması için önceki değeri baştan dondur.
+        const realOncekiSl = Number(pos.sl);
+        const realDynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
+        const realRenkoKarar = ayarlar.renkoCikisEvolutionAktif === true
+            ? renkoExitEvolution.update(pos, canliFiyat)
+            : { active: false, changed: false };
+
+        if (realRenkoKarar.justActivated && ayarlar.telegramRenkoDevralmaMesaji === true && !pos.renkoExitTakeoverNotified) {
+            await h.telegramMesajGonder(renkoExitEvolution.takeoverText(pos));
+            pos.renkoExitTakeoverNotified = true;
+            realExecution.persistPosition(pos, 'RENKO_EXIT_TAKEOVER_NOTIFIED');
+        }
+
+        if (!realRenkoKarar.active && realDynamicKarar.close) {
             if (pos.kapanisIsleniyor) continue;
             pos.kapanisIsleniyor = true;
-            console.log(`🛑 [KAPANDI] ${pos.sym} pozisyonu kapandı. Rapor iletiliyor...`);
-            h.state.aktifPozisyonlar.splice(i, 1);
-            pozisyonListelerindenSil(pos);
             try {
-                await kapanisRaporla(pos, canliFiyat, 'Borsa pozisyonu kapandı');
+                const kapanis = await realExecution.closePositionMarket(pos, realDynamicKarar.reason, h.client);
+                if (!kapanis.ok) throw new Error(kapanis.reason || 'Dinamik gerçek kapanış mutabakatı başarısız');
+                pos.realizedExecution = kapanis;
+                pos.dynamicExitApplied = realDynamicKarar;
+                console.log(`🧬 [GERÇEK DYNAMIC EXIT] ${pos.sym} ${pos.yon} | ${realDynamicKarar.algorithmLabel} | ${realDynamicKarar.reason} | Net ${Number(kapanis.netPnl || 0).toFixed(6)}`);
+                h.state.aktifPozisyonlar.splice(i, 1);
+                pozisyonListelerindenSil(pos);
+                await kapanisRaporla(pos, kapanis.exitPrice || realDynamicKarar.price, realDynamicKarar.reason);
+                kaliciHafiza.kaydet('gercek-dynamic-exit-kapandi');
+                await rapor.raporGonder(true);
             } catch (err) {
-                console.error(`❌ [KAPANIŞ RAPOR HATASI] ${pos.sym} ${pos.yon} | ${err.message}`);
+                pos.kapanisIsleniyor = false;
+                console.error(`❌ [GERÇEK DYNAMIC EXIT HATASI] ${pos.sym} ${pos.yon} | ${err.message}`);
             }
-            await rapor.raporGonder(true);
             continue;
         }
 
-        const oncekiSl = pos.sl;
-        const guncellemeGerekli = (typeof realRenkoKarar !== 'undefined' && realRenkoKarar.active) ? Boolean(realRenkoKarar.changed) : trailingHesapla(pos, canliFiyat);
+        const hamGuncellendi = realRenkoKarar.active
+            ? Boolean(realRenkoKarar.changed)
+            : trailingHesapla(pos, canliFiyat);
 
-        if (guncellemeGerekli) {
-            try {
-                const acikEmirler = await h.client.futuresOpenOrders({ symbol: pos.sym });
-                const eskiStoplar = acikEmirler.filter(o => o.type === 'STOP_MARKET');
-                for (const o of eskiStoplar) {
-                    await h.client.futuresCancelOrder({ symbol: pos.sym, orderId: o.orderId }).catch(() => {});
+        if (hamGuncellendi) {
+            const adaySl = Number(pos.sl);
+            pos.sl = realOncekiSl;
+            const safety = guvenliStopUygula(pos, realOncekiSl, adaySl);
+            if (!safety.applied) {
+                pos.renkoExitSafetyRejectReason = safety.reason;
+                if (safety.reason !== 'NO_OP' && pos.renkoExitLastSafetyLog !== safety.reason) {
+                    console.warn(`🛡️ [GERÇEK STOP REDDEDİLDİ] ${pos.sym} ${pos.yon} | ${safety.reason} | Önceki ${realOncekiSl} | Aday ${adaySl}`);
+                    pos.renkoExitLastSafetyLog = safety.reason;
                 }
-
-                const karsiYon = pos.yon === 'LONG' ? 'SELL' : 'BUY';
-                const yeniSl = m.fiyatKlip(pos.sym, pos.sl);
-                await h.client.futuresOrder({
-                    symbol: pos.sym,
-                    side: karsiYon,
-                    type: 'STOP_MARKET',
-                    stopPrice: yeniSl.toFixed(pPrecision),
-                    closePosition: true,
-                    workingType: 'MARK_PRICE'
-                });
-                pos.sl = yeniSl;
-                exitOptimizer.stopKaydet(pos, oncekiSl, yeniSl, canliFiyat, { kaynak: 'BORSA' });
-
-                if (stopBildirimGerekli(pos, oncekiSl, yeniSl, canliFiyat)) {
-                    await stopGuncellemeMesajiGonder(pos, oncekiSl, yeniSl, canliFiyat, false);
-                    await rapor.raporGonder(true);
+            } else {
+                const yeniSl = Number(pos.sl);
+                const replacement = await realExecution.replaceStopAtomic(pos, yeniSl, h.client);
+                if (!replacement.ok) {
+                    pos.sl = realOncekiSl;
+                    pos.pendingRealStopPrice = yeniSl;
+                    pos.renkoExitSafetyRejectReason = replacement.reason;
+                    realExecution.persistPosition(pos, 'REAL_STOP_RETRY_SCHEDULED');
+                    console.error(`❌ [ATOMİK STOP GÜNCELLEME HATASI] ${pos.sym} | Yeni stop kurulamadı, eski koruma tutuldu ve aday yeniden denemeye alındı | ${replacement.reason}`);
+                } else {
+                    delete pos.pendingRealStopPrice;
+                    pos.renkoExitLastSafetyLog = null;
+                    exitOptimizer.stopKaydet(pos, realOncekiSl, yeniSl, canliFiyat, { kaynak: 'BINANCE_ALGO_ATOMIC' });
+                    console.log(`🔐 [GERÇEK STOP ATOMİK GÜNCELLENDİ] ${pos.sym} ${pos.yon} | ${realOncekiSl.toFixed(pPrecision)} → ${yeniSl.toFixed(pPrecision)} | Eski iptal ${replacement.oldCanceled ? 'OK' : 'TEKRAR KONTROL GEREKLİ'}`);
+                    if (stopBildirimGerekli(pos, realOncekiSl, yeniSl, canliFiyat)) {
+                        await stopGuncellemeMesajiGonder(pos, realOncekiSl, yeniSl, canliFiyat, false);
+                        await rapor.raporGonder(true);
+                    }
+                    pos.breakevenYeniAktif = false;
+                    realExecution.persistPosition(pos, 'REAL_STOP_UPDATED_ATOMIC');
                 }
-                pos.breakevenYeniAktif = false;
-            } catch (err) {
-                console.error(`❌ [STOP GÜNCELLEME HATASI] ${pos.sym}:`, err.message);
             }
+        } else {
+            // MFE, takeover ve diğer çalışma zamanı alanları restartta kaybolmasın.
+            realExecution.persistPosition(pos, 'REAL_POSITION_HEARTBEAT');
         }
     }
 }

@@ -1,5 +1,6 @@
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
+const realExecution = require('./85_st2_real_order_execution.js');
 
 function sayi(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
@@ -107,51 +108,52 @@ async function acikPozisyonlariBorsadanDevral() {
         h.state.alinanlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'LONG').map(p => p.sym).filter(Boolean))];
         h.state.aktifShortlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'SHORT').map(p => p.sym).filter(Boolean))];
         console.log(`🧪 Sanal emir modu aktif: Binance pozisyonu devralınmayacak; ${aktifler.length} kalıcı sanal pozisyon korunuyor.`);
-        return;
+        return { positions: aktifler, restored: aktifler.length, adopted: 0, blocked: false };
     }
 
     try {
-        const hesap = await h.client.futuresPositionRisk();
-        h.state.aktifPozisyonlar = [];
-        h.state.alinanlar = [];
-        h.state.aktifShortlar = [];
+        const reconciliation = await realExecution.startupReconcile(h.client);
+        const aktifler = Array.isArray(reconciliation.positions) ? reconciliation.positions : [];
+        h.state.aktifPozisyonlar = aktifler;
+        h.state.alinanlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'LONG').map(p => p.sym).filter(Boolean))];
+        h.state.aktifShortlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'SHORT').map(p => p.sym).filter(Boolean))];
+        h.state.realOrderStartupReconciliation = {
+            at: new Date().toISOString(),
+            restored: reconciliation.restored || 0,
+            adopted: reconciliation.adopted || 0,
+            protectionFailures: reconciliation.protectionFailures || 0,
+            recoveredClosures: Array.isArray(reconciliation.recoveredClosures) ? reconciliation.recoveredClosures.length : 0,
+            blocked: Boolean(reconciliation.blocked)
+        };
+        h.state.realOrderStartupBlocked = Boolean(reconciliation.blocked);
 
-        const acikPozisyonlar = hesap.filter(p => parseFloat(p.positionAmt) !== 0);
+        // Borsada açık gerçek pozisyon, hacim evreninin dışına düşmüş olsa bile fiyat takibinden çıkarılamaz.
+        h.state.semboller = [...new Set([...(h.state.semboller || []), ...aktifler.map(p => p.sym).filter(Boolean)])];
 
-        for (const pos of acikPozisyonlar) {
-            const sym = pos.symbol;
-            if (!h.state.semboller.includes(sym)) continue;
-
-            const miktar = parseFloat(pos.positionAmt);
-            const giris = parseFloat(pos.entryPrice);
-            const yon = miktar > 0 ? 'LONG' : 'SHORT';
-            const slOrani = (ayarlar.sabitStopYuzdesi || 1.5) / 100;
-            const tpOrani = (ayarlar.sabitTpYuzdesi || 0.4) / 100;
-            const sl = yon === 'LONG' ? giris * (1 - slOrani) : giris * (1 + slOrani);
-            const tp = yon === 'LONG' ? giris * (1 + tpOrani) : giris * (1 - tpOrani);
-
-            h.state.aktifPozisyonlar.push({
-                sym,
-                yon,
-                girisFiyati: giris,
-                sl,
-                tp,
-                mevcutTpYuzdesi: ayarlar.sabitTpYuzdesi || 0.4,
-                tpKademe: 1,
-                sonTpSeviyesi: tp,
-                breakevenAktif: false
-            });
-
-            if (yon === 'LONG') h.state.alinanlar.push(sym);
-            else h.state.aktifShortlar.push(sym);
+        const recoveredClosures = Array.isArray(reconciliation.recoveredClosures) ? reconciliation.recoveredClosures : [];
+        h.state.realOrderRecoveredClosures = recoveredClosures;
+        console.log(`🔐 [GERÇEK RESTART MUTABAKATI] Açık ${aktifler.length} | Kalıcı geri yüklenen ${reconciliation.restored || 0} | Harici/adopted ${reconciliation.adopted || 0} | Restart kapanışı ${recoveredClosures.length} | Koruma hatası ${reconciliation.protectionFailures || 0}`);
+        if (recoveredClosures.length > 0) {
+            const satirlar = recoveredClosures.slice(0, 10).map(row =>
+                `${row.symbol || 'YOK'} | ${row.reason || 'MUTABAKAT'} | Net ${Number(row.netPnl || 0).toFixed(6)} | ${row.accountingExact ? 'KESİN' : 'KISMİ'}`
+            );
+            await h.telegramMesajGonder([
+                '🔄 GERÇEK RESTART KAPANIŞ MUTABAKATI',
+                ...satirlar,
+                recoveredClosures.length > 10 ? `… +${recoveredClosures.length - 10} kayıt` : '',
+                'ℹ️ Restart sırasında kapanmış bu işlemler execution audit/state içine işlendi; otomatik bilimsel öğrenmeye eklenmedi.'
+            ].filter(Boolean).join('\n')).catch(err => console.error(`⚠️ [RESTART KAPANIŞ TELEGRAM] ${err.message}`));
         }
-
-        console.log(`📡 ${h.state.aktifPozisyonlar.length} açık pozisyon devralındı.`);
+        if (reconciliation.blocked) {
+            throw new Error(`GERCEK_RESTART_FAIL_CLOSED:KORUMA_HATASI=${reconciliation.protectionFailures || 0}`);
+        }
+        return reconciliation;
     } catch (e) {
-        console.log('ℹ️ Pozisyon devralma pasif. Bot sıfırdan ve temiz hafızayla başlıyor.');
-        h.state.aktifPozisyonlar = [];
-        h.state.alinanlar = [];
-        h.state.aktifShortlar = [];
+        h.state.realOrderStartupBlocked = true;
+        console.error(`🚨 [GERÇEK POZİSYON DEVİR FAIL-CLOSED] ${e.message || e}`);
+        // Gerçek modda API/mutabakat hatasını "pozisyon yok" kabul edip temiz başlamaya çevirmek yasaktır.
+        // Başlangıç kesilir; böylece mevcut borsa pozisyonunun üzerine yeni emir açılamaz.
+        throw e;
     }
 }
 

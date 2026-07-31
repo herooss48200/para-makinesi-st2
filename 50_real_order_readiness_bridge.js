@@ -18,8 +18,9 @@ const memorySafeIo = require('./53_memory_safe_io.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 
-const VERSION = 'v4.6.2-CONFIGURABLE-LIVE-RISK';
-const DATA_DIR = path.join(__dirname, 'data');
+const VERSION = 'v4.6.4-V610-DEPLOY-ACK-STRICT-LIVE-RISK';
+const EXECUTION_ACK_EXPECTED = 'V610_REVIEWED';
+const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 const PREPARATION_JSON = path.join(DATA_DIR, 'real-trading-preparation.json');
 
@@ -43,23 +44,34 @@ function realAuthorization() {
   const expected = String(ayarlar.gercekEmirOnayKodu || '').trim();
   const supplied = String(process.env.AGROS_REAL_ORDER_ARM || '').trim();
   const environment = String(process.env.AGROS_REAL_ORDER_ENV || '').trim().toUpperCase();
+  const executionAck = String(process.env.AGROS_REAL_ORDER_EXECUTION_ACK || '').trim().toUpperCase();
   const baseUrl = String(process.env.BINANCE_BASE_URL || '').trim();
   const testnet = /testnet/i.test(baseUrl);
   const mainnet = /fapi\.binance\.com/i.test(baseUrl) && !testnet;
   const environmentValid = environment === 'MAINNET' && (!ayarlar.gercekEmirAnaAgZorunlu || mainnet);
+  const executionAckValid = executionAck === EXECUTION_ACK_EXPECTED;
   return {
     enabled, expectedConfigured: Boolean(expected), envConfigured: Boolean(supplied),
     armValid: enabled && Boolean(expected) && supplied === expected,
+    executionAckConfigured: Boolean(executionAck), executionAckValid,
     environment, baseUrlConfigured: Boolean(baseUrl), testnet, mainnet, environmentValid,
-    valid: enabled && Boolean(expected) && supplied === expected && environmentValid
+    valid: enabled && Boolean(expected) && supplied === expected && environmentValid && executionAckValid
   };
 }
 function liveRiskProfile() {
+  // Canlı risk alanlarında sessiz varsayılan kullanma. Bir alan silinmiş, boş veya
+  // sayı dışıysa evaluate() bunu fail-closed reddetmelidir; eski 25/5/1 değerlerine
+  // istemeden geri dönmek gerçek emir güvenliğini bozar.
+  const notionalRaw = Number(ayarlar.gercekEmirSabitNotionalUsdt);
+  const leverageRaw = Number(ayarlar.gercekEmirSabitKaldirac);
+  const maxActiveRaw = Number(ayarlar.gercekEmirMaxAktifPozisyon);
   return {
-    notionalUsdt: num(ayarlar.gercekEmirSabitNotionalUsdt, 25),
-    leverage: Math.floor(num(ayarlar.gercekEmirSabitKaldirac, 5)),
-    marginType: String(ayarlar.gercekEmirMarjinTipi || 'ISOLATED').toUpperCase(),
-    maxActivePositions: Math.max(0, Math.floor(num(ayarlar.gercekEmirMaxAktifPozisyon, 1))),
+    notionalUsdt: Number.isFinite(notionalRaw) ? notionalRaw : NaN,
+    leverage: Number.isFinite(leverageRaw) ? Math.floor(leverageRaw) : NaN,
+    marginType: typeof ayarlar.gercekEmirMarjinTipi === 'string'
+      ? ayarlar.gercekEmirMarjinTipi.trim().toUpperCase()
+      : '',
+    maxActivePositions: Number.isFinite(maxActiveRaw) ? Math.floor(maxActiveRaw) : NaN,
     protectionRequired: ayarlar.gercekEmirKorumaEmirleriZorunlu !== false
   };
 }
@@ -95,8 +107,9 @@ function evaluate(pos, { realMode = false, scoreDecision = null } = {}) {
     // Canlı risk değerleri ayarlar.js tarafından yönetilir. Güvenlik kapısı bu değerleri
     // belirli bir tutar veya kaldıraca sabitlemez; yalnız geçersiz değerleri fail-closed reddeder.
     if (!(risk.notionalUsdt > 0)) reasons.push('GERCEK_EMIR_NOTIONAL_GECERSIZ');
-    if (!(Number.isInteger(risk.leverage) && risk.leverage >= 1)) reasons.push('GERCEK_EMIR_KALDIRAC_GECERSIZ');
+    if (!(Number.isInteger(risk.leverage) && risk.leverage >= 1 && risk.leverage <= 125)) reasons.push('GERCEK_EMIR_KALDIRAC_GECERSIZ');
     if (!['ISOLATED', 'CROSSED'].includes(risk.marginType)) reasons.push('GERCEK_EMIR_MARJIN_TIPI_GECERSIZ');
+    if (!(Number.isInteger(risk.maxActivePositions) && risk.maxActivePositions >= 0)) reasons.push('GERCEK_EMIR_AKTIF_POZISYON_LIMITI_GECERSIZ');
   } else if (realMode) {
     const pair = profile?.pairMetrics || profile || {};
     const premier = currentLeague === 'PREMIER';
@@ -129,6 +142,7 @@ function evaluate(pos, { realMode = false, scoreDecision = null } = {}) {
   if (realMode && !auth.valid) {
     if (!auth.armValid) reasons.push('GERCEK_EMIR_YETKISI_YOK');
     if (!auth.environmentValid) reasons.push(auth.testnet ? 'MAINNET_ZORUNLU_TESTNET_BAGLI' : 'GERCEK_EMIR_MAINNET_ORTAMI_YOK');
+    if (!auth.executionAckValid) reasons.push('GERCEK_EMIR_V610_DEPLOY_ONAYI_YOK');
   }
 
   const decision = {

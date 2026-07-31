@@ -50,7 +50,7 @@ async function baslat() {
                     '🚀 AGROS ST2 BAŞLATILIYOR',
                     `🧩 Sürüm: ${versiyonBilgi.botSurumu}`,
                     `📡 İzlenen evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)}`,
-                    `💼 Korunan sanal pozisyon: ${h.state.aktifPozisyonlar.length}`,
+                    `💼 Korunan ${ayarlar.sanalEmirModu ? 'sanal' : 'gerçek'} pozisyon: ${h.state.aktifPozisyonlar.length}`,
                     '⏳ Tarihsel veri ve Renko hazırlığı sürüyor; işlem defteri korunuyor.'
                 ].join('\n');
                 setImmediate(async () => {
