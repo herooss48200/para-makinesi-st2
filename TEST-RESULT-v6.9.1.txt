@@ -1,0 +1,18 @@
+AGROS ST2 v6.9.1 TEST RESULT
+============================
+
+PASS - Full source syntax
+PASS - v6.7.2 single delivery and safe exit regression
+PASS - v6.7.3 LAB lifecycle regression
+PASS - v6.7.4 Telegram startup regression
+PASS - v6.8.1 report reconciliation regression
+PASS - v6.8.2 operation transparency regression
+PASS - v6.8.3 minimal Telegram regression
+PASS - v6.8.4 operation proof regression
+PASS - v6.9.0 Premier Score + 200 coin regression
+PASS - v6.9.1 chronological calibration + fail-closed + explainable pusu
+
+Notes:
+- Calibration runtime test uses deterministic synthetic train/validation data.
+- Real optimized weights are intentionally generated only on AWS from current data ledgers.
+- No Trade Engine, stop, BE or exit mathematics changed.

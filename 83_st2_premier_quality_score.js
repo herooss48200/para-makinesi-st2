@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.9.0 — PREMIER QUALITY SCORE
+ * AGROS ST2 v6.9.1 — CALIBRATED PREMIER QUALITY SCORE
  * Reporting/admission intelligence only. Trade Engine, entry price, stop, BE and
  * exit mathematics are not changed here.
  */
@@ -9,12 +9,17 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v6.9.0-PREMIER-QUALITY-SCORE';
+const VERSION = 'v6.9.1-CALIBRATED-PREMIER-QUALITY-SCORE';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const ENTRY_STATE = path.join(DATA_DIR, 'st2-renko-entry-evolution.json');
 const TAKEOVER_STATE = path.join(DATA_DIR, 'st2-renko-exit-evolution.json');
+const CALIBRATION_FILE = path.join(DATA_DIR, 'st2-premier-score-calibration.json');
 
-const WEIGHTS = Object.freeze({
+const WEIGHT_KEYS = Object.freeze([
+  'historicalPf', 'historicalExpectancy', 'liveForm',
+  'entryEvolution', 'takeoverReplay', 'sampleConfidence'
+]);
+const DEFAULT_WEIGHTS = Object.freeze({
   historicalPf: 18,
   historicalExpectancy: 17,
   liveForm: 20,
@@ -22,6 +27,8 @@ const WEIGHTS = Object.freeze({
   takeoverReplay: 15,
   sampleConfidence: 15
 });
+// Geriye uyumluluk: WEIGHTS varsayılan modeli ifade eder. Canlı model activePolicy() ile okunur.
+const WEIGHTS = DEFAULT_WEIGHTS;
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function clamp(v, min = 0, max = 100) { return Math.max(min, Math.min(max, n(v, min))); }
@@ -44,6 +51,68 @@ function readJsonCached(file) {
     jsonCache.set(file, { sig, value });
     return value;
   } catch (_) { return null; }
+}
+
+function validWeights(raw = {}) {
+  const out = {};
+  for (const key of WEIGHT_KEYS) {
+    const value = Number(raw?.[key]);
+    if (!Number.isFinite(value) || value < 0 || value > 60) return null;
+    out[key] = value;
+  }
+  const sum = Object.values(out).reduce((a, b) => a + b, 0);
+  if (Math.abs(sum - 100) > 0.01) return null;
+  return out;
+}
+
+function readCalibration() {
+  const raw = readJsonCached(CALIBRATION_FILE);
+  if (!raw || raw.schema !== 1 || raw.status !== 'ACTIVE') return null;
+  const weights = validWeights(raw.weights);
+  if (!weights) return null;
+  const policy = raw.policy || {};
+  const minScore = clamp(policy.minScore, 0, 100);
+  const maxDynamic = clamp(policy.maxDynamic, minScore, 100);
+  const relativeQuantile = clamp(policy.relativeQuantile, 0, 1);
+  const minSample = Math.max(1, Math.floor(n(policy.minSample, 3)));
+  const liveWindow = [3, 5].includes(Number(policy.liveWindow)) ? Number(policy.liveWindow) : 3;
+  if (!Number.isFinite(minScore) || !Number.isFinite(maxDynamic) || !Number.isFinite(relativeQuantile)) return null;
+  return {
+    schema: 1,
+    status: 'ACTIVE',
+    generatedAt: raw.generatedAt || null,
+    source: raw.source || 'WALK_FORWARD_CALIBRATION',
+    fingerprint: raw.fingerprint || null,
+    audit: raw.audit || null,
+    weights,
+    policy: { minScore, maxDynamic, relativeQuantile, minSample, liveWindow }
+  };
+}
+
+function activePolicy() {
+  const calibration = readCalibration();
+  if (calibration) {
+    return {
+      source: 'CALIBRATED',
+      calibration,
+      weights: { ...calibration.weights },
+      minScore: calibration.policy.minScore,
+      maxDynamic: calibration.policy.maxDynamic,
+      relativeQuantile: calibration.policy.relativeQuantile,
+      minSample: calibration.policy.minSample,
+      liveWindow: calibration.policy.liveWindow
+    };
+  }
+  return {
+    source: 'DEFAULT',
+    calibration: null,
+    weights: { ...DEFAULT_WEIGHTS },
+    minScore: clamp(ayarlar.renkoPremierScoreMin ?? 55, 0, 100),
+    maxDynamic: clamp(ayarlar.renkoPremierScoreMaxDinamikEsik ?? 70, clamp(ayarlar.renkoPremierScoreMin ?? 55, 0, 100), 100),
+    relativeQuantile: clamp(ayarlar.renkoPremierScoreGoreceliYuzdelik ?? 0.40, 0, 1),
+    minSample: Math.max(1, Math.floor(n(ayarlar.renkoPremierScoreMinOrnek, 3))),
+    liveWindow: 3
+  };
 }
 
 function pfScore(pf) {
@@ -79,13 +148,19 @@ function metricFromRaw(raw = {}) {
   const samples = n(raw.samples, n(raw.triggered, n(raw.n)));
   const loss = n(raw.grossLoss);
   const gp = n(raw.grossProfit);
+  const wins = n(raw.tp, n(raw.wins));
+  const losses = n(raw.sl, n(raw.losses));
+  const be = n(raw.be);
   return {
     samples,
     n: samples,
+    wins,
+    losses,
+    be,
     net: n(raw.net),
     pf: Number.isFinite(Number(raw.pf)) ? n(raw.pf) : (loss > 0 ? gp / loss : (gp > 0 ? 999 : 0)),
     expectancy: Number.isFinite(Number(raw.expectancy)) ? n(raw.expectancy) : (samples ? n(raw.net) / samples : 0),
-    wr: Number.isFinite(Number(raw.winRate)) ? n(raw.winRate) : (samples ? n(raw.tp) / samples * 100 : 0)
+    wr: Number.isFinite(Number(raw.winRate ?? raw.wr)) ? n(raw.winRate, n(raw.wr)) : ((wins + losses) ? wins / (wins + losses) * 100 : 0)
   };
 }
 
@@ -114,6 +189,9 @@ function takeoverReplayEvidence(context = {}) {
   const metric = {
     samples,
     n: samples,
+    wins: n(online.tp, n(online.wins)),
+    losses: n(online.sl, n(online.losses)),
+    be: n(online.be),
     net: n(online.net),
     pf: n(online.pf),
     expectancy: n(online.expectancy),
@@ -153,24 +231,31 @@ function scoreEvidence(input = {}) {
     )
   };
 
-  // Takeover replay kalitesinde MFE yakalama/giveback varsa ekonomik skoru hafifçe düzelt.
   if (takeoverN > 0) {
     const capture = clamp(n(takeover.mfeCapture, 50));
     const givebackPenalty = clamp(n(takeover.avgGiveback) * 100, 0, 35);
     components.takeoverReplay = clamp(components.takeoverReplay * 0.75 + capture * 0.25 - givebackPenalty * 0.25);
   }
 
-  const score = Object.entries(WEIGHTS).reduce((sum, [key, weight]) => sum + components[key] * weight / 100, 0);
+  const policy = input.policy || activePolicy();
+  const weights = validWeights(input.weights || policy.weights) || { ...DEFAULT_WEIGHTS };
+  const score = Object.entries(weights).reduce((sum, [key, weight]) => sum + components[key] * weight / 100, 0);
+  const evidenceMetric = raw => {
+    const m = metricFromRaw(raw || {});
+    return { n: m.n, wins: m.wins, losses: m.losses, be: m.be, pf: n(m.pf), expectancy: n(m.expectancy), net: n(m.net), wr: n(m.wr) };
+  };
   return {
     version: VERSION,
     score: round(score),
     components: Object.fromEntries(Object.entries(components).map(([k, v]) => [k, round(v)])),
-    weights: { ...WEIGHTS },
+    weights: { ...weights },
+    policySource: policy.source || 'CUSTOM',
+    calibrationGeneratedAt: policy.calibration?.generatedAt || null,
     evidence: {
-      historical: { n: historicalN, pf: n(historical.pf), expectancy: n(historical.expectancy), net: n(historical.net) },
-      live: { n: liveN, pf: n(live.pf), expectancy: n(live.expectancy), net: n(live.net) },
-      entry: { n: entryN, pf: n(entry.pf), expectancy: n(entry.expectancy), net: n(entry.net), reason: entry.reason || null },
-      takeover: { n: takeoverN, pf: n(takeover.pf), expectancy: n(takeover.expectancy), net: n(takeover.net), confidence: n(takeover.confidence), reason: takeover.reason || null }
+      historical: evidenceMetric({ ...historical, n: historicalN }),
+      live: evidenceMetric({ ...live, n: liveN }),
+      entry: { ...evidenceMetric({ ...entry, n: entryN }), reason: entry.reason || null, activeBrick: n(entry.activeBrick) || null },
+      takeover: { ...evidenceMetric({ ...takeover, n: takeoverN }), confidence: n(takeover.confidence), mfeCapture: n(takeover.mfeCapture), avgGiveback: n(takeover.avgGiveback), reason: takeover.reason || null }
     }
   };
 }
@@ -192,14 +277,15 @@ function rank(score, cohortScores = []) {
 }
 
 function evaluate(input = {}) {
-  const base = scoreEvidence(input);
+  const policy = input.policy || activePolicy();
+  const base = scoreEvidence({ ...input, policy, weights: input.weights || policy.weights });
   const cohort = (input.cohortScores || []).map(Number).filter(Number.isFinite);
-  const minScore = clamp(ayarlar.renkoPremierScoreMin ?? 55, 0, 100);
-  const maxDynamic = clamp(ayarlar.renkoPremierScoreMaxDinamikEsik ?? 70, minScore, 100);
-  const q = clamp(ayarlar.renkoPremierScoreGoreceliYuzdelik ?? 0.40, 0, 1);
+  const minScore = clamp(input.minScore ?? policy.minScore, 0, 100);
+  const maxDynamic = clamp(input.maxDynamic ?? policy.maxDynamic, minScore, 100);
+  const q = clamp(input.relativeQuantile ?? policy.relativeQuantile, 0, 1);
   const dynamic = cohort.length >= 5 ? quantile(cohort, q) : minScore;
   const threshold = round(Math.min(maxDynamic, Math.max(minScore, n(dynamic, minScore))));
-  const minN = Math.max(1, n(ayarlar.renkoPremierScoreMinOrnek, 3));
+  const minN = Math.max(1, n(input.minSample, policy.minSample));
   const historicalN = n(base.evidence.historical.n);
   const relative = rank(base.score, cohort);
   const hardReasons = [];
@@ -211,7 +297,11 @@ function evaluate(input = {}) {
   const explanation = selected
     ? `Kalite ${base.score.toFixed(1)}/${threshold.toFixed(1)} | Sıra #${relative.rank}/${relative.cohortSize} | Göreceli %${relative.percentile.toFixed(1)}`
     : `${reason} | Kalite ${base.score.toFixed(1)}/${threshold.toFixed(1)} | Sıra #${relative.rank}/${relative.cohortSize} | Göreceli %${relative.percentile.toFixed(1)}`;
-  return { ...base, ...relative, threshold, minScore, selected, executionMode: selected ? 'PREMIER' : 'SHADOW', reason, explanation, hardReasons };
+  return {
+    ...base, ...relative, threshold, minScore, maxDynamic, relativeQuantile: q, minSample: minN,
+    liveWindow: policy.liveWindow, selected, executionMode: selected ? 'PREMIER' : 'SHADOW',
+    reason, explanation, hardReasons, policySource: policy.source || base.policySource
+  };
 }
 
 function applyLabReview(result = {}, review = null) {
@@ -219,7 +309,8 @@ function applyLabReview(result = {}, review = null) {
   const m = review.metrics;
   const liveMetric = {
     n: n(m.closed), samples: n(m.closed), net: n(m.net),
-    pf: n(m.profitFactor), expectancy: n(m.expectancy), wr: n(m.winRate)
+    pf: n(m.profitFactor), expectancy: n(m.expectancy), wr: n(m.winRate),
+    wins: n(m.tp, n(m.wins)), losses: n(m.sl, n(m.losses)), be: n(m.be)
   };
   const liveScore = metricScore(liveMetric, { neutralWhenMissing: true, expectancyScale: 0.10, netScale: 0.10 });
   const delta = clamp((liveScore - 50) * 0.16, -8, 8);
@@ -243,8 +334,24 @@ function componentText(result = {}) {
   return `PF ${n(c.historicalPf).toFixed(1)} | Exp ${n(c.historicalExpectancy).toFixed(1)} | Canlı ${n(c.liveForm).toFixed(1)} | Entry ${n(c.entryEvolution).toFixed(1)} | Takeover ${n(c.takeoverReplay).toFixed(1)} | Örnek ${n(c.sampleConfidence).toFixed(1)}`;
 }
 
+function weightedComponentText(result = {}) {
+  const c = result.components || {};
+  const w = result.weights || activePolicy().weights;
+  const names = { historicalPf: 'PF', historicalExpectancy: 'Exp', liveForm: 'Canlı', entryEvolution: 'Entry', takeoverReplay: 'Takeover', sampleConfidence: 'Örnek' };
+  return WEIGHT_KEYS.map(key => `${names[key]} ${n(c[key]).toFixed(1)}×%${n(w[key]).toFixed(0)}`).join(' | ');
+}
+
+function metricText(metric = {}, options = {}) {
+  const m = metricFromRaw(metric || {});
+  const prefix = options.prefix ? `${options.prefix} ` : '';
+  if (m.n <= 0) return `${prefix}N0`;
+  return `${prefix}N${m.n} | ✅${m.wins} ❌${m.losses} ⚖️${m.be} | PF ${m.pf >= 999 ? '999.00' : m.pf.toFixed(2)} | Exp ${m.expectancy >= 0 ? '+' : ''}${m.expectancy.toFixed(4)} | Net ${m.net >= 0 ? '+' : ''}${m.net.toFixed(4)}`;
+}
+
 module.exports = {
-  VERSION, WEIGHTS, ENTRY_STATE, TAKEOVER_STATE,
-  n, clamp, norm, patternKey, completeContext, pfScore, signedEconomyScore, metricScore, sampleScore,
-  entryEvolutionEvidence, takeoverReplayEvidence, scoreEvidence, quantile, rank, evaluate, applyLabReview, componentText
+  VERSION, WEIGHTS, DEFAULT_WEIGHTS, WEIGHT_KEYS, ENTRY_STATE, TAKEOVER_STATE, CALIBRATION_FILE,
+  n, clamp, norm, patternKey, completeContext, validWeights, readCalibration, activePolicy,
+  pfScore, signedEconomyScore, metricScore, sampleScore, metricFromRaw,
+  entryEvolutionEvidence, takeoverReplayEvidence, scoreEvidence, quantile, rank, evaluate, applyLabReview,
+  componentText, weightedComponentText, metricText
 };

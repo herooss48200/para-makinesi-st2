@@ -1,0 +1,31 @@
+AGROS ST2 v6.9.1 PATCH MANIFEST
+================================
+
+Changed runtime files:
+- 2_rapor.js
+- 72_st2_renko_entry.js
+- 76_st2_adaptive_dna_entry.js
+- 83_st2_premier_quality_score.js
+- ayarlar.js
+- versiyon.js
+- package.json
+- package-lock.json
+
+New runtime/audit files:
+- 84_st2_premier_score_calibration.js
+
+New test/documentation files:
+- test_v691_premier_walk_forward_calibration.js
+- CHANGELOG-v6.9.1.md
+- AWS-ST2-v6.9.1.md
+- TEST-RESULT-v6.9.1.txt
+- PATCH-MANIFEST-v6.9.1.txt
+
+Excluded:
+- .env
+- .git
+- node_modules
+- data / state / ledger
+- logs
+- temporary folders
+- old release documents

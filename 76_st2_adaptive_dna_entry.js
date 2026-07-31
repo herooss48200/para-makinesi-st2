@@ -17,7 +17,7 @@ const ayarlar = require('./ayarlar.js');
 const canonicalHistoricalPool = require('./80_st2_canonical_historical_pool.js');
 const premierQuality = require('./83_st2_premier_quality_score.js');
 
-const VERSION = 'v6.9.0-PREMIER-SCORE-RELATIVE-RANKING';
+const VERSION = 'v6.9.1-CALIBRATED-PREMIER-SCORE';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-adaptive-pattern-dna-entry.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -196,15 +196,20 @@ function historicalCompletion(){
     return {ready:0,total,complete:false,readySymbols:[],missingSymbols:canonicalSymbols,source:'GLOBAL_CANONICAL_COIN_POOL'};
   }
 }
-function latestCompletedLiveReview(state,context,brick){
+function latestLiveReview(state,context,brick,window=LAST_N,{completedBlock=true}={}){
   const p=state.dnaProfiles[dnaKey(context)];
-  if(!p||p.closes.length<LAST_N)return null;
-  const blockEnd=Math.floor(p.closes.length/LAST_N)*LAST_N;
-  const recent=p.closes.slice(Math.max(0,blockEnd-LAST_N),blockEnd);
+  const size=Math.max(1,Math.floor(n(window,LAST_N)));
+  if(!p||!Array.isArray(p.closes)||p.closes.length===0)return null;
+  const end=completedBlock?Math.floor(p.closes.length/size)*size:p.closes.length;
+  if(end<=0)return null;
+  const recent=p.closes.slice(Math.max(0,end-size),end);
   const key=Number(brick||0.75).toFixed(2);
-  const review=metric(recent.map(x=>x.candidates?.[key]).filter(Boolean));
-  return review.n===LAST_N?{...review,brick:Number(key),blockNumber:blockEnd/LAST_N}:null;
+  const rows=recent.map(x=>x.candidates?.[key]).filter(Boolean);
+  const review=metric(rows);
+  if(completedBlock&&review.n!==size)return null;
+  return {...review,brick:Number(key),window:size,blockNumber:completedBlock?end/size:null};
 }
+function latestCompletedLiveReview(state,context,brick){return latestLiveReview(state,context,brick,LAST_N,{completedBlock:true});}
 function premierCohortScores(){
   const idx=buildHistoricalIndex();
   return Object.values(idx.dnas||{})
@@ -220,7 +225,11 @@ function gateDecision(source,fallbackBrick=0.75){
   const exactHistorical=historicalEvidence(c.yon,c.pattern,c);
   const liveWinner=decision.live&&positiveEvidence(decision.live,LAST_N,true);
   const reviewBrick=liveWinner?decision.live.brick:(decision.brick||exactHistorical?.brick||fallbackBrick);
-  const liveReview=latestCompletedLiveReview(state,c,reviewBrick);
+  const scorePolicy=premierQuality.activePolicy();
+  const liveWindow=Math.max(1,n(scorePolicy.liveWindow,LAST_N));
+  const calibratedLiveReview=latestLiveReview(state,c,reviewBrick,liveWindow,{completedBlock:true});
+  const liveReview=calibratedLiveReview||latestCompletedLiveReview(state,c,reviewBrick);
+  const liveLast5=latestLiveReview(state,c,reviewBrick,5,{completedBlock:false});
   const liveEvidence=decision.live||liveReview||null;
   const quality=premierQuality.evaluate({
     context:c,
@@ -235,7 +244,7 @@ function gateDecision(source,fallbackBrick=0.75){
   return {
     action,allow:quality.selected,block:false,observe:!quality.selected,executionMode,
     reason:quality.reason,completion,context:c,decision,evidence:evidence||null,
-    exactHistorical:exactHistorical?.exact?exactHistorical:null,liveReview,
+    exactHistorical:exactHistorical?.exact?exactHistorical:null,liveReview,liveLast5,
     premierScore:quality,brick:n(decision.brick,fallbackBrick)
   };
 }
@@ -266,7 +275,7 @@ function premierFor(sourceOrYon,patternArg){
 function observe(pos,result,replays={},tradeId){const s=load();if(tradeId&&s.health.lastTradeId===tradeId){s.health.duplicates++;save(s);return null;}const c=contextFrom(pos);const p=ensureProfile(s,c);const row={at:new Date().toISOString(),tradeId:tradeId||null,sym:pos?.sym||pos?.symbol||null,candidates:{}};for(const brick of CANDIDATES()){const x=replays[brick.toFixed(2)]||replays[String(brick)]||{};if(x.triggered)row.candidates[brick.toFixed(2)]={net:r(x.net),triggered:true};}
   p.closes.push(row);p.closes=p.closes.slice(-100);const before=p.activeBrick;const decision=selectWithState(s,c,n(pos?.girisAnalizi?.renkoEntryBrickDistance,0.75));p.activeBrick=decision.brick;p.liveCandidate=decision.live?.brick??null;p.lastDecision=decision.reason;p.lastDecisionAt=row.at;if(before!=null&&Math.abs(n(before)-n(p.activeBrick))>1e-9){const change={at:row.at,dnaKey:p.key,from:before,to:p.activeBrick,reason:decision.reason};p.changes.unshift(change);p.changes=p.changes.slice(0,50);s.history.unshift(change);s.history=s.history.slice(0,200);}s.health.observed++;s.health.lastTradeId=tradeId||null;const hi=buildHistoricalIndex();s.health.historicalProfiles=Object.keys(hi.dnas).length||Object.keys(hi.patterns).length;s.health.historicalSignals=hi.signals;s.health.historicalSource=hi.source.ledger||hi.source.state;save(s);return decision;}
 function selectWithState(s,c,fallbackBrick){const p=s.dnaProfiles[dnaKey(c)];const hist=historicalProfile(c.yon,c.pattern,c);const hb=n(hist?.brick,fallbackBrick);if(!p||p.closes.length<LAST_N)return {brick:hb,reason:hist?'HISTORICAL_BOOTSTRAP':`SON_${LAST_N}_BEKLENIYOR`,historical:hist,live:null};const blockEnd=Math.floor(p.closes.length/LAST_N)*LAST_N;const recent=p.closes.slice(Math.max(0,blockEnd-LAST_N),blockEnd);const rows=CANDIDATES().map(brick=>({brick,...metric(recent.map(x=>x.candidates?.[brick.toFixed(2)]).filter(Boolean))}));const live=rows.filter(x=>x.n===LAST_N&&x.wins>=2&&x.net>0&&x.expectancy>0&&x.pf>=1.30).sort((a,b)=>b.net-a.net||b.expectancy-a.expectancy)[0]||null;const base=rows.find(x=>Math.abs(x.brick-hb)<1e-9)||null;if(!live)return {brick:hb,reason:'SON_3_POZITIF_LIDER_YOK',historical:hist,live:null,rows};const edge=live.net-n(base?.net);const rel=edge/Math.max(Math.abs(n(base?.net)),0.01);if(live.brick!==hb&&edge<MIN_NET_EDGE()&&rel<MIN_RELATIVE_EDGE())return {brick:hb,reason:'FARK_ANLAMLI_DEGIL',historical:hist,live,rows};return {brick:live.brick,reason:'SON_3_BLOK_POZITIF_LIDER',historical:hist,live,rows,blockNumber:blockEnd/LAST_N,nextReviewRemaining:LAST_N-(p.closes.length%LAST_N||LAST_N)};}
-function summary(){const s=load();const live=Object.values(s.dnaProfiles||{});const liveKeys=new Set(live.map(x=>x.key));const livePatterns=new Set(live.map(x=>x.patternKey));const boot=historicalBootstrapProfiles().filter(x=>!liveKeys.has(x.key)&&!(x.context?.rbb==='HISTORICAL_AGGREGATE'&&livePatterns.has(x.patternKey)));const profiles=[...live,...boot].map(p=>({...p,decision:selectWithState(s,p.context,n(p.activeBrick,0.75))}));const hi=buildHistoricalIndex();const cohort=premierCohortScores();const scored=Object.values(hi.dnas||{}).filter(x=>x?.best&&contextComplete(x.context)).map(x=>premierQuality.evaluate({context:x.context,historical:x.best,historicalPoolComplete:true,cohortScores:cohort}));const historicalPremierProfiles=scored.filter(x=>x.selected).length;const historicalNegativeProfiles=scored.filter(x=>!x.selected).length;return {version:VERSION,policy:{lastN:LAST_N,minNetEdge:MIN_NET_EDGE(),minRelativeEdge:MIN_RELATIVE_EDGE(),candidates:CANDIDATES(),historicalBootstrap:true,exactHistoricalPremier:true,unknownExactShadow:true,liveN3Review:true,premierQualityScore:true,premierScoreWeights:premierQuality.WEIGHTS,premierScoreMin:n(ayarlar.renkoPremierScoreMin,55),relativeRanking:true},health:{...s.health,historicalProfiles:Object.keys(hi.dnas).length||Object.keys(hi.patterns).length,historicalPremierProfiles,historicalNegativeProfiles,historicalSignals:hi.signals,historicalSource:hi.source.ledger||hi.source.state,premierScoreCohort:cohort.length},profiles};}
+function summary(){const s=load();const live=Object.values(s.dnaProfiles||{});const liveKeys=new Set(live.map(x=>x.key));const livePatterns=new Set(live.map(x=>x.patternKey));const boot=historicalBootstrapProfiles().filter(x=>!liveKeys.has(x.key)&&!(x.context?.rbb==='HISTORICAL_AGGREGATE'&&livePatterns.has(x.patternKey)));const profiles=[...live,...boot].map(p=>({...p,decision:selectWithState(s,p.context,n(p.activeBrick,0.75))}));const hi=buildHistoricalIndex();const cohort=premierCohortScores();const scored=Object.values(hi.dnas||{}).filter(x=>x?.best&&contextComplete(x.context)).map(x=>premierQuality.evaluate({context:x.context,historical:x.best,historicalPoolComplete:true,cohortScores:cohort}));const historicalPremierProfiles=scored.filter(x=>x.selected).length;const historicalNegativeProfiles=scored.filter(x=>!x.selected).length;const scorePolicy=premierQuality.activePolicy();return {version:VERSION,policy:{lastN:LAST_N,minNetEdge:MIN_NET_EDGE(),minRelativeEdge:MIN_RELATIVE_EDGE(),candidates:CANDIDATES(),historicalBootstrap:true,exactHistoricalPremier:true,unknownExactShadow:true,liveN3Review:true,premierQualityScore:true,premierScorePolicySource:scorePolicy.source,premierScoreWeights:scorePolicy.weights,premierScoreMin:scorePolicy.minScore,premierScoreMaxDynamic:scorePolicy.maxDynamic,premierScoreRelativeQuantile:scorePolicy.relativeQuantile,premierScoreLiveWindow:scorePolicy.liveWindow,relativeRanking:true},health:{...s.health,historicalProfiles:Object.keys(hi.dnas).length||Object.keys(hi.patterns).length,historicalPremierProfiles,historicalNegativeProfiles,historicalSignals:hi.signals,historicalSource:hi.source.ledger||hi.source.state,premierScoreCohort:cohort.length},profiles};}
 function telegram(limit=10){const x=summary();let t=`🧬 <b>ADAPTIVE PATTERN DNA ENTRY</b>
 Sürüm ${VERSION}
 📚 Geçmişten hazır DNA ${x.health.historicalProfiles||0} | Tarihsel sinyal ${x.health.historicalSignals||0} | Canlı kapanış ${x.health.observed||0}
@@ -281,4 +290,4 @@ DNA RBB=${p.context.rbb} | RBBW=${p.context.rbbw} | RENKO6=${p.context.renko6}
 🎯 Aktif giriş ${Number(d.brick).toFixed(2)} | ${d.reason}
 `; }return t.trim();}
 
-module.exports={VERSION,STATE_FILE,BACKUP_FILE,HISTORICAL_FILE,HISTORICAL_LEDGER_FILE,LAST_N,CANDIDATES,HISTORICAL_PREMIER_MIN_N,contextFrom,contextFromHistoricalEvent,contextComplete,patternKey,dnaKey,legacyDnaKey,migrateSessionNeutralState,historicalPaths,buildHistoricalIndex,historicalEvidence,historicalProfile,historicalCompletion,latestCompletedLiveReview,premierCohortScores,gateDecision,historicalBootstrapProfiles,positiveEvidence,premierFor,select,observe,summary,telegram,metric,load,save,blank};
+module.exports={VERSION,STATE_FILE,BACKUP_FILE,HISTORICAL_FILE,HISTORICAL_LEDGER_FILE,LAST_N,CANDIDATES,HISTORICAL_PREMIER_MIN_N,contextFrom,contextFromHistoricalEvent,contextComplete,patternKey,dnaKey,legacyDnaKey,migrateSessionNeutralState,historicalPaths,buildHistoricalIndex,historicalEvidence,historicalProfile,historicalCompletion,latestLiveReview,latestCompletedLiveReview,premierCohortScores,gateDecision,historicalBootstrapProfiles,positiveEvidence,premierFor,select,observe,summary,telegram,metric,load,save,blank};

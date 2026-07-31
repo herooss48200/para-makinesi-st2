@@ -65,8 +65,9 @@ const ayarlar = {
     labCanliLigMinNet: 0,
     labCanliLigMinExpectancy: 0,
 
-    // v6.9.0: Premier katı geçti/kaldı kapısı yerine açıklanabilir kalite puanı ve göreceli sıralama.
-    // Güvenlik tabanı korunur: exact-context, tamamlanmış tarihsel havuz ve minimum örnek zorunludur.
+    // v6.9.1: Premier kalite puanı kronolojik walk-forward audit ile kalibre edilebilir.
+    // data/st2-premier-score-calibration.json yoksa bu güvenli varsayılanlar kullanılır.
+    // Exact-context, tamamlanmış tarihsel havuz ve minimum örnek zorunluluğu değişmez.
     renkoPremierScoreAktif: true,
     renkoPremierScoreMinOrnek: 3,
     renkoPremierScoreMin: 55,

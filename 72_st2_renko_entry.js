@@ -6,6 +6,7 @@ const m = require('./motor.js');
 const core = require('./72_st2_renko_core.js');
 const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
+const premierQuality = require('./83_st2_premier_quality_score.js');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -49,11 +50,36 @@ function pusuGateOzeti(pusu) {
             score: Number(gate.premierScore?.score || 0),
             scoreThreshold: Number(gate.premierScore?.threshold || 0),
             relativeRank: Number(gate.premierScore?.rank || 0),
-            relativeCohort: Number(gate.premierScore?.cohortSize || 0)
+            relativeCohort: Number(gate.premierScore?.cohortSize || 0),
+            liveLast5: gate.liveLast5 || null,
+            policySource: gate.premierScore?.policySource || premierQuality.activePolicy().source
         };
     } catch (error) {
         return { dnaKey: null, dnaId: 'YOK', executionMode: 'UNKNOWN', reason: `GATE_ERROR:${error.message}`, completion: null };
     }
+}
+
+
+function pusuSkorAciklama(gateOzeti = {}) {
+    const q = gateOzeti.premierScore || {};
+    if (!Number.isFinite(Number(q.score))) return '';
+    const selected = q.selected === true || gateOzeti.executionMode === 'PREMIER';
+    const karar = selected
+        ? `Skor eşiği geçti: ${Number(q.score).toFixed(1)} ≥ ${Number(q.threshold || 0).toFixed(1)}`
+        : `Skor eşiğin altında: ${Number(q.score).toFixed(1)} < ${Number(q.threshold || 0).toFixed(1)}`;
+    const evidence = q.evidence || {};
+    const last5 = gateOzeti.liveLast5 || null;
+    const model = q.policySource || gateOzeti.policySource || 'DEFAULT';
+    const lines = [
+        `⭐ <b>Premier nedeni:</b> ${karar} | Sıra #${Number(q.rank || 0)}/${Number(q.cohortSize || 0)}`,
+        `🧮 ${premierQuality.weightedComponentText(q)}`,
+        `📚 ${premierQuality.metricText(evidence.historical, { prefix: 'Tarihsel' })}`,
+        `🕔 ${last5 ? premierQuality.metricText(last5, { prefix: 'Son 5' }) : 'Son 5 N0'}`,
+        `🚪 ${premierQuality.metricText(evidence.entry, { prefix: 'Entry' })}`,
+        `🧬 ${premierQuality.metricText(evidence.takeover, { prefix: 'Takeover' })}`,
+        `⚙️ Model ${model}${q.calibrationGeneratedAt ? ` | Kalibrasyon ${q.calibrationGeneratedAt}` : ''}`
+    ];
+    return lines.join('\n');
 }
 
 function pusuBildirimHafizasiniTemizle(store, now = Date.now()) {
@@ -340,7 +366,8 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
                         : patternId;
                     const modEtiketi = gateOzeti.executionMode === 'PREMIER' ? '🏆 PREMIER' : gateOzeti.executionMode === 'SHADOW' ? '👻 SHADOW' : '❓ UNKNOWN';
                     const skorMetni = gateOzeti.relativeCohort > 0 ? ` | Skor ${gateOzeti.score.toFixed(1)}/${gateOzeti.scoreThreshold.toFixed(1)} | #${gateOzeti.relativeRank}/${gateOzeti.relativeCohort}` : '';
-                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\n🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi}${skorMetni}\n🧾 ${gateOzeti.reason}\nBB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
+                    const skorAciklama = pusuSkorAciklama(gateOzeti);
+                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\n🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi}${skorMetni}\n🧾 ${gateOzeti.reason}\n${skorAciklama ? `${skorAciklama}\n` : ''}BB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
                     h.telegramMesajGonderTekil(kisaMesaj, { coalesceKey: `st2-yeni-pusu:${bildirimAnahtari}` })
                         .then(sonuclar => {
                             const ok = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
