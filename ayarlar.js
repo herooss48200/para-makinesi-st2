@@ -600,11 +600,14 @@ const ayarlar = {
     canliRaporEskiMuhasebeGoster: false,
     // Üç günlük doğrulama tamamlanmadan true yapılmaz.
     gercekEmirYetkilendirmeAktif: true,
-    // AWS .env: AGROS_REAL_ORDER_ARM=LIVE_5X_25USDT ve AGROS_REAL_ORDER_ENV=MAINNET zorunludur.
-    gercekEmirOnayKodu: 'LIVE_5X_25USDT',
+    // AWS .env güvenlik kilidi yalnız canlı modu bilinçli açar; işlem risk değerlerini sabitlemez.
+    // Zorunlu: AGROS_REAL_ORDER_ARM=LIVE_TRADING_CONFIRMED ve AGROS_REAL_ORDER_ENV=MAINNET.
+    // Tutar, kaldıraç, marjin ve aktif pozisyon limiti aşağıdaki ayarlardan yönetilir.
+    gercekEmirOnayKodu: 'LIVE_TRADING_CONFIRMED',
     gercekEmirSabitNotionalUsdt: 25,
     gercekEmirSabitKaldirac: 5,
     gercekEmirMarjinTipi: 'ISOLATED',
+    // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     gercekEmirMaxAktifPozisyon: 5,
     gercekEmirKorumaEmirleriZorunlu: true,
     gercekEmirMaksNotionalSapmaYuzde: 2,

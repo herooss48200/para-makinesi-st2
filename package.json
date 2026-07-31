@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.9.3-live-5x-25usdt-premier-ledger-final",
+  "version": "6.9.4-configurable-live-risk-controls",
   "description": "AGROS ST2 v6.9.3: kalibre Premier ana kasa mutabakatı ve 5x/25 USDT fail-closed gerçek emir geçişi.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -22,7 +22,8 @@
     "test:v692": "node test_v692_fast_premier_calibration.js",
     "calibrate:premier": "node 84_st2_premier_score_calibration.js",
     "calibrate:premier:apply": "node 84_st2_premier_score_calibration.js --apply",
-    "test:v693": "node test_v693_live_5x_25usdt_final.js"
+    "test:v693": "node test_v693_live_5x_25usdt_final.js",
+    "test:v694": "node test_v694_configurable_live_risk.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

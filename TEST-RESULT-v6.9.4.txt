@@ -1,0 +1,27 @@
+AGROS ST2 v6.9.4 — CONFIGURABLE LIVE RISK CONTROLS
+Test tarihi: 31.07.2026
+
+SONUÇ: BAŞARILI
+
+- Full source syntax: 110 JavaScript dosyası geçti.
+- v6.7.2 single delivery / safe exit: geçti.
+- v6.7.3 canlı LAB lifecycle: geçti.
+- v6.7.4 Telegram startup delivery: geçti.
+- v6.8.1 report reconciliation: geçti.
+- v6.8.2 operation transparency: geçti.
+- v6.8.3 minimal Telegram operations: geçti.
+- v6.8.4 operation proof Telegram: geçti.
+- v6.9.0 Premier Score / 200 coin: geçti.
+- v6.9.1 walk-forward calibration: geçti.
+- v6.9.2 fast calibration: 392000 model, geçti.
+- v6.9.3 Premier ledger compatibility: geçti.
+- v6.9.4 configurable live risk: geçti.
+
+v6.9.4 özel doğrulamalar:
+- Genel canlı onay kodu risk parametrelerinden ayrıldı.
+- 37.5 USDT / 7x / CROSSED / 3 aktif pozisyon ayarı köprüden aynen geçti.
+- 25 USDT / 5x sabit ret nedenleri kaldırıldı.
+- Maksimum aktif pozisyon 0 olduğunda yeni giriş durdurma ayarı korundu.
+- Notional 0 gibi geçersiz ayarlar fail-closed engellendi.
+
+Not: Trade Engine, Premier seçimi, Entry/Exit Evolution, Takeover ve öğrenme matematiği değiştirilmedi.

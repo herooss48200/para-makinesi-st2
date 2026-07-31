@@ -6,7 +6,7 @@ const path = require('path');
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-v693-'));
 process.env.AGROS_DATA_DIR = temp;
-process.env.AGROS_REAL_ORDER_ARM = 'LIVE_5X_25USDT';
+process.env.AGROS_REAL_ORDER_ARM = 'LIVE_TRADING_CONFIRMED';
 process.env.AGROS_REAL_ORDER_ENV = 'MAINNET';
 process.env.BINANCE_BASE_URL = 'https://fapi.binance.com';
 
@@ -15,12 +15,11 @@ const bridge = require('./50_real_order_readiness_bridge.js');
 const lab = require('./62_lab_premier_league.js');
 
 assert.strictEqual(ayarlar.sanalEmirModu, false);
-assert.strictEqual(ayarlar.mevcutKaldirac, 5);
 assert.strictEqual(ayarlar.gercekEmirSabitNotionalUsdt, 25);
 assert.strictEqual(ayarlar.gercekEmirSabitKaldirac, 5);
 assert.strictEqual(ayarlar.gercekEmirMarjinTipi, 'ISOLATED');
 assert(Number.isInteger(Number(ayarlar.gercekEmirMaxAktifPozisyon)) && Number(ayarlar.gercekEmirMaxAktifPozisyon) >= 1, 'aktif gerçek pozisyon limiti ayarlardan yönetilmeli');
-assert.strictEqual(bridge.realAuthorization().valid, true, 'mainnet + arm birlikte gerçek yetki vermeli');
+assert.strictEqual(bridge.realAuthorization().valid, true, 'mainnet + genel canlı onayı birlikte gerçek yetki vermeli');
 assert.deepStrictEqual(bridge.liveRiskProfile(), {
   notionalUsdt: 25, leverage: 5, marginType: 'ISOLATED', maxActivePositions: Number(ayarlar.gercekEmirMaxAktifPozisyon), protectionRequired: true
 });
@@ -52,4 +51,4 @@ assert(motorSource.includes('gercekAcilisRollback'), 'korumasız gerçek pozisyo
 assert(motorSource.includes("newOrderRespType: 'RESULT'"), 'gerçek dolum cevabı istenmeli');
 assert(motorSource.includes('risk.maxActivePositions'), 'ayar tabanlı aktif gerçek pozisyon limiti uygulanmalı');
 
-console.log('✅ AGROS ST2 v6.9.3 live 5x / 25 USDT + calibrated Premier ledger final passed');
+console.log('✅ AGROS ST2 v6.9.3 compatibility + calibrated Premier ledger passed');

@@ -1,0 +1,14 @@
+AGROS ST2 v6.9.4 — yalnız değişen/gerekli dosyalar
+
+50_real_order_readiness_bridge.js
+ayarlar.js
+versiyon.js
+test_v681_live_report_reconciliation.js
+test_v693_live_5x_25usdt_final.js
+test_v694_configurable_live_risk.js
+package.json
+package-lock.json
+CHANGELOG-v6.9.4.md
+AWS-ST2-v6.9.4.md
+TEST-RESULT-v6.9.4.txt
+PATCH-MANIFEST-v6.9.4.txt

@@ -18,7 +18,7 @@ const memorySafeIo = require('./53_memory_safe_io.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 
-const VERSION = 'v4.6.1-REAL-TRADING-FORWARD-PROOF';
+const VERSION = 'v4.6.2-CONFIGURABLE-LIVE-RISK';
 const DATA_DIR = path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
 const PREPARATION_JSON = path.join(DATA_DIR, 'real-trading-preparation.json');
@@ -59,7 +59,7 @@ function liveRiskProfile() {
     notionalUsdt: num(ayarlar.gercekEmirSabitNotionalUsdt, 25),
     leverage: Math.floor(num(ayarlar.gercekEmirSabitKaldirac, 5)),
     marginType: String(ayarlar.gercekEmirMarjinTipi || 'ISOLATED').toUpperCase(),
-    maxActivePositions: Math.max(1, Math.floor(num(ayarlar.gercekEmirMaxAktifPozisyon, 1))),
+    maxActivePositions: Math.max(0, Math.floor(num(ayarlar.gercekEmirMaxAktifPozisyon, 1))),
     protectionRequired: ayarlar.gercekEmirKorumaEmirleriZorunlu !== false
   };
 }
@@ -92,8 +92,11 @@ function evaluate(pos, { realMode = false, scoreDecision = null } = {}) {
     if (String(scoreDecision.policySource || '').toUpperCase() !== 'CALIBRATED') reasons.push('PREMIER_SCORE_MODEL_NOT_CALIBRATED');
     if (Array.isArray(scoreDecision.hardReasons) && scoreDecision.hardReasons.length) reasons.push(...scoreDecision.hardReasons);
     if (ayarlar.gercekEmirPremierKapisiAktif !== true) reasons.push('GERCEK_PREMIER_KAPISI_KAPALI');
-    if (!(risk.notionalUsdt > 0 && risk.notionalUsdt <= 25)) reasons.push('GERCEK_EMIR_NOTIONAL_25_USDT_DEGIL');
-    if (risk.leverage !== 5) reasons.push('GERCEK_EMIR_KALDIRAC_5X_DEGIL');
+    // Canlı risk değerleri ayarlar.js tarafından yönetilir. Güvenlik kapısı bu değerleri
+    // belirli bir tutar veya kaldıraca sabitlemez; yalnız geçersiz değerleri fail-closed reddeder.
+    if (!(risk.notionalUsdt > 0)) reasons.push('GERCEK_EMIR_NOTIONAL_GECERSIZ');
+    if (!(Number.isInteger(risk.leverage) && risk.leverage >= 1)) reasons.push('GERCEK_EMIR_KALDIRAC_GECERSIZ');
+    if (!['ISOLATED', 'CROSSED'].includes(risk.marginType)) reasons.push('GERCEK_EMIR_MARJIN_TIPI_GECERSIZ');
   } else if (realMode) {
     const pair = profile?.pairMetrics || profile || {};
     const premier = currentLeague === 'PREMIER';
@@ -288,7 +291,7 @@ function buildPreparation(leagueModel = null, options = {}) {
 }
 
 function preparationTelegram(model = buildPreparation(), limit = 5) {
-  let t = `\n\n🚀 <b>GERÇEK EMİR HAZIRLIK DENETİMİ — v4.6.1</b>\n`;
+  let t = `\n\n🚀 <b>GERÇEK EMİR HAZIRLIK DENETİMİ — v4.6.2</b>\n`;
   t += `❓ Bugün gerçek emir açsam hangi DNA'ları kullanırım?\n`;
   t += `📌 ${model.answer}\n`;
   t += `🏆 Premier ${model.premierCount} | 🧾 Tarihsel+Exit ${model.historicalCandidateCount || 0} | ✅ İleri doğrulanmış ${model.readyCount} | ⏳ İleri bekleyen ${(model.forwardPending || []).length}\n`;
