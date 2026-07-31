@@ -1,0 +1,11 @@
+AGROS ST2 v6.10.4 PATCH FILES
+2_rapor.js
+62_lab_premier_league.js
+69_operation_intelligence_dashboard.js
+package.json
+package-lock.json
+versiyon.js
+test_v6104_premier_close_counter_reconciliation.js
+AWS-ST2-v6.10.4.md
+CHANGELOG-v6.10.4.md
+TEST-RESULT-v6.10.4.txt

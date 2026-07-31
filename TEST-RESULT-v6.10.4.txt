@@ -1,0 +1,10 @@
+AGROS ST2 v6.10.4 TEST RESULT
+
+PASS — 117 JavaScript source syntax checks.
+PASS — v6.10.3 manual close / safe trailing / real-shadow regression.
+PASS — Real Score-Premier scientific close is counted in Premier totals.
+PASS — Real and virtual Premier partitions are separated.
+PASS — Shadow partition remains separate.
+PASS — Entry Replay N>0 produces entry-proven Exit fallback wording.
+
+Trade Engine and real-order execution math were not changed.

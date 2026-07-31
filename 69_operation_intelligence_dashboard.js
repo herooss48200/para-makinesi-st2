@@ -51,13 +51,19 @@ function scientificLedgerPartitions(rows=null){
   const scientificRows=Array.isArray(rows)
     ? rows
     : globalReconciliation.readJsonl(globalReconciliation.LIVE_LEDGER,'SCIENTIFIC_CLOSE');
-  const premierRows=[]; const shadowRows=[];
+  const premierRows=[]; const shadowRows=[]; const realPremierRows=[]; const virtualPremierRows=[];
   for(const row of scientificRows){
-    if(scientificPremierRow(row)) premierRows.push(row); else shadowRows.push(row);
+    if(scientificPremierRow(row)){
+      premierRows.push(row);
+      const isReal = row?.pos?.sanal === false || row?.result?.sanal === false || row?.execution?.real === true;
+      if(isReal) realPremierRows.push(row); else virtualPremierRows.push(row);
+    } else shadowRows.push(row);
   }
   return {
     total:summarizeScientificRows(scientificRows),
     premier:summarizeScientificRows(premierRows),
+    realPremier:summarizeScientificRows(realPremierRows),
+    virtualPremier:summarizeScientificRows(virtualPremierRows),
     shadow:summarizeScientificRows(shadowRows)
   };
 }

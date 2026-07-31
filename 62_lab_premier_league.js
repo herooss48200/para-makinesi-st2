@@ -549,6 +549,9 @@ function applyToPosition(pos, decision = null) {
   if (!pos) return null; const d = decision || evaluate(pos, { realMode: pos.sanal === false });
   pos.labPremierDecision = d; pos.leagueShadowOnly = !d.upperLayerIncluded; pos.virtualAccountIncluded = d.upperLayerIncluded;
   pos.labLeagueAtOpen = d.labLeague; pos.labProofLevelAtOpen = d.proofLevel; pos.premierTrackAtOpen = d.premierTrack;
+  const entryAssignment = pos?.renkoEntryAssignment || pos?.entryReplayAssignment || {};
+  const entrySamples = num(entryAssignment.samples, num(entryAssignment.sampleCount));
+  if (entrySamples > 0 || entryAssignment.proven === true || entryAssignment.learned === true) d.entryProven = true;
   const frozen = frozenExit(d);
   if (frozen) {
     pos.executionExitAssignment = frozen;

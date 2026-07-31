@@ -405,7 +405,10 @@ function minimalCanliRaporMetniOlustur() {
     const op = operationIntelligence.build(tumAktifler);
     const aggregate = op.model?.aggregate || {};
     const accounting = op.model?.accounting || {};
-    const shadow = operationIntelligence.scientificLedgerPartitions().shadow || {};
+    const ledgerPartitions = operationIntelligence.scientificLedgerPartitions();
+    const premierScientific = ledgerPartitions.premier || {};
+    const realPremier = ledgerPartitions.realPremier || {};
+    const shadow = ledgerPartitions.shadow || {};
     const maxPozisyon = Math.max(1, Number(ayarlar.telegramCanliRaporMaxPozisyon || 5));
     const sirali = [...premierAktifler].sort((a, b) => pozisyonKarYuzde(b) - pozisyonKarYuzde(a)).slice(0, maxPozisyon);
     const transitions = [...(op.model?.league?.sessionPromotions || []), ...(op.model?.league?.sessionDemotions || [])]
@@ -423,7 +426,8 @@ function minimalCanliRaporMetniOlustur() {
         `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Score-Premier ${premierAktifler.length} | Shadow Öğrenme ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
         `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
         `📡 Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Tarama ${veriSagligi.taranan}/${veriSagligi.secilen} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
-        `💰 Premier N${Number(aggregate.closed || 0)} | ✅${Number(aggregate.tp || 0)} ❌${Number(aggregate.sl || 0)} ⚖️${Number(aggregate.be || 0)} | Net ${sign(aggregate.net)} | PF ${pfMetni(aggregate.profitFactor)}`,
+        `💰 Bilimsel Premier N${Number(premierScientific.n || 0)} | ✅${Number(premierScientific.tp || 0)} ❌${Number(premierScientific.sl || 0)} ⚖️${Number(premierScientific.be || 0)} | Net ${sign(premierScientific.net)} | PF ${pfMetni(premierScientific.pf)}`,
+        `💳 Gerçek Premier N${Number(realPremier.n || 0)} | ✅${Number(realPremier.tp || 0)} ❌${Number(realPremier.sl || 0)} ⚖️${Number(realPremier.be || 0)} | Net ${sign(realPremier.net)} | PF ${pfMetni(realPremier.pf)}`,
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
         `🚪 Entry Replay N${Number(evo.total?.closed || 0)} | Net ${sign(evo.total?.net)} | Atama ${Number(evo.total?.assigned || 0)}`,
