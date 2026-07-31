@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.9.1 — PREMIER SCORE WALK-FORWARD CALIBRATION
+ * AGROS ST2 v6.9.2 — FAST PREMIER SCORE WALK-FORWARD CALIBRATION
  *
  * Reads the real scientific close ledgers in AGROS_DATA_DIR/data, builds every
  * score with evidence available BEFORE that close, compares the old strict gate,
@@ -19,7 +19,7 @@ const adaptive = require('./76_st2_adaptive_dna_entry.js');
 const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const exitEvolution = require('./74_st2_renko_exit_evolution.js');
 
-const VERSION = 'v6.9.1-PREMIER-WALK-FORWARD-CALIBRATION';
+const VERSION = 'v6.9.2-FAST-PREMIER-WALK-FORWARD-CALIBRATION';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const REPORT_JSON = path.join(DATA_DIR, 'st2-premier-score-calibration-report.json');
 const REPORT_MD = path.join(DATA_DIR, 'st2-premier-score-calibration-report.md');
@@ -336,7 +336,123 @@ function policyCandidates() {
 function baselineModel() {
   return { weights: { ...DEFAULT_WEIGHTS }, liveWindow: 3, minScore: 55, relativeQuantile: 0.40, maxDynamic: 70, minSample: 3 };
 }
-function search(dataset) {
+
+/**
+ * Build a compact numeric matrix once. The v6.9.1 implementation recalculated
+ * every dot product and cohort quantile for every policy candidate. This matrix
+ * lets each weight vector be scored once, then reuses those scores for all
+ * threshold policies without changing the scientific selection rules.
+ */
+function buildSearchMatrix(dataset) {
+  const caseCount = dataset.cases.length;
+  const cohortCount = dataset.cohort.length;
+  const matrix = {
+    caseCount,
+    cohortCount,
+    nets: new Float64Array(caseCount),
+    historicalN: new Float64Array(caseCount),
+    cases3: {},
+    cases5: {},
+    cohort: {}
+  };
+  for (const key of WEIGHT_KEYS) {
+    matrix.cases3[key] = new Float64Array(caseCount);
+    matrix.cases5[key] = new Float64Array(caseCount);
+    matrix.cohort[key] = new Float64Array(cohortCount);
+  }
+  for (let i = 0; i < caseCount; i++) {
+    const row = dataset.cases[i];
+    matrix.nets[i] = n(row.actualNet);
+    matrix.historicalN[i] = n(row.historical?.n);
+    for (const key of WEIGHT_KEYS) {
+      matrix.cases3[key][i] = n(row.components3?.[key]);
+      matrix.cases5[key][i] = n(row.components5?.[key]);
+    }
+  }
+  for (let i = 0; i < cohortCount; i++) {
+    const row = dataset.cohort[i];
+    for (const key of WEIGHT_KEYS) matrix.cohort[key][i] = n(row.components?.[key]);
+  }
+  return matrix;
+}
+function weightedScores(columns, weights, length) {
+  const out = new Float64Array(length);
+  for (const key of WEIGHT_KEYS) {
+    const column = columns[key];
+    const factor = n(weights[key]) / 100;
+    for (let i = 0; i < length; i++) out[i] += column[i] * factor;
+  }
+  return out;
+}
+function quantileSorted(sorted, q) {
+  const length = sorted.length;
+  if (!length) return null;
+  if (length === 1) return sorted[0];
+  const pos = clamp(q, 0, 1) * (length - 1);
+  const lo = Math.floor(pos), hi = Math.ceil(pos), w = pos - lo;
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * w;
+}
+function emptyAccumulator() {
+  return { n: 0, wins: 0, losses: 0, be: 0, net: 0, gp: 0, gl: 0 };
+}
+function addNet(acc, value) {
+  acc.n++;
+  acc.net += value;
+  if (value > 1e-9) { acc.wins++; acc.gp += value; }
+  else if (value < -1e-9) { acc.losses++; acc.gl += Math.abs(value); }
+  else acc.be++;
+}
+function finalizeAccumulator(acc, allN, threshold) {
+  return {
+    n: acc.n,
+    samples: acc.n,
+    wins: acc.wins,
+    losses: acc.losses,
+    be: acc.be,
+    net: r(acc.net, 6),
+    pf: acc.gl > 0 ? r(acc.gp / acc.gl, 6) : (acc.gp > 0 ? 999 : 0),
+    expectancy: acc.n ? r(acc.net / acc.n, 6) : 0,
+    wr: (acc.wins + acc.losses) ? r(acc.wins / (acc.wins + acc.losses) * 100, 2) : 0,
+    grossProfit: r(acc.gp, 6),
+    grossLoss: r(acc.gl, 6),
+    selectedRatio: allN ? acc.n / allN : 0,
+    threshold: r(threshold, 2),
+    allN
+  };
+}
+function evaluateScoreRanges(scores, matrix, threshold, minSample, split) {
+  const train = emptyAccumulator();
+  const validation = emptyAccumulator();
+  const all = emptyAccumulator();
+  for (let i = 0; i < matrix.caseCount; i++) {
+    if (matrix.historicalN[i] < minSample || scores[i] < threshold) continue;
+    const value = matrix.nets[i];
+    addNet(all, value);
+    if (i < split) addNet(train, value); else addNet(validation, value);
+  }
+  return {
+    train: finalizeAccumulator(train, split, threshold),
+    validation: finalizeAccumulator(validation, matrix.caseCount - split, threshold),
+    all: finalizeAccumulator(all, matrix.caseCount, threshold)
+  };
+}
+function resolvedThreshold(sortedCohort, policy) {
+  const dynamic = sortedCohort.length >= 5
+    ? quantileSorted(sortedCohort, policy.relativeQuantile)
+    : policy.minScore;
+  return r(Math.min(policy.maxDynamic, Math.max(policy.minScore, n(dynamic, policy.minScore))), 8);
+}
+
+function keepTopCandidate(top, candidate, limit = 10) {
+  let index = 0;
+  while (index < top.length && top[index].objective >= candidate.objective) index++;
+  if (index >= limit) return;
+  top.splice(index, 0, candidate);
+  if (top.length > limit) top.length = limit;
+}
+
+function search(dataset, options = {}) {
+  const startedAt = Date.now();
   const cases = dataset.cases;
   const split = Math.max(1, Math.floor(cases.length * 0.70));
   const trainRange = { start: 0, end: split };
@@ -348,15 +464,34 @@ function search(dataset) {
   const strict = {
     train: evaluateStrict(cases, trainRange), validation: evaluateStrict(cases, validationRange), all: evaluateStrict(cases)
   };
+  const matrix = buildSearchMatrix(dataset);
   let best = null;
   const top = [];
-  const weights = weightCandidates();
-  const policies = policyCandidates();
-  for (const w of weights) {
+  const weights = options.weights || weightCandidates();
+  const policies = options.policies || policyCandidates();
+  const policyCount = policies.length;
+  let uniqueEvaluations = 0;
+  const progressEvery = Math.max(1, Math.floor(weights.length / 10));
+
+  for (let wi = 0; wi < weights.length; wi++) {
+    const w = weights[wi];
+    const cohortScores = Array.from(weightedScores(matrix.cohort, w, matrix.cohortCount)).sort((a, b) => a - b);
+    const scoreByWindow = {
+      3: weightedScores(matrix.cases3, w, matrix.caseCount),
+      5: weightedScores(matrix.cases5, w, matrix.caseCount)
+    };
+    const metricCache = new Map();
+
     for (const policy of policies) {
-      const model = { ...policy, weights: w };
-      const train = evaluateRows(cases, dataset.cohort, model, trainRange);
-      const validation = evaluateRows(cases, dataset.cohort, model, validationRange);
+      const threshold = resolvedThreshold(cohortScores, policy);
+      const cacheKey = `${policy.liveWindow}|${policy.minSample}|${threshold}`;
+      let metrics = metricCache.get(cacheKey);
+      if (!metrics) {
+        metrics = evaluateScoreRanges(scoreByWindow[policy.liveWindow], matrix, threshold, policy.minSample, split);
+        metricCache.set(cacheKey, metrics);
+        uniqueEvaluations++;
+      }
+      const { train, validation } = metrics;
       const minTrain = Math.max(12, Math.floor(train.allN * 0.15));
       const minValidation = Math.max(6, Math.floor(validation.allN * 0.12));
       if (train.n < minTrain || validation.n < minValidation) continue;
@@ -364,13 +499,30 @@ function search(dataset) {
       if (train.pf <= 1 || train.expectancy <= 0 || train.net <= 0 || validation.pf <= 1 || validation.expectancy <= 0 || validation.net <= 0) continue;
       const objective = candidateObjective(train, validation, w);
       if (!Number.isFinite(objective)) continue;
+      const model = { ...policy, weights: w };
       const candidate = { model, objective: r(objective, 6), train, validation };
       if (!best || candidate.objective > best.objective) best = candidate;
-      top.push(candidate);
+      keepTopCandidate(top, candidate);
+    }
+
+    if (typeof options.onProgress === 'function' && ((wi + 1) % progressEvery === 0 || wi === weights.length - 1)) {
+      options.onProgress({
+        completedWeights: wi + 1,
+        totalWeights: weights.length,
+        modelCandidates: (wi + 1) * policyCount,
+        totalModelCandidates: weights.length * policyCount,
+        uniqueEvaluations,
+        elapsedMs: Date.now() - startedAt
+      });
     }
   }
-  top.sort((a, b) => b.objective - a.objective);
-  const optimized = best ? { ...best, all: evaluateRows(cases, dataset.cohort, best.model) } : null;
+
+  const optimized = best ? {
+    ...best,
+    train: evaluateRows(cases, dataset.cohort, best.model, trainRange),
+    validation: evaluateRows(cases, dataset.cohort, best.model, validationRange),
+    all: evaluateRows(cases, dataset.cohort, best.model)
+  } : null;
   const safeToApply = Boolean(optimized
     && optimized.all.n >= Math.max(20, Math.floor(cases.length * 0.15))
     && optimized.all.selectedRatio >= 0.15 && optimized.all.selectedRatio <= 0.55
@@ -385,9 +537,18 @@ function search(dataset) {
     baseline: { model: baseline, train: baselineTrain, validation: baselineValidation, all: baselineAll },
     optimized,
     safeToApply,
+    diagnostics: {
+      engine: 'PRECOMPUTED_SCORE_MATRIX',
+      weights: weights.length,
+      policies: policyCount,
+      modelCandidates: weights.length * policyCount,
+      uniqueEvaluations,
+      elapsedMs: Date.now() - startedAt
+    },
     top: top.slice(0, 10).map(x => ({ model: x.model, objective: x.objective, train: compactMetric(x.train), validation: compactMetric(x.validation) }))
   };
 }
+
 function compactMetric(m = {}) {
   return {
     n: n(m.n), allN: n(m.allN), selectionPct: r(n(m.selectedRatio) * 100, 1),
@@ -444,7 +605,8 @@ function markdown(report) {
 function run(options = {}) {
   const dataset = buildDataset(options);
   if (dataset.cases.length < 30) throw new Error(`CALIBRATION_DATA_INSUFFICIENT: kullanılabilir ${dataset.cases.length}, gereken en az 30`);
-  const searchResult = search(dataset);
+  if (typeof options.onDataset === 'function') options.onDataset(dataset);
+  const searchResult = search(dataset, { onProgress: options.onProgress });
   const chosen = searchResult.optimized?.model || baselineModel();
   const fingerprint = fileFingerprint([entryEvolution.LEDGER_FILE, adaptive.HISTORICAL_LEDGER_FILE, exitEvolution.LEDGER_FILE]);
   const report = {
@@ -503,7 +665,18 @@ function run(options = {}) {
 if (require.main === module) {
   try {
     const apply = process.argv.includes('--apply');
-    const result = run({ apply });
+    const wallStarted = Date.now();
+    const result = run({
+      apply,
+      onDataset: dataset => {
+        console.log(`🧪 PREMIER FAST AUDIT başlıyor | Kapanış ${dataset.cases.length} | Kohort ${dataset.cohort.length}`);
+        console.log('⚙️ 1.400 ağırlık × 280 politika, önbelleklenmiş skor matrisiyle değerlendirilecek.');
+      },
+      onProgress: p => {
+        const pct = Math.round(p.completedWeights / Math.max(1, p.totalWeights) * 100);
+        console.log(`⏳ Kalibrasyon %${pct} | Model ${p.modelCandidates}/${p.totalModelCandidates} | Tekil değerlendirme ${p.uniqueEvaluations} | ${(p.elapsedMs / 1000).toFixed(1)} sn`);
+      }
+    });
     const x = result.report;
     console.log(`\n🧪 PREMIER WALK-FORWARD AUDIT | Kapanış ${x.dataset.cases} | Kohort ${x.dataset.cohort}`);
     console.log(`Eski katı   : N${x.search.strict.all.n} | PF ${x.search.strict.all.pf.toFixed(2)} | Net ${x.search.strict.all.net >= 0 ? '+' : ''}${x.search.strict.all.net.toFixed(4)} | Exp ${x.search.strict.all.expectancy >= 0 ? '+' : ''}${x.search.strict.all.expectancy.toFixed(4)}`);
@@ -515,6 +688,8 @@ if (require.main === module) {
       console.log(`Politika    : min ${o.model.minScore} | q ${o.model.relativeQuantile} | max ${o.model.maxDynamic} | canlı pencere ${o.model.liveWindow}`);
       console.log(`Validation  : N${o.validation.n} | PF ${o.validation.pf.toFixed(2)} | Net ${o.validation.net >= 0 ? '+' : ''}${o.validation.net.toFixed(4)} | Exp ${o.validation.expectancy >= 0 ? '+' : ''}${o.validation.expectancy.toFixed(4)}`);
     }
+    console.log(`Motor       : ${x.search.diagnostics?.engine || 'UNKNOWN'} | ${x.search.diagnostics?.modelCandidates || 0} model | ${((x.search.diagnostics?.elapsedMs || 0) / 1000).toFixed(2)} sn`);
+    console.log(`Toplam süre : ${((Date.now() - wallStarted) / 1000).toFixed(2)} sn`);
     console.log(`Karar       : ${x.search.safeToApply ? (result.applied ? 'KALİBRASYON AKTİFLEŞTİRİLDİ' : 'UYGULANABİLİR — --apply ile etkinleştir') : 'FAIL-CLOSED — MEVCUT MODEL KORUNDU'}`);
     console.log(`Rapor       : ${result.paths.reportMarkdown}`);
     if (result.applied) console.log(`Calibration : ${result.paths.calibration}`);
@@ -528,5 +703,6 @@ module.exports = {
   VERSION, DATA_DIR, REPORT_JSON, REPORT_MD, CALIBRATION_FILE,
   readJsonl, rowTime, actualNet, rawPath, metricFromNets, takeoverMetric,
   buildDataset, dot, evaluateRows, evaluateStrict, baselineModel, search,
+  buildSearchMatrix, weightedScores, quantileSorted, evaluateScoreRanges, resolvedThreshold, keepTopCandidate,
   compactMetric, buckets, run, normalizeWeights, weightCandidates, policyCandidates
 };

@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.9.1-final-premier-walk-forward-calibration",
-  "description": "AGROS ST2 v6.9.1 final: 200 coin, kronolojik Premier Score kalibrasyonu, fail-closed doğrulama ve açıklanabilir pusu.",
+  "version": "6.9.2-fast-premier-walk-forward-calibration",
+  "description": "AGROS ST2 v6.9.2: önbelleklenmiş hızlı kronolojik Premier Score kalibrasyonu, fail-closed doğrulama ve açıklanabilir pusu.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -19,6 +19,7 @@
     "test:v684": "node test_v684_operation_proof_telegram.js",
     "test:v690": "node test_v690_final_premier_score_200_coin.js",
     "test:v691": "node test_v691_premier_walk_forward_calibration.js",
+    "test:v692": "node test_v692_fast_premier_calibration.js",
     "calibrate:premier": "node 84_st2_premier_score_calibration.js",
     "calibrate:premier:apply": "node 84_st2_premier_score_calibration.js --apply"
   },

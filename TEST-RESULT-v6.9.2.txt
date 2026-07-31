@@ -1,0 +1,25 @@
+AGROS ST2 v6.9.2 TEST RESULT
+
+PASS: Full source syntax — 108 JavaScript files
+PASS: v6.7.2 regression
+PASS: v6.7.3 regression
+PASS: v6.7.4 regression
+PASS: v6.8.1 report reconciliation
+PASS: v6.8.2 operation transparency
+PASS: v6.8.3 Telegram operations
+PASS: v6.8.4 operation proof
+PASS: v6.9.0 Premier Score + 200 coin
+PASS: v6.9.1 chronological calibration
+PASS: v6.9.2 fast calibration
+
+PERFORMANCE FIXTURE
+Cases: 208
+Cohort: 324
+Weights: 1400
+Policies: 280
+Models: 392000
+Observed search time in build environment: ~0.5 sec
+Observed peak RSS in standalone benchmark: ~64 MB
+Acceptance ceiling in regression test: 20 sec
+
+RESULT: PASS

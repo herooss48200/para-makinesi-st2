@@ -1,0 +1,22 @@
+AGROS ST2 v6.9.2 — FAST PREMIER CALIBRATION PATCH
+
+DEĞİŞEN DOSYALAR
+84_st2_premier_score_calibration.js
+package.json
+package-lock.json
+versiyon.js
+
+YENİ DOSYALAR
+test_v692_fast_premier_calibration.js
+AWS-ST2-v6.9.2.md
+CHANGELOG-v6.9.2.md
+PATCH-MANIFEST-v6.9.2.txt
+TEST-RESULT-v6.9.2.txt
+
+PAKETE DAHİL DEĞİL
+.env
+.git
+node_modules/
+data/
+state/ledger/log dosyaları
+.tmp ve backup klasörleri
