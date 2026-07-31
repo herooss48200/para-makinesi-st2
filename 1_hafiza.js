@@ -2,12 +2,13 @@ require('dotenv').config();
 const Binance = require('binance-api-node').default;
 const https = require('https');
 const ayarlar = require('./ayarlar.js');
+const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const client = Binance({
-    apiKey: process.env.BINANCE_API_KEY,
-    apiSecret: process.env.BINANCE_API_SECRET,
-    baseURL: process.env.BINANCE_BASE_URL || 'https://testnet.binancefuture.com'
-});
+const binanceEndpoint = binanceEndpointAuthority.resolve();
+const client = Binance(binanceEndpointAuthority.clientOptions(
+    process.env.BINANCE_API_KEY,
+    process.env.BINANCE_API_SECRET
+));
 
 const state = {
     semboller: [],
@@ -526,6 +527,7 @@ async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
 
 module.exports = {
     client,
+    binanceEndpoint,
     state,
     telegramMesajGonder,
     telegramMesajGonderHizli,

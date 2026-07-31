@@ -17,8 +17,9 @@ const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
 const memorySafeIo = require('./53_memory_safe_io.js');
 const dnaIdentity = require('./59_dna_identity_registry.js');
 const premierObservation = require('./48_premier_observation_engine.js');
+const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const VERSION = 'v4.6.4-V610-DEPLOY-ACK-STRICT-LIVE-RISK';
+const VERSION = 'v4.6.5-V6101-ENDPOINT-AUTHORITY';
 const EXECUTION_ACK_EXPECTED = 'V610_REVIEWED';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
@@ -45,16 +46,24 @@ function realAuthorization() {
   const supplied = String(process.env.AGROS_REAL_ORDER_ARM || '').trim();
   const environment = String(process.env.AGROS_REAL_ORDER_ENV || '').trim().toUpperCase();
   const executionAck = String(process.env.AGROS_REAL_ORDER_EXECUTION_ACK || '').trim().toUpperCase();
-  const baseUrl = String(process.env.BINANCE_BASE_URL || '').trim();
-  const testnet = /testnet/i.test(baseUrl);
-  const mainnet = /fapi\.binance\.com/i.test(baseUrl) && !testnet;
-  const environmentValid = environment === 'MAINNET' && (!ayarlar.gercekEmirAnaAgZorunlu || mainnet);
+  const endpoint = binanceEndpointAuthority.resolve();
+  const environmentValid = !ayarlar.gercekEmirAnaAgZorunlu
+    ? endpoint.known && endpoint.environmentMatches
+    : binanceEndpointAuthority.realTradingEndpointValid(endpoint);
   const executionAckValid = executionAck === EXECUTION_ACK_EXPECTED;
   return {
     enabled, expectedConfigured: Boolean(expected), envConfigured: Boolean(supplied),
     armValid: enabled && Boolean(expected) && supplied === expected,
     executionAckConfigured: Boolean(executionAck), executionAckValid,
-    environment, baseUrlConfigured: Boolean(baseUrl), testnet, mainnet, environmentValid,
+    environment,
+    baseUrlConfigured: endpoint.explicit,
+    baseUrl: endpoint.httpFutures,
+    endpointLabel: endpoint.label,
+    endpointKnown: endpoint.known,
+    endpointEnvironmentMatches: endpoint.environmentMatches,
+    testnet: endpoint.testnet,
+    mainnet: endpoint.mainnet,
+    environmentValid,
     valid: enabled && Boolean(expected) && supplied === expected && environmentValid && executionAckValid
   };
 }

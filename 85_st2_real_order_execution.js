@@ -20,13 +20,15 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const h = require('./1_hafiza.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
+const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const VERSION = 'v6.10.0-REAL-ORDER-EXECUTION-SAFETY';
+const VERSION = 'v6.10.1-REAL-ORDER-ENDPOINT-AUTHORITY';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-real-order-execution-state.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
 const AUDIT_FILE = path.join(DATA_DIR, 'st2-real-order-execution-audit.jsonl');
-const ACCOUNT_LOCK_KEY = hash(`${process.env.BINANCE_BASE_URL || process.env.BINANCE_FUTURES_BASE_URL || 'https://fapi.binance.com'}|${process.env.BINANCE_API_KEY || 'NO_KEY'}`, 16);
+const BINANCE_ENDPOINT = binanceEndpointAuthority.resolve();
+const ACCOUNT_LOCK_KEY = hash(`${BINANCE_ENDPOINT.httpFutures}|${process.env.BINANCE_API_KEY || 'NO_KEY'}`, 16);
 const PROCESS_LOCK_FILE = process.env.AGROS_REAL_ORDER_LOCK_FILE
   ? path.resolve(process.env.AGROS_REAL_ORDER_LOCK_FILE)
   : path.join(os.tmpdir(), `agros-st2-real-${ACCOUNT_LOCK_KEY}.pidlock`);

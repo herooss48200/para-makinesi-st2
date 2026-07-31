@@ -1,0 +1,27 @@
+AGROS ST2 v6.10.1 — REAL ORDER ENDPOINT AUTHORITY
+
+DOĞRULANAN KAPSAM
+- 114 JavaScript dosyası syntax kontrolünden geçti.
+- v6.7.2 single delivery/safe exit testi geçti.
+- v6.8.2 LAB lifecycle ve rapor mutabakat testleri geçti.
+- v6.8.3/v6.8.4 Telegram operasyon testleri geçti.
+- v6.9.0–v6.9.5 Premier/risk regresyon testleri geçti.
+- v6.10.0 gerçek emir güvenlik testi geçti.
+- v6.10.1 Binance Futures endpoint authority testi geçti.
+
+ENDPOINT KANITLARI
+- binance-api-node istemcisine `httpFutures` gönderiliyor.
+- Desteklenmeyen `baseURL` istemci ayarı kaldırıldı.
+- MAINNET yalnız açıkça `https://fapi.binance.com` tanımlandığında yetki alıyor.
+- TESTNET ve UNKNOWN endpoint gerçek mainnet emri için fail-closed kalıyor.
+- İstemci, gerçek emir kapısı, process lock ve log aynı endpoint otoritesini kullanıyor.
+
+TEST KOMUTU
+NODE_PATH=/mnt/data/agros_fullfix/test_stubs/node_modules npm test
+
+SONUÇ
+✅ Tam regresyon zinciri başarılı.
+
+NOT
+Bu çalışma ortamında `npm ci`, dahili registry üzerinde ws@7.5.11 arşivi bulunamadığı için yeniden tamamlanamadı.
+Paket bağımlılık sürümlerini değiştirmez; package-lock yalnız v6.10.1 paket sürümünü günceller.

@@ -23,7 +23,8 @@ function filtreDegeri(filters, tip, anahtar) {
 
 async function sembolleriYukle() {
     const baslangic = Date.now();
-    console.log('🔄 Binance Testnet aktif sembol listesi ve kuralları çekiliyor...');
+    const endpoint = h.binanceEndpoint || { label: 'UNKNOWN', httpFutures: 'YOK' };
+    console.log(`🔄 Binance Futures ${endpoint.label} sembol listesi ve kuralları çekiliyor | ${endpoint.httpFutures}`);
 
     try {
         const exchangeInfo = await h.client.futuresExchangeInfo();
