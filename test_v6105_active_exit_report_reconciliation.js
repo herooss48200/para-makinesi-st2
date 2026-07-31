@@ -1,0 +1,33 @@
+'use strict';
+const assert = require('assert');
+const reportSource = require('fs').readFileSync('2_rapor.js', 'utf8');
+const transparency = require('./82_st2_operation_transparency.js');
+const version = require('./versiyon.js');
+
+assert(reportSource.includes('Aktif Pozisyonlarda Exit Replay'), 'minimal panel aktif pozisyon kapsamını açıkça yazmalı');
+assert(reportSource.includes('Atama Kanıtı N'), 'panel toplam tarihsel kanıt yerine aktif atama kanıtını açıkça yazmalı');
+
+const restartGapPosition = {
+  sym: 'OUSDT', yon: 'LONG', girisFiyati: 0.4979,
+  girisAnalizi: { renkoEntryBrickDistance: 0.5, historicalEntryGate: { evidence: { n: 3, pf: 999, expectancy: 0.4227 } } },
+  executionExitAssignment: {
+    ready: false, activeForPosition: false, samples: 0,
+    label: 'Mevcut Kademe Sistemi',
+    reason: 'Entry Replay kanıtı yok; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'
+  },
+  renkoExitAssignment: { profileSamples: 50, assignedTakeoverPct: 0.26, assignedAtrMultiplier: 1.04, assignedCaptureRatio: 0.88 },
+  journey: { mfeYuzde: 0.281, maeYuzde: -0.542 },
+  renkoExitEvents: []
+};
+const text = transparency.closingText(restartGapPosition, {
+  title: 'RESTART GAP SANAL POZİSYON KAPANDI', outcome: 'TP',
+  openedAtText: '01.08.2026 01:41:10', closedAtText: '01.08.2026 02:06:18', durationText: '25dk 7sn',
+  exitPrice: 0.4991289, pricePrecision: 7, reason: 'Kâr Koruma', fiyatKarYuzdesi: 0.247,
+  grossPnl: 0.0246, commission: 0.01, netPnl: 0.0146,
+  replayUnavailableReason: 'RESTART_GAP_SCIENTIFICALLY_EXCLUDED', shadowOnly: true
+});
+assert(text.includes('Giriş 0.50 tuğla | N3'), 'Entry N3 kapanış raporunda korunmalı');
+assert(text.includes('Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'), 'eski dondurulmuş N0 metni rapor anında N3 ile uzlaştırılmalı');
+assert(!text.includes('Entry Replay kanıtı yok; kendi LAB Exit'), 'N3 varken kanıt yok çelişkisi görünmemeli');
+assert.strictEqual(version.botSurumu, '6.10.5-ACTIVE-EXIT-REPORT-RECONCILIATION');
+console.log('✅ v6.10.5 active-position Exit Replay scope + Restart-GAP Entry/Exit wording reconciliation passed');

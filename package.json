@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.10.4-premier-close-counter-reconciliation",
-  "description": "AGROS ST2 v6.10.4: Gerçek Score-Premier bilimsel kapanışlarının başarı/başarısızlık sayaçlarına bağlanması, gerçek canlı sonuçların ayrı gösterimi ve Entry/Exit açıklama uzlaştırması.",
+  "version": "6.10.5-active-exit-report-reconciliation",
+  "description": "AGROS ST2 v6.10.5: Aktif pozisyon Exit Replay/FALLBACK sayaçlarının açıkça etiketlenmesi ve Restart-GAP kapanışlarında Entry N>0 açıklama uzlaştırması.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -28,7 +28,8 @@
     "test:v6101": "node test_v6101_binance_endpoint_authority.js",
     "test:v6102": "node test_v6102_live_protection_recovery.js",
     "test:v6103": "node test_v6103_manual_close_shadow_safe_trailing.js",
-    "test:v6104": "node test_v6104_premier_close_counter_reconciliation.js"
+    "test:v6104": "node test_v6104_premier_close_counter_reconciliation.js",
+    "test:v6105": "node test_v6105_active_exit_report_reconciliation.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

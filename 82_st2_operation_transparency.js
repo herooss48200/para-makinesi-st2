@@ -6,7 +6,7 @@
 const ayarlar = require('./ayarlar.js');
 const premierQuality = require('./83_st2_premier_quality_score.js');
 
-const VERSION = 'v6.10.3-EXECUTION-LEARNING-REPORT-RECONCILIATION';
+const VERSION = 'v6.10.5-ACTIVE-EXIT-REPORT-RECONCILIATION';
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function html(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function signed(v, digits = 4) { const x = n(v); return `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`; }
@@ -47,14 +47,19 @@ function entryEvidence(pos) {
 }
 function exitEvidence(pos) {
   const e = pos?.executionExitAssignment || {};
+  const entry = entryEvidence(pos);
   const samples = n(e.samples, n(e.sampleCount));
   const ready = e.ready === true || e.activeForPosition === true;
+  let reason = e.reason || (samples > 0 ? 'EXIT_REPLAY_ATAMASI_VAR' : 'EXIT_FALLBACK_N0');
+  const normalizedReason = String(reason).toLocaleUpperCase('tr-TR').replace(/İ/g, 'I');
+  if (!ready && entry.samples > 0 && (normalizedReason.includes('ENTRY REPLAY KANITI YOK') || normalizedReason.includes('ENTRY_REPLAY_KANITI_YOK'))) {
+    reason = 'Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe';
+  }
   return {
     ready, status: ready ? 'AKTİF ATAMA' : 'FALLBACK', samples,
     label: e.label || e.algorithmLabel || 'Mevcut Kademe Sistemi',
     beatRate: n(e.beatRate, NaN), profitFactor: n(e.profitFactor, n(e.pf, NaN)),
-    netUsdt: n(e.netUsdt, n(e.net, NaN)),
-    reason: e.reason || (samples > 0 ? 'EXIT_REPLAY_ATAMASI_VAR' : 'EXIT_FALLBACK_N0')
+    netUsdt: n(e.netUsdt, n(e.net, NaN)), reason
   };
 }
 function takeoverReplayEvidence(pos) {

@@ -1,0 +1,12 @@
+AGROS ST2 v6.10.5 TEST RESULT
+
+PASS: 118 JavaScript dosyası syntax kontrolü.
+PASS: test_v6105_active_exit_report_reconciliation.js
+  - Aktif pozisyon Exit Replay kapsam etiketi
+  - FALLBACK/atama kanıtı kapsam açıklığı
+  - Restart-GAP Entry N3 / eski N0 açıklama uzlaştırması
+
+LOCAL ENVIRONMENT LIMITATION:
+`npm ci` bu çalışma ortamındaki npm aynasında ws-7.5.11.tgz 404 döndürdü.
+Bu nedenle tam regresyon zinciri teslim ortamında çalıştırılmalıdır.
+AWS dağıtım koşulu: npm ci && npm test tamamen geçmeden PM2 restart yapılmamalıdır.

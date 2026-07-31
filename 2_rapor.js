@@ -431,7 +431,7 @@ function minimalCanliRaporMetniOlustur() {
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
         `🚪 Entry Replay N${Number(evo.total?.closed || 0)} | Net ${sign(evo.total?.net)} | Atama ${Number(evo.total?.assigned || 0)}`,
-        `🧪 Exit Replay Hazır ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Kanıt N${replayKatman.exitSamples}`,
+        `🧪 Aktif Pozisyonlarda Exit Replay ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Atama Kanıtı N${replayKatman.exitSamples}`,
         `🧬 Takeover Replay Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Öğrenilmiş ${replayKatman.takeoverLearned} | Aktif ${replayKatman.takeoverActivated}/${replayKatman.takeoverAssigned}`
     ];
     if (sirali.length) {
@@ -525,7 +525,7 @@ function canliRaporMetniOlustur() {
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
         mesaj += `🌐 Evren: ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum} | Tarama ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}\n`;
         mesaj += `🚪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
-        mesaj += `🧪 Exit Replay: Hazır ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Kanıt N${replayKatman.exitSamples}\n`;
+        mesaj += `🧪 Aktif Pozisyonlarda Exit Replay: ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Atama Kanıtı N${replayKatman.exitSamples}\n`;
         mesaj += `🧬 Takeover Replay: Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Öğrenilmiş ${replayKatman.takeoverLearned} | Aktif ${replayKatman.takeoverActivated}/${replayKatman.takeoverAssigned}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
