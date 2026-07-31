@@ -4,8 +4,20 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const restartGap = require('./23_restart_gap_protection.js');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'sanal-state.json');
+
+function hafizaAktifMi() {
+    return ayarlar.sanalPozisyonHafizasiAktif === true
+        && (ayarlar.sanalEmirModu === true || ayarlar.canliShadowOgrenmeAktif === true);
+}
+
+function kaydedilecekAktifPozisyonlar() {
+    const rows = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
+    return ayarlar.sanalEmirModu === true
+        ? rows
+        : rows.filter(pos => pos?.sanal !== false && pos?.liveShadowObservation === true);
+}
 
 function bugunAnahtari() {
     return new Date().toISOString().slice(0, 10);
@@ -52,12 +64,13 @@ function kaydedilecekState() {
         accountingContinuity: h.state.accountingContinuity,
         exitReplayOzet: h.state.exitReplayOzet,
         restartGapOzet: h.state.restartGapOzet,
-        aktifPozisyonlar: h.state.aktifPozisyonlar || []
+        manualCloseLocks: h.state.manualCloseLocks || {},
+        aktifPozisyonlar: kaydedilecekAktifPozisyonlar()
     };
 }
 
 function kaydet(sebep = 'state') {
-    if (!ayarlar.sanalEmirModu || !ayarlar.sanalPozisyonHafizasiAktif) return;
+    if (!hafizaAktifMi()) return;
     try {
         klasorHazirla();
         fs.writeFileSync(STATE_FILE, JSON.stringify(kaydedilecekState(), null, 2));
@@ -68,7 +81,7 @@ function kaydet(sebep = 'state') {
 }
 
 function yukle() {
-    if (!ayarlar.sanalEmirModu || !ayarlar.sanalPozisyonHafizasiAktif) return;
+    if (!hafizaAktifMi()) return;
     try {
         klasorHazirla();
         if (!fs.existsSync(STATE_FILE)) {
@@ -77,7 +90,13 @@ function yukle() {
         }
 
         const veri = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-        h.state.aktifPozisyonlar = Array.isArray(veri.aktifPozisyonlar) ? veri.aktifPozisyonlar : [];
+        const yuklenenPozisyonlar = Array.isArray(veri.aktifPozisyonlar) ? veri.aktifPozisyonlar : [];
+        h.state.aktifPozisyonlar = ayarlar.sanalEmirModu === true
+            ? yuklenenPozisyonlar
+            : yuklenenPozisyonlar.filter(pos => pos?.sanal !== false && pos?.liveShadowObservation === true);
+        h.state.manualCloseLocks = veri.manualCloseLocks && typeof veri.manualCloseLocks === 'object'
+            ? { ...veri.manualCloseLocks }
+            : {};
         h.state.sanalEmirSayaci = Number(veri.sanalEmirSayaci || h.state.sanalEmirSayaci || 1);
         h.state.gunlukLimitTarihi = veri.gunlukLimitTarihi || bugunAnahtari();
         h.state.gunlukAcilanEmirSayisi = Number(veri.gunlukAcilanEmirSayisi || 0);
@@ -118,7 +137,8 @@ function yukle() {
         listeleriYenidenKur();
         const karantinaSayisi = restartGap.markLoadedPositions(h.state.aktifPozisyonlar);
 
-        console.log(`💾 [KALICI HAFIZA] ${h.state.aktifPozisyonlar.length} sanal pozisyon geri yüklendi. Günlük emir: ${h.state.gunlukAcilanEmirSayisi}/${ayarlar.gunlukMaxYeniEmir || '∞'}`);
+        const hafizaTuru = ayarlar.sanalEmirModu === true ? 'sanal pozisyon' : 'canlı Shadow/GAP gözlem';
+        console.log(`💾 [KALICI HAFIZA] ${h.state.aktifPozisyonlar.length} ${hafizaTuru} geri yüklendi. Günlük gerçek emir: ${h.state.gunlukAcilanEmirSayisi}/${ayarlar.gunlukMaxYeniEmir || '∞'}`);
         if (karantinaSayisi > 0) {
             console.log(`🛡️ [RESTART GAP] ${karantinaSayisi} aktif pozisyon öğrenme karantinasına alındı; muhasebe korunacak.`);
         }
@@ -140,19 +160,25 @@ function acikPozisyonVarMi(sym, yon = null) {
     return (h.state.aktifPozisyonlar || []).some(pos => pos.sym === sym && (!yon || pos.yon === yon));
 }
 
-function emirAcilabilirMi(sym, yon) {
+function emirAcilabilirMi(sym, yon, options = {}) {
     gunlukLimitSifirlaGerekiyorsa();
 
     if (acikPozisyonVarMi(sym)) {
         return { uygun: false, sebep: `${sym} için zaten aktif pozisyon var` };
     }
 
-    const gunlukMax = ayarlar.gunlukMaxYeniEmir || 0;
+    const gunlukMax = options.ignoreDailyLimit === true ? 0 : (ayarlar.gunlukMaxYeniEmir || 0);
     if (gunlukMax > 0 && (h.state.gunlukAcilanEmirSayisi || 0) >= gunlukMax) {
         return { uygun: false, sebep: `Günlük emir limiti doldu: ${h.state.gunlukAcilanEmirSayisi}/${gunlukMax}` };
     }
 
-    const maxPozisyon = ayarlar.maxPozisyonSayisi || 1;
+    const configuredMax = Number(options.maxPozisyonSayisi);
+    const liveSeparatedMax = ayarlar.sanalEmirModu === false && ayarlar.canliShadowOgrenmeAktif === true
+        ? Math.max(Number(ayarlar.maxPozisyonSayisi || 100), Number(ayarlar.canliShadowMaksAktifGozlem || 200) + Math.max(1, Number(ayarlar.gercekEmirMaxAktifPozisyon || 1)))
+        : Number(ayarlar.maxPozisyonSayisi || 1);
+    const maxPozisyon = Number.isInteger(configuredMax) && configuredMax > 0
+        ? configuredMax
+        : liveSeparatedMax;
     if ((h.state.aktifPozisyonlar || []).length >= maxPozisyon) {
         return { uygun: false, sebep: `Maksimum pozisyon dolu: ${h.state.aktifPozisyonlar.length}/${maxPozisyon}` };
     }

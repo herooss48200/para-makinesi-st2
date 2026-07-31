@@ -77,9 +77,15 @@ function isRestartGap(pos = {}) {
 }
 
 function isPremier(pos = {}) {
+  const decision = pos.labPremierDecision || {};
+  const observation = pos.labPremierObservation || pos.premierObservation || {};
+  const track = String(decision.premierTrack || observation.premierTrack || pos.premierTrackAtOpen || '').toUpperCase();
+  const shadowOnly = pos.liveShadowObservation === true || pos.leagueShadowOnly === true || decision.virtualShadowOnly === true;
+  if (shadowOnly || track.includes('REVERSE') || track.includes('BOTTOM') || track === 'PREMIER_SCORE_SHADOW') return false;
   return Boolean(
-    pos.labPremierDecision?.upperLayerIncluded === true ||
-    pos.labPremierObservation?.upperLayerIncluded === true
+    decision.upperLayerIncluded === true || observation.upperLayerIncluded === true ||
+    pos.renkoPremierDecision?.premier === true || track === 'PREMIER_SCORE_RANKED' ||
+    String(pos?.girisAnalizi?.historicalExecutionModeAtSignal || '').toUpperCase() === 'PREMIER'
   );
 }
 
@@ -89,8 +95,12 @@ function activeBreakdown(activePositions = h.state.aktifPozisyonlar || []) {
   const virtualPositions = list.filter(pos => pos?.sanal !== false);
   const restartGapPositions = virtualPositions.filter(isRestartGap);
   const cleanVirtual = virtualPositions.filter(pos => !isRestartGap(pos));
-  const premierPositions = cleanVirtual.filter(isPremier);
-  const shadowPositions = cleanVirtual.filter(pos => !isPremier(pos));
+  const realPremierPositions = realPositions.filter(isPremier);
+  const realShadowPositions = realPositions.filter(pos => !isPremier(pos));
+  const virtualPremierPositions = cleanVirtual.filter(isPremier);
+  const virtualShadowPositions = cleanVirtual.filter(pos => !isPremier(pos));
+  const premierPositions = [...realPremierPositions, ...virtualPremierPositions];
+  const shadowPositions = [...realShadowPositions, ...virtualShadowPositions];
 
   return {
     total: list.length,
@@ -99,6 +109,10 @@ function activeBreakdown(activePositions = h.state.aktifPozisyonlar || []) {
     shadow: shadowPositions.length,
     restartGap: restartGapPositions.length,
     realPositions,
+    realPremierPositions,
+    realShadowPositions,
+    virtualPremierPositions,
+    virtualShadowPositions,
     premierPositions,
     shadowPositions,
     restartGapPositions

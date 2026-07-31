@@ -6,7 +6,7 @@
 const ayarlar = require('./ayarlar.js');
 const premierQuality = require('./83_st2_premier_quality_score.js');
 
-const VERSION = 'v6.9.0-FINAL-PREMIER-SCORE-REPLAY-SEPARATION';
+const VERSION = 'v6.10.3-EXECUTION-LEARNING-REPORT-RECONCILIATION';
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function html(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function signed(v, digits = 4) { const x = n(v); return `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`; }
@@ -61,10 +61,14 @@ function takeoverReplayEvidence(pos) {
   const a = pos?.renkoExitAssignment || {};
   const samples = n(a.profileSamples);
   const source = a.takeoverSource || 'SAFE_DEFAULT';
+  const active = pos?.renkoExitActivated === true || String(a.status || '').toUpperCase() === 'ACTIVE';
+  const assigned = samples > 0;
   return {
-    samples, confidence: n(a.profileConfidence), source,
-    status: samples > 0 ? 'TAKEOVER REPLAY AKTİF' : 'TAKEOVER REPLAY N0 / SAFE DEFAULT',
-    reason: samples > 0 ? (source === 'ONLINE_LEARNED_PROFILE' ? 'TAKEOVER_REPLAY_LEARNED_PROFILE' : source) : 'TAKEOVER_REPLAY_N0_SAFE_DEFAULT',
+    samples, confidence: n(a.profileConfidence), source, active, assigned,
+    status: active
+      ? 'TAKEOVER AKTİF / ATR KÂR TAKİBİ DEVREDE'
+      : (assigned ? 'TAKEOVER PROFİLİ ATANDI / EŞİK BEKLENİYOR' : 'TAKEOVER REPLAY N0 / SAFE DEFAULT'),
+    reason: assigned ? (source === 'ONLINE_LEARNED_PROFILE' ? 'TAKEOVER_REPLAY_LEARNED_PROFILE' : source) : 'TAKEOVER_REPLAY_N0_SAFE_DEFAULT',
     takeoverPct: n(a.assignedTakeoverPct, NaN), atrMultiplier: n(a.assignedAtrMultiplier, NaN),
     captureRatio: n(a.assignedCaptureRatio, NaN), safeFloorPct: n(a.assignedSafeFloorPct, NaN)
   };
@@ -92,13 +96,33 @@ function openingText(pos, options = {}) {
   const ga = pos?.girisAnalizi || {}; const p = plan(pos); const ctx = contextLines(pos);
   const entry = entryEvidence(pos); const exit = exitEvidence(pos); const takeover = takeoverReplayEvidence(pos); const quality = premierScoreEvidence(pos);
   const brick = n(pos?.renkoPremierDecision?.activeBrick, n(ga.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)));
-  const learned = Math.abs(brick - n(ayarlar.renkoGirisVarsayilanTugla, 0.75)) > 1e-9;
-  const league = pos?.labPremierDecision?.upperLayerIncluded === true ? 'PREMIER' : 'SHADOW';
+  const sourceText = entrySource(pos);
+  const learned = entry.samples > 0 && !/VARSAYILAN|GÜVENLİ|SAFE_DEFAULT|KANITI_YOK|N0/i.test(`${sourceText}|${entry.reason}`);
+  const scorePremier = pos?.renkoPremierDecision?.premier === true || String(pos?.premierTrackAtOpen || pos?.labPremierDecision?.premierTrack || '').toUpperCase() === 'PREMIER_SCORE_RANKED';
+  const league = pos?.liveShadowObservation === true || pos?.leagueShadowOnly === true ? 'SHADOW ÖĞRENME' : (scorePremier ? 'PREMIER' : 'SHADOW');
   const transition = pos?.labPremierDecision?.scoreTransition || null;
   const transitionText = transition ? `${transition.from} → ${transition.to}${transition.changed ? ' (DEĞİŞTİ)' : ' (KORUNDU)'}` : 'İLK SCORE KARARI';
   const mode = options.real === true ? 'GERÇEK' : 'SANAL';
+  const leagueIcon = league === 'PREMIER' ? '🏆' : '👻';
+  const execution = pos?.gercekEmirYurutme || {};
+  const entryOrder = execution?.entryOrder || pos?.girisEmriCevabi || {};
+  const protections = execution?.protections || {};
+  const stop = protections?.stop || {};
+  const takeProfit = protections?.takeProfit || {};
+  const actualQty = n(pos?.miktar, n(entryOrder?.executedQty));
+  const actualPrice = n(pos?.girisFiyati, n(entryOrder?.avgPrice));
+  const actualNotional = actualQty * actualPrice;
+  const protectionReady = options.real === true && stop && takeProfit
+    && (stop.algoId || stop.clientAlgoId) && (takeProfit.algoId || takeProfit.clientAlgoId);
+  const realProtectionBlock = options.real === true
+    ? `\n\n🛡️ <b>BİNANCE KORUMA ${protectionReady ? 'DOĞRULANDI' : 'KANITI EKSİK'}</b>\n` +
+      `${entryOrder?.status === 'FILLED' || actualQty > 0 ? '✅' : '⚠️'} Giriş ${html(entryOrder?.status || 'FILL MUTABAKATI')} | Qty ${actualQty || 'YOK'} | Ort. ${price(actualPrice, digits)}\n` +
+      `${stop?.algoId || stop?.clientAlgoId ? '✅' : '⚠️'} STOP_MARKET ${stop?.algoId || stop?.clientAlgoId ? 'aktif' : 'kanıtsız'} | ${price(stop?.triggerPrice, digits)} | ${html(stop?.algoId || stop?.clientAlgoId || 'ID YOK')}\n` +
+      `${takeProfit?.algoId || takeProfit?.clientAlgoId ? '✅' : '⚠️'} TAKE_PROFIT_MARKET ${takeProfit?.algoId || takeProfit?.clientAlgoId ? 'aktif' : 'kanıtsız'} | ${price(takeProfit?.triggerPrice, digits)} | ${html(takeProfit?.algoId || takeProfit?.clientAlgoId || 'ID YOK')}\n` +
+      `${protectionReady ? '✅' : '⚠️'} Koruma durumu: ${protectionReady ? 'SL_TP_ACTIVE' : 'DOĞRULAMA BEKLENİYOR'} | Gerçek notional ${actualNotional > 0 ? actualNotional.toFixed(4) : 'YOK'} USDT`
+    : '';
   return `🚀 <b>ST2 ${mode} POZİSYON AÇILDI</b>\n\n` +
-    `🔀 <b>${html(pos?.sym)} ${html(pos?.yon)}</b> | 🏆 <b>${league}</b>\n` +
+    `🔀 <b>${html(pos?.sym)} ${html(pos?.yon)}</b> | ${leagueIcon} <b>${league}</b>\n` +
     `🪪 ${html(pos?.dnaLabel || 'DNA #YOK')} | ${html(pos?.labDnaLabel || 'LAB #YOK')} | ${html(pos?.fullDnaLabel || 'FULL #YOK')}\n` +
     `⭐ Premier Score: <b>${quality.score.toFixed(1)}/${quality.threshold.toFixed(1)}</b> | Sıra #${quality.rank}/${quality.cohortSize}\n` +
     `🔄 Score geçişi: ${html(transitionText)}\n` +
@@ -119,7 +143,8 @@ function openingText(pos, options = {}) {
     `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\n` +
     `Başlangıç SL ${price(pos?.sl, digits)} (-%${p.stopPct.toFixed(2)}) | Güvenlik TP ${price(pos?.tp, digits)} | K0 → BE +%${p.beTriggerPct.toFixed(2)}\n` +
     `🔒 <b>SABİTLENENLER</b>: Giriş, başlangıç risk profili ve atanan replay profilleri kapanana kadar değişmez.\n` +
-    `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: MFE zirvesi, ATR/MFE koruması ve gerçekleşen kapanış fiyatı.`;
+    `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: MFE zirvesi, ATR/MFE koruması ve gerçekleşen kapanış fiyatı.` +
+    realProtectionBlock;
 }
 function timelineSummary(pos, digits = 6) {
   const events = Array.isArray(pos?.renkoProtectionTimeline) ? pos.renkoProtectionTimeline : [];
@@ -158,6 +183,7 @@ function closingText(pos, ctx = {}) {
     `📈 <b>FİYAT YOLU VE KORUMA</b>\nMFE ${pct(mfe, 3)} | MAE ${pct(mae, 3)} | Yakalanan ${pct(move, 3)} | MFE Capture: %${capture.toFixed(1)} | Giveback %${giveback.toFixed(1)}\n\n` +
     `${replayBlock}\n\n` +
     `🏁 <b>KAPANIŞ</b>\nSonuç <b>${html(resultLabel(ctx.outcome))}</b> | Neden ${html(ctx.reason || 'YOK')}\n` +
-    `Brüt ${signed(ctx.grossPnl)} | Komisyon -${Math.abs(n(ctx.commission)).toFixed(4)} | Net <b>${signed(ctx.netPnl)} USDT</b>${ctx.shadowOnly ? ' | 👻 Üst kasa dışı' : ''}`;
+    `Brüt ${signed(ctx.grossPnl)} | Komisyon -${Math.abs(n(ctx.commission)).toFixed(4)} | Net <b>${signed(ctx.netPnl)} USDT</b>${ctx.shadowOnly ? ' | 👻 Üst kasa dışı' : ''}` +
+    (ctx.accountingExact ? `\nGiriş komisyonu ${Math.abs(n(ctx.entryCommission)).toFixed(6)} | Çıkış komisyonu ${Math.abs(n(ctx.exitCommission)).toFixed(6)} | Muhasebe TAM` : '');
 }
 module.exports = { VERSION, n, plan, entrySource, entryEvidence, exitEvidence, takeoverReplayEvidence, premierScoreEvidence, openingText, timelineSummary, closingText };

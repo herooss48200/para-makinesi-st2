@@ -1,0 +1,70 @@
+AGROS ST2 v6.10.3 — TEST RESULT
+================================
+Source base : 500e8a3 (v6.10.2-LIVE-PROTECTION-RECOVERY)
+Target      : 6.10.3-MANUAL-CLOSE-LOCK-SAFE-TRAILING
+Test date   : 2026-07-31
+
+RESULT: PASS
+
+Executed regression chain
+-------------------------
+Command:
+  NODE_OPTIONS='--require=/tmp/agros_external_stubs.js' npm test
+
+Passed steps (17/17):
+  1. test:syntax — 116 JavaScript files
+  2. test:v672 — single-delivery Telegram + safe adaptive exit
+  3. test:v673 — persistent LAB lifecycle
+  4. test:v674 — Telegram startup delivery
+  5. test:v681 — live report reconciliation
+  6. test:v682 — operation transparency
+  7. test:v683 — minimal Telegram operations
+  8. test:v684 — operation proof Telegram
+  9. test:v690 — Premier Score + 200 coin + replay separation
+ 10. test:v691 — walk-forward calibration
+ 11. test:v692 — fast Premier calibration
+ 12. test:v693 — live compatibility
+ 13. test:v694 — configurable live risk
+ 14. test:v610 — real order execution safety
+ 15. test:v6101 — Binance endpoint authority
+ 16. test:v6102 — live protection recovery + exact rollback accounting
+ 17. test:v6103 — manual-close rearm lock + safe single-stop trailing + exact commissions + real/Shadow separation + Telegram reconciliation
+
+v6.10.3 proof coverage
+----------------------
+PASS — Manual/external close creates persistent MANUAL_EXTERNAL_CLOSE_REARM_REQUIRED global block.
+PASS — A second real entry reservation is rejected after manual close.
+PASS — Invalid/typo ARM does not clear the manual block.
+PASS — Explicit ARM=DISABLED and ACK=DISABLED startup with no exchange position clears the rearm block.
+PASS — Binance single-closePosition-stop rejection uses cancel/verify/create fallback.
+PASS — New stop is verified and exactly one stop remains active.
+PASS — Failed new stop restores the previous stop; failed restoration triggers emergency close + global block.
+PASS — Same failed stop candidate has 60-second retry cooldown/log dedupe.
+PASS — Exact accounting separates entry commission, exit commission, total commission, gross PNL and net PNL.
+PASS — Closed execution records use protectionStage=CLOSED.
+PASS — Real Score-Premier and live Shadow counters are separated.
+PASS — Real max-active-position=1 does not stop live Shadow learning.
+PASS — Live Shadow sends no Binance order, does not consume real daily count, is capped at 200 and one position per symbol.
+PASS — Live Shadow state persists; restart-loaded observations are placed in Restart-GAP scientific quarantine.
+PASS — Entry N0 is reported as safe/default, not learned.
+PASS — Exit fallback no longer says “Giriş kanıtlı” when Entry Replay is N0.
+PASS — Takeover assigned/waiting and genuinely active states are distinct.
+PASS — Takeover N>0 with unclassified wins/losses no longer prints misleading ✅0 ❌0 ⚖️0.
+PASS — Real opening Telegram includes fill, notional, STOP/TP Algo proof and SL_TP_ACTIVE status.
+PASS — git diff --check passed.
+PASS — Patch ZIP was overlaid onto a fresh 500e8a3 source extraction; the complete 17/17 regression chain passed again.
+
+Dependency-install note
+-----------------------
+A normal npm ci could not be completed in this isolated build environment because its configured npm mirror returned HTTP 404 for ws-7.5.11.tgz. No node_modules directory is included in the patch.
+
+To execute the project regression chain without downloading external packages, the test run preloaded narrow stubs only for dotenv, binance-api-node, axios and technicalindicators. The production source itself was not replaced by stubs.
+
+MANDATORY AWS GATE:
+  npm ci
+  npm test
+must both pass on the AWS host with the real project dependencies before any ARM/ACK authorization is restored.
+
+Safety scope
+------------
+Trade Engine entry/exit mathematics, stop percentages, BE thresholds, Entry Evolution, Exit Evolution and Takeover profile mathematics were not intentionally changed. The patch changes execution safety, observation routing, persistence and reporting reconciliation.

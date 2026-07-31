@@ -331,21 +331,23 @@ function applyLabReview(result = {}, review = null) {
 
 function componentText(result = {}) {
   const c = result.components || {};
-  return `PF ${n(c.historicalPf).toFixed(1)} | Exp ${n(c.historicalExpectancy).toFixed(1)} | Canlı ${n(c.liveForm).toFixed(1)} | Entry ${n(c.entryEvolution).toFixed(1)} | Takeover ${n(c.takeoverReplay).toFixed(1)} | Örnek ${n(c.sampleConfidence).toFixed(1)}`;
+  return `Puanlar: PF ${n(c.historicalPf).toFixed(1)}/100 | Exp ${n(c.historicalExpectancy).toFixed(1)}/100 | Canlı ${n(c.liveForm).toFixed(1)}/100 | Entry ${n(c.entryEvolution).toFixed(1)}/100 | Takeover ${n(c.takeoverReplay).toFixed(1)}/100 | Örnek ${n(c.sampleConfidence).toFixed(1)}/100`;
 }
 
 function weightedComponentText(result = {}) {
   const c = result.components || {};
   const w = result.weights || activePolicy().weights;
   const names = { historicalPf: 'PF', historicalExpectancy: 'Exp', liveForm: 'Canlı', entryEvolution: 'Entry', takeoverReplay: 'Takeover', sampleConfidence: 'Örnek' };
-  return WEIGHT_KEYS.map(key => `${names[key]} ${n(c[key]).toFixed(1)}×%${n(w[key]).toFixed(0)}`).join(' | ');
+  return `Skor bileşenleri: ${WEIGHT_KEYS.map(key => `${names[key]} puanı ${n(c[key]).toFixed(1)}/100 × ağırlık %${n(w[key]).toFixed(0)}`).join(' | ')}`;
 }
 
 function metricText(metric = {}, options = {}) {
   const m = metricFromRaw(metric || {});
   const prefix = options.prefix ? `${options.prefix} ` : '';
   if (m.n <= 0) return `${prefix}N0`;
-  return `${prefix}N${m.n} | ✅${m.wins} ❌${m.losses} ⚖️${m.be} | PF ${m.pf >= 999 ? '999.00' : m.pf.toFixed(2)} | Exp ${m.expectancy >= 0 ? '+' : ''}${m.expectancy.toFixed(4)} | Net ${m.net >= 0 ? '+' : ''}${m.net.toFixed(4)}`;
+  const outcomesKnown = options.hideOutcomeCounts !== true && (m.wins + m.losses + m.be > 0 || m.n <= 0);
+  const outcomeText = outcomesKnown ? ` | ✅${m.wins} ❌${m.losses} ⚖️${m.be}` : '';
+  return `${prefix}N${m.n}${outcomeText} | PF ${m.pf >= 999 ? '999.00' : m.pf.toFixed(2)} | Exp ${m.expectancy >= 0 ? '+' : ''}${m.expectancy.toFixed(4)} | Net ${m.net >= 0 ? '+' : ''}${m.net.toFixed(4)}`;
 }
 
 module.exports = {

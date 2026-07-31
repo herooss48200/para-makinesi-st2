@@ -800,7 +800,7 @@ async function pusulariDenetleVeIslemAc() {
             continue;
         }
 
-        const emirIzni = kaliciHafiza.emirAcilabilirMi(sym, pusu.yon);
+        const emirIzni = kaliciHafiza.emirAcilabilirMi(sym, pusu.yon, !ayarlar.sanalEmirModu ? { ignoreDailyLimit: true } : {});
         if (!emirIzni.uygun) {
             console.log(`🛡️ [TETİK ENGELLENDİ] ${sym} ${pusu.yon} | ${emirIzni.sebep}`);
             if (emirIzni.sebep.includes('zaten aktif pozisyon')) delete h.state.pusuListesi[sym];
@@ -1167,6 +1167,9 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         commission: toplamKomisyon,
         netPnl: netKarZarar,
         shadowOnly: leagueShadowOnly,
+        accountingExact: gercekMuhasebe && hamGercekMuhasebe.accountingExact === true,
+        entryCommission: gercekMuhasebe ? Number(hamGercekMuhasebe.entryCommission || 0) : 0,
+        exitCommission: gercekMuhasebe ? Number(hamGercekMuhasebe.exitCommission || 0) : 0,
         replayValidation: exitReplayRecord?.shadowExitValidation || null,
         replayUnavailableReason
     }) +
@@ -1544,8 +1547,15 @@ async function izSurmeyiGuncelle() {
             const pendingStop = Number(pos.pendingRealStopPrice);
             const retry = await realExecution.replaceStopAtomic(pos, pendingStop, h.client);
             if (!retry.ok) {
-                console.error(`⏳ [GERÇEK STOP YENİDEN DENEME] ${pos.sym} ${pos.yon} | Eski koruma aktif | ${retry.reason}`);
-                realExecution.persistPosition(pos, 'REAL_STOP_RETRY_PENDING');
+                const now = Date.now();
+                const signature = `${retry.reason}|${pendingStop}`;
+                if (pos.realStopRetryLastLogSignature !== signature || now - Number(pos.realStopRetryLastLogAt || 0) >= 60_000) {
+                    const koruma = retry.emergencyClosed ? 'Pozisyon acil kapatıldı' : (retry.oldRestored ? 'Eski stop geri kuruldu' : 'Eski koruma aktif');
+                    console.error(`⏳ [GERÇEK STOP YENİDEN DENEME] ${pos.sym} ${pos.yon} | ${koruma} | ${retry.reason}`);
+                    pos.realStopRetryLastLogSignature = signature;
+                    pos.realStopRetryLastLogAt = now;
+                }
+                realExecution.persistPosition(pos, retry.globalBlocked ? 'REAL_STOP_RETRY_GLOBAL_BLOCK' : 'REAL_STOP_RETRY_PENDING');
                 continue;
             }
             const oldStop = Number(pos.sl);

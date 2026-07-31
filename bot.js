@@ -50,7 +50,8 @@ async function baslat() {
                     '🚀 AGROS ST2 BAŞLATILIYOR',
                     `🧩 Sürüm: ${versiyonBilgi.botSurumu}`,
                     `📡 İzlenen evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)}`,
-                    `💼 Korunan ${ayarlar.sanalEmirModu ? 'sanal' : 'gerçek'} pozisyon: ${h.state.aktifPozisyonlar.length}`,
+                    `💼 Korunan ${ayarlar.sanalEmirModu ? 'sanal' : 'gerçek'} pozisyon: ${ayarlar.sanalEmirModu ? h.state.aktifPozisyonlar.length : h.state.aktifPozisyonlar.filter(p => p?.sanal === false).length}`,
+                    ...(!ayarlar.sanalEmirModu ? [`🧪 Geri yüklenen Shadow/GAP: ${h.state.aktifPozisyonlar.filter(p => p?.sanal !== false).length}`] : []),
                     '⏳ Tarihsel veri ve Renko hazırlığı sürüyor; işlem defteri korunuyor.'
                 ].join('\n');
                 setImmediate(async () => {

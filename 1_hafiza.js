@@ -68,7 +68,8 @@ const state = {
     sanalEmirSayaci: 1,
     executionOzet: null,
     restartGapOzet: null,
-    accountingContinuity: null
+    accountingContinuity: null,
+    manualCloseLocks: {}
 };
 
 const TELEGRAM_CHAT_IDS = (process.env.AGROS_ST2_TELEGRAM_CHAT_ID || '').split(',').map(x => x.trim()).filter(Boolean);

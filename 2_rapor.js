@@ -146,15 +146,16 @@ function pozisyonKademe(p) {
 function anaPremierPozisyonuMu(p) {
     if (!p) return false;
     const karar = p.labPremierDecision || {};
-    const gozlem = p.labPremierObservation || {};
+    const gozlem = p.labPremierObservation || p.premierObservation || {};
     const track = String(karar.premierTrack || gozlem.premierTrack || p.premierTrackAtOpen || '').toUpperCase();
     const havuz = String(gozlem.observationPool || '').toUpperCase();
+    const shadowOnly = p.liveShadowObservation === true || p.leagueShadowOnly === true || karar.virtualShadowOnly === true;
 
-    if (track.includes('REVERSE') || track.includes('BOTTOM')) return false;
-    if (havuz && havuz !== 'PREMIER') return false;
+    if (shadowOnly || track.includes('REVERSE') || track.includes('BOTTOM') || track === 'PREMIER_SCORE_SHADOW') return false;
+    if (havuz && havuz !== 'PREMIER' && p.sanal !== false) return false;
     return Boolean(
-        karar.upperLayerIncluded === true ||
-        gozlem.upperLayerIncluded === true
+        karar.upperLayerIncluded === true || gozlem.upperLayerIncluded === true ||
+        p.renkoPremierDecision?.premier === true || track === 'PREMIER_SCORE_RANKED'
     );
 }
 
@@ -419,7 +420,7 @@ function minimalCanliRaporMetniOlustur() {
     const lines = [
         `📊 AGROS ST2 OPERASYON — ${require('./versiyon.js').botSurumu}`,
         `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
-        `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Premier ${premierAktifler.length} | Shadow ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
+        `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Score-Premier ${premierAktifler.length} | Shadow Öğrenme ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
         `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
         `📡 Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Tarama ${veriSagligi.taranan}/${veriSagligi.secilen} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
         `💰 Premier N${Number(aggregate.closed || 0)} | ✅${Number(aggregate.tp || 0)} ❌${Number(aggregate.sl || 0)} ⚖️${Number(aggregate.be || 0)} | Net ${sign(aggregate.net)} | PF ${pfMetni(aggregate.profitFactor)}`,
@@ -430,7 +431,7 @@ function minimalCanliRaporMetniOlustur() {
         `🧬 Takeover Replay Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Öğrenilmiş ${replayKatman.takeoverLearned} | Aktif ${replayKatman.takeoverActivated}/${replayKatman.takeoverAssigned}`
     ];
     if (sirali.length) {
-        lines.push('', `📦 AKTİF PREMIER (${sirali.length}/${premierAktifler.length})`);
+        lines.push('', `📦 AKTİF SCORE-PREMIER (${sirali.length}/${premierAktifler.length})`);
         lines.push(...sirali.map(pozisyonSatiri));
     }
     if (transitions.length) {

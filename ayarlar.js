@@ -14,7 +14,7 @@ const ayarlar = {
     // ========================================
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
-    // v6.10.2 LIVE SAFE: 2 USDT marjin x 5x = 10 USDT notional.
+    // v6.10.3 LIVE SAFE: 2 USDT marjin x 5x = 10 USDT notional; gerçek 1/1, Shadow öğrenme ayrı.
     // Sanal hesaplama ve raporlamada da aynı marjin tabanı kullanılır.
     calisilmakIstenenUsdtMiktar: 2,
     mevcutKaldirac: 5,
@@ -610,6 +610,11 @@ const ayarlar = {
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     gercekEmirMaxAktifPozisyon: 1,
+    // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
+    // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
+    canliShadowOgrenmeAktif: true,
+    canliShadowMaksAktifGozlem: 200,
+    canliShadowTelegramAcilisMesaji: false,
     gercekEmirKorumaEmirleriZorunlu: true,
     gercekEmirMaksNotionalSapmaYuzde: 2,
     gercekEmirAnaAgZorunlu: true,

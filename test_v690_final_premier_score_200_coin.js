@@ -51,7 +51,7 @@ const pos = {
 const open = operation.openingText(pos, { pricePrecision: 4 });
 for (const text of ['Premier Score', 'ENTRY REPLAY', 'EXIT REPLAY', 'TAKEOVER REPLAY', 'Exit replay kanıtı: FALLBACK | N0']) assert(open.includes(text), `açılış ayrımı eksik: ${text}`);
 const close = operation.closingText(pos, { title: 'KAPANDI', exitPrice: 1.02, pricePrecision: 4, reason: 'MFE KORUMA', outcome: 'TP', fiyatKarYuzdesi: 1, grossPnl: 0.5, commission: 0.05, netPnl: 0.45, replayUnavailableReason: 'EXIT_REPLAY_SELECTION_VALIDATION_NOT_AVAILABLE' });
-for (const text of ['ENTRY REPLAY', 'EXIT REPLAY', 'TAKEOVER REPLAY', 'EXIT_FALLBACK_N0', 'TAKEOVER REPLAY AKTİF', 'EXIT_REPLAY_SELECTION_VALIDATION_NOT_AVAILABLE']) assert(close.includes(text), `kapanış ayrımı eksik: ${text}`);
+for (const text of ['ENTRY REPLAY', 'EXIT REPLAY', 'TAKEOVER REPLAY', 'EXIT_FALLBACK_N0', 'TAKEOVER PROFİLİ ATANDI', 'EXIT_REPLAY_SELECTION_VALIDATION_NOT_AVAILABLE']) assert(close.includes(text), `kapanış ayrımı eksik: ${text}`);
 assert(open.length < 3400 && close.length < 3400, `Telegram güvenli sınır aşıldı: ${open.length}/${close.length}`);
 
 const reportSource = fs.readFileSync('2_rapor.js', 'utf8');

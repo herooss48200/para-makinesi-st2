@@ -520,12 +520,23 @@ function frozenExit(decision) {
   const ownExitReady = Boolean(decision.exitValidated !== false && exit?.positive && exit?.ownLabExit && exit?.algorithmId);
   const algorithmId = ownExitReady ? exit.algorithmId : 'ACTUAL';
   const assignmentId = `${decision.premierTrack}|${decision.labDnaLabel}|${decision.labKey}|${algorithmId}|${assignedAt}`;
-  if (!ownExitReady) return {
-    ready: false, algorithmId: 'ACTUAL', label: 'Mevcut Kademe Sistemi', scope: decision.premierTrack === TRACK.REVERSE ? 'LAB_REVERSE_PREMIER_FALLBACK' : ([TRACK.BOTTOM_LONG, TRACK.BOTTOM_SHORT].includes(decision.premierTrack) ? 'LAB_BOTTOM_PREMIER_FALLBACK' : 'LAB_PREMIER_ENTRY_PROVEN_FALLBACK'),
-    selectionQuality: 'ENTRY_PROVEN_EXIT_PENDING', executionPolicy: 'CURRENT_LADDER_FALLBACK', samples: 0, beatRate: 0,
-    profitFactor: 0, netUsdt: 0, reason: 'Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe',
-    activeForPosition: false, assignmentId, assignedAt, immutable: true, source: 'LAB_PREMIER_SAFE_FALLBACK'
-  };
+  if (!ownExitReady) {
+    const entryProven = decision?.entryProven === true;
+    const experimentalScope = decision.premierTrack === TRACK.REVERSE
+      ? 'LAB_REVERSE_PREMIER_FALLBACK'
+      : ([TRACK.BOTTOM_LONG, TRACK.BOTTOM_SHORT].includes(decision.premierTrack) ? 'LAB_BOTTOM_PREMIER_FALLBACK' : null);
+    return {
+      ready: false, algorithmId: 'ACTUAL', label: 'Mevcut Kademe Sistemi',
+      scope: experimentalScope || (entryProven ? 'LAB_PREMIER_ENTRY_PROVEN_FALLBACK' : 'PREMIER_SCORE_EXIT_FALLBACK'),
+      selectionQuality: entryProven ? 'ENTRY_PROVEN_EXIT_PENDING' : 'ENTRY_REPLAY_N0_EXIT_PENDING',
+      executionPolicy: 'CURRENT_LADDER_FALLBACK', samples: 0, beatRate: 0,
+      profitFactor: 0, netUsdt: 0,
+      reason: entryProven
+        ? 'Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'
+        : 'Entry Replay kanıtı yok; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe',
+      activeForPosition: false, assignmentId, assignedAt, immutable: true, source: 'LAB_PREMIER_SAFE_FALLBACK'
+    };
+  }
   return {
     ready: true, algorithmId: exit.algorithmId, label: exit.algorithmLabel, scope: decision.premierTrack === TRACK.REVERSE ? 'LAB_REVERSE_PREMIER_OWN_EXIT' : ([TRACK.BOTTOM_LONG, TRACK.BOTTOM_SHORT].includes(decision.premierTrack) ? 'LAB_BOTTOM_PREMIER_OWN_EXIT' : 'LAB_PREMIER_OWN_EXIT'),
     selectionQuality: 'POSITIVE_CONFIRMED', executionPolicy: 'LAB_PREMIER_VALIDATED_OWN_EXIT_VIRTUAL_ACTIVE',

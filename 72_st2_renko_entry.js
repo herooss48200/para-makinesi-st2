@@ -76,7 +76,7 @@ function pusuSkorAciklama(gateOzeti = {}) {
         `📚 ${premierQuality.metricText(evidence.historical, { prefix: 'Tarihsel' })}`,
         `🕔 ${last5 ? premierQuality.metricText(last5, { prefix: 'Son 5' }) : 'Son 5 N0'}`,
         `🚪 ${premierQuality.metricText(evidence.entry, { prefix: 'Entry' })}`,
-        `🧬 ${premierQuality.metricText(evidence.takeover, { prefix: 'Takeover' })}`,
+        `🧬 ${premierQuality.metricText(evidence.takeover, { prefix: 'Takeover', hideOutcomeCounts: true })}`,
         `⚙️ Model ${model}${q.calibrationGeneratedAt ? ` | Kalibrasyon ${q.calibrationGeneratedAt}` : ''}`
     ];
     return lines.join('\n');

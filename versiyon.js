@@ -1,13 +1,13 @@
 'use strict';
 // Compatibility marker: CALIBRATION-READY; gerçek emir için aktif kalibrasyon ayrıca zorunludur.
-// v6.10.2: ayar tabanlı 2 USDT marjin / 5x / 1 pozisyon + Algo doğrulama ve rollback global block.
+// v6.10.3: manuel kapanış rearm kilidi + güvenli trailing stop değişimi + gerçek/Shadow ayrımı.
 
 // v6.8.4 compatibility marker: 6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ST2-RENKO-LIVE-PROTECTION-RECOVERY',
-    kod: 'AGROS ST2 v6.10.2 — LIVE PROTECTION RECOVERY',
-    botSurumu: '6.10.2-LIVE-PROTECTION-RECOVERY',
+    kodAdi: 'ST2-RENKO-MANUAL-LOCK-SAFE-TRAILING',
+    kod: 'AGROS ST2 v6.10.3 — MANUAL CLOSE LOCK & SAFE TRAILING',
+    botSurumu: '6.10.3-MANUAL-CLOSE-LOCK-SAFE-TRAILING',
     stratejiSurumu: '1.0.28',
     yayinTarihi: '31.07.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })

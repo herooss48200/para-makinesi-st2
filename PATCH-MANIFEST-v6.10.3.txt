@@ -1,0 +1,28 @@
+AGROS ST2 v6.10.3 — CHANGED/REQUIRED FILES ONLY
+
+1_hafiza.js
+2_rapor.js
+3_piyasa.js
+4_pozisyon.js
+5_kalici_hafiza.js
+62_lab_premier_league.js
+65_accounting_continuity.js
+72_st2_renko_entry.js
+82_st2_operation_transparency.js
+83_st2_premier_quality_score.js
+85_st2_real_order_execution.js
+ayarlar.js
+bot.js
+motor.js
+versiyon.js
+package.json
+package-lock.json
+test_v690_final_premier_score_200_coin.js
+test_v6103_manual_close_shadow_safe_trailing.js
+CHANGELOG-v6.10.3.md
+AWS-ST2-v6.10.3.md
+TEST-RESULT-v6.10.3.txt
+PATCH-MANIFEST-v6.10.3.txt
+SHA256SUMS-v6.10.3.txt
+
+EXCLUDED: .env, data/, state, ledger, logs, logs-st2/, node_modules/, .git/, temporary files.

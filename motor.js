@@ -210,6 +210,60 @@ function aktifGercekPozisyonSayisi() {
     return (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false).length;
 }
 
+function canliShadowMaksAktif() {
+    const value = Number(ayarlar.canliShadowMaksAktifGozlem || 200);
+    return Number.isInteger(value) && value > 0 ? value : 200;
+}
+
+function aktifCanliShadowGozlemSayisi() {
+    return (h.state.aktifPozisyonlar || []).filter(pos => pos?.liveShadowObservation === true).length;
+}
+
+function canliToplamPozisyonKapasitesi() {
+    return Math.max(Number(ayarlar.maxPozisyonSayisi || 100), canliShadowMaksAktif() + Math.max(1, Number(canliRiskProfili().maxActivePositions || 1)));
+}
+
+async function canliShadowOgrenmeAc({ symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi, hazirKimlik, reason }) {
+    if (ayarlar.canliShadowOgrenmeAktif !== true) {
+        console.log(`🚫 [CANLI SHADOW KAPALI] ${symbol} ${yon} | ${reason}`);
+        return false;
+    }
+    const active = aktifCanliShadowGozlemSayisi();
+    const max = canliShadowMaksAktif();
+    if (active >= max) {
+        console.log(`🚫 [CANLI SHADOW LİMİTİ] ${symbol} ${yon} | ${active}/${max}`);
+        return false;
+    }
+    const scoreSelectedAtSignal = hazirKimlik?.renkoPremierDecision?.premier === true
+        || hazirKimlik?.labPremierDecision?.premierScore?.selected === true;
+    const shadowIdentity = {
+        ...(hazirKimlik || {}),
+        sanal: true,
+        liveShadowObservation: true,
+        liveShadowReason: reason,
+        scoreSelectedAtSignal,
+        virtualAccountIncluded: false,
+        leagueShadowOnly: true,
+        realOrderReadiness: {
+            ...(hazirKimlik?.realOrderReadiness || {}),
+            allowed: false,
+            executionMode: 'LIVE_SHADOW_OBSERVATION',
+            reasons: [reason]
+        },
+        labPremierDecision: {
+            ...(hazirKimlik?.labPremierDecision || {}),
+            upperLayerIncluded: false,
+            virtualShadowOnly: true,
+            observationEligible: true,
+            realTradingAuthorized: false,
+            executionDeferredReason: reason,
+            scoreSelectedAtSignal
+        }
+    };
+    console.log(`👻 [CANLI SHADOW ÖĞRENME] ${symbol} ${yon} | Binance emri yok | Neden ${reason} | Aktif ${active + 1}/${max}`);
+    return m.sanalPozisyonKaydet(symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi, shadowIdentity);
+}
+
 function gercekSembolKuraliGecerli(kural) {
     if (!kural || typeof kural !== 'object') return false;
     const stepSize = Number(kural.stepSize);
@@ -316,12 +370,13 @@ const m = {
     },
 
     sanalPozisyonKaydet: async (symbol, yon, canliFiyat, guvenliMiktar, sl, tp, pPrecision, girisAnalizi = null, hazirKimlik = null) => {
+        const liveShadow = hazirKimlik?.liveShadowObservation === true;
         const manualLockUntil = Number(h.state.manualCloseLocks?.[`${symbol}|${yon}`] || 0);
-        if (manualLockUntil > Date.now()) {
+        if (!liveShadow && manualLockUntil > Date.now()) {
             console.log(`🖐️ [MANUEL KAPANIŞ KİLİDİ] ${symbol} ${yon} | ${new Date(manualLockUntil).toISOString()} tarihine kadar yeniden giriş yok`);
             return false;
         }
-        const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
+        const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon, liveShadow ? { maxPozisyonSayisi: canliToplamPozisyonKapasitesi(), ignoreDailyLimit: true } : {});
         if (!izin.uygun) {
             console.log(`🛡️ [SANAL EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
             return false;
@@ -368,6 +423,13 @@ const m = {
         // Snapshot/kimlik eksikse anonim pozisyon hiçbir zaman aktif state'e giremez.
         identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
         identityChain.assertPrepared(yeniPozisyon);
+        if (liveShadow) {
+            yeniPozisyon.liveShadowObservation = true;
+            yeniPozisyon.liveShadowReason = hazirKimlik?.liveShadowReason || 'LIVE_SHADOW';
+            yeniPozisyon.scoreSelectedAtSignal = hazirKimlik?.scoreSelectedAtSignal === true;
+            yeniPozisyon.leagueShadowOnly = true;
+            yeniPozisyon.virtualAccountIncluded = false;
+        }
 
         h.state.aktifPozisyonlar.push(yeniPozisyon);
         if (yon === 'LONG') h.state.alinanlar.push(symbol);
@@ -380,6 +442,18 @@ const m = {
         let labKarar = labPremier.applyToPosition(yeniPozisyon, yeniPozisyon.labPremierDecision);
         // Kalibre edilmiş ST2 Premier kararı sanal ve gerçek yol için tek fonksiyonda dondurulur.
         labKarar = st2PremierScoreBagla(yeniPozisyon, girisAnalizi, symbol, yon);
+        if (liveShadow) {
+            labKarar = {
+                ...(labKarar || {}), upperLayerIncluded: false, virtualShadowOnly: true,
+                observationEligible: true, realTradingAuthorized: false,
+                executionDeferredReason: hazirKimlik?.liveShadowReason || 'LIVE_SHADOW',
+                scoreSelectedAtSignal: hazirKimlik?.scoreSelectedAtSignal === true
+            };
+            yeniPozisyon.labPremierDecision = labKarar;
+            yeniPozisyon.leagueShadowOnly = true;
+            yeniPozisyon.virtualAccountIncluded = false;
+            yeniPozisyon.liveShadowObservation = true;
+        }
         console.log(`[LAB LİG KAPISI] ${labKarar?.upperLayerIncluded ? '🏆 [LAB PREMIER SANAL İŞLEM]' : '👻 [LAB GÖLGE ÖĞRENME]'} ${symbol} ${yon} | ${labKarar?.labDnaLabel || 'LAB #YOK'} | Family ${labKarar?.familyDnaLabel || 'DNA #YOK'} | Lig ${labKarar?.labLeague || 'DEVELOPMENT'} | Exit ${labKarar?.exit?.algorithmLabel || karar.exit?.label || 'Mevcut Kademe Sistemi'}`);
         // Eski Family Premier gözlemi yeni pozisyonlarda üst katman değildir; yalnız açık eski pozisyonların kapanış uyumu korunur.
         try { if (ayarlar.familyLeagueEmirYetkisiAktif === true) premierObservation.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] PREMIER_OBSERVATION_ERROR ${symbol} ${yon} | ${e.message}`); }
@@ -435,7 +509,8 @@ const m = {
               (girisAnalizi.sniperDebug ? `\n\n${girisAnalizi.sniperDebug}` : '')
             : '';
 
-        const telegramGonderildi = ayarlar.telegramIslemAcilisMesaji === true ? await h.telegramMesajGonder(
+        const shadowTelegramAllowed = !liveShadow || ayarlar.canliShadowTelegramAcilisMesaji === true;
+        const telegramGonderildi = ayarlar.telegramIslemAcilisMesaji === true && shadowTelegramAllowed ? await h.telegramMesajGonder(
             operationTransparency.openingText(yeniPozisyon, { real: false, pricePrecision: pPrecision })
         ).then(() => true).catch(err => {
             console.log(`⚠️ [ENTRY AUX] TELEGRAM_ERROR ${symbol} ${yon} | ${err.message}`);
@@ -453,25 +528,16 @@ const m = {
     pozisyonAc: async (symbol, yon, canliFiyat, girisAnalizi = null) => {
         try {
             const manualLockUntil = Number(h.state.manualCloseLocks?.[`${symbol}|${yon}`] || 0);
-            if (manualLockUntil > Date.now()) {
+            const manualRealLock = !ayarlar.sanalEmirModu && manualLockUntil > Date.now();
+            if (ayarlar.sanalEmirModu && manualLockUntil > Date.now()) {
                 console.log(`🖐️ [MANUEL KAPANIŞ KİLİDİ] ${symbol} ${yon} | ${new Date(manualLockUntil).toISOString()} tarihine kadar yeniden giriş yok`);
                 return false;
             }
-            if (!ayarlar.sanalEmirModu) {
-                const risk = canliRiskProfili();
-                if (!(risk.notionalUsdt > 0)
-                    || !(Number.isInteger(risk.leverage) && risk.leverage >= 1 && risk.leverage <= 125)
-                    || !['ISOLATED', 'CROSSED'].includes(risk.marginType)
-                    || !(Number.isInteger(risk.maxActivePositions) && risk.maxActivePositions >= 0)) {
-                    console.log(`🚫 [GERÇEK RİSK AYARI FAIL-CLOSED] ${symbol} ${yon} | Notional ${risk.notionalUsdt} | Kaldıraç ${risk.leverage} | Marjin ${risk.marginType || 'YOK'} | Limit ${risk.maxActivePositions}`);
-                    return false;
-                }
-                if (risk.maxActivePositions === 0 || aktifGercekPozisyonSayisi() >= risk.maxActivePositions) {
-                    console.log(`🚫 [GERÇEK EMİR AKTİF POZİSYON LİMİTİ] ${symbol} ${yon} | ${aktifGercekPozisyonSayisi()}/${risk.maxActivePositions}`);
-                    return false;
-                }
-            }
-            const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon);
+            // Canlı modda gerçek risk slotu, kimlik/score üretiminden önce öğrenmeyi kesmez.
+            // Toplam bellek kapasitesi ayrı; gerçek 1/1 limiti yalnız Binance emrinden hemen önce uygulanır.
+            const izin = kaliciHafiza.emirAcilabilirMi(symbol, yon, !ayarlar.sanalEmirModu
+                ? { maxPozisyonSayisi: canliToplamPozisyonKapasitesi(), ignoreDailyLimit: true }
+                : {});
             if (!izin.uygun) {
                 console.log(`🛡️ [EMİR ENGELLENDİ] ${symbol} ${yon} | ${izin.sebep}`);
                 console.log(`⛔ [ENTRY_ABORT:${String(izin.sebep || 'EMIR_GATE').replace(/[^A-Z0-9_:-]/gi, '_').toUpperCase()}] ${symbol} ${yon}`);
@@ -579,14 +645,53 @@ const m = {
                     ...(ortakKarar.allowed ? [] : ortakKarar.reasons),
                     ...(!labGercekKarar?.realTradingAuthorized ? ['LAB_PREMIER_GERCEK_EMIR_YETKISI_KAPALI'] : [])
                 ];
-                premierObservation.blocked(ortakKarar.key, nedenler.join('|'), { symbol, side: yon });
-                console.log(`🚫 [GERÇEK EMİR FAIL-CLOSED] ${symbol} ${yon} | ${nedenler.join(', ')}`);
-                await h.telegramMesajGonder(realOrderBridge.telegramText({ ...ortakKarar, allowed: false, reasons: nedenler }));
-                return false;
+                const reason = nedenler.join('|') || 'REAL_ENTRY_NOT_AUTHORIZED';
+                premierObservation.blocked(ortakKarar.key, reason, { symbol, side: yon });
+                return canliShadowOgrenmeAc({
+                    symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                    girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik, reason
+                });
+            }
+
+            if (manualRealLock) {
+                return canliShadowOgrenmeAc({
+                    symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                    girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
+                    reason: `MANUAL_CLOSE_SYMBOL_LOCK:${new Date(manualLockUntil).toISOString()}`
+                });
+            }
+
+            const realDailyGate = kaliciHafiza.emirAcilabilirMi(symbol, islemYonu, {
+                maxPozisyonSayisi: canliToplamPozisyonKapasitesi(),
+                ignoreDailyLimit: false
+            });
+            if (!realDailyGate.uygun) {
+                return canliShadowOgrenmeAc({
+                    symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                    girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
+                    reason: `REAL_DAILY_OR_CAPACITY_GATE:${realDailyGate.sebep}`
+                });
             }
 
             const ligBoyutCarpani = Math.max(0.01, Math.min(1, Number(ortakKarar.sizeMultiplier || 1)));
             const risk = canliRiskProfili();
+            if (!(risk.notionalUsdt > 0)
+                || !(Number.isInteger(risk.leverage) && risk.leverage >= 1 && risk.leverage <= 125)
+                || !['ISOLATED', 'CROSSED'].includes(risk.marginType)
+                || !(Number.isInteger(risk.maxActivePositions) && risk.maxActivePositions >= 0)) {
+                return canliShadowOgrenmeAc({
+                    symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                    girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
+                    reason: 'GERCEK_RISK_AYARI_FAIL_CLOSED'
+                });
+            }
+            if (risk.maxActivePositions === 0 || aktifGercekPozisyonSayisi() >= risk.maxActivePositions) {
+                return canliShadowOgrenmeAc({
+                    symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                    girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
+                    reason: `GERCEK_POZISYON_SLOTU_DOLU:${aktifGercekPozisyonSayisi()}/${risk.maxActivePositions}`
+                });
+            }
             const hedefGercekNotional = risk.notionalUsdt * ligBoyutCarpani;
             const gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
             const gercekNotional = gercekMiktar * canliFiyat;
@@ -594,8 +699,11 @@ const m = {
             const maksNotionalSapmaYuzde = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde);
             if (!Number.isFinite(maksNotionalSapmaYuzde) || maksNotionalSapmaYuzde < 0 ||
                 !gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional || onEmirSapmaYuzde > maksNotionalSapmaYuzde) {
-                console.log(`🚫 [GERÇEK BOYUT FAIL-CLOSED] ${symbol} ${yon} | Hedef ${hedefGercekNotional.toFixed(2)} | Hesap ${gercekNotional.toFixed(4)} | Sapma %${onEmirSapmaYuzde.toFixed(3)} | Min ${minNotional}`);
-                return false;
+                return canliShadowOgrenmeAc({
+                    symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                    girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
+                    reason: `GERCEK_BOYUT_FAIL_CLOSED:${onEmirSapmaYuzde.toFixed(3)}`
+                });
             }
 
             const reservation = await realExecution.reserveEntry({
@@ -604,6 +712,14 @@ const m = {
             });
             if (!reservation.ok) {
                 console.log(`🚫 [GERÇEK EMİR KALICI KİLİT/PREFLIGHT] ${symbol} ${islemYonu} | ${reservation.reason}`);
+                const shadowEligible = /GLOBAL_BLOCK|AKTIF_POZISYON_LIMITI|YETKISI_YOK|YENI_GIRIS_DURDURULDU/.test(String(reservation.reason || ''));
+                if (shadowEligible) {
+                    return canliShadowOgrenmeAc({
+                        symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                        girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
+                        reason: `REAL_PREFLIGHT:${reservation.reason}`
+                    });
+                }
                 return false;
             }
 

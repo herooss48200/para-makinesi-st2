@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.10.2 — LIVE PROTECTION RECOVERY
+ * AGROS ST2 v6.10.3 — MANUAL CLOSE LOCK & SAFE TRAILING
  *
  * Gerçek emir katmanı için tek yürütme otoritesi:
  * - deterministik client order id / tekrar emir koruması
@@ -22,7 +22,7 @@ const h = require('./1_hafiza.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const VERSION = 'v6.10.2-LIVE-PROTECTION-RECOVERY';
+const VERSION = 'v6.10.3-MANUAL-CLOSE-LOCK-SAFE-TRAILING';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-real-order-execution-state.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -38,6 +38,7 @@ let processLockCleanupRegistered = false;
 const ACTIVE_STATUSES = new Set(['PENDING', 'SUBMITTED', 'OPEN', 'CLOSING', 'QUARANTINED']);
 const TERMINAL_ORDER_STATUSES = new Set(['FILLED', 'CANCELED', 'CANCELLED', 'REJECTED', 'EXPIRED', 'EXPIRED_IN_MATCH']);
 const ACTIVE_ALGO_STATUSES = new Set(['NEW', 'ACCEPTED', 'PENDING', 'WORKING', 'TRIGGERING']);
+const MANUAL_REARM_BLOCK = 'MANUAL_EXTERNAL_CLOSE_REARM_REQUIRED';
 
 function nowIso() { return new Date().toISOString(); }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -265,6 +266,40 @@ function stopRevisionClientId(symbol, side, fingerprint, stopPrice) {
   const sym = sanitize(symbol, 7);
   const dir = upper(side) === 'LONG' ? 'L' : 'S';
   return `${OWNED_PREFIX}S-${sym}-${dir}-${hash(`${fingerprint}|${Number(stopPrice).toPrecision(14)}`, 16)}`.slice(0, 36);
+}
+
+function stopRecoveryClientId(symbol, side, fingerprint, stopPrice) {
+  const sym = sanitize(symbol, 7);
+  const dir = upper(side) === 'LONG' ? 'L' : 'S';
+  return `${OWNED_PREFIX}R-${sym}-${dir}-${hash(`${fingerprint}|${Number(stopPrice).toPrecision(14)}|${Date.now()}`, 16)}`.slice(0, 36);
+}
+
+function accountingRecordFields(accounting = {}) {
+  return {
+    accountingExact: accounting?.accountingExact === true,
+    entryOrderId: positiveId(accounting?.entryOrderId),
+    closeOrderId: positiveId(accounting?.closeOrderId),
+    entryCommission: finite(accounting?.entryCommission, 0),
+    exitCommission: finite(accounting?.exitCommission, 0),
+    totalCommission: finite(accounting?.commission, 0),
+    realizedPnl: finite(accounting?.realizedPnl, 0),
+    netPnl: finite(accounting?.netPnl, 0)
+  };
+}
+
+function applyStopProtection(pos, fingerprint, protection, reason) {
+  pos.gercekEmirYurutme ||= { fingerprint, ids: clientIds(pos.sym, pos.yon, fingerprint) };
+  pos.gercekEmirYurutme.protections ||= {};
+  pos.gercekEmirYurutme.protections.stop = protection;
+  delete pos.gercekEmirYurutme.redundantStops;
+  pos.korumaEmirleri = {
+    ...(pos.korumaEmirleri || {}),
+    slAlgoId: protection?.algoId || null,
+    slClientAlgoId: protection?.clientAlgoId || null
+  };
+  delete pos.pendingRealStopPrice;
+  delete pos.realStopReplaceRetry;
+  persistPosition(pos, reason);
 }
 
 async function allPositions(client = h.client) {
@@ -787,7 +822,7 @@ async function closePositionMarket(pos, reason = 'ENGINE_CLOSE', client = h.clie
       setGlobalBlock('KAPANIS_SONRASI_KORUMA_IPTAL_EDILEMEDI', { symbol, failed: cleanup.failed });
       return { ok: false, positionClosed: true, reason: 'KAPANIS_SONRASI_KORUMA_IPTAL_EDILEMEDI', ...accounting };
     }
-    saveRecord(fingerprint, { status: 'CLOSED', closeReason: reason, closedAt: nowIso(), accounting });
+    saveRecord(fingerprint, { status: 'CLOSED', closeReason: reason, closedAt: nowIso(), accounting, protectionStage: 'CLOSED', ...accountingRecordFields(accounting) });
     return { ok: true, alreadyClosed: true, ...accounting };
   }
   if (positionDirection(position) !== side) {
@@ -838,7 +873,7 @@ async function closePositionMarket(pos, reason = 'ENGINE_CLOSE', client = h.clie
     setGlobalBlock('KAPANIS_SONRASI_KORUMA_IPTAL_EDILEMEDI', { symbol, failed: cleanup.failed });
     return { ok: false, positionClosed: true, reason: 'KAPANIS_SONRASI_KORUMA_IPTAL_EDILEMEDI', order, ...accounting };
   }
-  saveRecord(fingerprint, { status: 'CLOSED', closeOrder: clone(order), closeReason: reason, closedAt: nowIso(), accounting });
+  saveRecord(fingerprint, { status: 'CLOSED', closeOrder: clone(order), closeReason: reason, closedAt: nowIso(), accounting, protectionStage: 'CLOSED', ...accountingRecordFields(accounting) });
   audit('POSITION_CLOSED_VERIFIED', { symbol, side, fingerprint, orderId: order?.orderId || null, reason, accounting });
   return { ok: true, order, ...accounting };
 }
@@ -932,14 +967,71 @@ async function replaceStopAtomic(pos, newStopPrice, client = h.client) {
   try { triggerPrice = normalizeTriggerPrice(symbol, side, newStopPrice); }
   catch (err) { return { ok: false, reason: `YENI_STOP_GECERSIZ:${err.message}` }; }
 
+  const retry = pos?.realStopReplaceRetry || null;
+  if (retry && Math.abs(finite(retry.triggerPrice, 0) - triggerPrice) < 1e-12 && finite(retry.nextAttemptAt, 0) > Date.now()) {
+    return { ok: false, reason: 'STOP_REPLACE_COOLDOWN', oldKept: true, retryAfterMs: retry.nextAttemptAt - Date.now() };
+  }
+
   const old = protectionsFromPosition(pos).stop;
+  const oldTrigger = finite(old?.triggerPrice, finite(pos?.sl, NaN));
+  if (old && Number.isFinite(oldTrigger) && Math.abs(oldTrigger - triggerPrice) < 1e-12) {
+    return { ok: true, protection: old, noOp: true, oldCanceled: false };
+  }
   const clientAlgoId = stopRevisionClientId(symbol, side, fingerprint, triggerPrice);
   let fresh;
   try {
+    // Tercih edilen yol: yeni stop doğrulandıktan sonra eskiyi iptal et. Binance hesabı
+    // aynı yönde iki closePosition stopuna izin veriyorsa koruma boşluğu oluşmaz.
     fresh = await createProtection({ symbol, side, type: 'STOP_MARKET', triggerPrice, clientAlgoId, client });
   } catch (err) {
-    audit('STOP_REPLACE_NEW_FAILED_OLD_KEPT', { symbol, fingerprint, error: err.message, oldAlgoId: old?.algoId || null });
-    return { ok: false, reason: err.message, oldKept: true };
+    const text = String(err?.message || err || '');
+    const singleClosePositionConstraint = /open stop or take profit order.*closeposition|closeposition.*existing/i.test(text);
+    if (!singleClosePositionConstraint || !old) {
+      pos.realStopReplaceRetry = { triggerPrice, attempts: finite(retry?.attempts, 0) + 1, lastAttemptAt: Date.now(), nextAttemptAt: Date.now() + 60_000, reason: text };
+      audit('STOP_REPLACE_NEW_FAILED_OLD_KEPT', { symbol, fingerprint, error: text, oldAlgoId: old?.algoId || null, cooldownMs: 60_000 });
+      return { ok: false, reason: text, oldKept: true, retryAfterMs: 60_000 };
+    }
+
+    // Binance tek closePosition stopuna izin vermediğinde kontrollü fallback:
+    // eski stopu doğrulayarak iptal et, yeniyi kur; yenisi kurulamazsa eski seviyeyi
+    // yeni kimlikle geri yükle. Geri yükleme de başarısızsa pozisyonu acil kapat.
+    const cancelOld = await cancelAlgoVerified(symbol, old, client);
+    if (!cancelOld.ok) {
+      pos.realStopReplaceRetry = { triggerPrice, attempts: finite(retry?.attempts, 0) + 1, lastAttemptAt: Date.now(), nextAttemptAt: Date.now() + 60_000, reason: 'ESKI_STOP_IPTAL_EDILEMEDI' };
+      audit('STOP_REPLACE_CONSTRAINT_OLD_CANCEL_FAILED', { symbol, fingerprint, oldAlgoId: old?.algoId || null, triggerPrice });
+      return { ok: false, reason: 'ESKI_STOP_IPTAL_EDILEMEDI', oldKept: true, retryAfterMs: 60_000 };
+    }
+
+    try {
+      fresh = await createProtection({ symbol, side, type: 'STOP_MARKET', triggerPrice, clientAlgoId, client });
+      applyStopProtection(pos, fingerprint, fresh, 'STOP_REPLACED_SINGLE_CONSTRAINT');
+      audit('STOP_REPLACED_SINGLE_CONSTRAINT', { symbol, fingerprint, oldAlgoId: old?.algoId || null, newAlgoId: fresh?.algoId || null, triggerPrice });
+      return { ok: true, protection: fresh, oldCanceled: true, degraded: false, singleConstraintFallback: true };
+    } catch (newErr) {
+      let restored = null;
+      try {
+        if (Number.isFinite(oldTrigger) && oldTrigger > 0) {
+          restored = await createProtection({
+            symbol, side, type: 'STOP_MARKET', triggerPrice: oldTrigger,
+            clientAlgoId: stopRecoveryClientId(symbol, side, fingerprint, oldTrigger), client
+          });
+        }
+      } catch (restoreErr) {
+        audit('STOP_REPLACE_RESTORE_FAILED', { symbol, fingerprint, newError: newErr.message, restoreError: restoreErr.message, oldTrigger });
+      }
+      if (restored) {
+        applyStopProtection(pos, fingerprint, restored, 'STOP_REPLACE_OLD_RESTORED');
+        pos.realStopReplaceRetry = { triggerPrice, attempts: finite(retry?.attempts, 0) + 1, lastAttemptAt: Date.now(), nextAttemptAt: Date.now() + 60_000, reason: newErr.message };
+        audit('STOP_REPLACE_NEW_FAILED_OLD_RESTORED', { symbol, fingerprint, oldAlgoId: old?.algoId || null, restoredAlgoId: restored?.algoId || null, oldTrigger, requestedTrigger: triggerPrice, error: newErr.message });
+        return { ok: false, reason: 'YENI_STOP_KURULAMADI_ESKI_GERI_KURULDU', oldRestored: true, oldKept: true, retryAfterMs: 60_000 };
+      }
+
+      const emergency = await closePositionMarket(pos, 'STOP_REPLACE_RECOVERY_FAILED', client).catch(closeErr => ({ ok: false, reason: closeErr.message }));
+      setGlobalBlock('STOP_REPLACE_RECOVERY_FAILED', { symbol, fingerprint, requestedTrigger: triggerPrice, oldTrigger, emergencyClosed: emergency.ok === true });
+      saveRecord(fingerprint, { status: emergency.ok ? 'CLOSED' : 'QUARANTINED', protectionStage: emergency.ok ? 'EMERGENCY_CLOSED' : 'PROTECTION_LOST', stopReplaceEmergency: clone(emergency) });
+      audit('STOP_REPLACE_EMERGENCY_CLOSE', { symbol, fingerprint, requestedTrigger: triggerPrice, oldTrigger, emergency });
+      return { ok: false, reason: 'STOP_REPLACE_RECOVERY_FAILED', globalBlocked: true, emergencyClosed: emergency.ok === true };
+    }
   }
 
   let oldCanceled = true;
@@ -950,8 +1042,6 @@ async function replaceStopAtomic(pos, newStopPrice, client = h.client) {
     oldStillActive = !oldCancelResult.ok;
   }
   if (oldStillActive) {
-    // Eski koruma kaldıysa yeni korumayı geri al. Böylece yerel state hiçbir zaman
-    // iptal edilememiş iki close-all stopundan birini rastgele "aktif" kabul etmez.
     const freshCancelResult = await cancelAlgoVerified(symbol, fresh, client);
     if (freshCancelResult.ok) {
       audit('STOP_REPLACE_OLD_CANCEL_FAILED_NEW_ROLLED_BACK', {
@@ -972,16 +1062,7 @@ async function replaceStopAtomic(pos, newStopPrice, client = h.client) {
     return { ok: false, reason: 'CIFT_STOP_KORUMA_MUTABAKATSIZLIGI', oldKept: true, globalBlocked: true };
   }
 
-  pos.gercekEmirYurutme ||= { fingerprint, ids: clientIds(symbol, side, fingerprint) };
-  pos.gercekEmirYurutme.protections ||= {};
-  pos.gercekEmirYurutme.protections.stop = fresh;
-  delete pos.gercekEmirYurutme.redundantStops;
-  pos.korumaEmirleri = {
-    ...(pos.korumaEmirleri || {}),
-    slAlgoId: fresh.algoId || null,
-    slClientAlgoId: fresh.clientAlgoId || null
-  };
-  persistPosition(pos, 'ATOMIC_STOP_REPLACED');
+  applyStopProtection(pos, fingerprint, fresh, 'ATOMIC_STOP_REPLACED');
   audit('STOP_REPLACED_ATOMIC', { symbol, fingerprint, oldAlgoId: old?.algoId || null, newAlgoId: fresh.algoId || null, oldCanceled, oldStillActive, triggerPrice });
   return { ok: true, protection: fresh, oldCanceled: true, degraded: false };
 }
@@ -1034,6 +1115,12 @@ async function collectAccounting(pos, { client = h.client, closeOrderId = null, 
   // USDⓈ-M botun hesap para birimi USDT'dir. Farklı asset komisyonunu sayısal olarak
   // USDT'ye eşitlemek yanlış muhasebedir; ayrı göster ve net sonucu "tam" diye etiketleme.
   const commissionUsdt = finite(commissionByAsset.USDT, 0);
+  const entryCommission = entryTrades
+    .filter(t => upper(t?.commissionAsset || 'UNKNOWN') === 'USDT')
+    .reduce((sum, t) => sum + Math.abs(finite(t?.commission, 0)), 0);
+  const exitCommission = exitTrades
+    .filter(t => upper(t?.commissionAsset || 'UNKNOWN') === 'USDT')
+    .reduce((sum, t) => sum + Math.abs(finite(t?.commission, 0)), 0);
   const foreignCommissionAssets = Object.keys(commissionByAsset).filter(asset => asset !== 'USDT' && commissionByAsset[asset] > 0);
   const realizedPnl = exitTrades.reduce((sum, t) => sum + finite(t?.realizedPnl, 0), 0);
   const exitQty = exitTrades.reduce((sum, t) => sum + Math.abs(finite(t?.qty, 0)), 0);
@@ -1057,6 +1144,8 @@ async function collectAccounting(pos, { client = h.client, closeOrderId = null, 
     entryPrice: Number.isFinite(entryPrice) ? entryPrice : null,
     exitPrice: Number.isFinite(exitPrice) ? exitPrice : null,
     realizedPnl: Number(realizedPnl.toFixed(8)),
+    entryCommission: Number(entryCommission.toFixed(8)),
+    exitCommission: Number(exitCommission.toFixed(8)),
     commission: Number(commissionUsdt.toFixed(8)),
     netPnl: Number((realizedPnl - commissionUsdt).toFixed(8)),
     trades: allRelevant.map(t => ({ orderId: t.orderId, id: t.id, side: t.side, price: t.price, qty: t.qty, realizedPnl: t.realizedPnl, commission: t.commission, commissionAsset: t.commissionAsset, time: t.time }))
@@ -1153,7 +1242,19 @@ async function finalizeExchangeClose(pos, fallbackPrice, client = h.client) {
     setGlobalBlock('KAPANIS_SONRASI_KORUMA_IPTAL_EDILEMEDI', { symbol: pos.sym, failed: cleanup.failed });
     throw new Error(`KAPANIS_SONRASI_KORUMA_IPTAL_EDILEMEDI:${cleanup.failed}`);
   }
-  saveRecord(fingerprint, { status: 'CLOSED', closedAt: nowIso(), closeReason: classification.reason, accounting, protectionStatus });
+  const closedAt = nowIso();
+  saveRecord(fingerprint, {
+    status: 'CLOSED', closedAt, closeReason: classification.reason, accounting, protectionStatus,
+    protectionStage: 'CLOSED', protectionClosedAt: closedAt, currentProtections: clone(protectionStatus),
+    ...accountingRecordFields(accounting)
+  });
+  if (classification.manual === true) {
+    setGlobalBlock(MANUAL_REARM_BLOCK, {
+      symbol: pos.sym, side: pos.yon, fingerprint, closedAt,
+      accountingExact: accounting.accountingExact === true, netPnl: finite(accounting.netPnl, 0),
+      requiresDisarmRestart: true
+    });
+  }
   audit('EXCHANGE_CLOSE_RECONCILED', { symbol: pos.sym, side: pos.yon, classification, accounting, protectionStatus });
   return { ...accounting, ...classification, protectionStatus, exitPrice: finite(accounting.exitPrice, fallbackPrice) };
 }
@@ -1375,6 +1476,7 @@ async function startupReconcile(client = h.client) {
     saveRecord(record.fingerprint, { status: 'CLOSED_EXTERNALLY_OR_NOT_FILLED', closedAt: nowIso() });
   }
 
+  let manualRearmCleared = false;
   mutate(next => {
     if (protectionFailures === 0 && next.globalBlock) {
       const autoClear = new Set([
@@ -1398,10 +1500,16 @@ async function startupReconcile(client = h.client) {
       const blockedSymbol = upper(next.globalBlock.symbol || next.globalBlock.details?.symbol);
       const blockedSymbolStillOpen = blockedSymbol && openPositions.some(row => upper(row.symbol) === blockedSymbol);
       const canClearWhileOpen = blockedReason === 'ESKI_STOP_IPTAL_EDILEMEDI';
-      if (autoClear.has(blockedReason) && (!blockedSymbolStillOpen || canClearWhileOpen)) next.globalBlock = null;
+      const armExplicitlyDisabled = upper(process.env.AGROS_REAL_ORDER_ARM) === 'DISABLED';
+      const ackExplicitlyDisabled = upper(process.env.AGROS_REAL_ORDER_EXECUTION_ACK) === 'DISABLED';
+      if (blockedReason === MANUAL_REARM_BLOCK && openPositions.length === 0 && armExplicitlyDisabled && ackExplicitlyDisabled) {
+        next.globalBlock = null;
+        manualRearmCleared = true;
+      } else if (autoClear.has(blockedReason) && (!blockedSymbolStillOpen || canClearWhileOpen)) next.globalBlock = null;
     }
   });
-  audit('STARTUP_RECONCILIATION', { exchangeOpen: openPositions.length, restored: restored.length - adopted, adopted, protectionFailures, recoveredClosures: recoveredClosures.length });
+  if (manualRearmCleared) audit('MANUAL_CLOSE_REARM_RESET_WHILE_DISARMED', { exchangeOpen: openPositions.length });
+  audit('STARTUP_RECONCILIATION', { exchangeOpen: openPositions.length, restored: restored.length - adopted, adopted, protectionFailures, recoveredClosures: recoveredClosures.length, manualRearmCleared });
   return { positions: restored, restored: restored.length - adopted, adopted, protectionFailures, recoveredClosures, blocked: protectionFailures > 0 };
 }
 
@@ -1431,5 +1539,5 @@ module.exports = {
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
   ensureProtectionForPosition, startupReconcile, statusSummary,
-  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable }
+  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable }
 };
