@@ -25,13 +25,14 @@ process.env.AGROS_REAL_ORDER_EXECUTION_ACK = 'V610_REVIEWED';
 assert.strictEqual(bridge.realAuthorization().valid, true, 'v6.10.0 dağıtım onayı geri verildiğinde yetki açılmadı');
 
 // Kullanıcı ayarlar.js değerlerini değiştirdiğinde köprü aynı değerleri kullanmalı.
-ayarlar.gercekEmirSabitNotionalUsdt = 37.5;
-ayarlar.gercekEmirSabitKaldirac = 7;
+ayarlar.calisilmakIstenenUsdtMiktar = 5;
+ayarlar.mevcutKaldirac = 7;
 ayarlar.gercekEmirMarjinTipi = 'CROSSED';
 ayarlar.gercekEmirMaxAktifPozisyon = 3;
 
 assert.deepStrictEqual(bridge.liveRiskProfile(), {
-  notionalUsdt: 37.5,
+  marginUsdt: 5,
+  notionalUsdt: 35,
   leverage: 7,
   marginType: 'CROSSED',
   maxActivePositions: 3,
@@ -56,7 +57,7 @@ const scoreDecision = {
   score: 99
 };
 const decision = bridge.evaluate(pos, { realMode: true, scoreDecision });
-assert.strictEqual(decision.allowed, true, `ayar tabanlı 37.5 USDT / 7x risk profili engellenmemeli: ${decision.reasons.join(',')}`);
+assert.strictEqual(decision.allowed, true, `ayar tabanlı 5 USDT marjin / 7x risk profili engellenmemeli: ${decision.reasons.join(',')}`);
 assert(!decision.reasons.includes('GERCEK_EMIR_NOTIONAL_25_USDT_DEGIL'));
 assert(!decision.reasons.includes('GERCEK_EMIR_KALDIRAC_5X_DEGIL'));
 
@@ -65,27 +66,29 @@ ayarlar.gercekEmirMaxAktifPozisyon = 0;
 assert.strictEqual(bridge.liveRiskProfile().maxActivePositions, 0);
 
 // Geçersiz temel değerler yine fail-closed kalmalı.
-ayarlar.gercekEmirSabitNotionalUsdt = 0;
+ayarlar.calisilmakIstenenUsdtMiktar = 0;
 const invalid = bridge.evaluate(pos, { realMode: true, scoreDecision });
 assert.strictEqual(invalid.allowed, false);
+assert(invalid.reasons.includes('GERCEK_EMIR_MARJIN_GECERSIZ'));
 assert(invalid.reasons.includes('GERCEK_EMIR_NOTIONAL_GECERSIZ'));
 
 
 // Eksik veya sayı dışı canlı risk ayarları sessiz varsayılana dönmemeli.
-ayarlar.gercekEmirSabitNotionalUsdt = undefined;
-ayarlar.gercekEmirSabitKaldirac = 'bozuk';
+ayarlar.calisilmakIstenenUsdtMiktar = undefined;
+ayarlar.mevcutKaldirac = 'bozuk';
 ayarlar.gercekEmirMarjinTipi = undefined;
 ayarlar.gercekEmirMaxAktifPozisyon = undefined;
 const missingConfig = bridge.evaluate(pos, { realMode: true, scoreDecision });
 assert.strictEqual(missingConfig.allowed, false);
+assert(missingConfig.reasons.includes('GERCEK_EMIR_MARJIN_GECERSIZ'));
 assert(missingConfig.reasons.includes('GERCEK_EMIR_NOTIONAL_GECERSIZ'));
 assert(missingConfig.reasons.includes('GERCEK_EMIR_KALDIRAC_GECERSIZ'));
 assert(missingConfig.reasons.includes('GERCEK_EMIR_MARJIN_TIPI_GECERSIZ'));
 assert(missingConfig.reasons.includes('GERCEK_EMIR_AKTIF_POZISYON_LIMITI_GECERSIZ'));
 
 // Binance Futures üst sınırını aşan kaldıraç da API çağrısına bırakılmadan reddedilmeli.
-ayarlar.gercekEmirSabitNotionalUsdt = 25;
-ayarlar.gercekEmirSabitKaldirac = 126;
+ayarlar.calisilmakIstenenUsdtMiktar = 2;
+ayarlar.mevcutKaldirac = 126;
 ayarlar.gercekEmirMarjinTipi = 'ISOLATED';
 ayarlar.gercekEmirMaxAktifPozisyon = 1;
 const excessiveLeverage = bridge.evaluate(pos, { realMode: true, scoreDecision });

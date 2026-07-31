@@ -8,8 +8,8 @@ const operation = require('./69_operation_intelligence_dashboard.js');
 
 // v6.9.4 kontrollü gerçek emir fazı: env arm + mainnet + kalibre Premier; risk değerleri ayarlar.js tarafından yönetilir.
 assert.strictEqual(ayarlar.sanalEmirModu, false, 'ST2 kontrollü gerçek emir modunda olmalı');
-assert(Number(ayarlar.gercekEmirSabitNotionalUsdt) > 0, 'gerçek emir notional ayarı pozitif olmalı');
-assert(Number.isInteger(Number(ayarlar.gercekEmirSabitKaldirac)) && Number(ayarlar.gercekEmirSabitKaldirac) >= 1, 'gerçek emir kaldıraç ayarı pozitif tam sayı olmalı');
+assert(Number(ayarlar.calisilmakIstenenUsdtMiktar) > 0, 'gerçek emir marjin ayarı pozitif olmalı');
+assert(Number.isInteger(Number(ayarlar.mevcutKaldirac)) && Number(ayarlar.mevcutKaldirac) >= 1, 'gerçek emir kaldıraç ayarı pozitif tam sayı olmalı');
 assert(Number.isInteger(Number(ayarlar.gercekEmirMaxAktifPozisyon)) && Number(ayarlar.gercekEmirMaxAktifPozisyon) >= 0, 'aktif gerçek pozisyon limiti ayarlardan yönetilmeli; 0 yeni girişleri durdurabilmeli');
 assert.strictEqual(Number(ayarlar.maxPozisyonSayisi), 100, 'ST2 mevcut sanal kapasitesi değişmemeli');
 assert.strictEqual(Number(ayarlar.gunlukMaxYeniEmir), 0, 'günlük emir sayısı limitsiz kalmalı');

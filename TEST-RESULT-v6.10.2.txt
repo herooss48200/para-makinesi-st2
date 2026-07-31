@@ -1,0 +1,23 @@
+AGROS ST2 v6.10.2 — LIVE PROTECTION RECOVERY
+Test date: 2026-07-31
+
+RESULT: PASS
+
+Verified:
+- Full source syntax: 115 JavaScript files passed.
+- All regression suites v6.7.2 through v6.10.2 passed.
+- Operational real-risk source is only ayarlar.js:
+  calisilmakIstenenUsdtMiktar = 2 USDT margin
+  mevcutKaldirac = 5x
+  derived notional = 10 USDT
+  gercekEmirMaxAktifPozisyon = 1
+  gercekEmirMarjinTipi = ISOLATED
+- Runtime caller cannot override the max-active-position setting.
+- Old execution-state maxActivePositions snapshots are ignored as configuration.
+- Binance Algo GET/CANCEL requests include mandatory symbol.
+- Wrapped/delayed Algo responses are retried and normalized.
+- First post-fill protection-chain failure sets persistent GERCEK_KORUMA_ZINCIRI_BASARISIZ global block even after verified rollback.
+- Global block prevents a second real entry.
+- Rollback accounting includes both entry and exit trades/commissions.
+- Repeated Renko/Binance informational line removed from runtime proof logs.
+- Trade Engine math, Entry Evolution, Exit Evolution and learning logic unchanged.

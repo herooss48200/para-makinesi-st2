@@ -600,7 +600,7 @@ const m = {
 
             const reservation = await realExecution.reserveEntry({
                 symbol, side: islemYonu, context: hazirKimlik,
-                maxActivePositions: risk.maxActivePositions, client: h.client
+                client: h.client
             });
             if (!reservation.ok) {
                 console.log(`🚫 [GERÇEK EMİR KALICI KİLİT/PREFLIGHT] ${symbol} ${islemYonu} | ${reservation.reason}`);
@@ -612,7 +612,7 @@ const m = {
             let fill = null;
             let protections = null;
             try {
-                console.log(`⚙️ [BINANCE API] ${symbol} ${islemYonu} ${ortakKarar.realTier} onaylı | ${hedefGercekNotional.toFixed(2)} USDT notional | ${kaldirac}x ${marjinTipi} | idempotent Market + Algo Service koruması hazırlanıyor...`);
+                console.log(`⚙️ [BINANCE API] ${symbol} ${islemYonu} ${ortakKarar.realTier} onaylı | ${risk.marginUsdt.toFixed(2)} USDT marjin x ${kaldirac} = ${hedefGercekNotional.toFixed(2)} USDT notional | ${marjinTipi} | idempotent Market + Algo Service koruması hazırlanıyor...`);
                 await h.client.futuresMarginType({ symbol, marginType: marjinTipi }).catch(err => {
                     const text = String(err?.message || err || '');
                     if (!text.includes('-4046') && !/no need to change margin type/i.test(text)) throw err;
@@ -660,8 +660,12 @@ const m = {
                 const rollback = await realExecution.rollbackEntry({
                     reservation, side: islemYonu, reason: executionError.message, client: h.client
                 }).catch(err => ({ ok: false, reason: err.message }));
+                const globalBlock = realExecution.readState().globalBlock;
+                const yeniEmirDurumu = globalBlock
+                    ? `GLOBAL BLOCK (${globalBlock.reason || 'NEDEN_YOK'})`
+                    : 'BLOK YOK (FILL/PROTECTION HATASI OLMAYABİLİR)';
                 await h.telegramMesajGonder(
-                    `🚨 GERÇEK EMİR FAIL-CLOSED\n${symbol} ${islemYonu}\nHata: ${executionError.message}\nRollback/Mutabakat: ${rollback.ok ? 'DOĞRULANDI' : 'BAŞARISIZ — GLOBAL BLOCK'}`
+                    `🚨 GERÇEK EMİR FAIL-CLOSED\n${symbol} ${islemYonu}\nHata: ${executionError.message}\nRollback/Mutabakat: ${rollback.ok ? 'DOĞRULANDI' : 'BAŞARISIZ'}\nYeni Gerçek Emirler: ${yeniEmirDurumu}`
                 ).catch(() => {});
                 return false;
             }

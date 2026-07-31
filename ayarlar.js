@@ -14,8 +14,9 @@ const ayarlar = {
     // ========================================
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
-    // v6.9.3 LIVE: 25 USDT notional / 5x = yaklaşık 5 USDT marjin.
-    calisilmakIstenenUsdtMiktar: 5,
+    // v6.10.2 LIVE SAFE: 2 USDT marjin x 5x = 10 USDT notional.
+    // Sanal hesaplama ve raporlamada da aynı marjin tabanı kullanılır.
+    calisilmakIstenenUsdtMiktar: 2,
     mevcutKaldirac: 5,
     maxPozisyonSayisi: 100,
 
@@ -604,11 +605,11 @@ const ayarlar = {
     // Zorunlu: AGROS_REAL_ORDER_ARM=LIVE_TRADING_CONFIRMED ve AGROS_REAL_ORDER_ENV=MAINNET.
     // Tutar, kaldıraç, marjin ve aktif pozisyon limiti aşağıdaki ayarlardan yönetilir.
     gercekEmirOnayKodu: 'LIVE_TRADING_CONFIRMED',
-    gercekEmirSabitNotionalUsdt: 25,
-    gercekEmirSabitKaldirac: 5,
+    // Gerçek işlem riski yalnız bu AYARLAR SAYFASI üzerinden yönetilir.
+    // Marjin: calisilmakIstenenUsdtMiktar (2), kaldıraç: mevcutKaldirac (5); notional 10 USDT türetilir.
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
-    gercekEmirMaxAktifPozisyon: 5,
+    gercekEmirMaxAktifPozisyon: 1,
     gercekEmirKorumaEmirleriZorunlu: true,
     gercekEmirMaksNotionalSapmaYuzde: 2,
     gercekEmirAnaAgZorunlu: true,

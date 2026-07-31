@@ -16,13 +16,13 @@ const bridge = require('./50_real_order_readiness_bridge.js');
 const lab = require('./62_lab_premier_league.js');
 
 assert.strictEqual(ayarlar.sanalEmirModu, false);
-assert.strictEqual(ayarlar.gercekEmirSabitNotionalUsdt, 25);
-assert.strictEqual(ayarlar.gercekEmirSabitKaldirac, 5);
+assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar, 2);
+assert.strictEqual(ayarlar.mevcutKaldirac, 5);
 assert.strictEqual(ayarlar.gercekEmirMarjinTipi, 'ISOLATED');
 assert(Number.isInteger(Number(ayarlar.gercekEmirMaxAktifPozisyon)) && Number(ayarlar.gercekEmirMaxAktifPozisyon) >= 1, 'aktif gerçek pozisyon limiti ayarlardan yönetilmeli');
 assert.strictEqual(bridge.realAuthorization().valid, true, 'mainnet + genel canlı onayı birlikte gerçek yetki vermeli');
 assert.deepStrictEqual(bridge.liveRiskProfile(), {
-  notionalUsdt: 25, leverage: 5, marginType: 'ISOLATED', maxActivePositions: Number(ayarlar.gercekEmirMaxAktifPozisyon), protectionRequired: true
+  marginUsdt: 2, notionalUsdt: 10, leverage: 5, marginType: 'ISOLATED', maxActivePositions: Number(ayarlar.gercekEmirMaxAktifPozisyon), protectionRequired: true
 });
 assert.strictEqual(lab.TRACK.SCORE, 'PREMIER_SCORE_RANKED');
 

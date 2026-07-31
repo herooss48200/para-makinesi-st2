@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.10.1-real-order-endpoint-authority",
-  "description": "AGROS ST2 v6.10.1: v6.10.0 gerçek emir güvenliği + doğru binance-api-node httpFutures endpoint otoritesi ve mainnet/testnet fail-closed doğrulaması.",
+  "version": "6.10.2-live-protection-recovery",
+  "description": "AGROS ST2 v6.10.2: Ayarlar sayfasından 2 USDT marjin x 5 = 10 USDT, tek gerçek pozisyon, gecikme toleranslı Algo doğrulama, ilk koruma hatasında kalıcı global block ve tam fill muhasebesi.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -25,7 +25,8 @@
     "test:v693": "node test_v693_live_5x_25usdt_final.js",
     "test:v694": "node test_v694_configurable_live_risk.js",
     "test:v610": "node test_v610_real_order_execution_safety.js",
-    "test:v6101": "node test_v6101_binance_endpoint_authority.js"
+    "test:v6101": "node test_v6101_binance_endpoint_authority.js",
+    "test:v6102": "node test_v6102_live_protection_recovery.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

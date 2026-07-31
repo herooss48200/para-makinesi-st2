@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.10.0 — REAL ORDER EXECUTION SAFETY
+ * AGROS ST2 v6.10.2 — LIVE PROTECTION RECOVERY
  *
  * Gerçek emir katmanı için tek yürütme otoritesi:
  * - deterministik client order id / tekrar emir koruması
@@ -22,7 +22,7 @@ const h = require('./1_hafiza.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const VERSION = 'v6.10.1-REAL-ORDER-ENDPOINT-AUTHORITY';
+const VERSION = 'v6.10.2-LIVE-PROTECTION-RECOVERY';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-real-order-execution-state.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -58,12 +58,25 @@ function sanitize(v, len = 8) { return upper(v).replace(/[^A-Z0-9]/g, '').slice(
 function ownedId(v) { return upper(v).startsWith(OWNED_PREFIX); }
 function algoOrderStatus(row) { return upper(row?.algoStatus ?? row?.status); }
 function algoOrderType(row) { return upper(row?.orderType ?? row?.type); }
+function algoPayloadRows(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'object') return [];
+  for (const key of ['orders', 'rows', 'list', 'data']) {
+    if (Array.isArray(value[key])) return value[key];
+  }
+  for (const key of ['data', 'order', 'result']) {
+    const nested = value[key];
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) return [nested];
+  }
+  return [value];
+}
 function normalizeAlgoOrder(row) {
-  if (!row || typeof row !== 'object') return null;
-  const status = algoOrderStatus(row);
-  const type = algoOrderType(row);
+  const candidate = algoPayloadRows(row)[0];
+  if (!candidate || typeof candidate !== 'object') return null;
+  const status = algoOrderStatus(candidate);
+  const type = algoOrderType(candidate);
   return {
-    ...clone(row),
+    ...clone(candidate),
     status: status || null,
     algoStatus: status || null,
     type: type || null,
@@ -275,11 +288,42 @@ async function openRegularOrders(symbol, client = h.client) {
 }
 
 async function openAlgoOrders(symbol, client = h.client) {
-  if (typeof client.futuresGetOpenAlgoOrders !== 'function') {
-    throw new Error('BINANCE_ALGO_API_DESTEKLENMIYOR:binance-api-node>=0.13.10 zorunlu');
+  const mergeRows = (target, raw) => {
+    for (const row of algoPayloadRows(raw).map(normalizeAlgoOrder)) {
+      if (!row || (symbol && row.symbol && upper(row.symbol) !== upper(symbol))) continue;
+      const key = `${positiveId(row.algoId) || 'NA'}|${row.clientAlgoId || 'NA'}|${upper(row.symbol)}`;
+      if (!target.some(existing => existing._dedupeKey === key)) target.push({ ...row, _dedupeKey: key });
+    }
+  };
+  const clean = rows => rows.map(({ _dedupeKey, ...row }) => row);
+  let lastError = null;
+
+  // Önce Binance Algo Service'in doğrudan endpointini kullan. Sembol filtresi ile boş
+  // dönerse hesap-geneli sorguyu da dene; böylece kısa süreli indeksleme gecikmesi veya
+  // wrapper farkı yüzünden yeni koruma emri yanlışlıkla "yok" sayılmaz.
+  if (typeof client.futuresGetOpenAlgoOrders === 'function') {
+    const merged = [];
+    let dedicatedSuccess = false;
+    const payloads = symbol ? [{ symbol }, {}] : [{}];
+    for (const payload of payloads) {
+      try {
+        mergeRows(merged, await client.futuresGetOpenAlgoOrders(payload));
+        dedicatedSuccess = true;
+      } catch (err) { lastError = err; }
+    }
+    if (dedicatedSuccess) return clean(merged);
   }
-  const rows = await client.futuresGetOpenAlgoOrders(symbol ? { symbol } : {});
-  return Array.isArray(rows) ? rows.map(normalizeAlgoOrder).filter(Boolean) : [];
+
+  // Eski wrapper uyumluluğu: yalnız doğrudan Algo endpointi kullanılamıyorsa conditional
+  // open-orders yönlendirmesine düş. Normal açık emirleri Algo listesine karıştırma.
+  if (typeof client.futuresOpenOrders === 'function') {
+    try {
+      const merged = [];
+      mergeRows(merged, await client.futuresOpenOrders(symbol ? { symbol, conditional: true } : { conditional: true }));
+      return clean(merged).filter(row => positiveId(row.algoId) || row.clientAlgoId || row.algoStatus);
+    } catch (err) { lastError = err; }
+  }
+  throw new Error(`BINANCE_ALGO_API_DESTEKLENMIYOR:${lastError?.message || 'METOT_YOK'}`);
 }
 
 async function getOrderByClientId(symbol, clientOrderId, client = h.client) {
@@ -293,20 +337,48 @@ async function getOrderByClientId(symbol, clientOrderId, client = h.client) {
 }
 
 async function getAlgoById(symbol, protection, client = h.client) {
-  if (!protection || typeof client.futuresGetAlgoOrder !== 'function') return null;
-  const payload = {};
-  if (protection.algoId) payload.algoId = protection.algoId;
-  else if (protection.clientAlgoId) payload.clientAlgoId = protection.clientAlgoId;
-  else return null;
-  try { return normalizeAlgoOrder(await client.futuresGetAlgoOrder(payload)); }
-  catch (_) { return null; }
+  if (!protection) return null;
+  const identities = [];
+  if (protection.algoId) identities.push({ symbol, algoId: protection.algoId });
+  if (protection.clientAlgoId) identities.push({ symbol, clientAlgoId: protection.clientAlgoId });
+  if (!identities.length) return null;
+
+  for (const payload of identities) {
+    if (typeof client.futuresGetAlgoOrder !== 'function') break;
+    try {
+      const row = normalizeAlgoOrder(await client.futuresGetAlgoOrder(payload));
+      if (row && (!symbol || !row.symbol || upper(row.symbol) === upper(symbol))) return row;
+    } catch (_) {}
+  }
+  try {
+    const open = await openAlgoOrders(symbol, client);
+    return open.find(row => sameAlgo(row, protection)) || null;
+  } catch (_) { return null; }
 }
 
-async function getAlgoByIdDetailed(protection, client = h.client) {
+async function verifyAlgoActiveReliable(symbol, protection, client = h.client) {
+  const delays = [0, 100, 200, 350, 550, 800, 1200, 1600];
+  const errors = [];
+  let row = null;
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt] > 0) await sleep(delays[attempt]);
+    try {
+      row = await getAlgoById(symbol, protection, client);
+      const status = algoOrderStatus(row) || algoOrderStatus(protection);
+      if (row && ACTIVE_ALGO_STATUSES.has(status)) {
+        return { ok: true, row: normalizeAlgoOrder({ ...protection, ...clone(row), status, algoStatus: status }), attempts: attempt + 1, errors };
+      }
+      errors.push(`ATTEMPT_${attempt + 1}:${row ? `STATUS_${status || 'YOK'}` : 'NOT_FOUND'}`);
+    } catch (err) { errors.push(`ATTEMPT_${attempt + 1}:${err.message}`); }
+  }
+  return { ok: false, row: row ? normalizeAlgoOrder(row) : null, attempts: delays.length, errors };
+}
+
+async function getAlgoByIdDetailed(symbol, protection, client = h.client) {
   if (!protection || typeof client.futuresGetAlgoOrder !== 'function') {
     return { resolved: !protection, row: null, reason: protection ? 'METHOD_MISSING' : 'NO_PROTECTION' };
   }
-  const payload = {};
+  const payload = { symbol };
   if (protection.algoId) payload.algoId = protection.algoId;
   else if (protection.clientAlgoId) payload.clientAlgoId = protection.clientAlgoId;
   else return { resolved: false, row: null, reason: 'IDENTITY_MISSING' };
@@ -329,7 +401,7 @@ function sameAlgo(left, right) {
 
 async function verifyAlgoInactive(symbol, protection, client = h.client) {
   if (!protection) return { verified: true, inactive: true, source: 'NO_PROTECTION' };
-  const payload = {};
+  const payload = { symbol };
   if (protection.algoId) payload.algoId = protection.algoId;
   else if (protection.clientAlgoId) payload.clientAlgoId = protection.clientAlgoId;
   else return { verified: false, inactive: false, source: 'IDENTITY_MISSING' };
@@ -379,8 +451,8 @@ function recordBySymbol(state, symbol) {
 }
 
 function setGlobalBlock(reason, details = {}) {
-  mutate(state => { state.globalBlock = { reason, at: nowIso(), ...details }; });
-  audit('GLOBAL_BLOCK_SET', { reason, ...details });
+  mutate(state => { state.globalBlock = { at: nowIso(), ...details, reason }; });
+  audit('GLOBAL_BLOCK_SET', { ...details, reason });
 }
 
 function clearGlobalBlock(reason = 'SAFE_RECONCILIATION') {
@@ -405,10 +477,11 @@ function snapshotPosition(pos) {
   return copy;
 }
 
-async function reserveEntry({ symbol, side, context, maxActivePositions, client = h.client }) {
+async function reserveEntry({ symbol, side, context, client = h.client }) {
   const sym = upper(symbol);
   const dir = upper(side);
-  const max = Number(maxActivePositions);
+  // Tek operasyonel kaynak: AYARLAR SAYFASI. Çağıran katman limit aktaramaz/ezemez.
+  const max = Number(realOrderBridge.liveRiskProfile().maxActivePositions);
   if (!sym || !['LONG', 'SHORT'].includes(dir)) return { ok: false, reason: 'SYMBOL_VEYA_YON_GECERSIZ' };
   if (!Number.isInteger(max) || max < 0) return { ok: false, reason: 'AKTIF_POZISYON_LIMITI_GECERSIZ' };
   if (max === 0) return { ok: false, reason: 'GERCEK_EMIR_YENI_GIRIS_DURDURULDU' };
@@ -459,7 +532,7 @@ async function reserveEntry({ symbol, side, context, maxActivePositions, client 
     }
     const record = {
       fingerprint, symbol: sym, side: dir, status: 'PENDING', ids,
-      preparedSnapshot: snapshotPosition(context), maxActivePositions: max, createdAt: nowIso(), updatedAt: nowIso()
+      preparedSnapshot: snapshotPosition(context), createdAt: nowIso(), updatedAt: nowIso()
     };
     state.records[fingerprint] = record;
     result = { ok: true, fingerprint, ids, record: clone(record) };
@@ -540,7 +613,8 @@ async function executeEntry({ reservation, quantity, referencePrice, minQty, min
     throw new Error('HEDGE_MODE_DESTEKLENMIYOR');
   }
   const postFillActive = postFillPositions.filter(row => positionAmount(row) > 0);
-  const maxActivePositions = Number(record.maxActivePositions);
+  // Dolum sonrası limit de yeniden AYARLAR SAYFASI kaynağından doğrulanır.
+  const maxActivePositions = Number(realOrderBridge.liveRiskProfile().maxActivePositions);
   if (Number.isInteger(maxActivePositions) && maxActivePositions >= 0 && postFillActive.length > maxActivePositions) {
     setGlobalBlock('DOLUM_SONRASI_AKTIF_POZISYON_LIMITI_ASILDI', {
       symbol, active: postFillActive.length, maxActivePositions
@@ -602,11 +676,17 @@ async function createProtection({ symbol, side, type, triggerPrice, clientAlgoId
     triggerPrice: finite(response?.triggerPrice, normalizedTrigger),
     createdAt: nowIso()
   };
-  const verified = await getAlgoById(symbol, protection, client);
-  if (!verified) throw new Error(`${type}_ALGO_DOGRULANAMADI`);
-  const status = algoOrderStatus(verified) || upper(protection.status);
-  if (!ACTIVE_ALGO_STATUSES.has(status)) throw new Error(`${type}_ALGO_AKTIF_DEGIL:${status || 'YOK'}`);
-  return normalizeAlgoOrder({ ...protection, ...clone(verified), status, algoStatus: status });
+  audit('ALGO_CREATE_ACCEPTED', {
+    symbol, type, clientAlgoId, algoId: protection.algoId,
+    responseStatus: protection.algoStatus, triggerPrice: protection.triggerPrice
+  });
+  const verification = await verifyAlgoActiveReliable(symbol, protection, client);
+  if (!verification.ok) {
+    audit('ALGO_ACTIVE_VERIFY_FAILED', { symbol, type, clientAlgoId, algoId: protection.algoId, attempts: verification.attempts, errors: verification.errors });
+    throw new Error(`${type}_ALGO_DOGRULANAMADI`);
+  }
+  audit('ALGO_ACTIVE_VERIFIED', { symbol, type, clientAlgoId, algoId: verification.row?.algoId || protection.algoId, attempts: verification.attempts });
+  return verification.row;
 }
 
 async function installProtections({ reservation, side, stopPrice, takeProfitPrice, client = h.client }) {
@@ -634,7 +714,7 @@ async function installProtections({ reservation, side, stopPrice, takeProfitPric
 
 async function cancelAlgo(symbol, protection, client = h.client) {
   if (!protection || typeof client.futuresCancelAlgoOrder !== 'function') return false;
-  const payload = {};
+  const payload = { symbol };
   if (protection.algoId) payload.algoId = protection.algoId;
   else if (protection.clientAlgoId) payload.clientAlgoId = protection.clientAlgoId;
   else return false;
@@ -764,21 +844,46 @@ async function closePositionMarket(pos, reason = 'ENGINE_CLOSE', client = h.clie
 }
 
 async function rollbackEntry({ reservation, side, reason, client = h.client }) {
+  const latest = readState().records?.[reservation?.fingerprint] || reservation?.record || {};
+  const entryOrder = latest.entryOrder || reservation?.record?.entryOrder || null;
+  const protectionFailure = /ALGO|KORUMA|STOP_MARKET|TAKE_PROFIT_MARKET/i.test(String(reason || ''));
+  const fillVerified = finite(latest.actualQty, 0) > 0 || positiveId(entryOrder?.orderId);
+  if (protectionFailure && fillVerified) {
+    setGlobalBlock('GERCEK_KORUMA_ZINCIRI_BASARISIZ', {
+      symbol: latest.symbol || reservation?.record?.symbol, side, failureReason: reason, rollbackStatus: 'PENDING'
+    });
+  }
   const pos = {
-    ...(reservation?.record?.preparedSnapshot || {}),
-    sym: reservation?.record?.symbol,
+    ...(latest.preparedSnapshot || reservation?.record?.preparedSnapshot || {}),
+    sym: latest.symbol || reservation?.record?.symbol,
     yon: side,
     sanal: false,
-    gercekEmirYurutme: { fingerprint: reservation?.fingerprint, protections: readState().records?.[reservation?.fingerprint]?.protections || null }
+    miktar: finite(latest.actualQty, finite(latest.preparedSnapshot?.miktar, 0)),
+    girisFiyati: finite(latest.avgPrice, finite(latest.preparedSnapshot?.girisFiyati, 0)),
+    borsaOrderId: positiveId(entryOrder?.orderId),
+    acilisZamani: Date.parse(latest.fillVerifiedAt || latest.submittedAt || latest.createdAt || '') || Date.now() - 60_000,
+    gercekEmirYurutme: {
+      fingerprint: reservation?.fingerprint,
+      entryOrder: clone(entryOrder),
+      protections: latest.protections || null
+    }
   };
   const result = await closePositionMarket(pos, `ROLLBACK:${reason}`, client, { rollback: true });
   if (!result.ok) {
     saveRecord(reservation.fingerprint, { status: 'QUARANTINED', rollbackReason: reason, rollbackFailedAt: nowIso() });
-    setGlobalBlock('GERCEK_ACILIS_ROLLBACK_BASARISIZ', { symbol: pos.sym, reason });
+    setGlobalBlock('GERCEK_ACILIS_ROLLBACK_BASARISIZ', { symbol: pos.sym, failureReason: reason });
   } else {
-    saveRecord(reservation.fingerprint, { status: 'ROLLED_BACK', rollbackReason: reason, rolledBackAt: nowIso() });
+    saveRecord(reservation.fingerprint, {
+      status: 'ROLLED_BACK', rollbackReason: reason, rolledBackAt: nowIso(),
+      protectionFailureGlobalBlock: Boolean(protectionFailure && fillVerified)
+    });
+    if (protectionFailure && fillVerified) {
+      setGlobalBlock('GERCEK_KORUMA_ZINCIRI_BASARISIZ', {
+        symbol: pos.sym, side, failureReason: reason, rollbackStatus: 'VERIFIED', accountingExact: result.accountingExact === true
+      });
+    }
   }
-  audit('ENTRY_ROLLBACK', { symbol: pos.sym, side, reason, ok: result.ok });
+  audit('ENTRY_ROLLBACK', { symbol: pos.sym, side, reason, ok: result.ok, globalBlocked: Boolean(protectionFailure && fillVerified) });
   return result;
 }
 
@@ -960,10 +1065,16 @@ async function collectAccounting(pos, { client = h.client, closeOrderId = null, 
 
 async function collectAccountingReliable(pos, options = {}) {
   let accounting = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  const expectedEntryOrderId = positiveId(
+    pos?.borsaOrderId ?? pos?.girisEmriCevabi?.orderId ?? pos?.gercekEmirYurutme?.entryOrder?.orderId
+  );
+  const delays = [0, 150, 250, 400, 650, 900, 1200, 1600];
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt] > 0) await sleep(delays[attempt]);
     accounting = await collectAccounting(pos, options);
-    if (accounting.exitTradeCount > 0) break;
-    if (attempt < 3) await sleep(250 * (attempt + 1));
+    const exitReady = accounting.exitTradeCount > 0;
+    const entryReady = !expectedEntryOrderId || accounting.entryTradeCount > 0;
+    if (exitReady && entryReady) break;
   }
   return accounting;
 }
@@ -1003,8 +1114,8 @@ async function protectionStatusSnapshot(pos, client = h.client) {
   let unresolved = [];
   for (let attempt = 0; attempt < 3; attempt++) {
     const [stopResult, takeProfitResult] = await Promise.all([
-      getAlgoByIdDetailed(known.stop, client),
-      getAlgoByIdDetailed(known.takeProfit, client)
+      getAlgoByIdDetailed(pos?.sym || pos?.symbol, known.stop, client),
+      getAlgoByIdDetailed(pos?.sym || pos?.symbol, known.takeProfit, client)
     ]);
     snapshot = { stop: stopResult.row, takeProfit: takeProfitResult.row };
     unresolved = [
@@ -1320,5 +1431,5 @@ module.exports = {
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
   ensureProtectionForPosition, startupReconcile, statusSummary,
-  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, algoOrderStatus, algoOrderType, normalizeAlgoOrder, normalizeTriggerPrice }
+  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable }
 };

@@ -191,8 +191,7 @@ function renkoKanitiMetni(sym, pusu, target, price, st) {
         `📐 Band farkı: ${fiyatFormatla(bb.bandFarkFiyat)} fiyat / ${Number(bb.bandFarkTugla || 0).toFixed(4)} tuğla | Tolerans ${Number(bb.toleransTugla || 0).toFixed(2)} tuğla (${fiyatFormatla(bb.toleransFiyat)}) | Temas ${bb.temas ? 'TRUE ✅' : 'FALSE ❌'}`,
         `🎯 Referans ${fiyatFormatla(pusu?.referansSeviye)} | Tetik ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${st?.trend || 'YOK'}`,
         `🧬 Son ${bricks.length} tuğla: ${dizi || 'YOK'}`,
-        ...satirlar,
-        `ℹ️ Binance kontrolü: aynı sembol, aynı ATR kutu ayarı ve aynı son kapanış zamanında renk/OHLC/BB temasını karşılaştır.`
+        ...satirlar
     ].join('\n');
 
 }

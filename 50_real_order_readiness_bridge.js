@@ -19,7 +19,7 @@ const dnaIdentity = require('./59_dna_identity_registry.js');
 const premierObservation = require('./48_premier_observation_engine.js');
 const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const VERSION = 'v4.6.5-V6101-ENDPOINT-AUTHORITY';
+const VERSION = 'v4.6.6-V6102-LIVE-SAFETY-RECOVERY';
 const EXECUTION_ACK_EXPECTED = 'V610_REVIEWED';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const AUDIT_JSONL = path.join(DATA_DIR, 'real-order-readiness-audit.jsonl');
@@ -71,12 +71,18 @@ function liveRiskProfile() {
   // Canlı risk alanlarında sessiz varsayılan kullanma. Bir alan silinmiş, boş veya
   // sayı dışıysa evaluate() bunu fail-closed reddetmelidir; eski 25/5/1 değerlerine
   // istemeden geri dönmek gerçek emir güvenliğini bozar.
-  const notionalRaw = Number(ayarlar.gercekEmirSabitNotionalUsdt);
-  const leverageRaw = Number(ayarlar.gercekEmirSabitKaldirac);
+  const marginRaw = Number(ayarlar.calisilmakIstenenUsdtMiktar);
+  const leverageRaw = Number(ayarlar.mevcutKaldirac);
   const maxActiveRaw = Number(ayarlar.gercekEmirMaxAktifPozisyon);
+  const marginUsdt = Number.isFinite(marginRaw) ? marginRaw : NaN;
+  const leverage = Number.isFinite(leverageRaw) ? Math.floor(leverageRaw) : NaN;
+  const notionalUsdt = Number.isFinite(marginUsdt) && Number.isFinite(leverage)
+    ? Number((marginUsdt * leverage).toFixed(8))
+    : NaN;
   return {
-    notionalUsdt: Number.isFinite(notionalRaw) ? notionalRaw : NaN,
-    leverage: Number.isFinite(leverageRaw) ? Math.floor(leverageRaw) : NaN,
+    marginUsdt,
+    notionalUsdt,
+    leverage,
     marginType: typeof ayarlar.gercekEmirMarjinTipi === 'string'
       ? ayarlar.gercekEmirMarjinTipi.trim().toUpperCase()
       : '',
@@ -115,6 +121,7 @@ function evaluate(pos, { realMode = false, scoreDecision = null } = {}) {
     if (ayarlar.gercekEmirPremierKapisiAktif !== true) reasons.push('GERCEK_PREMIER_KAPISI_KAPALI');
     // Canlı risk değerleri ayarlar.js tarafından yönetilir. Güvenlik kapısı bu değerleri
     // belirli bir tutar veya kaldıraca sabitlemez; yalnız geçersiz değerleri fail-closed reddeder.
+    if (!(risk.marginUsdt > 0)) reasons.push('GERCEK_EMIR_MARJIN_GECERSIZ');
     if (!(risk.notionalUsdt > 0)) reasons.push('GERCEK_EMIR_NOTIONAL_GECERSIZ');
     if (!(Number.isInteger(risk.leverage) && risk.leverage >= 1 && risk.leverage <= 125)) reasons.push('GERCEK_EMIR_KALDIRAC_GECERSIZ');
     if (!['ISOLATED', 'CROSSED'].includes(risk.marginType)) reasons.push('GERCEK_EMIR_MARJIN_TIPI_GECERSIZ');
