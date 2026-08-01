@@ -29,5 +29,5 @@ const text = transparency.closingText(restartGapPosition, {
 assert(text.includes('Giriş 0.50 tuğla | N3'), 'Entry N3 kapanış raporunda korunmalı');
 assert(text.includes('Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'), 'eski dondurulmuş N0 metni rapor anında N3 ile uzlaştırılmalı');
 assert(!text.includes('Entry Replay kanıtı yok; kendi LAB Exit'), 'N3 varken kanıt yok çelişkisi görünmemeli');
-assert.strictEqual(version.botSurumu, '6.10.5-ACTIVE-EXIT-REPORT-RECONCILIATION');
-console.log('✅ v6.10.5 active-position Exit Replay scope + Restart-GAP Entry/Exit wording reconciliation passed');
+assert.strictEqual(version.botSurumu, '6.10.6-MANUAL-CLOSE-AUTO-REARM-PROFIT-ECONOMY');
+console.log('✅ v6.10.6 active-position Exit Replay scope + Restart-GAP Entry/Exit wording reconciliation passed');

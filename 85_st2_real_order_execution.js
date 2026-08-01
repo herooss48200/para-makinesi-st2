@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.10.3 — MANUAL CLOSE LOCK & SAFE TRAILING
+ * AGROS ST2 v6.10.6 — MANUAL CLOSE AUTO-REARM & PROFIT ECONOMY REPAIR
  *
  * Gerçek emir katmanı için tek yürütme otoritesi:
  * - deterministik client order id / tekrar emir koruması
@@ -22,7 +22,7 @@ const h = require('./1_hafiza.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const VERSION = 'v6.10.3-MANUAL-CLOSE-LOCK-SAFE-TRAILING';
+const VERSION = 'v6.10.6-MANUAL-CLOSE-AUTO-REARM-PROFIT-ECONOMY';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-real-order-execution-state.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -542,6 +542,18 @@ async function reserveEntry({ symbol, side, context, client = h.client }) {
   const ids = clientIds(sym, dir, fingerprint);
   let result;
   mutate(state => {
+    // v6.10.3'ten kalmış manuel rearm kilidi, borsada açık gerçek pozisyon yoksa
+    // yeni sürümde otomatik temizlenir. Diğer güvenlik blokları aynen fail-closed kalır.
+    if (upper(state?.globalBlock?.reason) === MANUAL_REARM_BLOCK) {
+      const blockedSymbol = upper(state.globalBlock.symbol || state.globalBlock.details?.symbol);
+      const blockedSymbolStillOpen = blockedSymbol
+        ? exchangeActive.some(row => upper(row.symbol) === blockedSymbol)
+        : exchangeActive.length > 0;
+      if (!blockedSymbolStillOpen) {
+        state.globalBlock = null;
+        audit('LEGACY_MANUAL_REARM_BLOCK_AUTO_CLEARED', { symbol: sym, side: dir, blockedSymbol });
+      }
+    }
     if (state.globalBlock) {
       result = { ok: false, reason: `GLOBAL_BLOCK:${state.globalBlock.reason}` };
       return;
@@ -1249,10 +1261,16 @@ async function finalizeExchangeClose(pos, fallbackPrice, client = h.client) {
     ...accountingRecordFields(accounting)
   });
   if (classification.manual === true) {
-    setGlobalBlock(MANUAL_REARM_BLOCK, {
+    // Manuel/harici kapanış yalnız ilgili pozisyonu sonlandırır. Gerçek slot, kayıt CLOSED
+    // olduktan ve koruma emirleri temizlendikten sonra otomatik olarak yeniden kullanılabilir.
+    // Aynı sembol/yön tekrar girişi 4_pozisyon.js içindeki yerel cooldown ile korunur;
+    // hesap-geneli gerçek emir motoru bloke edilmez.
+    mutate(state => {
+      if (upper(state?.globalBlock?.reason) === MANUAL_REARM_BLOCK) state.globalBlock = null;
+    });
+    audit('MANUAL_EXTERNAL_CLOSE_AUTO_REARM', {
       symbol: pos.sym, side: pos.yon, fingerprint, closedAt,
-      accountingExact: accounting.accountingExact === true, netPnl: finite(accounting.netPnl, 0),
-      requiresDisarmRestart: true
+      accountingExact: accounting.accountingExact === true, netPnl: finite(accounting.netPnl, 0)
     });
   }
   audit('EXCHANGE_CLOSE_RECONCILED', { symbol: pos.sym, side: pos.yon, classification, accounting, protectionStatus });
@@ -1500,15 +1518,15 @@ async function startupReconcile(client = h.client) {
       const blockedSymbol = upper(next.globalBlock.symbol || next.globalBlock.details?.symbol);
       const blockedSymbolStillOpen = blockedSymbol && openPositions.some(row => upper(row.symbol) === blockedSymbol);
       const canClearWhileOpen = blockedReason === 'ESKI_STOP_IPTAL_EDILEMEDI';
-      const armExplicitlyDisabled = upper(process.env.AGROS_REAL_ORDER_ARM) === 'DISABLED';
-      const ackExplicitlyDisabled = upper(process.env.AGROS_REAL_ORDER_EXECUTION_ACK) === 'DISABLED';
-      if (blockedReason === MANUAL_REARM_BLOCK && openPositions.length === 0 && armExplicitlyDisabled && ackExplicitlyDisabled) {
+      if (blockedReason === MANUAL_REARM_BLOCK && !blockedSymbolStillOpen) {
+        // Eski sürümden kalan manuel kapanış global kilidi artık restart/ARM kapatma istemez.
+        // Kapanan sembol borsada açık değilse, diğer açık pozisyonları etkilemeden temizlenir.
         next.globalBlock = null;
         manualRearmCleared = true;
       } else if (autoClear.has(blockedReason) && (!blockedSymbolStillOpen || canClearWhileOpen)) next.globalBlock = null;
     }
   });
-  if (manualRearmCleared) audit('MANUAL_CLOSE_REARM_RESET_WHILE_DISARMED', { exchangeOpen: openPositions.length });
+  if (manualRearmCleared) audit('MANUAL_CLOSE_REARM_AUTO_CLEARED', { exchangeOpen: openPositions.length });
   audit('STARTUP_RECONCILIATION', { exchangeOpen: openPositions.length, restored: restored.length - adopted, adopted, protectionFailures, recoveredClosures: recoveredClosures.length, manualRearmCleared });
   return { positions: restored, restored: restored.length - adopted, adopted, protectionFailures, recoveredClosures, blocked: protectionFailures > 0 };
 }

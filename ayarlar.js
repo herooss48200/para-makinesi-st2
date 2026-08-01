@@ -727,28 +727,34 @@ const ayarlar = {
     adaptiveTradingLeagueRaporHerKapanis: 10,
 
 
-    // v6.3.9 — Pattern bazlı Renko kâr takip stopu evrimi ve kaynak görünürlüğü.
+    // v6.10.6 — Güvenli başlangıç korunur; takeover sonrası profil küçük kârı boğmak
+    // yerine net expectancy ve uzun kazanan üretme ekonomisine göre seçilir.
     renkoCikisEvolutionAktif: true,
     renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
     renkoCikisVarsayilanTugla: 1.00,
-    renkoCikisIlkAtamaKapanis: 1,
-    // Mevcut Renko yönetimi devraldıktan sonra, anlamlı MFE oluştuğunda
-    // tepe kârın en az bu oranını stop ile korur. Yeni katman değildir;
-    // mevcut Renko stop adayının güvenli alt sınırıdır.
+    // Tek kapanışın aşırı sıkı profili canlıya taşımasını engeller. İşlem açılışını engellemez;
+    // yeterli kanıt yoksa güvenli varsayılan exit profili kullanılır.
+    renkoCikisIlkAtamaKapanis: 5,
     renkoCikisMfeKorumaTetikYuzde: 0.40,
-    renkoCikisMinMfeKorumaOrani: 0.60,
-    // v6.7.0 — İlk bilimsel kapanıştan itibaren beklemeden çevrimiçi öğrenir.
-    renkoCikisAtrCarpanAdaylari: [1.00, 1.25, 1.50, 1.75, 2.00, 2.50],
-    renkoCikisMfeYakalamaAdaylari: [0.50, 0.60, 0.70, 0.80, 0.90],
+    renkoCikisMinMfeKorumaOrani: 0.55,
+    // ATR 1.00× ve MFE %80–90 profilleri normal geri çekilmelerde uzun kazananı kesiyordu.
+    // Aday uzayı ekonomik olarak nefes alan fakat güvenli tabanı koruyan aralığa çekildi.
+    renkoCikisAtrCarpanAdaylari: [1.25, 1.50, 1.75, 2.00, 2.50, 3.00],
+    renkoCikisMfeYakalamaAdaylari: [0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70],
     renkoCikisVarsayilanAtrCarpani: 1.50,
-    renkoCikisVarsayilanMfeYakalamaOrani: 0.60,
-    // Komisyon sonrası en az +%0.05 net bırakacak güvenli brüt taban.
+    renkoCikisVarsayilanMfeYakalamaOrani: 0.55,
+    renkoCikisMinimumMfeYakalamaOrani: 0.40,
+    renkoCikisMaksimumMfeYakalamaOrani: 0.70,
+    // MFE yüzdesi takeover anında değil, tepe kâr takeover'ın en az 2 katına ulaştığında
+    // ATR ve MFE runner takibi devreye girer. O zamana kadar yalnız güvenli kâr tabanı korunur.
+    renkoCikisMfeKorumaAktivasyonCarpani: 2.00,
+    // Komisyon sonrası en az +%0.05 net bırakacak güvenli brüt taban değişmedi.
     renkoCikisGuvenliKarTabaniYuzde: 0.15,
     renkoCikisMinimumNetKarYuzde: 0.05,
     renkoCikisMinimumDevralmaYuzde: 0.25,
-    renkoCikisMinimumAtrCarpani: 1.00,
+    renkoCikisMinimumAtrCarpani: 1.25,
     renkoCikisOnlineEmaAlpha: 0.35,
-    renkoCikisOnlineGuvenOnculN: 4,
+    renkoCikisOnlineGuvenOnculN: 6,
     // v6.5.0 — Canlı davranışı değiştirmeyen devralma + takip ortak shadow replay.
     renkoDevralmaAdayKarYuzde: [0.25, 0.40, 0.50, 0.75, 1.00, 1.25],
     renkoSuperLigMinKapanis: 5,

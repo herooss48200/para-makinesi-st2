@@ -1,0 +1,48 @@
+AGROS ST2 v6.10.6 — TEST RESULT
+Date: 2026-08-01
+Result: PASS
+
+Full npm regression chain: PASS
+- Full source syntax: PASS (119 JavaScript files)
+- v6.7.2 safe adaptive exit regression: PASS
+- v6.7.3 persistent LAB lifecycle: PASS
+- v6.7.4 Telegram startup delivery: PASS
+- v6.8.1 live report reconciliation: PASS
+- v6.8.2 operation transparency: PASS
+- v6.8.3 minimal Telegram operations: PASS
+- v6.8.4 operation proof Telegram: PASS
+- v6.9.0 Premier Score + 200 coin compatibility: PASS
+- v6.9.1 walk-forward calibration: PASS
+- v6.9.2 fast calibration: PASS
+- v6.9.3 live risk compatibility: PASS
+- v6.9.4/6.9.5 configurable risk: PASS
+- v6.10.0 real order safety: PASS
+- v6.10.1 endpoint authority: PASS
+- v6.10.2 live protection recovery: PASS
+- v6.10.3 regression updated for manual-close auto-rearm: PASS
+- v6.10.4 Premier close counters: PASS
+- v6.10.5 active exit report reconciliation: PASS
+- v6.10.6 manual-close auto-rearm + profit economy: PASS
+
+v6.10.6 explicit assertions:
+- Manual/external close does not create account-wide global rearm block: PASS
+- Next eligible real entry can reserve without PM2 restart/disarm: PASS
+- Legacy v6.10.3 manual global block auto-clears: PASS
+- Exact entry/exit commission and net PNL reconciliation remains intact: PASS
+- Existing same-symbol/side manual cooldown remains intact: PASS
+- Unsafe frozen ATR 1.05x / MFE 87% profile is sanitized: PASS
+- Safe +0.15% floor remains active at takeover: PASS
+- ATR/MFE remains inactive during runner breathing zone: PASS
+- Dynamic stop cannot lock more than 70% of peak profit: PASS
+- Replay candidate PNL is evaluated after round-trip commission: PASS
+- Online profile requires N5 + positive Net/Expectancy/PF: PASS
+- Economy score prefers larger net winner/payoff over tiny high-capture profit: PASS
+
+Test environment note:
+The clean source package intentionally excludes node_modules. The full npm chain was executed with harmless local stubs only for external module loading (dotenv, axios, binance-api-node, technicalindicators); every project regression test and source syntax check completed successfully. AWS uses the repository's installed real dependencies.
+
+Exact package verification:
+- Patch ZIP applied over the v6.10.5 assembled source: full npm regression PASS.
+- Full-clean ZIP extracted independently: full source syntax PASS.
+- Full-clean ZIP manual close auto-rearm regression PASS.
+- Full-clean ZIP profit economy runner regression PASS.

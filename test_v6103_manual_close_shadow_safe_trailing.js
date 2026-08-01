@@ -144,24 +144,28 @@ Module._load = function patched(request, parent, isMain) {
     assert.strictEqual(stored.accountingExact, true);
     assert.strictEqual(stored.entryCommission, 0.004);
     assert.strictEqual(stored.exitCommission, 0.004);
-    assert.strictEqual(execution.readState().globalBlock?.reason, 'MANUAL_EXTERNAL_CLOSE_REARM_REQUIRED');
+    assert.strictEqual(execution.readState().globalBlock, null, 'manuel kapanış hesap-geneli gerçek emir motorunu kilitledi');
 
-    const blocked = await execution.reserveEntry({ symbol: 'ETHUSDT', side: 'LONG', context: { ...ctx, sym: 'ETHUSDT' }, client });
-    assert.strictEqual(blocked.ok, false);
-    assert(/^GLOBAL_BLOCK:MANUAL_EXTERNAL_CLOSE_REARM_REQUIRED/.test(blocked.reason));
+    // Manuel kapanıştan sonra restart/disarm gerekmeden başka bir gerçek giriş rezerve edilebilmelidir.
+    const nextReservation = await execution.reserveEntry({ symbol: 'ETHUSDT', side: 'LONG', context: { ...ctx, sym: 'ETHUSDT' }, client });
+    assert.strictEqual(nextReservation.ok, true, nextReservation.reason);
+    execution.releaseReservation(nextReservation, 'TEST_COMPLETE');
 
-    // Sadece geçersiz/yanlış yetki manuel kilidi temizleyemez; iki alan açıkça DISABLED olmalıdır.
-    process.env.AGROS_REAL_ORDER_ARM = 'TYPO';
-    process.env.AGROS_REAL_ORDER_EXECUTION_ACK = 'V610_REVIEWED';
+    // v6.10.3 state dosyasından kalmış legacy global kilit de otomatik temizlenmelidir.
+    let legacy = execution.readState();
+    legacy.globalBlock = { reason: 'MANUAL_EXTERNAL_CLOSE_REARM_REQUIRED', symbol: 'BTCUSDT', at: new Date().toISOString() };
+    execution.writeState(legacy);
+    const legacyRecovery = await execution.reserveEntry({ symbol: 'XRPUSDT', side: 'SHORT', context: { ...ctx, sym: 'XRPUSDT', yon: 'SHORT' }, client });
+    assert.strictEqual(legacyRecovery.ok, true, legacyRecovery.reason);
+    assert.strictEqual(execution.readState().globalBlock, null, 'legacy manuel rearm kilidi otomatik temizlenmedi');
+    execution.releaseReservation(legacyRecovery, 'TEST_COMPLETE');
+
+    // Startup mutabakatı da ARM/ACK kapatma zorunluluğu olmadan legacy kilidi kaldırmalıdır.
+    legacy = execution.readState();
+    legacy.globalBlock = { reason: 'MANUAL_EXTERNAL_CLOSE_REARM_REQUIRED', symbol: 'BTCUSDT', at: new Date().toISOString() };
+    execution.writeState(legacy);
     await execution.startupReconcile(client);
-    assert.strictEqual(execution.readState().globalBlock?.reason, 'MANUAL_EXTERNAL_CLOSE_REARM_REQUIRED', 'yalnız geçersiz ARM manuel kilidi temizledi');
-    execution.cleanupProcessLock();
-
-    // Yalnız açık pozisyon yokken ve ARM/ACK açıkça kapalı bir başlangıç manuel kilidi temizler.
-    process.env.AGROS_REAL_ORDER_ARM = 'DISABLED';
-    process.env.AGROS_REAL_ORDER_EXECUTION_ACK = 'DISABLED';
-    await execution.startupReconcile(client);
-    assert.strictEqual(execution.readState().globalBlock, null, 'disarmed restart manuel rearm kilidini temizlemedi');
+    assert.strictEqual(execution.readState().globalBlock, null, 'startup legacy manuel rearm kilidini temizlemedi');
 
     const continuity = require('./65_accounting_continuity.js');
     const breakdown = continuity.activeBreakdown([
@@ -224,7 +228,7 @@ Module._load = function patched(request, parent, isMain) {
     assert(motorSource.includes('GERCEK_POZISYON_SLOTU_DOLU'));
     assert.strictEqual(ayarlar.canliShadowMaksAktifGozlem, 200);
 
-    console.log('✅ v6.10.3 manual close rearm lock + safe single-stop trailing + exact commissions + real/shadow separation + Telegram reconciliation passed');
+    console.log('✅ v6.10.6 manual close auto-rearm + safe single-stop trailing + exact commissions + real/shadow separation + Telegram reconciliation passed');
   } finally {
     try { require('./85_st2_real_order_execution.js').cleanupProcessLock(); } catch (_) {}
     Module._load = originalLoad;

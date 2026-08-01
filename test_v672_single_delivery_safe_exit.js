@@ -9,7 +9,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-v672-'));
 process.env.AGROS_DATA_DIR = tmp;
 
 const evo = require('./74_st2_renko_exit_evolution.js');
-assert.strictEqual(evo.VERSION, 'v6.7.2-SAFE-ADAPTIVE-ATR-CAPTURE');
+assert.strictEqual(evo.VERSION, 'v6.10.6-PROFIT-ECONOMY-RIDER-REPAIR');
 assert(evo.DEFAULT_TAKEOVER() >= 0.25, 'varsayılan takeover sıfır olamaz');
 assert(evo.DEFAULT_ATR() >= 1.0, 'varsayılan ATR çarpanı sıfır olamaz');
 assert(evo.SAFE_FLOOR_MIN() >= 0.15, 'güvenli taban komisyon + net kâr tamponunu karşılamalı');
@@ -27,7 +27,7 @@ fs.writeFileSync(evo.STATE_FILE, JSON.stringify({
   }
 }, null, 2));
 const profile = evo.activeProfileFor('SHORT', 'GGGG');
-assert.strictEqual(profile.source, 'SAFE_DEFAULT');
+assert(['SAFE_DEFAULT', 'SAFE_ECONOMY_FALLBACK'].includes(profile.source));
 assert(profile.takeoverPct >= 0.25);
 assert(profile.atrMultiplier >= 1.0);
 assert(profile.captureRatio >= 0.40);
@@ -120,4 +120,4 @@ assert(hafiza.includes('preferCurl: true'), 'tekil Telegram curl-first olmalı')
 assert(hafiza.includes('atMostOnce: true'), 'tekil Telegram at-most-once olmalı');
 assert(hafiza.includes('options.atMostOnce !== true'), 'HTML fallback tekil hatta kapalı olmalı');
 assert(bot.includes('h.telegramMesajGonderTekil(baslangicMesaji'), 'startup tekil teslim hattını kullanmalı');
-console.log('✅ v6.7.2 single-delivery Telegram + safe adaptive exit + report truth passed');
+console.log('✅ v6.10.6 single-delivery Telegram + safe adaptive runner exit + report truth passed');

@@ -1,14 +1,14 @@
 'use strict';
 // Compatibility marker: CALIBRATION-READY; gerçek emir için aktif kalibrasyon ayrıca zorunludur.
-// v6.10.5: aktif pozisyon Exit Replay panel ayrımı + Restart-GAP Entry/Exit metin uzlaştırması.
+// v6.10.6: manuel kapanış auto-rearm + güvenli taban sonrası runner ekonomi onarımı.
 
 // v6.8.4 compatibility marker: 6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'ST2-RENKO-ACTIVE-EXIT-REPORT-RECONCILIATION',
-    kod: 'AGROS ST2 v6.10.5 — ACTIVE EXIT REPORT RECONCILIATION',
-    botSurumu: '6.10.5-ACTIVE-EXIT-REPORT-RECONCILIATION',
-    stratejiSurumu: '1.0.28',
+    kodAdi: 'ST2-MANUAL-CLOSE-AUTO-REARM-PROFIT-ECONOMY',
+    kod: 'AGROS ST2 v6.10.6 — MANUAL CLOSE AUTO-REARM & PROFIT ECONOMY',
+    botSurumu: '6.10.6-MANUAL-CLOSE-AUTO-REARM-PROFIT-ECONOMY',
+    stratejiSurumu: '1.0.29',
     yayinTarihi: '01.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
 });

@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v6.7.2-SAFE-ADAPTIVE-ATR-CAPTURE';
+const VERSION = 'v6.10.6-PROFIT-ECONOMY-RIDER-REPAIR';
 const DATA_DIR = process.env.AGROS_DATA_DIR
   ? path.resolve(process.env.AGROS_DATA_DIR)
   : path.join(__dirname, 'data');
@@ -20,15 +20,18 @@ const TAKEOVER_CANDIDATES = () => (ayarlar.renkoDevralmaAdayKarYuzde || [0.25, 0
   .map(Number).filter(x => x >= 0).sort((a, b) => a - b);
 const ATR_CANDIDATES = () => (ayarlar.renkoCikisAtrCarpanAdaylari || ayarlar.exitReplayAtrMultipliers || [1.0, 1.25, 1.5, 1.75, 2.0, 2.5])
   .map(Number).filter(x => x > 0).sort((a, b) => a - b);
-const CAPTURE_CANDIDATES = () => (ayarlar.renkoCikisMfeYakalamaAdaylari || [0.50, 0.60, 0.70, 0.80, 0.90])
-  .map(Number).filter(x => x > 0 && x < 1).sort((a, b) => a - b);
+const CAPTURE_CANDIDATES = () => (ayarlar.renkoCikisMfeYakalamaAdaylari || [0.45, 0.50, 0.55, 0.60, 0.65, 0.70])
+  .map(Number).filter(x => x >= MIN_CAPTURE() && x <= MAX_CAPTURE()).sort((a, b) => a - b);
 const DEFAULT_TRAIL = () => Number(ayarlar.renkoCikisVarsayilanTugla || 1);
 const DEFAULT_ATR = () => Number(ayarlar.renkoCikisVarsayilanAtrCarpani || 1.5);
 const DEFAULT_CAPTURE = () => Number(ayarlar.renkoCikisVarsayilanMfeYakalamaOrani || ayarlar.renkoCikisMinMfeKorumaOrani || 0.60);
 const DEFAULT_TAKEOVER = () => Number(ayarlar.renkoCikisMfeKorumaTetikYuzde || 0.40);
 const DEFAULT_SAFE_FLOOR = () => Math.max(0, Number(ayarlar.renkoCikisGuvenliKarTabaniYuzde || 0.15));
 const MIN_TAKEOVER = () => Math.max(0.05, Number(ayarlar.renkoCikisMinimumDevralmaYuzde || Math.min(...TAKEOVER_CANDIDATES()) || 0.25));
-const MIN_ATR = () => Math.max(0.25, Number(ayarlar.renkoCikisMinimumAtrCarpani || Math.min(...ATR_CANDIDATES()) || 1.00));
+const MIN_ATR = () => Math.max(0.25, Number(ayarlar.renkoCikisMinimumAtrCarpani || Math.min(...ATR_CANDIDATES()) || 1.25));
+const MIN_CAPTURE = () => clamp(Number(ayarlar.renkoCikisMinimumMfeYakalamaOrani ?? 0.40), 0.30, 0.70);
+const MAX_CAPTURE = () => clamp(Number(ayarlar.renkoCikisMaksimumMfeYakalamaOrani ?? 0.70), MIN_CAPTURE(), 0.80);
+const MFE_ARM_MULTIPLIER = () => Math.max(1, Number(ayarlar.renkoCikisMfeKorumaAktivasyonCarpani || 2));
 const ROUND_TRIP_COMMISSION_PCT = () => Math.max(0, Number(ayarlar.sanalKomisyonOrani ?? 0.0005) * 2 * 100);
 const MIN_NET_PROFIT_PCT = () => Math.max(0, Number(ayarlar.renkoCikisMinimumNetKarYuzde || 0.05));
 const SAFE_FLOOR_MIN = () => Math.max(DEFAULT_SAFE_FLOOR(), ROUND_TRIP_COMMISSION_PCT() + MIN_NET_PROFIT_PCT());
@@ -37,10 +40,10 @@ function n(v, d = 0) { v = Number(v); return Number.isFinite(v) ? v : d; }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, n(v, min))); }
 function takeoverOrNull(v) { const x = Number(v); return Number.isFinite(x) && x >= MIN_TAKEOVER() ? x : null; }
 function atrOrNull(v) { const x = Number(v); return Number.isFinite(x) && x >= MIN_ATR() ? x : null; }
-function captureOrNull(v) { const x = Number(v); return Number.isFinite(x) && x >= 0.40 && x <= 0.95 ? x : null; }
+function captureOrNull(v) { const x = Number(v); return Number.isFinite(x) && x >= MIN_CAPTURE() && x <= MAX_CAPTURE() ? x : null; }
 function validTakeover(v) { return takeoverOrNull(v) ?? Math.max(MIN_TAKEOVER(), DEFAULT_TAKEOVER()); }
 function validAtr(v) { return atrOrNull(v) ?? Math.max(MIN_ATR(), DEFAULT_ATR()); }
-function validCapture(v) { return captureOrNull(v) ?? clamp(DEFAULT_CAPTURE(), 0.40, 0.95); }
+function validCapture(v) { return captureOrNull(v) ?? clamp(DEFAULT_CAPTURE(), MIN_CAPTURE(), MAX_CAPTURE()); }
 function safeFloorFor(takeoverPct, value) {
   const takeover = validTakeover(takeoverPct);
   const requested = Number(value);
@@ -126,12 +129,17 @@ function write(s) {
   }
 }
 function metric(m) {
-  const samples = n(m?.samples), loss = n(m?.grossLoss);
+  const samples = n(m?.samples), wins = n(m?.tp), losses = n(m?.sl), loss = n(m?.grossLoss);
+  const avgWin = wins ? n(m?.grossProfit) / wins : 0;
+  const avgLoss = losses ? loss / losses : 0;
   return {
     ...blankMetric(), ...(m || {}),
-    wr: samples ? 100 * n(m?.tp) / samples : 0,
+    wr: samples ? 100 * wins / samples : 0,
     pf: loss > 0 ? n(m?.grossProfit) / loss : (n(m?.grossProfit) > 0 ? 999 : 0),
     expectancy: samples ? n(m?.net) / samples : 0,
+    avgWin,
+    avgLoss,
+    payoffRatio: avgLoss > 0 ? avgWin / avgLoss : (avgWin > 0 ? 999 : 0),
     mfeCapture: samples ? n(m?.mfeCaptureSum) / samples : 0,
     avgGiveback: samples ? n(m?.givebackSum) / samples : 0,
     avgMissedProfit: samples ? n(m?.missedProfitSum) / samples : 0
@@ -150,21 +158,31 @@ function auditMetric(a) {
     avgPostTakeoverMfe: samples ? n(a?.postTakeoverMfeSum) / samples : 0
   };
 }
-function minN() { return 1; }
+function minN() { return Math.max(3, n(ayarlar.renkoCikisIlkAtamaKapanis, 5)); }
 function confidence(samples) {
-  const prior = Math.max(1, n(ayarlar.renkoCikisOnlineGuvenOnculN, 4));
+  const prior = Math.max(1, n(ayarlar.renkoCikisOnlineGuvenOnculN, 6));
   return n(samples) / (n(samples) + prior);
 }
 function adaptiveScore(row) {
   const m = metric(row);
-  const positiveBias = m.net > 0 ? 0.10 : 0;
-  return n(m.emaNet, m.expectancy)
-    + (n(m.emaCapture, m.mfeCapture) / 100) * 0.22
-    - n(m.emaGiveback, m.avgGiveback) * 0.35
-    + Math.min(3, m.pf) * 0.025
-    + positiveBias;
+  // Ekonomi önceliği: küçük MFE'yi yüksek oranda yakalamak yerine net expectancy,
+  // ortalama kazanan ve payoff oranı ödüllendirilir. Capture/giveback yalnız ikincil ölçüttür.
+  const recentNet = n(m.emaNet, m.expectancy);
+  const payoff = Math.min(4, n(m.payoffRatio));
+  const pf = Math.min(4, n(m.pf));
+  const captureQuality = Math.min(0.70, Math.max(0, n(m.emaCapture, m.mfeCapture) / 100));
+  return recentNet * 0.55
+    + n(m.expectancy) * 0.35
+    + n(m.avgWin) * 0.18
+    + payoff * 0.035
+    + pf * 0.025
+    + captureQuality * 0.025
+    - n(m.emaGiveback, m.avgGiveback) * 0.08;
 }
-function eligible(row) { return n(row?.samples) > 0; }
+function eligible(row) {
+  const m = metric(row);
+  return m.samples >= minN() && m.net > 0 && m.expectancy > 0 && m.pf >= 1;
+}
 function chooseTrail(p) {
   const rows = Object.entries(p.candidates || {}).map(([x, m]) => ({ trail: n(x), ...metric(m) })).filter(eligible);
   rows.sort((a, b) => b.net - a.net || b.pf - a.pf || b.expectancy - a.expectancy || b.mfeCapture - a.mfeCapture || a.trail - b.trail);
@@ -178,12 +196,14 @@ function chooseJoint(p) {
 function chooseOnline(p) {
   const rows = Object.values(p.onlineCandidates || {}).map(r => ({ ...r, ...metric(r) })).filter(eligible);
   rows.sort((a, b) => adaptiveScore(b) - adaptiveScore(a)
+    || b.expectancy - a.expectancy
     || b.net - a.net
-    || b.mfeCapture - a.mfeCapture
+    || b.avgWin - a.avgWin
+    || b.payoffRatio - a.payoffRatio
+    || b.atrMultiplier - a.atrMultiplier
+    || a.captureRatio - b.captureRatio
     || a.avgGiveback - b.avgGiveback
-    || a.takeoverPct - b.takeoverPct
-    || a.atrMultiplier - b.atrMultiplier
-    || b.captureRatio - a.captureRatio);
+    || b.takeoverPct - a.takeoverPct);
   return rows[0] || null;
 }
 function activeProfileFor(yon, pattern) {
@@ -192,7 +212,8 @@ function activeProfileFor(yon, pattern) {
   const learnedTakeover = takeoverOrNull(p?.activeTakeoverPct);
   const learnedAtr = atrOrNull(p?.activeAtrMultiplier);
   const learnedCapture = captureOrNull(p?.activeCaptureRatio);
-  const learned = Boolean(p && learnedTakeover != null && learnedAtr != null && learnedCapture != null);
+  const economyEligible = p?.online?.economyEligible === true && n(p?.online?.samples) >= minN();
+  const learned = Boolean(p && economyEligible && learnedTakeover != null && learnedAtr != null && learnedCapture != null);
   const takeoverPct = learned ? learnedTakeover : validTakeover(DEFAULT_TAKEOVER());
   const atrMultiplier = learned ? learnedAtr : validAtr(DEFAULT_ATR());
   const captureRatio = learned ? learnedCapture : validCapture(DEFAULT_CAPTURE());
@@ -204,7 +225,7 @@ function activeProfileFor(yon, pattern) {
     safeFloorPct: safeFloorFor(takeoverPct, p?.activeSafeFloorPct),
     samples: n(p?.online?.samples, p?.closed),
     confidence: confidence(n(p?.online?.samples, p?.closed)),
-    source: learned ? 'ONLINE_LEARNED_PROFILE' : 'SAFE_DEFAULT',
+    source: learned ? 'ONLINE_LEARNED_PROFILE' : (p ? 'SAFE_ECONOMY_FALLBACK' : 'SAFE_DEFAULT'),
     sanitizedLegacyProfile: Boolean(p && !learned && [p.activeTakeoverPct, p.activeAtrMultiplier, p.activeCaptureRatio].some(v => v != null))
   };
 }
@@ -224,8 +245,34 @@ function addTimeline(pos, type, detail = {}) {
 }
 function assign(pos) {
   if (!pos) return null;
-  if (pos.renkoExitAssignment) return pos.renkoExitAssignment;
   const ga = pos.girisAnalizi || {};
+  if (pos.renkoExitAssignment) {
+    const current = pos.renkoExitAssignment;
+    const validFrozen = takeoverOrNull(current.assignedTakeoverPct) != null
+      && atrOrNull(current.assignedAtrMultiplier) != null
+      && captureOrNull(current.assignedCaptureRatio) != null;
+    if (validFrozen) return current;
+    // Eski sürümün aşırı sıkı (örn. ATR 1.05× / MFE %87) dondurulmuş profilini
+    // açık pozisyon üzerinde güvenli ekonomi fallback'ine taşır. Mevcut stop geriye
+    // gevşetilmez; yalnız sonraki stop hesapları daha uzun kâr taşıyacak profile geçer.
+    const repaired = activeProfileFor(pos.yon, ga.patternKodu);
+    current.assignedTakeoverPct = repaired.takeoverPct;
+    current.assignedAtrMultiplier = repaired.atrMultiplier;
+    current.assignedCaptureRatio = repaired.captureRatio;
+    current.assignedSafeFloorPct = repaired.safeFloorPct;
+    current.profileSamples = repaired.samples;
+    current.profileConfidence = repaired.confidence;
+    current.takeoverSource = repaired.source;
+    current.status = pos.renkoExitActivated ? 'ACTIVE' : 'WAITING_TAKEOVER';
+    current.economyRepairMigratedAt = new Date().toISOString();
+    current.economyRepairReason = 'UNSAFE_TIGHT_PROFILE_SANITIZED';
+    addTimeline(pos, 'ECONOMY_REPAIR_PROFILE', {
+      stage: pos.renkoProtectionStage || 'K0', reason: current.economyRepairReason,
+      takeoverPct: repaired.takeoverPct, atrMultiplier: repaired.atrMultiplier,
+      captureRatio: repaired.captureRatio
+    });
+    return current;
+  }
   const profile = activeProfileFor(pos.yon, ga.patternKodu);
   pos.renkoExitAssignment = {
     patternKey: key(pos.yon, ga.patternKodu),
@@ -286,6 +333,10 @@ function safeFloorStop(pos) {
   const pct = safeFloorFor(a?.assignedTakeoverPct, a?.assignedSafeFloorPct);
   return priceFromProfitPct(pos?.yon, entry, pct);
 }
+function mfeArmPeakPct(takeoverPct) {
+  const trigger = validTakeover(takeoverPct);
+  return Math.max(trigger * MFE_ARM_MULTIPLIER(), trigger + SAFE_FLOOR_MIN());
+}
 function mfeProtectionStop(pos, peak) {
   const entry = n(pos?.girisFiyati);
   if (!(entry > 0) || !(peak > 0)) return null;
@@ -293,7 +344,9 @@ function mfeProtectionStop(pos, peak) {
   const trigger = validTakeover(a?.assignedTakeoverPct);
   const ratio = validCapture(a?.assignedCaptureRatio);
   const peakPct = peakProfitPct(pos, peak);
-  if (peakPct < trigger || ratio <= 0) return null;
+  // Güvenli taban takeover anında korunur; MFE yüzdesi trend henüz filizlenirken
+  // stopu boğmasın. MFE koruması ancak hareket takeover'ın belirgin üzerine uzadığında arm edilir.
+  if (peakPct < mfeArmPeakPct(trigger) || ratio <= 0) return null;
   return priceFromProfitPct(pos?.yon, entry, peakPct * ratio);
 }
 function atrProtectionStop(pos, peak, price) {
@@ -310,11 +363,27 @@ function atrProtectionStop(pos, peak, price) {
   }
   const atrPct = n(pos?.renkoExitPeakAtrPct, current.value);
   if (!(atrPct > 0)) return { stop: null, atrPct: null, source: current.source, floorPct: null };
+
+  // Takeover anında yalnız güvenli kâr tabanı devrededir. ATR/MFE dinamik takibi,
+  // hareket bir "runner" olacak kadar genişlemeden stopu sıkılaştırmaz.
+  const runnerArmPct = mfeArmPeakPct(a?.assignedTakeoverPct);
+  if (peakPct < runnerArmPct) {
+    return {
+      stop: null, atrPct, source: 'PROFIT_RUNNER_ARM_WAIT', floorPct: null,
+      rawFloorPct: null, runnerArmPct
+    };
+  }
+
   const multiplier = validAtr(a?.assignedAtrMultiplier);
-  const floorPct = peakPct - atrPct * multiplier;
+  const rawFloorPct = peakPct - atrPct * multiplier;
+  // ATR çok küçük olduğunda 1.05× gibi eski profiller zirvenin neredeyse tamamını
+  // kilitliyordu. Dinamik stop, peak kârın MAX_CAPTURE oranından daha sıkı olamaz.
+  const maxEconomyFloorPct = peakPct * MAX_CAPTURE();
+  const floorPct = Math.min(rawFloorPct, maxEconomyFloorPct);
   return {
     stop: priceFromProfitPct(pos?.yon, entry, floorPct),
-    atrPct, source: pos?.renkoExitPeakAtrSource || current.source, floorPct
+    atrPct, source: pos?.renkoExitPeakAtrSource || current.source, floorPct,
+    rawFloorPct, maxEconomyFloorPct, runnerArmPct
   };
 }
 function stopSource(pos, old, safeFloor, atrStop, mfeFloor, effective) {
@@ -381,14 +450,19 @@ function update(pos, price) {
   const mfeFloor = mfeProtectionStop(pos, pos.renkoExitPeak);
   const safeFloor = n(pos.renkoExitFirstProtectionStop, safeFloorStop(pos));
   const old = n(pos.sl);
-  const atrStop = n(atr.stop, pos.yon === 'LONG' ? 0 : Number.POSITIVE_INFINITY);
+  const atrStopValue = Number(atr.stop);
+  const mfeFloorValue = Number(mfeFloor);
+  const atrStop = Number.isFinite(atrStopValue) && atrStopValue > 0
+    ? atrStopValue : (pos.yon === 'LONG' ? 0 : Number.POSITIVE_INFINITY);
+  const mfeStop = Number.isFinite(mfeFloorValue) && mfeFloorValue > 0
+    ? mfeFloorValue : (pos.yon === 'LONG' ? 0 : Number.POSITIVE_INFINITY);
   if (!(old > 0) || !(safeFloor > 0)) {
     return { active: true, justActivated, changed: false, reason: 'INVALID_STOP_INPUT', old, safeFloor, atrStop, mfeFloor };
   }
 
   const effective = pos.yon === 'LONG'
-    ? Math.max(old, safeFloor, atrStop, n(mfeFloor, 0))
-    : Math.min(old, safeFloor, atrStop, n(mfeFloor, Number.POSITIVE_INFINITY));
+    ? Math.max(old, safeFloor, atrStop, mfeStop)
+    : Math.min(old, safeFloor, atrStop, mfeStop);
   if (!(effective > 0) || !Number.isFinite(effective)) {
     return { active: true, justActivated, changed: false, reason: 'INVALID_EFFECTIVE_STOP', effective, atrStop, mfeFloor };
   }
@@ -492,8 +566,10 @@ function adaptiveReplay(pathRows, yon, entry, takeoverPct, atrMultiplier, captur
       peakPct = pnl;
       if (Number.isFinite(atrPct) && atrPct > 0) { peakAtrPct = atrPct; atrAvailable = true; }
     }
-    const atrFloor = peakAtrPct > 0 ? peakPct - peakAtrPct * atrMultiplier : -Infinity;
-    const captureFloor = peakPct * captureRatio;
+    const runnerArmed = peakPct >= mfeArmPeakPct(takeoverPct);
+    const rawAtrFloor = runnerArmed && peakAtrPct > 0 ? peakPct - peakAtrPct * atrMultiplier : -Infinity;
+    const atrFloor = Number.isFinite(rawAtrFloor) ? Math.min(rawAtrFloor, peakPct * MAX_CAPTURE()) : -Infinity;
+    const captureFloor = runnerArmed ? peakPct * captureRatio : -Infinity;
     const effectiveFloor = Math.max(Math.min(safeFloorPct, takeoverPct), atrFloor, captureFloor);
     if (pnl <= effectiveFloor) {
       exitPct = effectiveFloor;
@@ -502,10 +578,13 @@ function adaptiveReplay(pathRows, yon, entry, takeoverPct, atrMultiplier, captur
     }
   }
   if (exitPct == null) exitPct = profitPct(yon, entry, n(finalPrice, n(pathRows.at(-1)?.price, entry)));
-  const capture = mfe > 0 ? clamp(exitPct / mfe * 100, 0, 100) : 0;
+  const grossPct = exitPct;
+  const netPct = grossPct - ROUND_TRIP_COMMISSION_PCT();
+  const capture = mfe > 0 ? clamp(grossPct / mfe * 100, 0, 100) : 0;
   return {
-    pct: exitPct, mfe, capture, giveback: Math.max(0, mfe - exitPct),
-    missedProfit: Math.max(0, mfe - Math.max(0, exitPct)), activated,
+    pct: netPct, grossPct, commissionPct: ROUND_TRIP_COMMISSION_PCT(), mfe, capture,
+    giveback: Math.max(0, mfe - grossPct),
+    missedProfit: Math.max(0, mfe - Math.max(0, grossPct)), activated,
     activationIndex, atrAvailable, exitReason
   };
 }
@@ -616,7 +695,7 @@ function close(pos, result = {}) {
   if (legacyBest) p.activeTrail = legacyBest.trail;
   const best = chooseOnline(p);
   if (best) {
-    // İlk kapanıştan itibaren öğren; ancak tek örneğin aşırı uyumunu canlıya tam güçle verme.
+    // En az N5 ve pozitif net/expectancy/PF kanıtından sonra öğrenilmiş profili canlıya taşı.
     // Güven arttıkça güvenli başlangıç profilinden replay şampiyonuna kademeli yaklaş.
     const conf = confidence(best.samples);
     p.activeTakeoverPct = validTakeover(blend(DEFAULT_TAKEOVER(), best.takeoverPct, conf));
@@ -625,8 +704,8 @@ function close(pos, result = {}) {
     p.activeSafeFloorPct = safeFloorFor(p.activeTakeoverPct, best.safeFloorPct);
     p.activeProfileUpdatedAt = new Date().toISOString();
     p.online = {
-      status: 'ONLINE_AKTIF', samples: best.samples, confidence: conf,
-      score: adaptiveScore(best),
+      status: 'ONLINE_AKTIF_EKONOMI_KANITLI', samples: best.samples, confidence: conf,
+      economyEligible: true, score: adaptiveScore(best),
       selectedTakeoverPct: best.takeoverPct,
       selectedAtrMultiplier: best.atrMultiplier,
       selectedCaptureRatio: best.captureRatio,
@@ -634,8 +713,21 @@ function close(pos, result = {}) {
       atrMultiplier: p.activeAtrMultiplier,
       captureRatio: p.activeCaptureRatio,
       safeFloorPct: p.activeSafeFloorPct, net: best.net, pf: best.pf,
-      expectancy: best.expectancy, mfeCapture: best.mfeCapture,
+      expectancy: best.expectancy, avgWin: best.avgWin, avgLoss: best.avgLoss,
+      payoffRatio: best.payoffRatio, mfeCapture: best.mfeCapture,
       avgGiveback: best.avgGiveback, updatedAt: p.activeProfileUpdatedAt
+    };
+    p.promotion = { ...p.online, trail: p.activeTrail };
+  } else {
+    // Yeterli ve pozitif ekonomik kanıt yoksa eski sıkı profil taşınmaz.
+    p.activeTakeoverPct = null;
+    p.activeAtrMultiplier = null;
+    p.activeCaptureRatio = null;
+    p.activeSafeFloorPct = null;
+    p.activeProfileUpdatedAt = new Date().toISOString();
+    p.online = {
+      status: 'SAFE_DEFAULT_ECONOMY_GATE', economyEligible: false,
+      samples: p.closed, minSamples: minN(), updatedAt: p.activeProfileUpdatedAt
     };
     p.promotion = { ...p.online, trail: p.activeTrail };
   }
@@ -643,7 +735,7 @@ function close(pos, result = {}) {
   s.processedIds[id] = { at: new Date().toISOString(), patternKey: k, audit, online: p.online };
   write(s);
   fs.appendFileSync(LEDGER_FILE, JSON.stringify({
-    type: 'RENKO_EXIT_CLOSE_V670', id, at: new Date().toISOString(), patternKey: k,
+    type: 'RENKO_EXIT_CLOSE_V6106', id, at: new Date().toISOString(), patternKey: k,
     result, audit, online: p.online
   }) + '\n');
   addTimeline(pos, 'EXIT', { stage: pos.renkoProtectionStage || 'K0', reason: result.reason || 'UNKNOWN', exitPrice: finalPrice });
@@ -675,7 +767,7 @@ function telegram(activePositions = []) {
   let t = '🏁 <b>ST2 ONLINE ATR + MFE CAPTURE / KÂR YAKALAMA</b>\n🏁 RENKO KÂR TAKİP STOPU EVRİMİ\n━━━━━━━━━━━━━━━━━━\n';
   t += `📊 Bilimsel kapanış: ${totalClosed} | İzlenen pattern: ${x.profiles.length}\n`;
   t += `🧱 Takip profili atanmış: ${x.runtime.assigned} | Stop kaynağı: gerçek kapanış + online replay\n`;
-  t += `⚡ Bekleme kapısı: YOK | İlk kapanıştan itibaren yeni profile otomatik atama\n`;
+  t += `⚡ Ekonomi kapısı: N${minN()} + pozitif Net/Exp/PF | Kanıt yoksa güvenli profil\n`;
   t += `🧱 Atanmış: ${x.runtime.assigned} | 🟢 Devrede: ${x.runtime.activated} | ⏳ Eşik bekleyen: ${x.runtime.waiting}\n`;
   t += `🛡️ Restart-GAP aktif: ${x.runtime.restartGap} | GAP ret: ${n(x.state.health?.restartGap)} | Duplicate: ${n(x.state.health?.duplicate)}\n`;
   t += `🔬 Devralma ${TAKEOVER_CANDIDATES().map(v => `%${v.toFixed(2)}`).join('/')} | ATR ${ATR_CANDIDATES().map(v => `${v.toFixed(2)}×`).join('/')} | Yakalama ${CAPTURE_CANDIDATES().map(v => `%${(v * 100).toFixed(0)}`).join('/')}\n`;
@@ -687,7 +779,7 @@ function telegram(activePositions = []) {
     t += `💰 Gerçek MFE %${a.avgMfe.toFixed(3)} | Kapanış %${a.avgExitPct.toFixed(3)} | Yakalama %${a.avgCapture.toFixed(1)} | Geri verme %${a.avgGiveback.toFixed(3)}\n`;
     if (o.status) t += `🧠 Replay Net ${n(o.net) >= 0 ? '+' : ''}${n(o.net).toFixed(4)} | PF ${n(o.pf).toFixed(2)} | Exp ${n(o.expectancy).toFixed(4)} | Replay yakalama %${n(o.mfeCapture).toFixed(1)}\n`;
   }
-  if (!x.profiles.length) t += '\n🟢 Güvenli başlangıç profili aktif. İlk bilimsel kapanışla birlikte çevrimiçi atama başlayacak.\n';
+  if (!x.profiles.length) t += `\n🟢 Güvenli başlangıç profili aktif. Ekonomik kanıt N${minN()} olduğunda çevrimiçi atama başlayacak.\n`;
   return t;
 }
 
@@ -695,10 +787,12 @@ module.exports = {
   VERSION, STATE_FILE, BACKUP_FILE, LEDGER_FILE,
   CANDIDATES, TAKEOVER_CANDIDATES, ATR_CANDIDATES, CAPTURE_CANDIDATES,
   DEFAULT_TRAIL, DEFAULT_ATR, DEFAULT_CAPTURE, DEFAULT_TAKEOVER, DEFAULT_SAFE_FLOOR,
-  MIN_TAKEOVER, MIN_ATR, ROUND_TRIP_COMMISSION_PCT, MIN_NET_PROFIT_PCT, SAFE_FLOOR_MIN,
+  MIN_TAKEOVER, MIN_ATR, MIN_CAPTURE, MAX_CAPTURE, MFE_ARM_MULTIPLIER,
+  ROUND_TRIP_COMMISSION_PCT, MIN_NET_PROFIT_PCT, SAFE_FLOOR_MIN,
   activeFor, activeProfileFor, assign, update, takeoverText, close, summary, telegram,
   firstProtectionReady, takeoverThresholdReady, addTimeline, peakProfitPct,
   mfeProtectionStop, atrProtectionStop, stopSource, sourceLabel,
   replay, adaptiveReplay, actualAudit, metric, auditMetric, chooseOnline, adaptiveScore, confidence, blend,
-  takeoverOrNull, atrOrNull, captureOrNull, validTakeover, validAtr, validCapture, safeFloorFor
+  takeoverOrNull, atrOrNull, captureOrNull, validTakeover, validAtr, validCapture, safeFloorFor,
+  mfeArmPeakPct, eligible
 };

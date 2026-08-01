@@ -1,0 +1,16 @@
+AGROS ST2 v6.10.6 — PATCH MANIFEST
+
+74_st2_renko_exit_evolution.js
+85_st2_real_order_execution.js
+ayarlar.js
+versiyon.js
+package.json
+package-lock.json
+test_v672_single_delivery_safe_exit.js
+test_v6103_manual_close_shadow_safe_trailing.js
+test_v6105_active_exit_report_reconciliation.js
+test_v6106_manual_close_auto_rearm_profit_economy.js
+CHANGELOG-v6.10.6.md
+AWS-ST2-v6.10.6.md
+PATCH-MANIFEST-v6.10.6.txt
+TEST-RESULT-v6.10.6.txt
