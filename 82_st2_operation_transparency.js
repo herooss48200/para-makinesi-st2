@@ -6,7 +6,7 @@
 const ayarlar = require('./ayarlar.js');
 const premierQuality = require('./83_st2_premier_quality_score.js');
 
-const VERSION = 'v6.10.5-ACTIVE-EXIT-REPORT-RECONCILIATION';
+const VERSION = 'v6.10.9-FINAL-ENTRY-EXIT-BINDING-NET-PROFIT';
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function html(v) { return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function signed(v, digits = 4) { const x = n(v); return `${x >= 0 ? '+' : ''}${x.toFixed(digits)}`; }
@@ -71,8 +71,8 @@ function takeoverReplayEvidence(pos) {
   return {
     samples, confidence: n(a.profileConfidence), source, active, assigned,
     status: active
-      ? 'TAKEOVER AKTİF / ATR KÂR TAKİBİ DEVREDE'
-      : (assigned ? 'TAKEOVER PROFİLİ ATANDI / EŞİK BEKLENİYOR' : 'TAKEOVER REPLAY N0 / SAFE DEFAULT'),
+      ? (String(a.liveExitMode || '').toUpperCase() === 'SAFE_COMMISSION_BRICK_TRAIL' ? 'RENKO TUĞLA KÂR TAKİBİ DEVREDE' : 'TAKEOVER AKTİF / ATR KÂR TAKİBİ DEVREDE')
+      : (assigned ? (String(a.liveExitMode || '').toUpperCase() === 'SAFE_COMMISSION_BRICK_TRAIL' ? 'RENKO TUĞLA PROFİLİ ATANDI / KOMİSYON GÜVENLİ EŞİK BEKLENİYOR' : 'TAKEOVER PROFİLİ ATANDI / EŞİK BEKLENİYOR') : 'KÂR TAKİP REPLAY N0 / SAFE DEFAULT'),
     reason: assigned ? (source === 'ONLINE_LEARNED_PROFILE' ? 'TAKEOVER_REPLAY_LEARNED_PROFILE' : source) : 'TAKEOVER_REPLAY_N0_SAFE_DEFAULT',
     takeoverPct: n(a.assignedTakeoverPct, NaN), atrMultiplier: n(a.assignedAtrMultiplier, NaN),
     captureRatio: n(a.assignedCaptureRatio, NaN), safeFloorPct: n(a.assignedSafeFloorPct, NaN)
@@ -91,7 +91,7 @@ function plan(pos) {
   return {
     stopPct: n(ayarlar.sabitStopYuzdesi, 1.5), beTriggerPct: n(pos?.labBeTetikYuzde, n(ayarlar.breakevenTetikYuzde, 0.25)),
     beBufferPct: n(pos?.labBeTamponYuzde, n(ayarlar.breakevenTamponYuzde, 0.05)),
-    takeoverPct: n(a.assignedTakeoverPct, NaN), safeFloorPct: n(a.assignedSafeFloorPct, NaN),
+    takeoverPct: n(a.assignedTakeoverPct, NaN), safeFloorPct: n(a.assignedSafeFloorPct, NaN), trailBricks: n(a.assignedTrailBricks, NaN), liveMode: a.liveExitMode || 'SAFE_COMMISSION_BRICK_TRAIL',
     atrMultiplier: n(a.assignedAtrMultiplier, NaN), captureRatio: n(a.assignedCaptureRatio, NaN),
     profileSamples: n(a.profileSamples), source: a.takeoverSource || 'GÜVENLİ BAŞLANGIÇ PROFİLİ'
   };
@@ -148,12 +148,12 @@ function openingText(pos, options = {}) {
     `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\n` +
     `Başlangıç SL ${price(pos?.sl, digits)} (-%${p.stopPct.toFixed(2)}) | Güvenlik TP ${price(pos?.tp, digits)} | K0 → BE +%${p.beTriggerPct.toFixed(2)}\n` +
     `🔒 <b>SABİTLENENLER</b>: Giriş, başlangıç risk profili ve atanan replay profilleri kapanana kadar değişmez.\n` +
-    `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: MFE zirvesi, ATR/MFE koruması ve gerçekleşen kapanış fiyatı.` +
+    `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: Renko zirvesi, öğrenilmiş tuğla takip mesafesi ve gerçekleşen kapanış fiyatı; ATR/MFE yalnız bilimsel gölge replay.` +
     realProtectionBlock;
 }
 function timelineSummary(pos, digits = 6) {
   const events = Array.isArray(pos?.renkoProtectionTimeline) ? pos.renkoProtectionTimeline : [];
-  const takeover = events.find(e => e?.type === 'TAKEOVER_ACTIVE');
+  const takeover = events.find(e => ['TAKEOVER_ACTIVE','BRICK_TRAIL_ACTIVE'].includes(e?.type));
   const peaks = events.filter(e => e?.type === 'NEW_PEAK'); const stops = events.filter(e => e?.type === 'STOP_MOVED');
   const lines = [`${timeText(pos?.acilisZamani)} — K0 başlangıç koruması`];
   if (pos?.breakevenAktif === true) lines.push(`${timeText(pos?.breakevenAktifAt || pos?.breakevenZamani)} — K1 BE/BE+`);

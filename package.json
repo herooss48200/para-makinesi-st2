@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.10.6-manual-close-auto-rearm-profit-economy",
-  "description": "AGROS ST2 v6.10.6: Manuel/harici gerçek kapanış sonrası global kilitsiz otomatik yeniden silahlanma; güvenli kâr tabanı sonrası runner nefes alanı; komisyon sonrası net expectancy odaklı ATR/MFE ekonomi onarımı.",
+  "version": "6.10.9-final-entry-exit-binding-net-profit",
+  "description": "AGROS ST2 v6.10.9: tek seferlik ve doğrulanmış Entry tuğla binding; her pozisyona özel dondurulmuş komisyon-güvenli Renko takip mesafesi; net ekonomi replay; DNA Exit Replay yalnız gölge.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -30,7 +30,10 @@
     "test:v6103": "node test_v6103_manual_close_shadow_safe_trailing.js",
     "test:v6104": "node test_v6104_premier_close_counter_reconciliation.js",
     "test:v6105": "node test_v6105_active_exit_report_reconciliation.js",
-    "test:v6106": "node test_v6106_manual_close_auto_rearm_profit_economy.js"
+    "test:v6106": "node test_v6106_manual_close_auto_rearm_profit_economy.js",
+    "test:v6107": "node test_v6107_operational_resilience.js",
+    "test:v6108": "node test_v6108_net_profit_brick_trail_restoration.js",
+    "test:v6109": "node test_v6109_final_chain_reconciliation.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

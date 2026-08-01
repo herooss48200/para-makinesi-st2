@@ -220,7 +220,13 @@ function premierCohortScores(){
 function gateDecision(source,fallbackBrick=0.75){
   const c=contextFrom(source);
   const completion=historicalCompletion();
-  const decision=select(source,fallbackBrick);
+  // v6.10.9: Tetik anında seçilmiş Entry kararı varsa aynı karar kullanılır.
+  // Motor katmanında ikinci kez select() çağırıp gerçekleşmiş giriş tuğlasını yeniden yazmak yasaktır.
+  const frozenDecision=source?.adaptiveDnaEntryDecision||source?.girisAnalizi?.adaptiveDnaEntryDecision||null;
+  const frozenBrick=Number(frozenDecision?.brick);
+  const decision=Number.isFinite(frozenBrick)&&frozenBrick>0
+    ? {...frozenDecision,brick:frozenBrick,context:frozenDecision?.context||c,decisionFrozen:true}
+    : select(source,fallbackBrick);
   const state=load();
   const exactHistorical=historicalEvidence(c.yon,c.pattern,c);
   const liveWinner=decision.live&&positiveEvidence(decision.live,LAST_N,true);

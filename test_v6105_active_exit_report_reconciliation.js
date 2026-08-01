@@ -4,8 +4,9 @@ const reportSource = require('fs').readFileSync('2_rapor.js', 'utf8');
 const transparency = require('./82_st2_operation_transparency.js');
 const version = require('./versiyon.js');
 
-assert(reportSource.includes('Aktif Pozisyonlarda Exit Replay'), 'minimal panel aktif pozisyon kapsamını açıkça yazmalı');
-assert(reportSource.includes('Atama Kanıtı N'), 'panel toplam tarihsel kanıt yerine aktif atama kanıtını açıkça yazmalı');
+assert(reportSource.includes('DNA Exit Replay (GÖLGE)'), 'DNA Exit Replay gölge katmanı açıkça ayrılmalı');
+assert(reportSource.includes('CANLI RENKO KÂR TAKİBİ'), 'canlı kâr yönetimi gölge replayden ayrı gösterilmeli');
+assert(reportSource.includes('Atama kanıtı N'), 'panel toplam tarihsel kanıt yerine aktif atama kanıtını açıkça yazmalı');
 
 const restartGapPosition = {
   sym: 'OUSDT', yon: 'LONG', girisFiyati: 0.4979,
@@ -29,5 +30,5 @@ const text = transparency.closingText(restartGapPosition, {
 assert(text.includes('Giriş 0.50 tuğla | N3'), 'Entry N3 kapanış raporunda korunmalı');
 assert(text.includes('Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'), 'eski dondurulmuş N0 metni rapor anında N3 ile uzlaştırılmalı');
 assert(!text.includes('Entry Replay kanıtı yok; kendi LAB Exit'), 'N3 varken kanıt yok çelişkisi görünmemeli');
-assert.strictEqual(version.botSurumu, '6.10.6-MANUAL-CLOSE-AUTO-REARM-PROFIT-ECONOMY');
-console.log('✅ v6.10.6 active-position Exit Replay scope + Restart-GAP Entry/Exit wording reconciliation passed');
+assert.strictEqual(version.botSurumu, '6.10.9-FINAL-ENTRY-EXIT-BINDING-NET-PROFIT');
+console.log('✅ v6.10.8 DNA Exit shadow/live Renko separation + Restart-GAP Entry/Exit wording reconciliation passed');

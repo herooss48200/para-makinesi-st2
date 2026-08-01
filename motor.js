@@ -383,11 +383,23 @@ const m = {
         }
 
         if (girisAnalizi?.entryStrategy === 'ST2_RENKO') {
-            const fallbackBrick = Number(girisAnalizi.renkoEntryBrickDistance || 0.75);
-            const gate = adaptiveDnaEntry.gateDecision({ symbol, sym: symbol, yon, girisAnalizi, ...girisAnalizi }, fallbackBrick);
+            const triggeredBrick = Number(girisAnalizi.renkoEntryBrickDistance || 0.75);
+            const gate = girisAnalizi.historicalEntryGate || adaptiveDnaEntry.gateDecision({ symbol, sym: symbol, yon, girisAnalizi, ...girisAnalizi }, triggeredBrick);
+            const gateBrick = Number(gate.brick);
+            if (!Number.isFinite(gateBrick) || Math.abs(gateBrick - triggeredBrick) > 1e-9) {
+                console.error(`🚫 [ENTRY_BINDING_ERROR] ${symbol} ${yon} | Tetik ${triggeredBrick}T | Gate ${gateBrick}T | Emir açılmadı`);
+                return false;
+            }
             girisAnalizi.historicalEntryGate = gate;
-            girisAnalizi.renkoEntryBrickDistance = gate.brick;
+            girisAnalizi.renkoEntryBrickDistance = triggeredBrick;
             girisAnalizi.historicalExecutionMode = gate.executionMode;
+            girisAnalizi.entryDecisionBinding = {
+                ...(girisAnalizi.entryDecisionBinding || {}),
+                verified: true,
+                selectedBrick: triggeredBrick,
+                gateBrick,
+                verifiedAt: new Date().toISOString()
+            };
             if (gate.allow) {
                 console.log(`✅ [ST2 PREMIER SCORE GATE] ${symbol} ${yon} | PREMIER | ${gate.reason} | Skor ${Number(gate.premierScore?.score||0).toFixed(1)}/${Number(gate.premierScore?.threshold||0).toFixed(1)} | Sıra #${Number(gate.premierScore?.rank||0)}/${Number(gate.premierScore?.cohortSize||0)} | Giriş ${gate.brick.toFixed(2)}`);
             } else {
@@ -418,11 +430,15 @@ const m = {
             labBeTamponYuzde: hazirKimlik?.labLifecycleProfile?.beBufferPct,
             girisAnalizi
         };
-        renkoExitEvolution.assign(yeniPozisyon);
         // v5.0.6: Eksiksiz Identity -> League -> Exit zinciri state kaydından ÖNCE kopyalanır.
         // Snapshot/kimlik eksikse anonim pozisyon hiçbir zaman aktif state'e giremez.
         identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
         identityChain.assertPrepared(yeniPozisyon);
+        const renkoExitAtamasi = renkoExitEvolution.assign(yeniPozisyon);
+        if (girisAnalizi?.entryStrategy === 'ST2_RENKO' && !(Number(renkoExitAtamasi?.assignedTrailBricks) > 0)) {
+            console.error(`🚫 [RENKO_EXIT_ASSIGN_ERROR] ${symbol} ${yon} | Geçerli tuğla takip mesafesi atanamadı`);
+            return false;
+        }
         if (liveShadow) {
             yeniPozisyon.liveShadowObservation = true;
             yeniPozisyon.liveShadowReason = hazirKimlik?.liveShadowReason || 'LIVE_SHADOW';
@@ -460,6 +476,7 @@ const m = {
         try { labChampion.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_CHAMPION_ERROR ${symbol} ${yon} | ${e.message}`); }
         try { labPremier.snapshot(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] LAB_SNAPSHOT_ERROR ${symbol} ${yon} | ${e.message}`); }
         try { accountingContinuity.trackAtOpen(yeniPozisyon); } catch (e) { console.log(`⚠️ [ENTRY AUX] ACCOUNTING_CONTINUITY_OPEN_ERROR ${symbol} ${yon} | ${e.message}`); }
+        // v6.10.9: Renko kâr takip ataması identity zincirinden sonra ve state'e girmeden önce tek kez donduruldu.
         // Tek sanal pozisyon, iki ayrı kayıt amacı taşır:
         // 1) tüm DNA/exit öğrenme motorları, 2) açılışta dondurulan lig test kasası.
         // Aynı sinyal için ikinci bir pozisyon veya ikinci emir oluşturulmaz.
@@ -834,9 +851,20 @@ const m = {
                 labBeTamponYuzde: hazirKimlik?.labLifecycleProfile?.beBufferPct,
                 girisAnalizi: hazirKimlik.girisAnalizi || girisAnalizi
             };
-            renkoExitEvolution.assign(yeniPozisyon);
             identityChain.copyPrepared(yeniPozisyon, hazirKimlik);
             identityChain.assertPrepared(yeniPozisyon);
+            const gercekRenkoExitAtamasi = renkoExitEvolution.assign(yeniPozisyon);
+            if (!(Number(gercekRenkoExitAtamasi?.assignedTrailBricks) > 0)) {
+                // Giriş ve Binance SL/TP zaten kuruludur; güvenli varsayılan tuğla atamasıyla devam edilir.
+                yeniPozisyon.renkoExitAssignment = {
+                    ...(gercekRenkoExitAtamasi || {}),
+                    assignedTrailBricks: Number(ayarlar.renkoCikisVarsayilanTugla || 1),
+                    liveExitMode: 'SAFE_COMMISSION_BRICK_TRAIL',
+                    trailSource: 'SAFE_DEFAULT_BRICK_TRAIL',
+                    assignmentRepairReason: 'POST_FILL_ASSIGNMENT_REPAIRED'
+                };
+                console.error(`⚠️ [RENKO_EXIT_ASSIGN_REPAIR] ${symbol} ${islemYonu} | Güvenli varsayılan ${yeniPozisyon.renkoExitAssignment.assignedTrailBricks}T`);
+            }
             premierObservation.snapshot(yeniPozisyon);
             labPremier.snapshot(yeniPozisyon);
             yeniPozisyon.dualLayerAudit = {

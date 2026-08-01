@@ -189,9 +189,12 @@ function pozisyonSatiri(p) {
         ILK_KORUMA_BEKLIYOR: { stage: 'K0', label: 'Koruma bekliyor' },
         TAKEOVER_BEKLIYOR: { stage: 'K0', label: 'Takeover bekleniyor' },
         GUVENLI_KAR_ESIGI_BEKLENIYOR: { stage: 'K0', label: 'Güvenli kâr eşiği bekleniyor' },
+        KOMISYON_GUVENLI_KORUMA_BEKLENIYOR: { stage: 'K0', label: 'Komisyon güvenli koruma bekleniyor' },
         BE_AKTIF_TAKEOVER_BEKLIYOR: { stage: 'K1', label: 'BE aktif, takeover bekleniyor' },
+        BE_AKTIF_KOMISYON_GUVENLI_FIYAT_BEKLENIYOR: { stage: 'K1', label: 'BE aktif, net güvenli fiyat bekleniyor' },
         RENKO_TAKEOVER_AKTIF: { stage: 'K2', label: 'Renko yönetimi aktif' },
         ATR_TAKEOVER_AKTIF: { stage: 'K2', label: 'Öğrenen ATR yönetimi aktif' },
+        RENKO_TUGLA_TAKIP_AKTIF: { stage: 'K2', label: 'Renko tuğla kâr takibi aktif' },
         RENKO_STOP_GUNCELLENDI: { stage: 'K3', label: 'Renko yönetimi stop güncelledi' },
         RENKO_STOP_KORUNUYOR: { stage: 'K3', label: 'Renko koruma stopu aktif' }
     })[protectionState] || { stage: p.renkoExitActivated === true ? 'K2' : (p.breakevenAktif === true ? 'K1' : 'K0'), label: 'Durum doğrulanıyor' };
@@ -202,10 +205,24 @@ function pozisyonSatiri(p) {
     satir += ` | ${stage} ${stateLabel}`;
     const premierScore = p?.renkoPremierDecision?.premierScore || p?.labPremierDecision?.premierScore || {};
     if (Number.isFinite(Number(premierScore.score))) satir += ` | Skor ${Number(premierScore.score).toFixed(1)}/${Number(premierScore.threshold || 0).toFixed(1)} #${Number(premierScore.rank || 0)}/${Number(premierScore.cohortSize || 0)}`;
-    if (Number.isFinite(takeover)) satir += ` | Takeover %${takeover.toFixed(2)}`;
-    if (Number.isFinite(atrMultiplier) && atrMultiplier > 0) satir += ` | ATR ${atrMultiplier.toFixed(2)}×`;
-    else if (Number.isFinite(trail) && trail > 0) satir += ` | Trail ${trail.toFixed(2)}T`;
-    if (Number.isFinite(captureRatio) && captureRatio > 0) satir += ` | MFE %${(captureRatio * 100).toFixed(0)}`;
+    const brickLive = String(atama.liveExitMode || '').toUpperCase() === 'SAFE_COMMISSION_BRICK_TRAIL';
+    if (brickLive) {
+        if (Number.isFinite(trail) && trail > 0) satir += ` | Canlı Trail ${trail.toFixed(2)}T`;
+        if (Number.isFinite(Number(atama.assignedActivationProfitPct))) satir += ` | Aktivasyon %${Number(atama.assignedActivationProfitPct).toFixed(2)}`;
+        if (Number.isFinite(Number(atama.assignedSafeFloorPct))) satir += ` | Net taban %${Number(atama.assignedSafeFloorPct).toFixed(2)}`;
+        const kaynak = String(atama.trailSource || 'SAFE_DEFAULT_BRICK_TRAIL')
+            .replace('NET_ECONOMY_LEARNED_BRICK_TRAIL', 'Öğrenilmiş')
+            .replace('PERSISTED_BRICK_TRAIL', 'Kalıcı')
+            .replace('SAFE_DEFAULT_BRICK_TRAIL', 'Varsayılan');
+        satir += ` | ${kaynak}`;
+        if (atama.assignmentId) satir += ` | ID ${String(atama.assignmentId).slice(0, 10)}`;
+        satir += ` | ATR/MFE gölge`;
+    } else {
+        if (Number.isFinite(takeover)) satir += ` | Takeover %${takeover.toFixed(2)}`;
+        if (Number.isFinite(atrMultiplier) && atrMultiplier > 0) satir += ` | ATR ${atrMultiplier.toFixed(2)}×`;
+        else if (Number.isFinite(trail) && trail > 0) satir += ` | Trail ${trail.toFixed(2)}T`;
+        if (Number.isFinite(captureRatio) && captureRatio > 0) satir += ` | MFE %${(captureRatio * 100).toFixed(0)}`;
+    }
     if (peak !== null) satir += ` | Peak ${peak >= 0 ? '+' : ''}%${yuzde(peak)}`;
     if (p.renkoExitLastStopSourceLabel) satir += ` | ${p.renkoExitLastStopSourceLabel}`;
     const sonOlay = Array.isArray(p.renkoProtectionTimeline) ? p.renkoProtectionTimeline.at(-1) : null;
@@ -377,17 +394,32 @@ function st2VeriSagligiOzeti() {
 
 function st2ReplayKatmanOzeti(positions = []) {
     const rows = Array.isArray(positions) ? positions : [];
+    // DNA Exit Replay yalnız gölge karşılaştırmadır; canlı stop ataması değildir.
     const exitAssignments = rows.map(p => p?.executionExitAssignment).filter(Boolean);
     const exitReady = exitAssignments.filter(x => x.ready === true || x.activeForPosition === true).length;
-    const exitFallback = exitAssignments.length - exitReady;
+    const exitEvidenceMissing = exitAssignments.length - exitReady;
     const exitSamples = exitAssignments.reduce((a, x) => a + Number(x.samples || x.sampleCount || 0), 0);
     const takeover = renkoExitEvolution.summary(rows);
     const takeoverClosed = (takeover.profiles || []).reduce((a, x) => a + Number(x.closed || 0), 0);
-    const takeoverLearned = (takeover.profiles || []).filter(x => Number(x?.online?.samples || 0) > 0 || String(x?.online?.status || '').includes('ONLINE')).length;
+    const takeoverLearned = (takeover.profiles || []).filter(x =>
+        x?.brickEconomy?.economyEligible === true ||
+        String(x?.online?.status || '').includes('ONLINE')
+    ).length;
     return {
-        exitReady, exitFallback, exitSamples,
-        takeoverProfiles: Number(takeover.profiles?.length || 0), takeoverClosed, takeoverLearned,
-        takeoverAssigned: Number(takeover.runtime?.assigned || 0), takeoverActivated: Number(takeover.runtime?.activated || 0)
+        exitReady,
+        exitFallback: exitEvidenceMissing, // geriye uyumluluk; canlı fallback değildir.
+        exitEvidenceMissing,
+        exitSamples,
+        takeoverProfiles: Number(takeover.profiles?.length || 0),
+        takeoverClosed,
+        takeoverLearned,
+        takeoverAssigned: Number(takeover.runtime?.assigned || 0),
+        takeoverActivated: Number(takeover.runtime?.activated || 0),
+        takeoverWaiting: Number(takeover.runtime?.waiting || 0),
+        takeoverLearnedActive: Number(takeover.runtime?.learned || 0),
+        takeoverPersistedActive: Number(takeover.runtime?.persisted || 0),
+        takeoverDefaultActive: Number(takeover.runtime?.defaults || 0),
+        takeoverAssignmentErrors: Number(takeover.runtime?.assignmentErrors || 0)
     };
 }
 
@@ -430,9 +462,9 @@ function minimalCanliRaporMetniOlustur() {
         `💳 Gerçek Premier N${Number(realPremier.n || 0)} | ✅${Number(realPremier.tp || 0)} ❌${Number(realPremier.sl || 0)} ⚖️${Number(realPremier.be || 0)} | Net ${sign(realPremier.net)} | PF ${pfMetni(realPremier.pf)}`,
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
-        `🚪 Entry Replay N${Number(evo.total?.closed || 0)} | Net ${sign(evo.total?.net)} | Atama ${Number(evo.total?.assigned || 0)}`,
-        `🧪 Aktif Pozisyonlarda Exit Replay ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Atama Kanıtı N${replayKatman.exitSamples}`,
-        `🧬 Takeover Replay Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Öğrenilmiş ${replayKatman.takeoverLearned} | Aktif ${replayKatman.takeoverActivated}/${replayKatman.takeoverAssigned}`
+        `🚪 Entry Evolution N${Number(evo.total?.closed || 0)} | Replay Net ${sign(evo.total?.net)} | Öğrenilmiş giriş ${Number(evo.total?.assigned || 0)} | Uygulama ${Number(evo.decisionChain?.entry?.matched || 0)}/${Number(evo.decisionChain?.entry?.assigned || 0)}`,
+        `🧪 DNA Exit Replay (GÖLGE) Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}`,
+        `🧱 CANLI RENKO KÂR TAKİBİ Atanmış ${replayKatman.takeoverAssigned} | Devrede ${replayKatman.takeoverActivated} | Bekleyen ${replayKatman.takeoverWaiting} | Öğrenilmiş ${replayKatman.takeoverLearnedActive} | Kalıcı ${replayKatman.takeoverPersistedActive} | Varsayılan ${replayKatman.takeoverDefaultActive} | Hata ${replayKatman.takeoverAssignmentErrors}`,
     ];
     if (sirali.length) {
         lines.push('', `📦 AKTİF SCORE-PREMIER (${sirali.length}/${premierAktifler.length})`);
@@ -525,8 +557,9 @@ function canliRaporMetniOlustur() {
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
         mesaj += `🌐 Evren: ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum} | Tarama ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}\n`;
         mesaj += `🚪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
-        mesaj += `🧪 Aktif Pozisyonlarda Exit Replay: ${replayKatman.exitReady} | FALLBACK ${replayKatman.exitFallback} | Atama Kanıtı N${replayKatman.exitSamples}\n`;
-        mesaj += `🧬 Takeover Replay: Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Öğrenilmiş ${replayKatman.takeoverLearned} | Aktif ${replayKatman.takeoverActivated}/${replayKatman.takeoverAssigned}\n`;
+        mesaj += `🧪 DNA Exit Replay (GÖLGE): Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}\n`;
+        mesaj += `🧱 CANLI RENKO KÂR TAKİBİ: Atanmış ${replayKatman.takeoverAssigned} | Devrede ${replayKatman.takeoverActivated} | Bekleyen ${replayKatman.takeoverWaiting} | Öğrenilmiş ${replayKatman.takeoverLearnedActive} | Kalıcı ${replayKatman.takeoverPersistedActive} | Varsayılan ${replayKatman.takeoverDefaultActive} | Hata ${replayKatman.takeoverAssignmentErrors}\n`;
+        mesaj += `🔬 Tuğla Replay: Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Ekonomi kanıtlı ${replayKatman.takeoverLearned}\n`;
         mesaj += `
 ━━━━━━━━━━━━━━━━━━
 `;

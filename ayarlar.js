@@ -644,6 +644,10 @@ const ayarlar = {
     binanceAgTimeoutMs: 15000,
     binanceAgRetry: 2,
     binanceAgRetryTabanMs: 900,
+    // v6.10.7 - Kapanmış mum yoksa 200 coinlik toplu indirme yapılmaz.
+    kapanmisMumYayinGecikmesiMs: 3000,
+    binanceTopluVeriRetryMs: 90000,
+    globalHistoricalStartupWarmupMs: 120000,
 
     // v4.7.0 - 2000+ öğrenmenin tam DNA sonuçlarını Family/LAB/FULL katmanlarında korur.
     // Yalnız sanal/gölge ileri doğrulama yapar; ikinci emir açmaz ve gerçek emir yetkisi vermez.
@@ -730,10 +734,17 @@ const ayarlar = {
     // v6.10.6 — Güvenli başlangıç korunur; takeover sonrası profil küçük kârı boğmak
     // yerine net expectancy ve uzun kazanan üretme ekonomisine göre seçilir.
     renkoCikisEvolutionAktif: true,
+    // v6.10.8: Canlı stop tekrar kanıtlanmış modele döndü: komisyon sonrası güvenli taban + zirveden öğrenilmiş Renko tuğla mesafesi.
+    // ATR/MFE adayları bilimsel replay üretir; canlı stopu doğrudan yönetmez.
+    // v6.10.9: canlı stop yalnız komisyon-güvenli Renko tuğla takibidir.
+    // Her pozisyon açılışta kendi mesafesini alır ve kapanana kadar dondurulur.
+    renkoCikisCanliModu: 'SAFE_COMMISSION_BRICK_TRAIL',
     renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
     renkoCikisVarsayilanTugla: 1.00,
     // Tek kapanışın aşırı sıkı profili canlıya taşımasını engeller. İşlem açılışını engellemez;
     // yeterli kanıt yoksa güvenli varsayılan exit profili kullanılır.
+    // N5 mevcut öğrenilmiş profili kullanmak için bekleme değildir.
+    // Yalnız yeni bir aday tuğla mesafesinin gelecekteki pozisyonlara terfi kapısıdır.
     renkoCikisIlkAtamaKapanis: 5,
     renkoCikisMfeKorumaTetikYuzde: 0.40,
     renkoCikisMinMfeKorumaOrani: 0.55,

@@ -1,0 +1,18 @@
+AGROS ST2 v6.10.9 — FINAL ENTRY/EXIT BINDING & NET PROFIT
+Test tarihi: 01.08.2026
+
+SONUÇ: BAŞARILI
+- 123 JavaScript dosyası syntax kontrolünden geçti.
+- v6.7.2 → v6.10.9 tam npm test zinciri geçti.
+- Entry tuğlası tetik/gate/pozisyon arasında tekil ve fail-closed doğrulandı.
+- Mevcut öğrenilmiş Exit activeTrail ilk yeni pozisyonda N5 beklemeden uygulandı.
+- Her pozisyonun Exit trail assignment ID'si ayrı ve kapanana kadar dondurulmuş doğrulandı.
+- Restart sonrası açık pozisyonun trail mesafesini koruduğu doğrulandı.
+- Profil değişikliğinin yalnız yeni pozisyonlara uygulandığı doğrulandı.
+- Komisyon-güvenli taban ve net replay hesabı canlı formülle aynı doğrulandı.
+- Stopun yalnız kâr yönünde ilerlediği doğrulandı.
+- DNA Exit Replay gölge katmanı ile canlı Renko yönetimi ayrıştırıldı.
+- Manuel kapanış auto-rearm, gerçek emir güvenliği, rollback, restart ve Telegram testleri geçti.
+
+Paket dışı bırakılanlar:
+.env, data/, state, ledger, logs/, logs-st2/, node_modules/, .git/

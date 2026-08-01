@@ -82,8 +82,8 @@ async function baslat() {
 
         await revizyon.derinGecmisiInsaEt();
 
-        const historicalRuntimeStatus = globalHistoricalRuntime.activate();
-        console.log(`🌍 [GLOBAL HISTORICAL RUNTIME] ${historicalRuntimeStatus.activation} | Coin ${historicalRuntimeStatus.readyCoins}/${historicalRuntimeStatus.coins} | Sinyal ${historicalRuntimeStatus.signals} | Pattern ${historicalRuntimeStatus.patterns} | Mutabakat ${historicalRuntimeStatus.reconciliationOk ? 'OK' : 'BEKLIYOR'}`);
+        const historicalRuntimeStatus = globalHistoricalRuntime.activate({ warmupMs: ayarlar.globalHistoricalStartupWarmupMs || 120000 });
+        console.log(`🌍 [GLOBAL HISTORICAL RUNTIME] ${historicalRuntimeStatus.activation} | Isınma ${Math.round(Number(historicalRuntimeStatus.warmupMs || 0) / 1000)} sn | Coin ${historicalRuntimeStatus.readyCoins}/${historicalRuntimeStatus.coins} | Sinyal ${historicalRuntimeStatus.signals} | Pattern ${historicalRuntimeStatus.patterns} | Mutabakat ${historicalRuntimeStatus.reconciliationOk ? 'OK' : 'ARKA PLANDA'}`);
 
         // v4.0.1: Yeni katmanların gerçekten yüklendiğini düşük maliyetli biçimde doğrula.
         // Ağır DNA/exit geçmişi başlangıçta yeniden hesaplanmaz; kayıtlı modeller kullanılır.
@@ -171,7 +171,7 @@ async function baslat() {
 
             donguCalisiyor = true;
             try {
-                const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.binanceAgTimeoutMs || 15000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, label: 'FUTURES_PRICES' });
+                const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.binanceAgTimeoutMs || 15000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
                 for (const [sym, price] of Object.entries(fiyatlar)) {
                     h.state.canliFiyatlar[sym] = parseFloat(price);
                 }

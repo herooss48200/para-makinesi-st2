@@ -21,6 +21,7 @@ const hierarchyIdentity = require('./60_hierarchical_dna_identity_registry.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const operationTransparency = require('./82_st2_operation_transparency.js');
 const realExecution = require('./85_st2_real_order_execution.js');
+const closeLifecycle = require('./86_st2_close_lifecycle.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -1520,23 +1521,31 @@ async function izSurmeyiGuncelle() {
         if (borsaMiktar === 0) {
             if (pos.kapanisIsleniyor) continue;
             pos.kapanisIsleniyor = true;
+            let kritikKapanisCommitEdildi = false;
             try {
                 const mutabakat = await realExecution.finalizeExchangeClose(pos, canliFiyat, h.client);
-                pos.realizedExecution = mutabakat;
-                pos.manualExternalClose = mutabakat.manual === true || pos.scientificLearningExcluded === true;
-                if (mutabakat.manual === true) {
-                    pos.manualCloseLockUntil = Date.now() + Number(ayarlar.manuelKapanisYenidenGirisKilidiMs || 3600000);
-                    h.state.manualCloseLocks = h.state.manualCloseLocks || {};
-                    h.state.manualCloseLocks[`${pos.sym}|${pos.yon}`] = pos.manualCloseLockUntil;
-                }
-                console.log(`🔎 [GERÇEK KAPANIŞ MUTABAKATI] ${pos.sym} ${pos.yon} | ${mutabakat.reason} | Fill ${mutabakat.exitPrice || canliFiyat} | Net ${Number(mutabakat.netPnl || 0).toFixed(6)}`);
-                h.state.aktifPozisyonlar.splice(i, 1);
-                pozisyonListelerindenSil(pos);
-                await kapanisRaporla(pos, mutabakat.exitPrice || canliFiyat, mutabakat.reason);
-                kaliciHafiza.kaydet(mutabakat.manual ? 'manuel-external-close' : 'gercek-algo-close-mutabakati');
-                await rapor.raporGonder(true);
+                const commit = closeLifecycle.commitRealClose({
+                    state: h.state,
+                    pos,
+                    indexHint: i,
+                    reconciliation: mutabakat,
+                    livePrice: canliFiyat,
+                    manualLockMs: Number(ayarlar.manuelKapanisYenidenGirisKilidiMs || 3600000),
+                    removeAuxiliary: pozisyonListelerindenSil,
+                    persist: kaliciHafiza.kaydet
+                });
+                kritikKapanisCommitEdildi = commit.ok === true;
+                console.log(`🔎 [GERÇEK KAPANIŞ MUTABAKATI] ${pos.sym} ${pos.yon} | ${commit.reason} | Fill ${commit.closePrice || canliFiyat} | Net ${Number(mutabakat.netPnl || 0).toFixed(6)} | Slot SERBEST`);
+                closeLifecycle.scheduleCloseReport({
+                    pos,
+                    closePrice: commit.closePrice || canliFiyat,
+                    reason: commit.reason,
+                    reportClose: kapanisRaporla,
+                    sendPanel: rapor.raporGonder,
+                    persist: kaliciHafiza.kaydet
+                });
             } catch (err) {
-                pos.kapanisIsleniyor = false;
+                if (!kritikKapanisCommitEdildi) pos.kapanisIsleniyor = false;
                 console.error(`❌ [GERÇEK KAPANIŞ UZLAŞTIRMA] ${pos.sym} ${pos.yon} | ${err.message}`);
             }
             continue;
@@ -1583,19 +1592,32 @@ async function izSurmeyiGuncelle() {
         if (!realRenkoKarar.active && realDynamicKarar.close) {
             if (pos.kapanisIsleniyor) continue;
             pos.kapanisIsleniyor = true;
+            let kritikKapanisCommitEdildi = false;
             try {
                 const kapanis = await realExecution.closePositionMarket(pos, realDynamicKarar.reason, h.client);
                 if (!kapanis.ok) throw new Error(kapanis.reason || 'Dinamik gerçek kapanış mutabakatı başarısız');
-                pos.realizedExecution = kapanis;
                 pos.dynamicExitApplied = realDynamicKarar;
-                console.log(`🧬 [GERÇEK DYNAMIC EXIT] ${pos.sym} ${pos.yon} | ${realDynamicKarar.algorithmLabel} | ${realDynamicKarar.reason} | Net ${Number(kapanis.netPnl || 0).toFixed(6)}`);
-                h.state.aktifPozisyonlar.splice(i, 1);
-                pozisyonListelerindenSil(pos);
-                await kapanisRaporla(pos, kapanis.exitPrice || realDynamicKarar.price, realDynamicKarar.reason);
-                kaliciHafiza.kaydet('gercek-dynamic-exit-kapandi');
-                await rapor.raporGonder(true);
+                const commit = closeLifecycle.commitRealClose({
+                    state: h.state,
+                    pos,
+                    indexHint: i,
+                    reconciliation: { ...kapanis, manual: false, reason: realDynamicKarar.reason },
+                    livePrice: kapanis.exitPrice || realDynamicKarar.price,
+                    removeAuxiliary: pozisyonListelerindenSil,
+                    persist: kaliciHafiza.kaydet
+                });
+                kritikKapanisCommitEdildi = commit.ok === true;
+                console.log(`🧬 [GERÇEK DYNAMIC EXIT] ${pos.sym} ${pos.yon} | ${realDynamicKarar.algorithmLabel} | ${realDynamicKarar.reason} | Net ${Number(kapanis.netPnl || 0).toFixed(6)} | Slot SERBEST`);
+                closeLifecycle.scheduleCloseReport({
+                    pos,
+                    closePrice: commit.closePrice || realDynamicKarar.price,
+                    reason: commit.reason,
+                    reportClose: kapanisRaporla,
+                    sendPanel: rapor.raporGonder,
+                    persist: kaliciHafiza.kaydet
+                });
             } catch (err) {
-                pos.kapanisIsleniyor = false;
+                if (!kritikKapanisCommitEdildi) pos.kapanisIsleniyor = false;
                 console.error(`❌ [GERÇEK DYNAMIC EXIT HATASI] ${pos.sym} ${pos.yon} | ${err.message}`);
             }
             continue;
@@ -1690,5 +1712,6 @@ module.exports = {
     pusulariDenetleVeIslemAc,
     izSurmeyiGuncelle,
     pusuRaporuGonder,
-    _kapanisRaporKimligi: kapanisRaporKimligi
+    _kapanisRaporKimligi: kapanisRaporKimligi,
+    _closeLifecycle: closeLifecycle
 };

@@ -21,6 +21,7 @@ Module._load = function patched(request, parent, isMain) {
 try {
   const ayarlar = require('./ayarlar.js');
   const evolution = require('./74_st2_renko_exit_evolution.js');
+  ayarlar.renkoCikisCanliModu = 'ADAPTIVE_ATR_MFE';
 
   assert.strictEqual(evolution.MIN_ATR(), 1.25, 'ATR alt sınırı ekonomi korumasına yükselmedi');
   assert.strictEqual(evolution.MAX_CAPTURE(), 0.70, 'MFE capture üst sınırı %70 değil');
@@ -93,7 +94,9 @@ try {
   assert(evolution.adaptiveScore(runnerEconomy) > evolution.adaptiveScore(tinyHighCapture), 'yüksek capture küçük kârı runner ekonomisinin önünde seçiliyor');
 
   const positionSource = fs.readFileSync(path.join(__dirname, '4_pozisyon.js'), 'utf8');
-  assert(positionSource.includes('manualCloseLocks'), 'aynı sembol/yön manuel kapanış cooldown koruması kayboldu');
+  const lifecycleSource = fs.readFileSync(path.join(__dirname, '86_st2_close_lifecycle.js'), 'utf8');
+  assert(positionSource.includes('closeLifecycle.commitRealClose'), 'gerçek kapanış kritik commit bariyerine bağlanmadı');
+  assert(lifecycleSource.includes('manualCloseLocks'), 'aynı sembol/yön manuel kapanış cooldown koruması kayboldu');
   const executionSource = fs.readFileSync(path.join(__dirname, '85_st2_real_order_execution.js'), 'utf8');
   assert(executionSource.includes('MANUAL_EXTERNAL_CLOSE_AUTO_REARM'), 'manuel kapanış auto-rearm audit eksik');
   assert(!executionSource.includes("setGlobalBlock(MANUAL_REARM_BLOCK"), 'manuel kapanış hâlâ hesap-geneli global block kuruyor');

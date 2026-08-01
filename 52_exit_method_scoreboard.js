@@ -18,7 +18,10 @@ function methodFor(pos){
   const applied=pos?.dynamicExitApplied;
   if(applied?.algorithmId)return{id:String(applied.algorithmId),label:applied.algorithmLabel||applied.algorithmId,source:'DYNAMIC_APPLIED'};
   if(pos?.renkoExitActivated===true){
-    return{id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'RENKO_ADAPTIVE_APPLIED',detail:pos?.renkoExitLastStopSourceLabel||'Takeover aktif'};
+    const brick=String(pos?.renkoExitAssignment?.liveExitMode||'').toUpperCase()==='SAFE_COMMISSION_BRICK_TRAIL';
+    return brick
+      ? {id:'RENKO_COMMISSION_SAFE_BRICK_TRAIL',label:'Komisyon Güvenli Renko Tuğla Takibi',source:'RENKO_BRICK_APPLIED',detail:pos?.renkoExitLastStopSourceLabel||`${num(pos?.renkoExitAssignment?.assignedTrailBricks,1).toFixed(2)}T takip`}
+      : {id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'RENKO_ADAPTIVE_APPLIED',detail:pos?.renkoExitLastStopSourceLabel||'Takeover aktif'};
   }
   const plan=pos?.exitPlanShadow;
   if(plan?.ready&&plan?.selectedAlgorithmId&&plan.selectedAlgorithmId!=='ACTUAL')return{id:String(plan.selectedAlgorithmId),label:plan.selectedAlgorithmLabel||plan.selectedAlgorithmId,source:'ASSIGNED_DYNAMIC'};
@@ -26,7 +29,12 @@ function methodFor(pos){
 }
 function assignmentFor(pos){
   const a=pos?.renkoExitAssignment;
-  if(a)return{id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'ASSIGNED_AT_OPEN',detail:`Takeover %${num(a.assignedTakeoverPct).toFixed(2)} | ATR ${num(a.assignedAtrMultiplier).toFixed(2)}× | MFE %${(num(a.assignedCaptureRatio)*100).toFixed(0)}`};
+  if(a){
+    const brick=String(a.liveExitMode||'').toUpperCase()==='SAFE_COMMISSION_BRICK_TRAIL';
+    return brick
+      ? {id:'RENKO_COMMISSION_SAFE_BRICK_TRAIL',label:'Komisyon Güvenli Renko Tuğla Takibi',source:'ASSIGNED_AT_OPEN',detail:`Güvenli taban %${num(a.assignedSafeFloorPct).toFixed(2)} | Trail ${num(a.assignedTrailBricks,1).toFixed(2)}T`}
+      : {id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'ASSIGNED_AT_OPEN',detail:`Takeover %${num(a.assignedTakeoverPct).toFixed(2)} | ATR ${num(a.assignedAtrMultiplier).toFixed(2)}× | MFE %${(num(a.assignedCaptureRatio)*100).toFixed(0)}`};
+  }
   const plan=pos?.exitPlanShadow;
   if(plan?.ready&&plan?.selectedAlgorithmId&&plan.selectedAlgorithmId!=='ACTUAL')return{id:String(plan.selectedAlgorithmId),label:plan.selectedAlgorithmLabel||plan.selectedAlgorithmId,source:'ASSIGNED_AT_OPEN'};
   return{id:'ACTUAL',label:'Mevcut Kademe Sistemi',source:'ASSIGNED_FALLBACK'};
@@ -83,9 +91,10 @@ function telegramLine(s,options={}){
   const methodPf=Number.isFinite(method.pf)?method.pf.toFixed(2):'∞';
   let text=`\n🎯 Gerçek uygulanan Exit: <b>${method.label}</b>${method.detail?` | ${method.detail}`:''}`;
   if(a){const pf=Number.isFinite(a.pf)?a.pf.toFixed(2):'∞';text+=`\n📒 <b>ATAMA PERFORMANSI — ${a.label}</b>${restartGap?' (bu kapanış hariç)':''}`;
-    text+=`\nAtanan ${num(a.assigned)} | Kapalı ${num(a.closed)} | Takeover ${num(a.takeoverReached)} (%${num(a.takeoverRate).toFixed(1)})`;
-    text+=`\nTakeover öncesi: SL ${num(a.preTakeoverSl)} | Kârlı ${num(a.preTakeoverProfit)} | BE ${num(a.be)}`;
-    text+=`\nTakeover sonrası: Kârlı ${num(a.postTakeoverProfit)} | Zararlı ${num(a.postTakeoverLoss)}`;
+    const brick=String(a.id||'').includes('BRICK_TRAIL');
+    text+=`\nAtanan ${num(a.assigned)} | Kapalı ${num(a.closed)} | ${brick?'Renko takip devrede':'Takeover'} ${num(a.takeoverReached)} (%${num(a.takeoverRate).toFixed(1)})`;
+    text+=`\n${brick?'Renko takip öncesi':'Takeover öncesi'}: SL ${num(a.preTakeoverSl)} | Kârlı ${num(a.preTakeoverProfit)} | BE ${num(a.be)}`;
+    text+=`\n${brick?'Renko takip sonrası':'Takeover sonrası'}: Kârlı ${num(a.postTakeoverProfit)} | Zararlı ${num(a.postTakeoverLoss)}`;
     text+=`\nMutabakat: ${num(a.closed)} = ${num(a.classified)} ${a.reconciled?'✅':'⚠️'} | Net ${num(a.net)>=0?'+':''}${num(a.net).toFixed(4)} | PF ${pf} | Exp ${num(a.expectancy)>=0?'+':''}${num(a.expectancy).toFixed(4)}`;
   } else text+=`\nMetot çetelesi: Açılan ${num(method.opened)} | Kapalı ${num(method.closed)} | TP ${num(method.tp)} SL ${num(method.sl)} BE ${num(method.be)} | PF ${methodPf}`;
   if(restartGap)text+=`\n🧾 Bu kapanışın muhasebe sonucu: <b>${outcome||'BELİRSİZ'}</b> | Çetele/öğrenme: <b>HARİÇ (RESTART GAP)</b>`;

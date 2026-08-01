@@ -1,0 +1,7 @@
+TEK TAM SÜRÜM PAKETİ
+Temel: AGROS ST2 v6.10.8 full clean + v6.10.9 zincir mutabakatı
+Canlı model: SAFE_COMMISSION_BRICK_TRAIL
+Entry: tek seçim, tek trigger, gate ile exact binding
+Exit: pozisyona özel dondurulmuş trail; mevcut activeTrail hemen kullanılır
+N5: yalnız yeni trail değerinin gelecekteki pozisyonlara terfi kapısı
+ATR/MFE: gölge replay, canlı stop yetkisi yok

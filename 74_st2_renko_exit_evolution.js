@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v6.10.6-PROFIT-ECONOMY-RIDER-REPAIR';
+const VERSION = 'v6.10.9-FINAL-ENTRY-EXIT-BINDING-NET-PROFIT';
 const DATA_DIR = process.env.AGROS_DATA_DIR
   ? path.resolve(process.env.AGROS_DATA_DIR)
   : path.join(__dirname, 'data');
@@ -35,6 +35,8 @@ const MFE_ARM_MULTIPLIER = () => Math.max(1, Number(ayarlar.renkoCikisMfeKorumaA
 const ROUND_TRIP_COMMISSION_PCT = () => Math.max(0, Number(ayarlar.sanalKomisyonOrani ?? 0.0005) * 2 * 100);
 const MIN_NET_PROFIT_PCT = () => Math.max(0, Number(ayarlar.renkoCikisMinimumNetKarYuzde || 0.05));
 const SAFE_FLOOR_MIN = () => Math.max(DEFAULT_SAFE_FLOOR(), ROUND_TRIP_COMMISSION_PCT() + MIN_NET_PROFIT_PCT());
+const LIVE_MODE = () => String(ayarlar.renkoCikisCanliModu || 'SAFE_COMMISSION_BRICK_TRAIL').toUpperCase();
+const BRICK_LIVE_MODE = () => LIVE_MODE() === 'SAFE_COMMISSION_BRICK_TRAIL';
 
 function n(v, d = 0) { v = Number(v); return Number.isFinite(v) ? v : d; }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, n(v, min))); }
@@ -55,6 +57,21 @@ function blend(from, to, weight) {
   return Math.round((n(from) + (n(to) - n(from)) * w) * 10000) / 10000;
 }
 function key(y, p) { return `${String(y || '').toUpperCase()}|${String(p || 'UNKNOWN').toUpperCase()}`; }
+function activationProfitPctFor(pos = {}) {
+  const step = Math.max(0.01, n(ayarlar.tpAdimYuzdesi, 0.40));
+  const learned = Number(pos?.labBeTetikYuzde ?? pos?.labLifecycleProfile?.beTriggerPct);
+  if (String(ayarlar.stopTakipModu || 'KADEME').toUpperCase() === 'KADEME') {
+    const fallbackStage = Math.max(1, Math.floor(n(ayarlar.breakevenTetikKademe, Math.ceil(n(ayarlar.breakevenTetikYuzde, 0.40) / step))));
+    const stage = Number.isFinite(learned) && learned > 0 ? Math.max(1, Math.ceil(learned / step)) : fallbackStage;
+    return Math.round(stage * step * 10000) / 10000;
+  }
+  const direct = Number.isFinite(learned) && learned > 0 ? learned : n(ayarlar.breakevenTetikYuzde, 0.40);
+  return Math.round(Math.max(SAFE_FLOOR_MIN(), direct) * 10000) / 10000;
+}
+function assignmentIdFor(pos, patternKey, trail, activationPct) {
+  const identity = pos?.sanalOrderId || pos?.borsaOrderId || pos?.tradeId || pos?.id || `${pos?.sym || pos?.symbol || 'UNKNOWN'}-${pos?.acilisZamani || pos?.openedAt || Date.now()}`;
+  return `RXT-${crypto.createHash('sha1').update([identity, pos?.yon, patternKey, trail, activationPct].join('|')).digest('hex').slice(0, 20).toUpperCase()}`;
+}
 function candidateKey(takeoverPct, atrMultiplier, captureRatio) {
   return `${n(takeoverPct).toFixed(2)}|${n(atrMultiplier).toFixed(2)}|${n(captureRatio).toFixed(2)}`;
 }
@@ -90,12 +107,14 @@ function normalizeProfile(p = {}, patternKey = 'UNKNOWN|UNKNOWN') {
     activeSafeFloorPct: Number.isFinite(Number(p.activeSafeFloorPct)) && Number(p.activeSafeFloorPct) > 0 ? Number(p.activeSafeFloorPct) : null,
     activeProfileUpdatedAt: p.activeProfileUpdatedAt || null,
     candidates: p.candidates || {},
+    brickNetCandidates: p.brickNetCandidates || {},
     takeoverCandidates: p.takeoverCandidates || {},
     jointCandidates: p.jointCandidates || {},
     onlineCandidates: p.onlineCandidates || {},
     audit: { ...blankAudit(), ...(p.audit || {}), reasonCounts: p.audit?.reasonCounts || {} },
     promotion: p.promotion || {},
-    online: p.online || {}
+    online: p.online || {},
+    brickEconomy: p.brickEconomy || {}
   };
 }
 function mergeState(raw) {
@@ -188,6 +207,11 @@ function chooseTrail(p) {
   rows.sort((a, b) => b.net - a.net || b.pf - a.pf || b.expectancy - a.expectancy || b.mfeCapture - a.mfeCapture || a.trail - b.trail);
   return rows[0] || null;
 }
+function chooseBrickEconomy(p) {
+  const rows = Object.entries(p.brickNetCandidates || {}).map(([x, m]) => ({ trail: n(x), ...metric(m) })).filter(eligible);
+  rows.sort((a, b) => b.net - a.net || b.expectancy - a.expectancy || b.pf - a.pf || b.avgWin - a.avgWin || a.avgGiveback - b.avgGiveback || a.trail - b.trail);
+  return rows[0] || null;
+}
 function chooseJoint(p) {
   const rows = Object.values(p.jointCandidates || {}).map(r => ({ ...r, ...metric(r) })).filter(eligible);
   rows.sort((a, b) => b.net - a.net || b.pf - a.pf || b.expectancy - a.expectancy || b.mfeCapture - a.mfeCapture || a.takeoverPct - b.takeoverPct || a.trail - b.trail);
@@ -223,9 +247,11 @@ function activeProfileFor(yon, pattern) {
     atrMultiplier,
     captureRatio,
     safeFloorPct: safeFloorFor(takeoverPct, p?.activeSafeFloorPct),
-    samples: n(p?.online?.samples, p?.closed),
-    confidence: confidence(n(p?.online?.samples, p?.closed)),
+    samples: BRICK_LIVE_MODE() ? n(p?.brickEconomy?.samples, p?.closed) : n(p?.online?.samples, p?.closed),
+    confidence: confidence(BRICK_LIVE_MODE() ? n(p?.brickEconomy?.samples, p?.closed) : n(p?.online?.samples, p?.closed)),
     source: learned ? 'ONLINE_LEARNED_PROFILE' : (p ? 'SAFE_ECONOMY_FALLBACK' : 'SAFE_DEFAULT'),
+    trailSource: p?.brickEconomy?.economyEligible === true ? 'NET_ECONOMY_LEARNED_BRICK_TRAIL' : (p ? 'PERSISTED_BRICK_TRAIL' : 'SAFE_DEFAULT_BRICK_TRAIL'),
+    liveMode: LIVE_MODE(),
     sanitizedLegacyProfile: Boolean(p && !learned && [p.activeTakeoverPct, p.activeAtrMultiplier, p.activeCaptureRatio].some(v => v != null))
   };
 }
@@ -246,60 +272,97 @@ function addTimeline(pos, type, detail = {}) {
 function assign(pos) {
   if (!pos) return null;
   const ga = pos.girisAnalizi || {};
+  const patternKey = key(pos.yon, ga.patternKodu);
+  const profile = activeProfileFor(pos.yon, ga.patternKodu);
+  const activationPct = activationProfitPctFor(pos);
+  const boxAtOpen = n(ga.renkoBoxSize || pos?.renkoBoxSize);
+  const entryBrickAtOpen = n(ga.renkoEntryBrickDistance, 0.75);
   if (pos.renkoExitAssignment) {
     const current = pos.renkoExitAssignment;
-    const validFrozen = takeoverOrNull(current.assignedTakeoverPct) != null
-      && atrOrNull(current.assignedAtrMultiplier) != null
-      && captureOrNull(current.assignedCaptureRatio) != null;
-    if (validFrozen) return current;
-    // Eski sürümün aşırı sıkı (örn. ATR 1.05× / MFE %87) dondurulmuş profilini
-    // açık pozisyon üzerinde güvenli ekonomi fallback'ine taşır. Mevcut stop geriye
-    // gevşetilmez; yalnız sonraki stop hesapları daha uzun kâr taşıyacak profile geçer.
-    const repaired = activeProfileFor(pos.yon, ga.patternKodu);
-    current.assignedTakeoverPct = repaired.takeoverPct;
-    current.assignedAtrMultiplier = repaired.atrMultiplier;
-    current.assignedCaptureRatio = repaired.captureRatio;
-    current.assignedSafeFloorPct = repaired.safeFloorPct;
-    current.profileSamples = repaired.samples;
-    current.profileConfidence = repaired.confidence;
-    current.takeoverSource = repaired.source;
-    current.status = pos.renkoExitActivated ? 'ACTIVE' : 'WAITING_TAKEOVER';
-    current.economyRepairMigratedAt = new Date().toISOString();
-    current.economyRepairReason = 'UNSAFE_TIGHT_PROFILE_SANITIZED';
-    addTimeline(pos, 'ECONOMY_REPAIR_PROFILE', {
-      stage: pos.renkoProtectionStage || 'K0', reason: current.economyRepairReason,
-      takeoverPct: repaired.takeoverPct, atrMultiplier: repaired.atrMultiplier,
-      captureRatio: repaired.captureRatio
-    });
+    const trail = n(current.assignedTrailBricks, profile.trail);
+    current.assignedTrailBricks = CANDIDATES().includes(trail) ? trail : profile.trail;
+    current.assignedActivationProfitPct = n(current.assignedActivationProfitPct, activationPct);
+    const adaptiveUnsafe = !BRICK_LIVE_MODE() && (
+      takeoverOrNull(current.assignedTakeoverPct) == null ||
+      atrOrNull(current.assignedAtrMultiplier) == null ||
+      captureOrNull(current.assignedCaptureRatio) == null
+    );
+    if (adaptiveUnsafe) {
+      current.assignedTakeoverPct = profile.takeoverPct;
+      current.assignedAtrMultiplier = profile.atrMultiplier;
+      current.assignedCaptureRatio = profile.captureRatio;
+      current.assignedSafeFloorPct = profile.safeFloorPct;
+      current.economyRepairMigratedAt = new Date().toISOString();
+      current.economyRepairReason = 'UNSAFE_TIGHT_PROFILE_SANITIZED';
+    } else {
+      current.assignedSafeFloorPct = Math.max(SAFE_FLOOR_MIN(), n(current.assignedSafeFloorPct, profile.safeFloorPct));
+      current.assignedTakeoverPct = validTakeover(current.assignedTakeoverPct ?? profile.takeoverPct);
+      current.assignedAtrMultiplier = validAtr(current.assignedAtrMultiplier ?? profile.atrMultiplier);
+      current.assignedCaptureRatio = validCapture(current.assignedCaptureRatio ?? profile.captureRatio);
+    }
+    current.patternKey = current.patternKey || patternKey;
+    current.profileKeyAtOpen = current.profileKeyAtOpen || current.patternKey;
+    current.entryBrickAtOpen = n(current.entryBrickAtOpen, entryBrickAtOpen);
+    current.renkoBoxAtOpen = n(current.renkoBoxAtOpen, boxAtOpen);
+    current.assignmentId = current.assignmentId || assignmentIdFor(pos, current.profileKeyAtOpen, current.assignedTrailBricks, current.assignedActivationProfitPct);
+    current.positionSpecific = true;
+    current.assignmentSchema = 'V6109_POSITION_FROZEN';
+    current.profileSamples = n(current.profileSamples, profile.samples);
+    current.profileConfidence = n(current.profileConfidence, profile.confidence);
+    current.takeoverSource = current.takeoverSource || profile.source;
+    current.trailSource = current.trailSource || profile.trailSource;
+    current.liveExitMode = LIVE_MODE();
+    current.atrMfeExecution = BRICK_LIVE_MODE() ? 'SHADOW_REPLAY_ONLY' : 'LIVE_COMPATIBILITY_MODE';
+    current.status = pos.renkoExitActivated ? 'ACTIVE' : (BRICK_LIVE_MODE() ? 'WAITING_COMMISSION_SAFE_PROTECTION' : 'WAITING_TAKEOVER');
     return current;
   }
-  const profile = activeProfileFor(pos.yon, ga.patternKodu);
+  const trail = CANDIDATES().includes(n(profile.trail)) ? n(profile.trail) : DEFAULT_TRAIL();
   pos.renkoExitAssignment = {
-    patternKey: key(pos.yon, ga.patternKodu),
-    assignedTrailBricks: profile.trail,
+    patternKey,
+    profileKeyAtOpen: patternKey,
+    assignedTrailBricks: trail,
+    assignedActivationProfitPct: activationPct,
     assignedTakeoverPct: profile.takeoverPct,
     assignedAtrMultiplier: profile.atrMultiplier,
     assignedCaptureRatio: profile.captureRatio,
-    assignedSafeFloorPct: profile.safeFloorPct,
+    assignedSafeFloorPct: Math.max(SAFE_FLOOR_MIN(), profile.safeFloorPct),
     profileSamples: profile.samples,
     profileConfidence: profile.confidence,
     takeoverSource: profile.source,
+    trailSource: profile.trailSource,
+    entryBrickAtOpen,
+    renkoBoxAtOpen: boxAtOpen,
+    liveExitMode: LIVE_MODE(),
+    atrMfeExecution: BRICK_LIVE_MODE() ? 'SHADOW_REPLAY_ONLY' : 'LIVE_COMPATIBILITY_MODE',
     assignedAt: new Date().toISOString(),
-    activationMode: 'SAFE_PROFIT_THEN_ATR_AND_MFE_CAPTURE',
-    status: 'WAITING_TAKEOVER',
-    takeoverLearningMode: 'ONLINE_EVERY_SCIENTIFIC_CLOSE_NEW_POSITIONS_ONLY'
+    activationMode: BRICK_LIVE_MODE() ? 'AFTER_COMMISSION_SAFE_PROTECTION_BRICK_TRAIL' : 'SAFE_PROFIT_THEN_ATR_AND_MFE_CAPTURE',
+    status: BRICK_LIVE_MODE() ? 'WAITING_COMMISSION_SAFE_PROTECTION' : 'WAITING_TAKEOVER',
+    takeoverLearningMode: 'SCIENTIFIC_CLOSE_REPLAY_NEW_POSITIONS_ONLY',
+    positionSpecific: true,
+    assignmentSchema: 'V6109_POSITION_FROZEN'
   };
+  pos.renkoExitAssignment.assignmentId = assignmentIdFor(pos, patternKey, trail, activationPct);
   pos.renkoProtectionStage = 'K0';
-  pos.renkoProtectionState = 'TAKEOVER_BEKLIYOR';
+  pos.renkoProtectionState = BRICK_LIVE_MODE() ? 'KOMISYON_GUVENLI_KORUMA_BEKLENIYOR' : 'TAKEOVER_BEKLIYOR';
   addTimeline(pos, 'ASSIGNMENT', {
-    stage: 'K0', takeoverPct: profile.takeoverPct, trail: profile.trail,
+    stage: 'K0', assignmentId: pos.renkoExitAssignment.assignmentId,
+    activationPct, takeoverPct: profile.takeoverPct, trail,
     atrMultiplier: profile.atrMultiplier, captureRatio: profile.captureRatio,
-    confidence: profile.confidence, source: profile.source
+    confidence: profile.confidence, source: BRICK_LIVE_MODE() ? profile.trailSource : profile.source,
+    liveMode: LIVE_MODE()
   });
   return pos.renkoExitAssignment;
 }
 function firstProtectionReady(pos) {
   return pos?.breakevenAktif === true && n(pos?.korunanKarYuzdesi, n(pos?.labBeTamponYuzde, 0)) >= 0;
+}
+function commissionSafeReady(pos, price) {
+  if (!firstProtectionReady(pos)) return { ok: false, reason: 'COMMISSION_SAFE_PROTECTION_NOT_READY' };
+  const entry = n(pos?.girisFiyati);
+  const pnl = profitPct(pos?.yon, entry, n(price));
+  const floorPct = Math.max(SAFE_FLOOR_MIN(), n(pos?.renkoExitAssignment?.assignedSafeFloorPct, SAFE_FLOOR_MIN()));
+  if (pnl + 1e-9 < floorPct) return { ok: false, reason: 'CURRENT_PRICE_BELOW_COMMISSION_SAFE_FLOOR', pnl, floorPct };
+  return { ok: true, pnl, floorPct };
 }
 function profitPct(yon, entry, price) {
   if (!(entry > 0) || !(price > 0)) return 0;
@@ -399,10 +462,11 @@ function sourceLabel(src) {
   return ({
     MEVCUT_STOP: 'Mevcut stop', ILK_KAR_KORUMA: 'Güvenli kâr tabanı',
     ATR_TAKIP: 'ATR trailing stopu', RENKO_TAKIP: 'Renko takip stopu',
+    RENKO_TUGLA_TAKIP: 'Renko tuğla takip stopu', KOMISYON_GUVENLI_TABAN: 'Komisyon sonrası güvenli kâr tabanı',
     MFE_KORUMA: 'Öğrenilmiş MFE kâr koruma', BILINMIYOR: 'Bilinmiyor'
   })[src] || String(src || 'Bilinmiyor');
 }
-function update(pos, price) {
+function updateAdaptive(pos, price) {
   assign(pos);
   const a = pos.renkoExitAssignment;
   const entry = n(pos?.girisFiyati);
@@ -501,8 +565,88 @@ function update(pos, price) {
     captureRatio: n(a.assignedCaptureRatio), takeoverPct: n(a.assignedTakeoverPct)
   };
 }
+function updateBrick(pos, price) {
+  assign(pos);
+  const a = pos.renkoExitAssignment;
+  const entry = n(pos?.girisFiyati);
+  const pnl = profitPct(pos?.yon, entry, n(price));
+  const readiness = commissionSafeReady(pos, price);
+  if (!readiness.ok) {
+    pos.renkoProtectionStage = firstProtectionReady(pos) ? 'K1' : 'K0';
+    pos.renkoProtectionState = readiness.reason === 'CURRENT_PRICE_BELOW_COMMISSION_SAFE_FLOOR'
+      ? 'BE_AKTIF_KOMISYON_GUVENLI_FIYAT_BEKLENIYOR'
+      : 'KOMISYON_GUVENLI_KORUMA_BEKLENIYOR';
+    a.status = 'WAITING_COMMISSION_SAFE_PROTECTION';
+    return { active: false, changed: false, reason: readiness.reason, currentProfitPct: pnl, safeFloorPct: readiness.floorPct, trail: n(a.assignedTrailBricks) };
+  }
+  const box = n(a.renkoBoxAtOpen, n(pos?.girisAnalizi?.renkoBoxSize || pos?.renkoBoxSize));
+  if (!(box > 0)) return { active: false, changed: false, reason: 'BOX_SIZE_MISSING' };
+  const old = n(pos.sl);
+  const safeStop = priceFromProfitPct(pos.yon, entry, Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)));
+  if (!(old > 0) || !(safeStop > 0)) return { active: false, changed: false, reason: 'INVALID_STOP_INPUT', old, safeStop };
+  let justActivated = false;
+  if (!pos.renkoExitActivated) {
+    justActivated = true;
+    pos.renkoExitActivated = true;
+    pos.renkoExitActivatedAt = new Date().toISOString();
+    pos.renkoExitActivationPrice = price;
+    pos.renkoExitActivationProfitPct = pnl;
+    pos.renkoExitPeak = price;
+    pos.renkoExitFirstProtectionStop = pos.yon === 'LONG' ? Math.max(old, safeStop) : Math.min(old, safeStop);
+    a.status = 'ACTIVE';
+    pos.renkoProtectionStage = 'K2';
+    pos.renkoProtectionState = 'RENKO_TUGLA_TAKIP_AKTIF';
+    addTimeline(pos, 'BRICK_TRAIL_ACTIVE', {
+      stage: 'K2', price, assignmentId: a.assignmentId,
+      activationPct: n(a.assignedActivationProfitPct), trail: n(a.assignedTrailBricks),
+      safeFloorPct: Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)), profitPct: pnl
+    });
+  }
+  const previousPeak = n(pos.renkoExitPeak, price);
+  pos.renkoExitPeak = pos.yon === 'LONG' ? Math.max(previousPeak, price) : Math.min(previousPeak, price);
+  const peakPct = peakProfitPct(pos, pos.renkoExitPeak);
+  if (pos.renkoExitPeak !== previousPeak) addTimeline(pos, 'NEW_PEAK', { stage: 'K2', price: pos.renkoExitPeak, peakProfitPct: peakPct });
+  const trail = n(a.assignedTrailBricks, DEFAULT_TRAIL());
+  const brickStop = pos.yon === 'LONG' ? pos.renkoExitPeak - box * trail : pos.renkoExitPeak + box * trail;
+  const floor = n(pos.renkoExitFirstProtectionStop, safeStop);
+  const effective = pos.yon === 'LONG' ? Math.max(old, floor, brickStop) : Math.min(old, floor, brickStop);
+  if (!(effective > 0) || !Number.isFinite(effective)) return { active: true, justActivated, changed: false, reason: 'INVALID_EFFECTIVE_STOP', effective, brickStop, floor };
+  const changed = pos.yon === 'LONG' ? effective > old : effective < old;
+  const eps = Math.max(1e-12, Math.abs(effective) * 1e-10);
+  const source = Math.abs(effective - floor) <= eps ? 'KOMISYON_GUVENLI_TABAN' : (Math.abs(effective - brickStop) <= eps ? 'RENKO_TUGLA_TAKIP' : 'MEVCUT_STOP');
+  if (changed) {
+    pos.sl = effective;
+    pos.renkoExitAppliedTrailBricks = trail;
+    pos.renkoExitLastStopSource = source;
+    pos.renkoExitLastStopSourceLabel = sourceLabel(source);
+    pos.renkoExitLastStopUpdatedAt = new Date().toISOString();
+    pos.renkoProtectionStage = 'K3';
+    pos.renkoProtectionState = 'RENKO_STOP_GUNCELLENDI';
+    addTimeline(pos, 'STOP_MOVED', { stage: 'K3', reason: source, reasonLabel: sourceLabel(source), oldStop: old, stop: effective, peakProfitPct: peakPct, trail });
+  } else if (pos.renkoExitLastStopUpdatedAt || pos.renkoProtectionStage === 'K3') {
+    pos.renkoProtectionStage = 'K3';
+    pos.renkoProtectionState = 'RENKO_STOP_KORUNUYOR';
+  } else {
+    pos.renkoProtectionStage = 'K2';
+    pos.renkoProtectionState = 'RENKO_TUGLA_TAKIP_AKTIF';
+  }
+  return { active: true, justActivated, changed, effective, brickStop, safeFloor: floor, source, sourceLabel: sourceLabel(source), peakProfitPct: peakPct, trail, liveMode: LIVE_MODE() };
+}
+function update(pos, price) {
+  return BRICK_LIVE_MODE() ? updateBrick(pos, price) : updateAdaptive(pos, price);
+}
 function takeoverText(pos) {
   const a = pos.renkoExitAssignment || assign(pos);
+  if (BRICK_LIVE_MODE()) {
+    return `🏁 <b>KOMİSYON GÜVENLİ RENKO KÂR TAKİBİ DEVREDE</b>\n\n` +
+      `🔀 ${pos.sym} (${pos.yon})\n` +
+      `🧩 Pattern: ${pos.girisAnalizi?.patternKodu || 'YOK'}\n` +
+      `🔒 Net güvenli taban: %${Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)).toFixed(2)}\n` +
+      `🧱 Zirveden takip: ${n(a.assignedTrailBricks).toFixed(2)} tuğla\n` +
+      `🧠 Kaynak: ${a.trailSource || 'SAFE_DEFAULT_BRICK_TRAIL'} | N${n(a.profileSamples)}\n` +
+      `🔬 ATR/MFE profilleri yalnız gölge replay; canlı stopu yönetmez.\n` +
+      `🔐 Bu atama pozisyon kapanana kadar sabittir.`;
+  }
   return `🏁 <b>ÖĞRENEN ATR KÂR TAKİBİ DEVREDE</b>\n\n` +
     `🔀 ${pos.sym} (${pos.yon})\n` +
     `🧩 Pattern: ${pos.girisAnalizi?.patternKodu || 'YOK'}\n` +
@@ -545,6 +689,49 @@ function replay(pathRows, yon, entry, box, trail, takeoverPct = 0, finalPrice = 
   const capture = mfe > 0 ? Math.max(0, Math.min(100, pct / mfe * 100)) : 0;
   return { pct, mfe, capture, giveback: Math.max(0, mfe - pct), missedProfit: Math.max(0, mfe - Math.max(0, pct)), activated, activationPrice, activationIndex };
 }
+function brickReplay(pathRows, yon, entry, box, trail, activationPct, safeFloorPct = SAFE_FLOOR_MIN(), finalPrice = entry) {
+  activationPct = Math.max(SAFE_FLOOR_MIN(), n(activationPct, SAFE_FLOOR_MIN()));
+  safeFloorPct = Math.max(SAFE_FLOOR_MIN(), n(safeFloorPct, SAFE_FLOOR_MIN()));
+  let activated = false, activationIndex = -1, activationPrice = entry;
+  let peak = entry, exit = null, mfe = 0, effectiveStop = null, exitReason = 'ACTUAL_CLOSE';
+  const safeStop = priceFromProfitPct(yon, entry, safeFloorPct);
+  for (let i = 0; i < pathRows.length; i++) {
+    const price = n(pathRows[i]?.price);
+    if (!(price > 0)) continue;
+    const pnl = pathRows[i]?.pnlPct != null && Number.isFinite(Number(pathRows[i].pnlPct))
+      ? Number(pathRows[i].pnlPct)
+      : profitPct(yon, entry, price);
+    mfe = Math.max(mfe, pnl);
+    if (!activated && pnl >= activationPct) {
+      activated = true;
+      activationIndex = i;
+      activationPrice = price;
+      peak = price;
+    }
+    if (!activated) continue;
+    peak = yon === 'LONG' ? Math.max(peak, price) : Math.min(peak, price);
+    const brickStop = yon === 'LONG' ? peak - box * trail : peak + box * trail;
+    effectiveStop = yon === 'LONG' ? Math.max(safeStop, brickStop) : Math.min(safeStop, brickStop);
+    if ((yon === 'LONG' && price <= effectiveStop) || (yon === 'SHORT' && price >= effectiveStop)) {
+      exit = effectiveStop;
+      exitReason = Math.abs(effectiveStop - safeStop) <= Math.max(1e-12, Math.abs(effectiveStop) * 1e-10)
+        ? 'COMMISSION_SAFE_FLOOR'
+        : 'RENKO_BRICK_TRAIL';
+      break;
+    }
+  }
+  if (exit == null) exit = n(finalPrice, n(pathRows.at(-1)?.price, activationPrice));
+  const grossPct = profitPct(yon, entry, exit);
+  const netPct = grossPct - ROUND_TRIP_COMMISSION_PCT();
+  const capture = mfe > 0 ? clamp(grossPct / mfe * 100, 0, 100) : 0;
+  return {
+    pct: netPct, netPct, grossPct, commissionPct: ROUND_TRIP_COMMISSION_PCT(),
+    mfe, capture, giveback: Math.max(0, mfe - grossPct), missedProfit: Math.max(0, mfe - Math.max(0, grossPct)),
+    activated, activationIndex, activationPrice, activationPct, safeFloorPct,
+    exitPrice: exit, exitReason, effectiveStop
+  };
+}
+
 function adaptiveReplay(pathRows, yon, entry, takeoverPct, atrMultiplier, captureRatio, finalPrice = entry, safeFloorPct = DEFAULT_SAFE_FLOOR()) {
   takeoverPct = validTakeover(takeoverPct);
   atrMultiplier = validAtr(atrMultiplier);
@@ -649,6 +836,13 @@ function close(pos, result = {}) {
     return { accepted: false, reason: 'MANUAL_EXCLUDED' };
   }
 
+  if (BRICK_LIVE_MODE() && pos?.renkoExitActivated !== true) {
+    s.health.notActivated = n(s.health.notActivated) + 1;
+    s.processedIds[id] = { at: new Date().toISOString(), excluded: 'NOT_ACTIVATED' };
+    write(s);
+    return { accepted: false, reason: 'NOT_ACTIVATED' };
+  }
+
   const ga = pos.girisAnalizi || {}, box = n(ga.renkoBoxSize || pos.renkoBoxSize);
   if (!(box > 0)) return { accepted: false, reason: 'BOX_SIZE_MISSING' };
   const k = key(pos.yon, ga.patternKodu);
@@ -656,11 +850,18 @@ function close(pos, result = {}) {
   const pathRows = normalizePath(pos), entry = n(pos.girisFiyati);
   const finalPrice = n(result.exitPrice, n(pathRows.at(-1)?.price, entry));
   const observedTakeover = validTakeover(pos?.renkoExitAssignment?.assignedTakeoverPct ?? pos?.korunanKarYuzdesi);
+  const brickActivationPct = Math.max(
+    SAFE_FLOOR_MIN(),
+    n(pos?.renkoExitAssignment?.assignedActivationProfitPct, n(pos?.renkoExitActivationProfitPct, activationProfitPctFor(pos)))
+  );
+  const brickSafeFloorPct = Math.max(SAFE_FLOOR_MIN(), n(pos?.renkoExitAssignment?.assignedSafeFloorPct, SAFE_FLOOR_MIN()));
 
   for (const trail of CANDIDATES()) {
-    const rr = replay(pathRows, pos.yon, entry, box, trail, observedTakeover, finalPrice);
+    const rr = brickReplay(pathRows, pos.yon, entry, box, trail, brickActivationPct, brickSafeFloorPct, finalPrice);
     const m = p.candidates[trail] || (p.candidates[trail] = blankMetric());
-    addMetric(m, rr);
+    addMetric(m, { ...rr, pct: rr.grossPct });
+    const nm = p.brickNetCandidates[trail] || (p.brickNetCandidates[trail] = blankMetric());
+    addMetric(nm, rr);
   }
   for (const take of TAKEOVER_CANDIDATES()) {
     const rr = replay(pathRows, pos.yon, entry, box, n(p.activeTrail, DEFAULT_TRAIL()), take, finalPrice);
@@ -692,7 +893,23 @@ function close(pos, result = {}) {
   p.closed = n(p.closed) + 1;
 
   const legacyBest = chooseTrail(p);
-  if (legacyBest) p.activeTrail = legacyBest.trail;
+  const brickBest = chooseBrickEconomy(p);
+  if (brickBest) {
+    p.activeTrail = brickBest.trail;
+    p.brickEconomy = {
+      status: 'NET_ECONOMY_BRICK_TRAIL_ACTIVE', economyEligible: true, samples: brickBest.samples,
+      trail: brickBest.trail, net: brickBest.net, pf: brickBest.pf, expectancy: brickBest.expectancy,
+      avgWin: brickBest.avgWin, avgLoss: brickBest.avgLoss, avgGiveback: brickBest.avgGiveback,
+      commissionPct: ROUND_TRIP_COMMISSION_PCT(), updatedAt: new Date().toISOString()
+    };
+  } else {
+    if (!(n(p.activeTrail) > 0) && legacyBest) p.activeTrail = legacyBest.trail;
+    p.brickEconomy = {
+      status: 'NET_ECONOMY_N5_BEKLENIYOR', economyEligible: false,
+      samples: Math.max(0, ...Object.values(p.brickNetCandidates || {}).map(x => n(x.samples))),
+      minSamples: minN(), retainedTrail: n(p.activeTrail, DEFAULT_TRAIL()), updatedAt: new Date().toISOString()
+    };
+  }
   const best = chooseOnline(p);
   if (best) {
     // En az N5 ve pozitif net/expectancy/PF kanıtından sonra öğrenilmiş profili canlıya taşı.
@@ -735,7 +952,7 @@ function close(pos, result = {}) {
   s.processedIds[id] = { at: new Date().toISOString(), patternKey: k, audit, online: p.online };
   write(s);
   fs.appendFileSync(LEDGER_FILE, JSON.stringify({
-    type: 'RENKO_EXIT_CLOSE_V6106', id, at: new Date().toISOString(), patternKey: k,
+    type: 'RENKO_EXIT_CLOSE_V6109', id, at: new Date().toISOString(), patternKey: k,
     result, audit, online: p.online
   }) + '\n');
   addTimeline(pos, 'EXIT', { stage: pos.renkoProtectionStage || 'K0', reason: result.reason || 'UNKNOWN', exitPrice: finalPrice });
@@ -746,40 +963,68 @@ function close(pos, result = {}) {
   };
 }
 function summary(activePositions = []) {
-  const s = read();
+  const state = read();
   const positions = Array.isArray(activePositions) ? activePositions : [];
-  const assigned = positions.filter(p => p?.girisAnalizi?.entryStrategy === 'ST2_RENKO' && p?.renkoExitAssignment);
+  const renkoPositions = positions.filter(p => p?.girisAnalizi?.entryStrategy === 'ST2_RENKO');
+  const assigned = renkoPositions.filter(p => Number(p?.renkoExitAssignment?.assignedTrailBricks) > 0);
   const activated = assigned.filter(p => p?.renkoExitActivated === true);
   const gap = assigned.filter(p => p?.restartGap === true || p?.restartGapIslemi === true || p?.restartGapProtection === true);
+  const learned = assigned.filter(p => String(p?.renkoExitAssignment?.trailSource || '').includes('NET_ECONOMY_LEARNED'));
+  const persisted = assigned.filter(p => String(p?.renkoExitAssignment?.trailSource || '').includes('PERSISTED'));
+  const defaults = assigned.filter(p => String(p?.renkoExitAssignment?.trailSource || '').includes('DEFAULT'));
+  const assignmentErrors = Math.max(0, renkoPositions.length - assigned.length);
   return {
-    state: s,
-    profiles: Object.values(s.profiles || {}).map(p => ({
+    state,
+    profiles: Object.values(state.profiles || {}).map(p => ({
       ...p, auditMetric: auditMetric(p.audit),
       activeMetric: metric(p.candidates?.[p.activeTrail] || blankMetric()),
-      onlineMetric: p.online || {}, promotion: p.promotion || {}
+      onlineMetric: p.online || {}, brickEconomy: p.brickEconomy || {}, promotion: p.promotion || {}
     })),
-    runtime: { activeRenko: assigned.length, assigned: assigned.length, activated: activated.length, waiting: assigned.length - activated.length, restartGap: gap.length }
+    runtime: {
+      activeRenko: renkoPositions.length,
+      assigned: assigned.length,
+      activated: activated.length,
+      waiting: assigned.length - activated.length,
+      restartGap: gap.length,
+      learned: learned.length,
+      persisted: persisted.length,
+      defaults: defaults.length,
+      assignmentErrors
+    }
   };
 }
 function telegram(activePositions = []) {
   const x = summary(activePositions);
   const totalClosed = x.profiles.reduce((a, p) => a + n(p.closed), 0);
-  let t = '🏁 <b>ST2 ONLINE ATR + MFE CAPTURE / KÂR YAKALAMA</b>\n🏁 RENKO KÂR TAKİP STOPU EVRİMİ\n━━━━━━━━━━━━━━━━━━\n';
+  let t = BRICK_LIVE_MODE()
+    ? '🏁 <b>ST2 KOMİSYON GÜVENLİ RENKO TUĞLA TAKİBİ</b>\n🏁 NET KÂR EKONOMİSİ / CANLI STOP\n━━━━━━━━━━━━━━━━━━\n'
+    : '🏁 <b>ST2 ONLINE ATR + MFE CAPTURE / KÂR YAKALAMA</b>\n🏁 RENKO KÂR TAKİP STOPU EVRİMİ\n━━━━━━━━━━━━━━━━━━\n';
   t += `📊 Bilimsel kapanış: ${totalClosed} | İzlenen pattern: ${x.profiles.length}\n`;
-  t += `🧱 Takip profili atanmış: ${x.runtime.assigned} | Stop kaynağı: gerçek kapanış + online replay\n`;
-  t += `⚡ Ekonomi kapısı: N${minN()} + pozitif Net/Exp/PF | Kanıt yoksa güvenli profil\n`;
-  t += `🧱 Atanmış: ${x.runtime.assigned} | 🟢 Devrede: ${x.runtime.activated} | ⏳ Eşik bekleyen: ${x.runtime.waiting}\n`;
-  t += `🛡️ Restart-GAP aktif: ${x.runtime.restartGap} | GAP ret: ${n(x.state.health?.restartGap)} | Duplicate: ${n(x.state.health?.duplicate)}\n`;
-  t += `🔬 Devralma ${TAKEOVER_CANDIDATES().map(v => `%${v.toFixed(2)}`).join('/')} | ATR ${ATR_CANDIDATES().map(v => `${v.toFixed(2)}×`).join('/')} | Yakalama ${CAPTURE_CANDIDATES().map(v => `%${(v * 100).toFixed(0)}`).join('/')}\n`;
-  for (const p of x.profiles) {
-    const a = p.auditMetric, o = p.online || {};
-    t += `\n🧩 ${p.patternKey} | N${n(p.closed)} | ${o.status || 'SAFE_DEFAULT'}\n`;
-    const active = activeProfileFor(...String(p.patternKey || 'UNKNOWN|UNKNOWN').split('|'));
-    t += `🎯 Devralma %${active.takeoverPct.toFixed(2)} | ATR ${active.atrMultiplier.toFixed(2)}× | MFE %${(active.captureRatio * 100).toFixed(0)} | Güven %${(n(o.confidence) * 100).toFixed(0)}\n`;
-    t += `💰 Gerçek MFE %${a.avgMfe.toFixed(3)} | Kapanış %${a.avgExitPct.toFixed(3)} | Yakalama %${a.avgCapture.toFixed(1)} | Geri verme %${a.avgGiveback.toFixed(3)}\n`;
-    if (o.status) t += `🧠 Replay Net ${n(o.net) >= 0 ? '+' : ''}${n(o.net).toFixed(4)} | PF ${n(o.pf).toFixed(2)} | Exp ${n(o.expectancy).toFixed(4)} | Replay yakalama %${n(o.mfeCapture).toFixed(1)}\n`;
+  t += `🧱 Atanmış ${x.runtime.assigned}/${x.runtime.activeRenko} | 🟢 Devrede ${x.runtime.activated} | ⏳ Bekleyen ${x.runtime.waiting} | ❌ Atama hata ${x.runtime.assignmentErrors}\n`;
+  t += `🛡️ Restart-GAP ${x.runtime.restartGap} | GAP ret ${n(x.state.health?.restartGap)} | Duplicate ${n(x.state.health?.duplicate)}\n`;
+  if (BRICK_LIVE_MODE()) {
+    t += `⚡ Canlı model: komisyon sonrası güvenli taban + pozisyona özel dondurulmuş tuğla mesafesi\n`;
+    t += `🧠 Kaynak: Öğrenilmiş ${x.runtime.learned} | Kalıcı profil ${x.runtime.persisted} | Varsayılan ${x.runtime.defaults}\n`;
+    t += `🔬 Aday tuğla: ${CANDIDATES().map(v => `${v.toFixed(2)}T`).join('/')} | N${minN()} yalnız yeni profil terfi kapısıdır\n`;
+    t += `👻 ATR/MFE canlı stopu yönetmez; yalnız gölge karşılaştırma replay'idir.\n`;
+  } else {
+    t += `⚡ Ekonomi kapısı: N${minN()} + pozitif Net/Exp/PF | Kanıt yoksa güvenli profil\n`;
+    t += `🔬 Devralma ${TAKEOVER_CANDIDATES().map(v => `%${v.toFixed(2)}`).join('/')} | ATR ${ATR_CANDIDATES().map(v => `${v.toFixed(2)}×`).join('/')} | Yakalama ${CAPTURE_CANDIDATES().map(v => `%${(v * 100).toFixed(0)}`).join('/')}\n`;
   }
-  if (!x.profiles.length) t += `\n🟢 Güvenli başlangıç profili aktif. Ekonomik kanıt N${minN()} olduğunda çevrimiçi atama başlayacak.\n`;
+  for (const p of x.profiles) {
+    const a = p.auditMetric, o = p.online || {}, b = p.brickEconomy || {};
+    const active = activeProfileFor(...String(p.patternKey || 'UNKNOWN|UNKNOWN').split('|'));
+    t += `\n🧩 ${p.patternKey} | N${n(p.closed)} | ${BRICK_LIVE_MODE() ? (b.status || active.trailSource) : (o.status || 'SAFE_DEFAULT')}\n`;
+    if (BRICK_LIVE_MODE()) {
+      t += `🧱 Aktif ${n(active.trail).toFixed(2)}T | Kaynak ${active.trailSource} | Güven %${(n(active.confidence) * 100).toFixed(0)}\n`;
+      t += `💰 Net ${n(b.net) >= 0 ? '+' : ''}${n(b.net).toFixed(4)} | PF ${n(b.pf).toFixed(2)} | Exp ${n(b.expectancy).toFixed(4)} | Giveback %${n(b.avgGiveback).toFixed(3)}\n`;
+    } else {
+      t += `🎯 Devralma %${active.takeoverPct.toFixed(2)} | ATR ${active.atrMultiplier.toFixed(2)}× | MFE %${(active.captureRatio * 100).toFixed(0)} | Güven %${(n(o.confidence) * 100).toFixed(0)}\n`;
+      t += `💰 Gerçek MFE %${a.avgMfe.toFixed(3)} | Kapanış %${a.avgExitPct.toFixed(3)} | Yakalama %${a.avgCapture.toFixed(1)} | Geri verme %${a.avgGiveback.toFixed(3)}\n`;
+      if (o.status) t += `🧠 Replay Net ${n(o.net) >= 0 ? '+' : ''}${n(o.net).toFixed(4)} | PF ${n(o.pf).toFixed(2)} | Exp ${n(o.expectancy).toFixed(4)}\n`;
+    }
+  }
+  if (!x.profiles.length) t += `\n🟢 Profil yoksa ilk pozisyon 1.00T güvenli varsayılanla hemen takip edilir; N5 beklenmez.\n`;
   return t;
 }
 
@@ -787,12 +1032,13 @@ module.exports = {
   VERSION, STATE_FILE, BACKUP_FILE, LEDGER_FILE,
   CANDIDATES, TAKEOVER_CANDIDATES, ATR_CANDIDATES, CAPTURE_CANDIDATES,
   DEFAULT_TRAIL, DEFAULT_ATR, DEFAULT_CAPTURE, DEFAULT_TAKEOVER, DEFAULT_SAFE_FLOOR,
-  MIN_TAKEOVER, MIN_ATR, MIN_CAPTURE, MAX_CAPTURE, MFE_ARM_MULTIPLIER,
+  MIN_TAKEOVER, MIN_ATR, MIN_CAPTURE, MAX_CAPTURE, MFE_ARM_MULTIPLIER, LIVE_MODE, BRICK_LIVE_MODE,
   ROUND_TRIP_COMMISSION_PCT, MIN_NET_PROFIT_PCT, SAFE_FLOOR_MIN,
-  activeFor, activeProfileFor, assign, update, takeoverText, close, summary, telegram,
+  activeFor, activeProfileFor, assign, update, updateBrick, updateAdaptive, takeoverText, close, summary, telegram,
+  activationProfitPctFor, assignmentIdFor, commissionSafeReady, brickReplay,
   firstProtectionReady, takeoverThresholdReady, addTimeline, peakProfitPct,
   mfeProtectionStop, atrProtectionStop, stopSource, sourceLabel,
-  replay, adaptiveReplay, actualAudit, metric, auditMetric, chooseOnline, adaptiveScore, confidence, blend,
+  replay, adaptiveReplay, actualAudit, metric, auditMetric, chooseTrail, chooseBrickEconomy, chooseOnline, adaptiveScore, confidence, blend,
   takeoverOrNull, atrOrNull, captureOrNull, validTakeover, validAtr, validCapture, safeFloorFor,
   mfeArmPeakPct, eligible
 };

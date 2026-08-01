@@ -9,7 +9,8 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-v672-'));
 process.env.AGROS_DATA_DIR = tmp;
 
 const evo = require('./74_st2_renko_exit_evolution.js');
-assert.strictEqual(evo.VERSION, 'v6.10.6-PROFIT-ECONOMY-RIDER-REPAIR');
+assert.strictEqual(evo.VERSION, 'v6.10.9-FINAL-ENTRY-EXIT-BINDING-NET-PROFIT');
+assert.strictEqual(evo.BRICK_LIVE_MODE(), true, 'canlı model komisyon güvenli Renko tuğla takibi olmalı');
 assert(evo.DEFAULT_TAKEOVER() >= 0.25, 'varsayılan takeover sıfır olamaz');
 assert(evo.DEFAULT_ATR() >= 1.0, 'varsayılan ATR çarpanı sıfır olamaz');
 assert(evo.SAFE_FLOOR_MIN() >= 0.15, 'güvenli taban komisyon + net kâr tamponunu karşılamalı');
@@ -28,6 +29,7 @@ fs.writeFileSync(evo.STATE_FILE, JSON.stringify({
 }, null, 2));
 const profile = evo.activeProfileFor('SHORT', 'GGGG');
 assert(['SAFE_DEFAULT', 'SAFE_ECONOMY_FALLBACK'].includes(profile.source));
+assert(['SAFE_DEFAULT_BRICK_TRAIL','PERSISTED_BRICK_TRAIL','NET_ECONOMY_LEARNED_BRICK_TRAIL'].includes(profile.trailSource));
 assert(profile.takeoverPct >= 0.25);
 assert(profile.atrMultiplier >= 1.0);
 assert(profile.captureRatio >= 0.40);
@@ -42,12 +44,14 @@ assert(assignment.assignedTakeoverPct >= 0.25);
 assert(assignment.assignedAtrMultiplier >= 1.0);
 assert(assignment.assignedSafeFloorPct >= 0.15);
 const atEntry = evo.update(pos, 100);
-assert.strictEqual(atEntry.active, false, 'takeover giriş fiyatında anında devreye girmemeli');
-assert.strictEqual(atEntry.reason, 'TAKEOVER_THRESHOLD_NOT_REACHED');
+assert.strictEqual(atEntry.active, false, 'güvenli kâr koruması oluşmadan Renko takip devreye girmemeli');
+assert.strictEqual(atEntry.reason, 'COMMISSION_SAFE_PROTECTION_NOT_READY');
 
-// Güvenli eşiğe ulaşıldığında stop girişe değil, komisyon sonrası pozitif tabana taşınır.
-const activatePrice = 100 * (1 - assignment.assignedTakeoverPct / 100);
-pos.execution = { pricePath: [{ price: activatePrice, pnlPct: assignment.assignedTakeoverPct, atrPct: 0.20, ts: Date.now() }] };
+// BE/komisyon koruması doğrulandığında stop girişe değil, komisyon sonrası pozitif tabana taşınır.
+pos.breakevenAktif = true;
+pos.korunanKarYuzdesi = 0.12;
+const activatePrice = 99.60;
+pos.execution = { pricePath: [{ price: activatePrice, pnlPct: 0.40, atrPct: 0.20, ts: Date.now() }] };
 const activated = evo.update(pos, activatePrice);
 assert.strictEqual(activated.active, true);
 assert.strictEqual(activated.justActivated, true);

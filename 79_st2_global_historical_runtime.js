@@ -1,17 +1,20 @@
 'use strict';
 /**
- * AGROS ST2 v6.1.3 — Global Historical Worker Completion & Recovery
+ * AGROS ST2 v6.10.7 — Non-blocking Global Historical Runtime
  * Shadow-only runtime coordinator. Trade Engine ve gerçek emir kararına yazmaz.
+ * Ağır ledger/replay mutabakatı startup kritik yolunda çalıştırılmaz.
  */
 const fs = require('fs');
 const path = require('path');
 const trainer = require('./75_st2_historical_renko_training.js');
 const reconciliation = require('./78_st2_global_historical_reconciliation.js');
 
-const VERSION = 'v6.2.1-GLOBAL-HISTORICAL-29-COIN-WORKER';
+const VERSION = 'v6.10.7-GLOBAL-HISTORICAL-DEFERRED-RUNTIME';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const RUNTIME_FILE = path.join(DATA_DIR, 'st2-global-historical-runtime.json');
 let running = false;
+let activationTimer = null;
+let activationScheduled = false;
 
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function ensure(){fs.mkdirSync(DATA_DIR,{recursive:true});}
@@ -19,20 +22,54 @@ function atomicWrite(value){ensure();const tmp=`${RUNTIME_FILE}.${process.pid}.$
 function read(){try{return fs.existsSync(RUNTIME_FILE)?JSON.parse(fs.readFileSync(RUNTIME_FILE,'utf8')):{};}catch(_){return{};}}
 function enabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_RUNTIME||'true').toLowerCase()!=='false';}
 function autoTrainEnabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_AUTO_TRAIN||'true').toLowerCase()!=='false';}
+function warmupMs(){return Math.max(30_000,n(process.env.AGROS_ST2_GLOBAL_HISTORICAL_WARMUP_MS,120_000));}
 function configuredRange(){
   const end=process.env.AGROS_ST2_HISTORICAL_END||new Date().toISOString();
   const start=process.env.AGROS_ST2_HISTORICAL_START||new Date(Date.now()-180*86400000).toISOString();
   return {start,end,interval:process.env.AGROS_ST2_HISTORICAL_INTERVAL||'15m'};
 }
-function status(){
-  const rec=reconciliation.summary(), prev=read();
-  return {version:VERSION,enabled:enabled(),autoTrain:autoTrainEnabled(),running,lastRunAt:prev.lastRunAt||null,lastSuccessAt:prev.lastSuccessAt||null,lastError:prev.lastError||null,coins:reconciliation.COINS.length,readyCoins:rec.historical.readyCoins,signals:rec.historical.signals,patterns:rec.historical.readyPatterns,reconciliationOk:rec.reconciliation.ok};
+function lightweightStatus(){
+  const prev=read();
+  const snap=prev.summarySnapshot||{};
+  return {
+    version:VERSION,
+    enabled:enabled(),
+    autoTrain:autoTrainEnabled(),
+    running,
+    lastRunAt:prev.lastRunAt||null,
+    lastSuccessAt:prev.lastSuccessAt||null,
+    lastSummaryAt:prev.lastSummaryAt||snap.at||null,
+    lastError:prev.lastError||null,
+    coins:n(snap.coins,reconciliation.COINS.length),
+    readyCoins:n(snap.readyCoins,n(prev.alreadyReady,0)),
+    signals:n(snap.signals,0),
+    patterns:n(snap.patterns,0),
+    reconciliationOk:snap.reconciliationOk===true,
+    statusSource:snap.at?'CACHED_SNAPSHOT':'LIGHTWEIGHT_STATE'
+  };
+}
+function refreshStatus(){
+  const rec=reconciliation.summary();
+  const prev=read();
+  const snapshot={
+    at:new Date().toISOString(),
+    coins:reconciliation.COINS.length,
+    readyCoins:n(rec?.historical?.readyCoins),
+    signals:n(rec?.historical?.signals),
+    patterns:n(rec?.historical?.readyPatterns),
+    reconciliationOk:rec?.reconciliation?.ok===true
+  };
+  atomicWrite({...prev,version:VERSION,lastSummaryAt:snapshot.at,summarySnapshot:snapshot});
+  return {...lightweightStatus(),...snapshot,statusSource:'FRESH_RECONCILIATION'};
+}
+function status(options={}){
+  return options.refresh===true?refreshStatus():lightweightStatus();
 }
 async function trainMissing(){
-  if(running)return status();
+  if(running)return lightweightStatus();
   running=true;
   const startedAt=new Date().toISOString(), range=configuredRange();
-  let runtime={version:VERSION,startedAt,lastRunAt:startedAt,targets:[],totalTargets:0,completedTargets:0,failedTargets:0,lastError:null};
+  let runtime={...read(),version:VERSION,startedAt,lastRunAt:startedAt,targets:[],totalTargets:0,completedTargets:0,failedTargets:0,lastError:null};
   try{
     for(const fn of ['load','save','downloadKlines','trainSymbol']){
       if(typeof trainer[fn]!=='function')throw new Error(`TRAINER_EXPORT_MISSING:${fn}`);
@@ -68,12 +105,32 @@ async function trainMissing(){
     atomicWrite({...runtime,failedAt:new Date().toISOString(),lastError:e.message||String(e)});
     console.error(`❌ [GLOBAL HISTORICAL RUNTIME FATAL] ${e.message||e}`);
   }finally{running=false;}
-  return status();
+  try{return refreshStatus();}catch(e){console.error(`⚠️ [GLOBAL HISTORICAL SUMMARY] ${e.message||e}`);return lightweightStatus();}
 }
-function activate(){
-  const s=status();
-  if(!s.enabled)return {...s,activation:'DISABLED'};
-  if(s.autoTrain&&!running){setImmediate(()=>trainMissing().catch(e=>console.error(`❌ [GLOBAL HISTORICAL RUNTIME] ${e.message}`)));}
-  return {...s,activation:s.autoTrain?'AUTO_TRAIN_SCHEDULED':'READ_ONLY_ACTIVE'};
+async function deferredWork(){
+  try{
+    if(autoTrainEnabled()) await trainMissing();
+    else refreshStatus();
+  }catch(e){
+    const prev=read();
+    atomicWrite({...prev,version:VERSION,lastError:e.message||String(e),lastErrorAt:new Date().toISOString()});
+    console.error(`❌ [GLOBAL HISTORICAL DEFERRED] ${e.message||e}`);
+  }
 }
-module.exports={VERSION,RUNTIME_FILE,enabled,autoTrainEnabled,status,trainMissing,activate};
+function activate(options={}){
+  const s=lightweightStatus();
+  if(!s.enabled)return {...s,activation:'DISABLED',warmupMs:0};
+  const delay=Math.max(0,n(options.warmupMs,warmupMs()));
+  if(!activationScheduled&&!running){
+    activationScheduled=true;
+    const scheduler=typeof options.scheduler==='function'?options.scheduler:(fn,ms)=>setTimeout(fn,ms);
+    activationTimer=scheduler(()=>{activationTimer=null;deferredWork();},delay);
+    activationTimer?.unref?.();
+  }
+  return {...s,activation:s.autoTrain?'AUTO_TRAIN_DEFERRED':'READ_ONLY_REFRESH_DEFERRED',warmupMs:delay};
+}
+function resetForTest(){
+  if(activationTimer&&typeof clearTimeout==='function')clearTimeout(activationTimer);
+  activationTimer=null;activationScheduled=false;running=false;
+}
+module.exports={VERSION,RUNTIME_FILE,enabled,autoTrainEnabled,warmupMs,status,lightweightStatus,refreshStatus,trainMissing,activate,_deferredWork:deferredWork,_resetForTest:resetForTest};

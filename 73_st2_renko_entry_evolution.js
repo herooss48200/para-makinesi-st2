@@ -293,14 +293,27 @@ function auditMark(s,key,{assigned=false,applied=false,matched=null,reason=null,
   s.decisionChain.last={at:new Date().toISOString(),key,reason,detail};
 }
 function auditDecisionChain(s,pos,result,ga,pusu,points){
-  const entryBrick=n(ga.renkoEntryBrickDistance,DEFAULT_BRICK());
-  const target=targetPrice(pusu,entryBrick), actual=n(pos?.girisFiyati||pos?.entryPrice);
-  const entryAssigned=target>0, entryApplied=actual>0;
+  const binding=ga?.entryDecisionBinding||{};
+  const entryBrick=n(binding.selectedBrick, n(ga.renkoEntryBrickDistance,DEFAULT_BRICK()));
+  const gateBrick=n(binding.gateBrick, entryBrick);
+  const target=n(binding.targetPrice, targetPrice(pusu,entryBrick));
+  const actual=n(pos?.girisFiyati||pos?.entryPrice);
+  const entryAssigned=target>0&&entryBrick>0;
+  const entryApplied=actual>0&&binding.verified!==false;
   const side=String(pos?.yon||pusu?.yon||'').toUpperCase();
   const entryTol=Math.max(n(pusu.renkoBoxSize)*0.20, target*0.0005);
-  const directionMatched=entryAssigned&&entryApplied?(side==='SHORT'?actual<=target+entryTol:actual>=target-entryTol):null;
-  const entryReason=!entryAssigned?'ATAMA_EKSIK':!entryApplied?'UYGULAMA_EKSIK':directionMatched?'TETIK_YONU_DOGRU':'TETIK_YONU_TERSI';
-  auditMark(s,'entry',{assigned:entryAssigned,applied:entryApplied,matched:directionMatched,reason:entryReason,detail:{assignedBrick:entryBrick,target,actual,side,tolerance:entryTol}});
+  const bindingMatched=Math.abs(entryBrick-gateBrick)<=1e-9;
+  const directionMatched=entryAssigned&&entryApplied
+    ? bindingMatched&&(side==='SHORT'?actual<=target+entryTol:actual>=target-entryTol)
+    : null;
+  const entryReason=!entryAssigned?'ATAMA_EKSIK'
+    :!bindingMatched?'ENTRY_BINDING_ERROR'
+    :!entryApplied?'UYGULAMA_EKSIK'
+    :directionMatched?'TETIK_VE_GATE_AYNI_TUGLA':'TETIK_YONU_TERSI';
+  auditMark(s,'entry',{
+    assigned:entryAssigned,applied:entryApplied,matched:directionMatched,reason:entryReason,
+    detail:{assignedBrick:entryBrick,gateBrick,target,actual,side,tolerance:entryTol,bindingVerified:binding.verified===true}
+  });
 
   const stopPct=Math.max(0.01,n(pos?.labLifecycleProfile?.stopPct,n(ayarlar.sabitStopYuzdesi,1.5)));
   const assignedStop=actual>0?(String(pos?.yon).toUpperCase()==='SHORT'?actual*(1+stopPct/100):actual*(1-stopPct/100)):0;
@@ -312,12 +325,32 @@ function auditDecisionChain(s,pos,result,ga,pusu,points){
   const beApplied=pos?.breakevenAktif===true||/BAŞABAŞ|KOMİSYON|KÂR KORUMA|KAR KORUMA/i.test(String(result?.reason||''));
   auditMark(s,'be',{assigned:beAssigned,applied:beApplied,matched:beAssigned?true:null,detail:{triggerPct:n(pos?.labLifecycleProfile?.beTriggerPct,n(ayarlar.breakevenTetikYuzde)),bufferPct:n(pos?.labLifecycleProfile?.beBufferPct,n(ayarlar.breakevenTamponYuzde)),activated:beApplied}});
 
+  const liveRenko=String(pos?.renkoExitAssignment?.liveExitMode||'').toUpperCase()==='SAFE_COMMISSION_BRICK_TRAIL';
+  if(liveRenko){
+    const assignedExit='RENKO_COMMISSION_SAFE_BRICK_TRAIL';
+    const activated=pos?.renkoExitActivated===true;
+    const resultText=String(result?.reason||'').toUpperCase();
+    const applied=activated||/RENKO|K[ÂA]R KORUMA|KOMİSYON GÜVENLİ/.test(resultText);
+    const reason=applied?'RENKO_LIVE_APPLIED':'RENKO_NOT_ACTIVATED';
+    auditMark(s,'exit',{
+      assigned:true,applied,matched:applied?true:null,reason,
+      detail:{
+        assignedExit,appliedExit:applied?(pos?.renkoExitLastStopSource||result?.reason||assignedExit):null,
+        assignmentId:pos?.renkoExitAssignment?.assignmentId||null,
+        trailBricks:n(pos?.renkoExitAssignment?.assignedTrailBricks),
+        activationPct:n(pos?.renkoExitAssignment?.assignedActivationProfitPct),
+        dnaExitReplay:'SHADOW_ONLY'
+      }
+    });
+    return;
+  }
   const assignedExit=pos?.executionExitAssignment?.algorithmId||pos?.exitPlanShadow?.selectedAlgorithmId||'ACTUAL';
   const appliedExit=pos?.dynamicExitApplied?.algorithmId||pos?.dynamicExitApplied?.selectedAlgorithmId||pos?.dynamicExitApplied?.reason||result?.reason||null;
   const exitWasAssigned=Boolean(assignedExit), exitWasApplied=Boolean(appliedExit);
   const exitMatched=assignedExit==='ACTUAL'?exitWasApplied:(exitWasApplied&&String(appliedExit).toUpperCase().includes(String(assignedExit).toUpperCase()));
   auditMark(s,'exit',{assigned:exitWasAssigned,applied:exitWasApplied,matched:exitWasAssigned&&exitWasApplied?exitMatched:null,detail:{assignedExit,appliedExit}});
 }
+
 function applyAccepted(s,pos,result,tradeId,markBridge=true){
   const snap=pos?.girisAnalizi?.pusuTuglasi||pos?.pusuTuglasi||{};
   const ga={...(pos?.girisAnalizi||{}),entryStrategy:pos?.girisAnalizi?.entryStrategy||pos?.entryStrategy||null,patternId:pos?.girisAnalizi?.patternId||pos?.patternId||snap.patternId,patternKodu:pos?.girisAnalizi?.patternKodu||pos?.patternKodu||snap.patternKodu,referansSeviye:pos?.girisAnalizi?.referansSeviye||pos?.referansSeviye||snap.referansSeviye,renkoBoxSize:pos?.girisAnalizi?.renkoBoxSize||pos?.renkoBoxSize||snap.renkoBoxSize,renkoEntryBrickDistance:pos?.girisAnalizi?.renkoEntryBrickDistance||pos?.renkoEntryBrickDistance||DEFAULT_BRICK()};

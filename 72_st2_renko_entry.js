@@ -410,7 +410,16 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
 
     if (audit) audit.pusuDegerlendirilen++;
     const price = Number(h.state.canliFiyatlar[sym]);
-    const target = tetikFiyati(pusu);
+    // v6.10.9: Entry Evolution kararı bir kez seçilir; tetik, Premier gate ve pozisyon kaydı
+    // aynı dondurulmuş tuğla kararını kullanır.
+    const adaptiveEntryDecision = aktifTuglaKarari(pusu);
+    const selectedEntryBrick = Number(adaptiveEntryDecision.brick);
+    const target = entryEvolution.targetPrice(pusu, selectedEntryBrick);
+    const historicalEntryGate = adaptiveDnaEntry.gateDecision({
+        ...pusu,
+        renkoEntryBrickDistance: selectedEntryBrick,
+        adaptiveDnaEntryDecision: adaptiveEntryDecision
+    }, selectedEntryBrick);
     const st = onay1m || birDakikaRenkoSuperTrend(sym);
     const fiyatUygun = price > 0 && (pusu.yon === 'LONG' ? price >= target : price <= target);
     const stUygun = pusu.yon === 'LONG' ? st.trend === 'UP' : st.trend === 'DOWN';
@@ -430,7 +439,6 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, st);
     console.log(`\n${renkoKanit}\n`);
 
-    const adaptiveEntryDecision = aktifTuglaKarari(pusu);
     const girisAnalizi = {
         entryStrategy: 'ST2_RENKO',
         pusuPeriyodu: ayarlar.renkoKaynakPeriyodu || '15m',
@@ -439,8 +447,18 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         hedefFiyati: pusu.referansSeviye,
         tetikFiyati: target,
         tetikYuzdesiAyar: Number(ayarlar.renkoTetikYuzdesi || 0),
-        renkoEntryBrickDistance: Number(adaptiveEntryDecision.brick),
+        renkoEntryBrickDistance: selectedEntryBrick,
         adaptiveDnaEntryDecision: adaptiveEntryDecision,
+        historicalEntryGate,
+        entryDecisionBinding: {
+            verified: Math.abs(Number(historicalEntryGate.brick) - selectedEntryBrick) <= 1e-9,
+            selectedBrick: selectedEntryBrick,
+            gateBrick: Number(historicalEntryGate.brick),
+            targetPrice: target,
+            source: adaptiveEntryDecision.source || 'UNKNOWN',
+            reason: adaptiveEntryDecision.reason || historicalEntryGate.reason || 'UNKNOWN',
+            frozenAt: new Date().toISOString()
+        },
         tetikModu: 'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE',
         girisFiyati: price,
         superTrendYonu: st.trend,
