@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.10.6 — MANUAL CLOSE AUTO-REARM & PROFIT ECONOMY REPAIR
+ * AGROS ST2 v6.11.0 — GOLDEN LIVE ORDER & PROTECTION CHAIN
  *
  * Gerçek emir katmanı için tek yürütme otoritesi:
  * - deterministik client order id / tekrar emir koruması
@@ -22,7 +22,7 @@ const h = require('./1_hafiza.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
 const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
-const VERSION = 'v6.10.6-MANUAL-CLOSE-AUTO-REARM-PROFIT-ECONOMY';
+const VERSION = 'v6.11.0-GOLDEN-LIVE-CHAIN';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-real-order-execution-state.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -291,6 +291,8 @@ function applyStopProtection(pos, fingerprint, protection, reason) {
   pos.gercekEmirYurutme ||= { fingerprint, ids: clientIds(pos.sym, pos.yon, fingerprint) };
   pos.gercekEmirYurutme.protections ||= {};
   pos.gercekEmirYurutme.protections.stop = protection;
+  pos.realStopLastReplaceAt = Date.now();
+  pos.realStopLastAppliedTrigger = finite(protection?.triggerPrice, finite(pos?.sl, NaN));
   delete pos.gercekEmirYurutme.redundantStops;
   pos.korumaEmirleri = {
     ...(pos.korumaEmirleri || {}),
@@ -523,6 +525,16 @@ async function reserveEntry({ symbol, side, context, client = h.client }) {
   const processLock = acquireProcessLock();
   if (!processLock.ok) return { ok: false, reason: processLock.reason };
 
+  // Üretim istemcisi için imzalı çağrı saat otoritesi zorunludur. Enjekte edilmiş test istemcileri
+  // kendi saat/yanıt modelini taşır ve ağ senkronuna bağımlı değildir.
+  if (client === h.client) {
+    let timeHealth = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy: false };
+    if (timeHealth?.healthy !== true && typeof h.binanceTimeSync === 'function') {
+      try { timeHealth = await h.binanceTimeSync({ force: true }); } catch (_) {}
+    }
+    if (timeHealth?.healthy !== true) return { ok: false, reason: 'BINANCE_TIME_AUTHORITY_NOT_READY' };
+  }
+
   const auth = realOrderBridge.realAuthorization();
   if (!auth.valid) return { ok: false, reason: 'GERCEK_EMIR_YETKISI_YOK_VEYA_MAINNET_DOGRULANMADI' };
 
@@ -608,6 +620,16 @@ async function executeEntry({ reservation, quantity, referencePrice, minQty, min
   const exchangeSide = side === 'LONG' ? 'BUY' : 'SELL';
   const qty = finite(quantity);
   if (!(qty > 0)) throw new Error('GERCEK_GIRIS_MIKTARI_GECERSIZ');
+  // Üretim istemcisi için imzalı çağrı saat otoritesi zorunludur. Enjekte edilmiş test istemcileri
+  // kendi saat/yanıt modelini taşır ve ağ senkronuna bağımlı değildir.
+  if (client === h.client) {
+    let timeHealth = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy: false };
+    if (timeHealth?.healthy !== true && typeof h.binanceTimeSync === 'function') {
+      try { timeHealth = await h.binanceTimeSync({ force: true }); } catch (_) {}
+    }
+    if (timeHealth?.healthy !== true) return { ok: false, reason: 'BINANCE_TIME_AUTHORITY_NOT_READY' };
+  }
+
   const auth = realOrderBridge.realAuthorization();
   if (!auth.valid) throw new Error('GERCEK_EMIR_SON_AN_YETKI_KONTROLU_BASARISIZ');
 
@@ -967,28 +989,71 @@ function persistPosition(pos, reason = 'POSITION_UPDATE') {
   return true;
 }
 
+function protectionTrigger(row) {
+  return finite(row?.triggerPrice ?? row?.stopPrice ?? row?.activatePrice, NaN);
+}
+function stopType(row) {
+  return /STOP_MARKET|STOP/i.test(algoOrderType(row) || row?.type || row?.orderType || '');
+}
+function triggerEqual(symbol, left, right) {
+  const a = finite(left, NaN), b = finite(right, NaN);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  const tick = finite(h.state?.basamaklar?.[upper(symbol)]?.tickSize, NaN);
+  const tolerance = tick > 0 ? tick * 0.51 : Math.max(1e-12, Math.abs(b) * 1e-10);
+  return Math.abs(a - b) <= tolerance;
+}
+async function adoptDesiredStop(symbol, triggerPrice, pos, fingerprint, client = h.client) {
+  try {
+    const open = await openAlgoOrders(symbol, client);
+    const desired = open.find(row => stopType(row) && ACTIVE_ALGO_STATUSES.has(algoOrderStatus(row)) && triggerEqual(symbol, protectionTrigger(row), triggerPrice));
+    if (!desired) return null;
+    const normalized = normalizeAlgoOrder({ ...desired, triggerPrice: protectionTrigger(desired) });
+    applyStopProtection(pos, fingerprint, normalized, 'STOP_DESIRED_ACTIVE_ADOPTED');
+    audit('STOP_DESIRED_ACTIVE_ADOPTED', { symbol, fingerprint, algoId: normalized?.algoId || null, triggerPrice });
+    return normalized;
+  } catch (error) {
+    audit('STOP_DESIRED_ADOPTION_QUERY_FAILED', { symbol, fingerprint, triggerPrice, error: error.message });
+    return null;
+  }
+}
+
 async function replaceStopAtomic(pos, newStopPrice, client = h.client) {
   const symbol = upper(pos?.sym);
   const side = upper(pos?.yon);
   const fingerprint = pos?.gercekEmirYurutme?.fingerprint || pos?.realExecutionFingerprint || contextFingerprint(symbol, side, pos);
-  const position = await symbolPosition(symbol, client);
-  if (!position || positionAmount(position) <= 0) return { ok: false, reason: 'BORSA_POZISYONU_YOK' };
-  if (!positionSideSupported(position)) return { ok: false, reason: 'HEDGE_MODE_DESTEKLENMIYOR' };
-  if (positionDirection(position) !== side) return { ok: false, reason: 'BORSA_YON_MUTABAKATSIZ' };
   let triggerPrice;
   try { triggerPrice = normalizeTriggerPrice(symbol, side, newStopPrice); }
   catch (err) { return { ok: false, reason: `YENI_STOP_GECERSIZ:${err.message}` }; }
 
+  // Cooldown ve minimum aralık kontrolleri ağ çağrısından önce yapılır. Böylece 1 saniyelik
+  // iz-sürme döngüsü aynı bekleyen stop için Binance'e tekrar tekrar yük bindirmez.
+  const now = Date.now();
   const retry = pos?.realStopReplaceRetry || null;
-  if (retry && Math.abs(finite(retry.triggerPrice, 0) - triggerPrice) < 1e-12 && finite(retry.nextAttemptAt, 0) > Date.now()) {
-    return { ok: false, reason: 'STOP_REPLACE_COOLDOWN', oldKept: true, retryAfterMs: retry.nextAttemptAt - Date.now() };
+  if (retry && triggerEqual(symbol, retry.triggerPrice, triggerPrice) && finite(retry.nextAttemptAt, 0) > now) {
+    return { ok: false, reason: 'STOP_REPLACE_COOLDOWN', oldKept: true, retryAfterMs: retry.nextAttemptAt - now, localFastFail: true };
   }
 
   const old = protectionsFromPosition(pos).stop;
-  const oldTrigger = finite(old?.triggerPrice, finite(pos?.sl, NaN));
-  if (old && Number.isFinite(oldTrigger) && Math.abs(oldTrigger - triggerPrice) < 1e-12) {
+  const oldTrigger = finite(old?.triggerPrice, finite(pos?.realStopLastAppliedTrigger, finite(pos?.sl, NaN)));
+  if (old && triggerEqual(symbol, oldTrigger, triggerPrice)) {
     return { ok: true, protection: old, noOp: true, oldCanceled: false };
   }
+
+  const minInterval = Math.max(1000, Number(ayarlar.gercekStopMinGuncellemeAralikMs || 3000));
+  const elapsed = now - finite(pos?.realStopLastReplaceAt, 0);
+  if (pos?.realStopLastReplaceAt && elapsed < minInterval) {
+    return { ok: false, reason: 'STOP_REPLACE_MIN_INTERVAL', oldKept: true, retryAfterMs: minInterval - elapsed, localFastFail: true };
+  }
+
+  const position = await symbolPosition(symbol, client);
+  if (!position || positionAmount(position) <= 0) return { ok: false, reason: 'BORSA_POZISYONU_YOK' };
+  if (!positionSideSupported(position)) return { ok: false, reason: 'HEDGE_MODE_DESTEKLENMIYOR' };
+  if (positionDirection(position) !== side) return { ok: false, reason: 'BORSA_YON_MUTABAKATSIZ' };
+
+  // Önce borsada istenen stop zaten aktif mi bak; önceki belirsiz yanıt sonrası çift emir üretme.
+  const adopted = await adoptDesiredStop(symbol, triggerPrice, pos, fingerprint, client);
+  if (adopted) return { ok: true, protection: adopted, adopted: true, noOp: true, oldCanceled: sameAlgo(old, adopted) };
+
   const clientAlgoId = stopRevisionClientId(symbol, side, fingerprint, triggerPrice);
   let fresh;
   try {
@@ -1431,22 +1496,9 @@ async function startupReconcile(client = h.client) {
     restored.push(pos);
   }
 
-  // Kayıtlardaki semboller için ikinci, hedefli güvenlik turu.
-  const symbols = new Set([
-    ...Object.values(state.records).map(r => upper(r?.symbol)).filter(Boolean),
-    ...openPositions.map(r => upper(r?.symbol)).filter(Boolean)
-  ]);
-  for (const symbol of symbols) {
-    if (openPositions.some(p => upper(p.symbol) === symbol)) continue;
-    try {
-      const algos = await openAlgoOrders(symbol, client);
-      for (const algo of algos) {
-        if (!ownedId(algo.clientAlgoId)) continue;
-        const canceled = await cancelAlgoVerified(symbol, algo, client);
-        if (!canceled.ok) throw new Error(`ORPHAN_ALGO_IPTAL_DOGRULANAMADI:${algo.clientAlgoId || algo.algoId}`);
-      }
-    } catch (_) {}
-  }
+  // Hesap-geneli AGROS Algo/normal emir temizliği yukarıda tek sorgu ile tamamlandı.
+  // Geçmişteki her kapanmış kayıt sembolü için tekrar open-algo sorgusu yapmak başlangıç
+  // süresini işlem geçmişiyle birlikte büyütüyordu; ikinci N-sembol taraması kaldırıldı.
 
   // Restart anında yarım kalmış normal giriş emrini kör tekrar göndermeden clientOrderId ile çöz.
   for (const record of Object.values(state.records)) {
@@ -1557,5 +1609,5 @@ module.exports = {
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
   ensureProtectionForPosition, startupReconcile, statusSummary,
-  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable }
+  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable, protectionTrigger, triggerEqual, adoptDesiredStop }
 };

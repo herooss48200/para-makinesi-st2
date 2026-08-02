@@ -1,6 +1,6 @@
 'use strict';
 /**
- * AGROS ST2 v6.10.7 — Non-blocking Global Historical Runtime
+ * AGROS ST2 v6.11.0 — Guarded Non-blocking Global Historical Runtime
  * Shadow-only runtime coordinator. Trade Engine ve gerçek emir kararına yazmaz.
  * Ağır ledger/replay mutabakatı startup kritik yolunda çalıştırılmaz.
  */
@@ -9,12 +9,16 @@ const path = require('path');
 const trainer = require('./75_st2_historical_renko_training.js');
 const reconciliation = require('./78_st2_global_historical_reconciliation.js');
 
-const VERSION = 'v6.10.7-GLOBAL-HISTORICAL-DEFERRED-RUNTIME';
+const VERSION = 'v6.11.0-GLOBAL-HISTORICAL-GUARDED-RUNTIME';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const RUNTIME_FILE = path.join(DATA_DIR, 'st2-global-historical-runtime.json');
 let running = false;
 let activationTimer = null;
 let activationScheduled = false;
+let activationCanRun = null;
+let activationRetryMs = 300_000;
+let activationScheduler = (fn, ms) => setTimeout(fn, ms);
+let guardLogAt = 0;
 
 function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function ensure(){fs.mkdirSync(DATA_DIR,{recursive:true});}
@@ -117,20 +121,42 @@ async function deferredWork(){
     console.error(`❌ [GLOBAL HISTORICAL DEFERRED] ${e.message||e}`);
   }
 }
+function scheduleDeferred(delay){
+  const run=()=>{
+    activationTimer=null;
+    let allowed=true;
+    try{ if(typeof activationCanRun==='function') allowed=activationCanRun()===true; }
+    catch(e){ allowed=false; }
+    if(!allowed){
+      const now=Date.now();
+      if(now-guardLogAt>=300_000){
+        guardLogAt=now;
+        console.log(`⏳ [GLOBAL HISTORICAL GUARD] Piyasa ısınması/gerçek pozisyon öncelikli; ağır tarihsel görev ${Math.round(activationRetryMs/1000)} sn ertelendi.`);
+      }
+      activationTimer=activationScheduler(run,activationRetryMs);
+      activationTimer?.unref?.();
+      return;
+    }
+    deferredWork();
+  };
+  activationTimer=activationScheduler(run,delay);
+  activationTimer?.unref?.();
+}
 function activate(options={}){
   const s=lightweightStatus();
   if(!s.enabled)return {...s,activation:'DISABLED',warmupMs:0};
   const delay=Math.max(0,n(options.warmupMs,warmupMs()));
   if(!activationScheduled&&!running){
     activationScheduled=true;
-    const scheduler=typeof options.scheduler==='function'?options.scheduler:(fn,ms)=>setTimeout(fn,ms);
-    activationTimer=scheduler(()=>{activationTimer=null;deferredWork();},delay);
-    activationTimer?.unref?.();
+    activationCanRun=typeof options.canRun==='function'?options.canRun:null;
+    activationRetryMs=Math.max(60_000,n(options.retryMs,300_000));
+    activationScheduler=typeof options.scheduler==='function'?options.scheduler:(fn,ms)=>setTimeout(fn,ms);
+    scheduleDeferred(delay);
   }
-  return {...s,activation:s.autoTrain?'AUTO_TRAIN_DEFERRED':'READ_ONLY_REFRESH_DEFERRED',warmupMs:delay};
+  return {...s,activation:s.autoTrain?'AUTO_TRAIN_DEFERRED_GUARDED':'READ_ONLY_REFRESH_DEFERRED_GUARDED',warmupMs:delay,retryMs:activationRetryMs};
 }
 function resetForTest(){
   if(activationTimer&&typeof clearTimeout==='function')clearTimeout(activationTimer);
-  activationTimer=null;activationScheduled=false;running=false;
+  activationTimer=null;activationScheduled=false;activationCanRun=null;activationRetryMs=300_000;activationScheduler=(fn,ms)=>setTimeout(fn,ms);guardLogAt=0;running=false;
 }
 module.exports={VERSION,RUNTIME_FILE,enabled,autoTrainEnabled,warmupMs,status,lightweightStatus,refreshStatus,trainMissing,activate,_deferredWork:deferredWork,_resetForTest:resetForTest};

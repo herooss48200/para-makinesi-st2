@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v6.10.9-FINAL-ENTRY-EXIT-BINDING-NET-PROFIT';
+const VERSION = 'v6.11.0-GOLDEN-LIVE-CHAIN';
 const DATA_DIR = process.env.AGROS_DATA_DIR
   ? path.resolve(process.env.AGROS_DATA_DIR)
   : path.join(__dirname, 'data');
@@ -37,6 +37,7 @@ const MIN_NET_PROFIT_PCT = () => Math.max(0, Number(ayarlar.renkoCikisMinimumNet
 const SAFE_FLOOR_MIN = () => Math.max(DEFAULT_SAFE_FLOOR(), ROUND_TRIP_COMMISSION_PCT() + MIN_NET_PROFIT_PCT());
 const LIVE_MODE = () => String(ayarlar.renkoCikisCanliModu || 'SAFE_COMMISSION_BRICK_TRAIL').toUpperCase();
 const BRICK_LIVE_MODE = () => LIVE_MODE() === 'SAFE_COMMISSION_BRICK_TRAIL';
+const STOP_UPDATE_STEP_BRICKS = () => clamp(Number(ayarlar.renkoCikisStopGuncellemeAdimTugla ?? 1.00), 0.25, 2.00);
 
 function n(v, d = 0) { v = Number(v); return Number.isFinite(v) ? v : d; }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, n(v, min))); }
@@ -306,7 +307,8 @@ function assign(pos) {
     current.renkoBoxAtOpen = n(current.renkoBoxAtOpen, boxAtOpen);
     current.assignmentId = current.assignmentId || assignmentIdFor(pos, current.profileKeyAtOpen, current.assignedTrailBricks, current.assignedActivationProfitPct);
     current.positionSpecific = true;
-    current.assignmentSchema = 'V6109_POSITION_FROZEN';
+    current.assignmentSchema = current.assignmentSchema || 'V6110_POSITION_FROZEN';
+    current.assignedStopUpdateStepBricks = n(current.assignedStopUpdateStepBricks, STOP_UPDATE_STEP_BRICKS());
     current.profileSamples = n(current.profileSamples, profile.samples);
     current.profileConfidence = n(current.profileConfidence, profile.confidence);
     current.takeoverSource = current.takeoverSource || profile.source;
@@ -339,7 +341,8 @@ function assign(pos) {
     status: BRICK_LIVE_MODE() ? 'WAITING_COMMISSION_SAFE_PROTECTION' : 'WAITING_TAKEOVER',
     takeoverLearningMode: 'SCIENTIFIC_CLOSE_REPLAY_NEW_POSITIONS_ONLY',
     positionSpecific: true,
-    assignmentSchema: 'V6109_POSITION_FROZEN'
+    assignmentSchema: 'V6110_POSITION_FROZEN',
+    assignedStopUpdateStepBricks: STOP_UPDATE_STEP_BRICKS()
   };
   pos.renkoExitAssignment.assignmentId = assignmentIdFor(pos, patternKey, trail, activationPct);
   pos.renkoProtectionStage = 'K0';
@@ -569,8 +572,9 @@ function updateBrick(pos, price) {
   assign(pos);
   const a = pos.renkoExitAssignment;
   const entry = n(pos?.girisFiyati);
-  const pnl = profitPct(pos?.yon, entry, n(price));
-  const readiness = commissionSafeReady(pos, price);
+  const currentPrice = n(price);
+  const pnl = profitPct(pos?.yon, entry, currentPrice);
+  const readiness = commissionSafeReady(pos, currentPrice);
   if (!readiness.ok) {
     pos.renkoProtectionStage = firstProtectionReady(pos) ? 'K1' : 'K0';
     pos.renkoProtectionState = readiness.reason === 'CURRENT_PRICE_BELOW_COMMISSION_SAFE_FLOOR'
@@ -584,30 +588,54 @@ function updateBrick(pos, price) {
   const old = n(pos.sl);
   const safeStop = priceFromProfitPct(pos.yon, entry, Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)));
   if (!(old > 0) || !(safeStop > 0)) return { active: false, changed: false, reason: 'INVALID_STOP_INPUT', old, safeStop };
+
+  const stepBricks = clamp(n(a.assignedStopUpdateStepBricks, STOP_UPDATE_STEP_BRICKS()), 0.25, 2.00);
+  const stepPrice = box * stepBricks;
   let justActivated = false;
   if (!pos.renkoExitActivated) {
     justActivated = true;
     pos.renkoExitActivated = true;
     pos.renkoExitActivatedAt = new Date().toISOString();
-    pos.renkoExitActivationPrice = price;
+    pos.renkoExitActivationPrice = currentPrice;
     pos.renkoExitActivationProfitPct = pnl;
-    pos.renkoExitPeak = price;
+    pos.renkoExitPeak = currentPrice;
+    pos.renkoExitTrailAnchor = currentPrice;
+    pos.renkoExitTrailAdvancedBricks = 0;
     pos.renkoExitFirstProtectionStop = pos.yon === 'LONG' ? Math.max(old, safeStop) : Math.min(old, safeStop);
     a.status = 'ACTIVE';
     pos.renkoProtectionStage = 'K2';
     pos.renkoProtectionState = 'RENKO_TUGLA_TAKIP_AKTIF';
     addTimeline(pos, 'BRICK_TRAIL_ACTIVE', {
-      stage: 'K2', price, assignmentId: a.assignmentId,
+      stage: 'K2', price: currentPrice, assignmentId: a.assignmentId,
       activationPct: n(a.assignedActivationProfitPct), trail: n(a.assignedTrailBricks),
-      safeFloorPct: Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)), profitPct: pnl
+      safeFloorPct: Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)), profitPct: pnl,
+      stopUpdateStepBricks: stepBricks
     });
   }
-  const previousPeak = n(pos.renkoExitPeak, price);
-  pos.renkoExitPeak = pos.yon === 'LONG' ? Math.max(previousPeak, price) : Math.min(previousPeak, price);
+
+  // Ham zirve MFE/audit için her tickte korunur. Binance stop emri ise yalnız
+  // tamamlanmış Renko adımı kadar ilerler; küçük fiyat titreşimleri API emir fırtınası oluşturmaz.
+  const previousPeak = n(pos.renkoExitPeak, currentPrice);
+  pos.renkoExitPeak = pos.yon === 'LONG' ? Math.max(previousPeak, currentPrice) : Math.min(previousPeak, currentPrice);
   const peakPct = peakProfitPct(pos, pos.renkoExitPeak);
-  if (pos.renkoExitPeak !== previousPeak) addTimeline(pos, 'NEW_PEAK', { stage: 'K2', price: pos.renkoExitPeak, peakProfitPct: peakPct });
+
+  let anchor = n(pos.renkoExitTrailAnchor, n(pos.renkoExitActivationPrice, currentPrice));
+  const favorableMove = pos.yon === 'LONG' ? currentPrice - anchor : anchor - currentPrice;
+  const completedSteps = favorableMove > 0 ? Math.floor((favorableMove + Math.max(1e-12, stepPrice * 1e-10)) / stepPrice) : 0;
+  let advancedBricks = 0;
+  if (completedSteps > 0) {
+    advancedBricks = completedSteps * stepBricks;
+    anchor = pos.yon === 'LONG' ? anchor + completedSteps * stepPrice : anchor - completedSteps * stepPrice;
+    pos.renkoExitTrailAnchor = anchor;
+    pos.renkoExitTrailAdvancedBricks = n(pos.renkoExitTrailAdvancedBricks) + advancedBricks;
+    addTimeline(pos, 'NEW_BRICK_PEAK', {
+      stage: 'K2', rawPeak: pos.renkoExitPeak, trailAnchor: anchor,
+      peakProfitPct: peakPct, advancedBricks, totalAdvancedBricks: pos.renkoExitTrailAdvancedBricks
+    });
+  }
+
   const trail = n(a.assignedTrailBricks, DEFAULT_TRAIL());
-  const brickStop = pos.yon === 'LONG' ? pos.renkoExitPeak - box * trail : pos.renkoExitPeak + box * trail;
+  const brickStop = pos.yon === 'LONG' ? anchor - box * trail : anchor + box * trail;
   const floor = n(pos.renkoExitFirstProtectionStop, safeStop);
   const effective = pos.yon === 'LONG' ? Math.max(old, floor, brickStop) : Math.min(old, floor, brickStop);
   if (!(effective > 0) || !Number.isFinite(effective)) return { active: true, justActivated, changed: false, reason: 'INVALID_EFFECTIVE_STOP', effective, brickStop, floor };
@@ -622,7 +650,10 @@ function updateBrick(pos, price) {
     pos.renkoExitLastStopUpdatedAt = new Date().toISOString();
     pos.renkoProtectionStage = 'K3';
     pos.renkoProtectionState = 'RENKO_STOP_GUNCELLENDI';
-    addTimeline(pos, 'STOP_MOVED', { stage: 'K3', reason: source, reasonLabel: sourceLabel(source), oldStop: old, stop: effective, peakProfitPct: peakPct, trail });
+    addTimeline(pos, 'STOP_MOVED', {
+      stage: 'K3', reason: source, reasonLabel: sourceLabel(source), oldStop: old, stop: effective,
+      peakProfitPct: peakPct, trail, trailAnchor: anchor, advancedBricks, stopUpdateStepBricks: stepBricks
+    });
   } else if (pos.renkoExitLastStopUpdatedAt || pos.renkoProtectionStage === 'K3') {
     pos.renkoProtectionStage = 'K3';
     pos.renkoProtectionState = 'RENKO_STOP_KORUNUYOR';
@@ -630,8 +661,14 @@ function updateBrick(pos, price) {
     pos.renkoProtectionStage = 'K2';
     pos.renkoProtectionState = 'RENKO_TUGLA_TAKIP_AKTIF';
   }
-  return { active: true, justActivated, changed, effective, brickStop, safeFloor: floor, source, sourceLabel: sourceLabel(source), peakProfitPct: peakPct, trail, liveMode: LIVE_MODE() };
+  return {
+    active: true, justActivated, changed, effective, brickStop, safeFloor: floor,
+    source, sourceLabel: sourceLabel(source), peakProfitPct: peakPct, trail,
+    rawPeak: pos.renkoExitPeak, trailAnchor: anchor, advancedBricks,
+    stopUpdateStepBricks: stepBricks, liveMode: LIVE_MODE()
+  };
 }
+
 function update(pos, price) {
   return BRICK_LIVE_MODE() ? updateBrick(pos, price) : updateAdaptive(pos, price);
 }
@@ -643,6 +680,7 @@ function takeoverText(pos) {
       `🧩 Pattern: ${pos.girisAnalizi?.patternKodu || 'YOK'}\n` +
       `🔒 Net güvenli taban: %${Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)).toFixed(2)}\n` +
       `🧱 Zirveden takip: ${n(a.assignedTrailBricks).toFixed(2)} tuğla\n` +
+      `🔁 Stop güncelleme adımı: ${n(a.assignedStopUpdateStepBricks, STOP_UPDATE_STEP_BRICKS()).toFixed(2)} tamamlanmış tuğla\n` +
       `🧠 Kaynak: ${a.trailSource || 'SAFE_DEFAULT_BRICK_TRAIL'} | N${n(a.profileSamples)}\n` +
       `🔬 ATR/MFE profilleri yalnız gölge replay; canlı stopu yönetmez.\n` +
       `🔐 Bu atama pozisyon kapanana kadar sabittir.`;
@@ -689,11 +727,13 @@ function replay(pathRows, yon, entry, box, trail, takeoverPct = 0, finalPrice = 
   const capture = mfe > 0 ? Math.max(0, Math.min(100, pct / mfe * 100)) : 0;
   return { pct, mfe, capture, giveback: Math.max(0, mfe - pct), missedProfit: Math.max(0, mfe - Math.max(0, pct)), activated, activationPrice, activationIndex };
 }
-function brickReplay(pathRows, yon, entry, box, trail, activationPct, safeFloorPct = SAFE_FLOOR_MIN(), finalPrice = entry) {
+function brickReplay(pathRows, yon, entry, box, trail, activationPct, safeFloorPct = SAFE_FLOOR_MIN(), finalPrice = entry, stopUpdateStepBricks = STOP_UPDATE_STEP_BRICKS()) {
   activationPct = Math.max(SAFE_FLOOR_MIN(), n(activationPct, SAFE_FLOOR_MIN()));
   safeFloorPct = Math.max(SAFE_FLOOR_MIN(), n(safeFloorPct, SAFE_FLOOR_MIN()));
+  const stepBricks = clamp(n(stopUpdateStepBricks, STOP_UPDATE_STEP_BRICKS()), 0.25, 2.00);
+  const stepPrice = box * stepBricks;
   let activated = false, activationIndex = -1, activationPrice = entry;
-  let peak = entry, exit = null, mfe = 0, effectiveStop = null, exitReason = 'ACTUAL_CLOSE';
+  let peak = entry, anchor = entry, exit = null, mfe = 0, effectiveStop = null, exitReason = 'ACTUAL_CLOSE';
   const safeStop = priceFromProfitPct(yon, entry, safeFloorPct);
   for (let i = 0; i < pathRows.length; i++) {
     const price = n(pathRows[i]?.price);
@@ -707,10 +747,14 @@ function brickReplay(pathRows, yon, entry, box, trail, activationPct, safeFloorP
       activationIndex = i;
       activationPrice = price;
       peak = price;
+      anchor = price;
     }
     if (!activated) continue;
     peak = yon === 'LONG' ? Math.max(peak, price) : Math.min(peak, price);
-    const brickStop = yon === 'LONG' ? peak - box * trail : peak + box * trail;
+    const favorableMove = yon === 'LONG' ? price - anchor : anchor - price;
+    const steps = favorableMove > 0 ? Math.floor((favorableMove + Math.max(1e-12, stepPrice * 1e-10)) / stepPrice) : 0;
+    if (steps > 0) anchor = yon === 'LONG' ? anchor + steps * stepPrice : anchor - steps * stepPrice;
+    const brickStop = yon === 'LONG' ? anchor - box * trail : anchor + box * trail;
     effectiveStop = yon === 'LONG' ? Math.max(safeStop, brickStop) : Math.min(safeStop, brickStop);
     if ((yon === 'LONG' && price <= effectiveStop) || (yon === 'SHORT' && price >= effectiveStop)) {
       exit = effectiveStop;
@@ -728,7 +772,7 @@ function brickReplay(pathRows, yon, entry, box, trail, activationPct, safeFloorP
     pct: netPct, netPct, grossPct, commissionPct: ROUND_TRIP_COMMISSION_PCT(),
     mfe, capture, giveback: Math.max(0, mfe - grossPct), missedProfit: Math.max(0, mfe - Math.max(0, grossPct)),
     activated, activationIndex, activationPrice, activationPct, safeFloorPct,
-    exitPrice: exit, exitReason, effectiveStop
+    exitPrice: exit, exitReason, effectiveStop, trailAnchor: anchor, stopUpdateStepBricks: stepBricks
   };
 }
 
@@ -857,7 +901,7 @@ function close(pos, result = {}) {
   const brickSafeFloorPct = Math.max(SAFE_FLOOR_MIN(), n(pos?.renkoExitAssignment?.assignedSafeFloorPct, SAFE_FLOOR_MIN()));
 
   for (const trail of CANDIDATES()) {
-    const rr = brickReplay(pathRows, pos.yon, entry, box, trail, brickActivationPct, brickSafeFloorPct, finalPrice);
+    const rr = brickReplay(pathRows, pos.yon, entry, box, trail, brickActivationPct, brickSafeFloorPct, finalPrice, STOP_UPDATE_STEP_BRICKS());
     const m = p.candidates[trail] || (p.candidates[trail] = blankMetric());
     addMetric(m, { ...rr, pct: rr.grossPct });
     const nm = p.brickNetCandidates[trail] || (p.brickNetCandidates[trail] = blankMetric());
@@ -1035,7 +1079,7 @@ module.exports = {
   MIN_TAKEOVER, MIN_ATR, MIN_CAPTURE, MAX_CAPTURE, MFE_ARM_MULTIPLIER, LIVE_MODE, BRICK_LIVE_MODE,
   ROUND_TRIP_COMMISSION_PCT, MIN_NET_PROFIT_PCT, SAFE_FLOOR_MIN,
   activeFor, activeProfileFor, assign, update, updateBrick, updateAdaptive, takeoverText, close, summary, telegram,
-  activationProfitPctFor, assignmentIdFor, commissionSafeReady, brickReplay,
+  activationProfitPctFor, assignmentIdFor, commissionSafeReady, brickReplay, STOP_UPDATE_STEP_BRICKS,
   firstProtectionReady, takeoverThresholdReady, addTimeline, peakProfitPct,
   mfeProtectionStop, atrProtectionStop, stopSource, sourceLabel,
   replay, adaptiveReplay, actualAudit, metric, auditMetric, chooseTrail, chooseBrickEconomy, chooseOnline, adaptiveScore, confidence, blend,

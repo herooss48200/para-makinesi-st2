@@ -39,7 +39,7 @@ assert(!exitReplaySource.includes('kapanisMetni,telegramOzetMetni,periyodikRapor
 assert(versionSource.includes('6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF'), 'v6.8.4 sürüm etiketi eksik');
 
 const earlyStartupIndex = botSource.indexOf('[ST2 EARLY STARTUP TELEGRAM]');
-const heavyHistoryIndex = botSource.indexOf('await revizyon.derinGecmisiInsaEt()');
+const heavyHistoryIndex = botSource.indexOf('Promise.resolve(revizyon.derinGecmisiInsaEt())');
 assert(earlyStartupIndex >= 0, 'erken startup Telegram görünürlüğü eksik');
 assert(heavyHistoryIndex >= 0 && earlyStartupIndex < heavyHistoryIndex, 'startup Telegram ağır tarihsel hazırlığın arkasında kalmamalı');
 assert(botSource.includes("coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}`"), 'erken ve normal startup aynı dedupe anahtarını kullanmalı');
@@ -64,4 +64,4 @@ try {
     Module._load = originalLoad;
 }
 
-console.log('✅ AGROS ST2 v6.8.3 minimal Telegram operations + one-message hard limit + runtime export guard passed');
+console.log('✅ AGROS ST2 v6.11.0 minimal Telegram + nonblocking startup + runtime export guard passed');

@@ -102,6 +102,8 @@ Module._load = function patched(request, parent, isMain) {
     const ayarlar = require('./ayarlar.js');
     ayarlar.sanalEmirModu = false;
     const h = require('./1_hafiza.js');
+    h.binanceTimeHealth = () => ({ healthy: true, synced: true, offsetMs: 0 });
+    h.binanceTimeSync = async () => ({ healthy: true, synced: true, offsetMs: 0 });
     h.state.basamaklar.BTCUSDT = { tickSize: 0.1, pricePrecision: 1, quantityPrecision: 3 };
     h.state.basamaklar.ETHUSDT = { tickSize: 0.1, pricePrecision: 1, quantityPrecision: 3 };
     const execution = require('./85_st2_real_order_execution.js');

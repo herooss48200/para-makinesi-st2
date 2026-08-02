@@ -1,0 +1,30 @@
+AGROS ST2 v6.11.0 — GOLDEN LIVE CHAIN
+Package type: FULL CLEAN SOURCE
+
+Core release files:
+- 1_hafiza.js — Telegram circuit/queues + signed client time integration
+- 2_rapor.js — live-chain operational proof
+- 3_piyasa.js — fail-closed restart reconciliation + nonblocking close notification
+- 4_pozisyon.js — protection retry/persistence hardening
+- 74_st2_renko_exit_evolution.js — position-frozen commission-safe brick trail
+- 79_st2_global_historical_runtime.js — guarded/deferred heavy historical work
+- 85_st2_real_order_execution.js — real order, accounting and atomic stop chain
+- 86_st2_binance_endpoint_authority.js — Futures endpoint authority
+- 86_st2_close_lifecycle.js — close commit barrier
+- 87_st2_binance_time_authority.js — signed server-time and recvWindow authority
+- ayarlar.js, bot.js, revizyon.js, versiyon.js
+- test_v6110_golden_live_chain.js and full regression chain
+
+Package counts:
+- JavaScript files: 125
+- Root source/document files: 132 (including this manifest and test result)
+
+Intentionally excluded:
+- .env and all secret material
+- data/, state, ledger and generated runtime models
+- logs/, logs-st2/
+- node_modules/
+- .git/
+- temporary/test runtime folders
+
+AWS deployment must preserve the existing .env and data directories.

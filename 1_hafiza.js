@@ -3,18 +3,39 @@ const Binance = require('binance-api-node').default;
 const https = require('https');
 const ayarlar = require('./ayarlar.js');
 const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
+const binanceTimeAuthorityFactory = require('./87_st2_binance_time_authority.js');
 
 const binanceEndpoint = binanceEndpointAuthority.resolve();
+const binanceTimeAuthority = binanceTimeAuthorityFactory.create({
+    baseUrl: binanceEndpoint.httpFutures,
+    syncIntervalMs: Number(ayarlar.binanceTimeSyncIntervalMs || 300000),
+    maxAgeMs: Number(ayarlar.binanceTimeMaxAgeMs || 600000),
+    timeoutMs: Number(ayarlar.binanceTimeSyncTimeoutMs || 5000),
+    samples: Number(ayarlar.binanceTimeSyncSamples || 3)
+});
 const client = Binance(binanceEndpointAuthority.clientOptions(
     process.env.BINANCE_API_KEY,
-    process.env.BINANCE_API_SECRET
+    process.env.BINANCE_API_SECRET,
+    {
+        getTime: () => binanceTimeAuthority.now(),
+        recvWindow: Number(ayarlar.binanceSignedRecvWindowMs || 15000)
+    }
 ));
+const SIGNED_FUTURES_METHODS = [
+    'futuresPositionRisk', 'futuresMarginType', 'futuresLeverage',
+    'futuresOpenOrders', 'futuresOrder', 'futuresGetOrder', 'futuresAllOrders',
+    'futuresCancelOrder', 'futuresGetOpenAlgoOrders', 'futuresGetAlgoOrder',
+    'futuresCreateAlgoOrder', 'futuresCancelAlgoOrder', 'futuresUserTrades'
+];
+binanceTimeAuthority.wrapClient(client, SIGNED_FUTURES_METHODS, { recvWindow: Number(ayarlar.binanceSignedRecvWindowMs || 15000) });
 
 const state = {
     semboller: [],
     sembolEvreniKaniti: null,
     sembolVeriSagligi: { durum: 'BEKLIYOR', istenen: 0, secilen: 0, mumHazir: 0, superTrendHazir: 0, hata: 0, sonGuncelleme: null },
     st2TaramaSagligi: { durum: 'BEKLIYOR', evren: 0, taranan: 0, veriEksik: 0, sureMs: 0, sonTamamlanma: null },
+    startupMarketReady: false,
+    startupMarketWarmup: { durum: 'BEKLIYOR', baslangic: null, tamamlanma: null, pusuHazir: 0, trendHazir: 0, oran: 0, hata: 0 },
     basamaklar: {},
     canliFiyatlar: {},
     yerelPusuHafizasi: {},
@@ -76,17 +97,30 @@ const TELEGRAM_CHAT_IDS = (process.env.AGROS_ST2_TELEGRAM_CHAT_ID || '').split('
 const TELEGRAM_TOKEN = process.env.AGROS_ST2_TELEGRAM_TOKEN;
 const { execFile } = require('child_process');
 
-const TELEGRAM_TIMEOUT_MS = Math.max(8000, Number(process.env.AGROS_ST2_TELEGRAM_TIMEOUT_MS || 15000));
-const TELEGRAM_RETRY_COUNT = Math.max(0, Math.min(3, Number(process.env.AGROS_ST2_TELEGRAM_RETRY_COUNT || 2)));
-const TELEGRAM_MIN_INTERVAL_MS = Math.max(80, Number(process.env.AGROS_ST2_TELEGRAM_MIN_INTERVAL_MS || 180));
-const telegramHttpsAgent = new https.Agent({ keepAlive: true, family: 4, maxSockets: 4, maxFreeSockets: 2 });
+const TELEGRAM_TIMEOUT_MS = Math.max(5000, Number(process.env.AGROS_ST2_TELEGRAM_TIMEOUT_MS || 12000));
+const TELEGRAM_RETRY_COUNT = Math.max(0, Math.min(2, Number(process.env.AGROS_ST2_TELEGRAM_RETRY_COUNT || 1)));
+const TELEGRAM_MIN_INTERVAL_MS = Math.max(120, Number(process.env.AGROS_ST2_TELEGRAM_MIN_INTERVAL_MS || 250));
+const TELEGRAM_NATIVE_CIRCUIT_MS = Math.max(30000, Number(process.env.AGROS_ST2_TELEGRAM_NATIVE_CIRCUIT_MS || 120000));
+const TELEGRAM_CURL_CIRCUIT_MS = Math.max(60000, Number(process.env.AGROS_ST2_TELEGRAM_CURL_CIRCUIT_MS || 600000));
+const TELEGRAM_ERROR_LOG_INTERVAL_MS = Math.max(30000, Number(process.env.AGROS_ST2_TELEGRAM_ERROR_LOG_INTERVAL_MS || 300000));
+const TELEGRAM_CRITICAL_PROBE_INTERVAL_MS = Math.max(10000, Number(process.env.AGROS_ST2_TELEGRAM_CRITICAL_PROBE_INTERVAL_MS || 30000));
+const telegramHttpsAgent = new https.Agent({ keepAlive: true, family: 4, maxSockets: 2, maxFreeSockets: 1, keepAliveMsecs: 1500 });
 const telegramIsKuyruklari = { critical: [], panel: [], detail: [] };
-const telegramKuyrukLimitleri = { critical: 100, panel: 4, detail: 8 };
+const telegramKuyrukLimitleri = { critical: 40, panel: 2, detail: 4 };
 let telegramKritikWorkerCalisiyor = false;
 let telegramBulkWorkerCalisiyor = false;
 const telegramSonIstekZamani = { critical: 0, bulk: 0 };
-let telegramNativeBypassUntil = 0;
-const TELEGRAM_NATIVE_BYPASS_MS = Math.max(60000, Number(process.env.AGROS_ST2_TELEGRAM_NATIVE_BYPASS_MS || 600000));
+const telegramTransport = {
+    nativeCircuitUntil: 0,
+    curlCircuitUntil: 0,
+    nativeConsecutiveFailures: 0,
+    curlConsecutiveFailures: 0,
+    lastNativeProbeAt: 0,
+    lastCurlProbeAt: 0,
+    outageSince: null,
+    recoveredAt: null
+};
+const telegramErrorLog = { lastAt: 0, key: '', suppressed: 0 };
 const telegramStats = {
     enqueued: { critical: 0, panel: 0, detail: 0 },
     delivered: { critical: 0, panel: 0, detail: 0 },
@@ -96,6 +130,9 @@ const telegramStats = {
     curlFallbackOk: 0,
     curlFallbackFailed: 0,
     nativeBypassed: 0,
+    circuitFastFail: 0,
+    ambiguousDelivery: 0,
+    errorLogsSuppressed: 0,
     lastDeliveryAt: null,
     lastError: null
 };
@@ -105,13 +142,26 @@ function telegramOncelik(options = {}) {
     const p = String(options.priority || 'critical').toLowerCase();
     return p === 'detail' || p === 'panel' ? p : 'critical';
 }
+function telegramTransportOzeti() {
+    const now = Date.now();
+    return {
+        nativeCircuitOpen: telegramTransport.nativeCircuitUntil > now,
+        nativeCircuitUntil: telegramTransport.nativeCircuitUntil || null,
+        curlCircuitOpen: telegramTransport.curlCircuitUntil > now,
+        curlCircuitUntil: telegramTransport.curlCircuitUntil || null,
+        nativeConsecutiveFailures: telegramTransport.nativeConsecutiveFailures,
+        curlConsecutiveFailures: telegramTransport.curlConsecutiveFailures,
+        outageSince: telegramTransport.outageSince,
+        recoveredAt: telegramTransport.recoveredAt
+    };
+}
 function telegramKuyrukOzeti() {
     return {
         critical: telegramIsKuyruklari.critical.length,
         panel: telegramIsKuyruklari.panel.length,
         detail: telegramIsKuyruklari.detail.length,
         worker: { critical: telegramKritikWorkerCalisiyor, bulk: telegramBulkWorkerCalisiyor },
-        nativeBypassUntil: telegramNativeBypassUntil || null,
+        transport: telegramTransportOzeti(),
         ...JSON.parse(JSON.stringify(telegramStats))
     };
 }
@@ -120,6 +170,10 @@ function telegramSiradakiIs(lane) {
     if (telegramIsKuyruklari.panel.length) return telegramIsKuyruklari.panel.shift();
     if (telegramIsKuyruklari.detail.length) return telegramIsKuyruklari.detail.shift();
     return null;
+}
+function telegramBulkCircuitOpen() {
+    const now = Date.now();
+    return telegramTransport.nativeCircuitUntil > now && telegramTransport.curlCircuitUntil > now;
 }
 function telegramKuyrugaEkle(job) {
     const priority = telegramOncelik(job.options);
@@ -133,17 +187,17 @@ function telegramKuyrugaEkle(job) {
             old.resolve({ ok: false, coalesced: true, description: 'Daha güncel Telegram işiyle birleştirildi' });
         }
     }
+    if (priority !== 'critical' && telegramBulkCircuitOpen()) {
+        telegramStats.dropped[priority]++;
+        telegramStats.circuitFastFail++;
+        job.resolve({ ok: false, dropped: true, circuitOpen: true, description: 'TELEGRAM_TRANSPORT_CIRCUIT_OPEN' });
+        return;
+    }
     const limit = telegramKuyrukLimitleri[priority];
     if (queue.length >= limit) {
-        if (priority === 'critical') {
-            const old = queue.shift();
-            telegramStats.dropped.critical++;
-            old.resolve({ ok: false, dropped: true, description: 'Kritik Telegram kuyruk sınırı aşıldı' });
-        } else {
-            const old = queue.shift();
-            telegramStats.dropped[priority]++;
-            old.resolve({ ok: false, dropped: true, description: `${priority} Telegram işi güncel iş için düşürüldü` });
-        }
+        const old = queue.shift();
+        telegramStats.dropped[priority]++;
+        old.resolve({ ok: false, dropped: true, description: `${priority} Telegram kuyruk sınırı aşıldı` });
     }
     queue.push(job);
     telegramStats.enqueued[priority]++;
@@ -189,6 +243,70 @@ async function telegramWorkerBaslat(lane) {
     }
 }
 
+function telegramTransportHatasi(result) {
+    if (!result || result.ok === true) return false;
+    const text = String(result.description || result.raw || '');
+    return result.transient === true || /TIMEOUT|ECONNRESET|EPIPE|EAI_AGAIN|socket|CURL_|EMPTY_RESPONSE|INVALID_JSON|HTTP_5\d\d/i.test(text);
+}
+function telegramDuzMetinFallbackUygun(result) {
+    if (!result || result.ok === true || result.coalesced || result.dropped) return false;
+    // Teslim belirsizliği veya ulaşım arızasında ikinci gönderim çift mesaj üretebilir.
+    if (result.ambiguousDelivery === true || result.circuitOpen === true || telegramTransportHatasi(result)) return false;
+    const text = String(result.description || result.raw || '');
+    // Yalnız Telegram'ın HTML/entity ayrıştırma reddinde aynı mesajı düz metinle bir kez düzelt.
+    return /can't parse entities|parse entities|unsupported start tag|bad request.*entity/i.test(text);
+}
+function telegramTransportKaydet(transport, result) {
+    const ok = result?.ok === true;
+    const now = Date.now();
+    if (ok) {
+        const hadOutage = Boolean(telegramTransport.outageSince);
+        if (transport === 'native') {
+            telegramTransport.nativeConsecutiveFailures = 0;
+            telegramTransport.nativeCircuitUntil = 0;
+        } else {
+            telegramTransport.curlConsecutiveFailures = 0;
+            telegramTransport.curlCircuitUntil = 0;
+        }
+        if (hadOutage) {
+            telegramTransport.outageSince = null;
+            telegramTransport.recoveredAt = new Date(now).toISOString();
+            const suppressed = telegramErrorLog.suppressed;
+            telegramErrorLog.suppressed = 0;
+            console.log(`✅ [TELEGRAM ULAŞIMI DÜZELDİ] Taşıma ${transport.toUpperCase()} | Bastırılan tekrar ${suppressed}`);
+        }
+        return;
+    }
+    if (!telegramTransportHatasi(result)) return;
+    if (!telegramTransport.outageSince) telegramTransport.outageSince = new Date(now).toISOString();
+    if (transport === 'native') {
+        telegramTransport.nativeConsecutiveFailures++;
+        if (telegramTransport.nativeConsecutiveFailures >= 3) telegramTransport.nativeCircuitUntil = now + TELEGRAM_NATIVE_CIRCUIT_MS;
+    } else {
+        telegramTransport.curlConsecutiveFailures++;
+        // curl boş/bozuk yanıtı, curl hattının hemen devre dışı kalması için yeterlidir.
+        if (/EMPTY_RESPONSE|INVALID_JSON/i.test(String(result?.description || '')) || telegramTransport.curlConsecutiveFailures >= 2) {
+            telegramTransport.curlCircuitUntil = now + TELEGRAM_CURL_CIRCUIT_MS;
+            telegramTransport.nativeCircuitUntil = Math.min(telegramTransport.nativeCircuitUntil, now);
+        }
+    }
+}
+function telegramHataLogla(result, priority) {
+    const aciklama = String(result?.description || result?.raw || 'bilinmeyen hata').slice(0, 300);
+    const key = `${priority}:${aciklama}`;
+    const now = Date.now();
+    if (telegramErrorLog.key === key && now - telegramErrorLog.lastAt < TELEGRAM_ERROR_LOG_INTERVAL_MS) {
+        telegramErrorLog.suppressed++;
+        telegramStats.errorLogsSuppressed++;
+        return;
+    }
+    const ek = telegramErrorLog.suppressed > 0 ? ` | Önceki tekrar bastırıldı ${telegramErrorLog.suppressed}` : '';
+    telegramErrorLog.key = key;
+    telegramErrorLog.lastAt = now;
+    telegramErrorLog.suppressed = 0;
+    console.error(`❌ [TELEGRAM ULAŞIM HATASI] ${priority.toUpperCase()} | ${aciklama}${ek}`);
+}
+
 function telegramNativeIstegiAt(apiPath, veri, options = {}) {
     return new Promise((resolve) => {
         if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
@@ -197,32 +315,41 @@ function telegramNativeIstegiAt(apiPath, veri, options = {}) {
         }
         const postData = JSON.stringify(veri);
         const timeoutMs = Math.max(2500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
+        const freshConnection = options.freshConnection === true;
         const requestOptions = {
             hostname: 'api.telegram.org', port: 443,
             path: `/bot${TELEGRAM_TOKEN}/${apiPath}`,
             method: 'POST', timeout: timeoutMs, family: 4,
-            agent: telegramHttpsAgent,
+            agent: freshConnection ? false : telegramHttpsAgent,
             headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(postData),
-                'Connection': 'keep-alive'
+                'Connection': freshConnection ? 'close' : 'keep-alive',
+                'User-Agent': 'AGROS-ST2/6.11.0'
             }
         };
         const req = https.request(requestOptions, (res) => {
             let body = '';
+            res.setEncoding('utf8');
             res.on('data', chunk => body += chunk);
             res.on('end', () => {
+                if (!body.trim()) {
+                    resolve({ ok: false, description: 'NATIVE_EMPTY_RESPONSE', statusCode: res.statusCode, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300 });
+                    return;
+                }
                 try {
                     const parsed = JSON.parse(body);
+                    parsed.statusCode = res.statusCode;
+                    parsed.transport = 'NATIVE_IPV4';
                     if (!parsed.ok && res.statusCode >= 500) parsed.transient = true;
                     resolve(parsed);
                 } catch (_) {
-                    resolve({ ok: false, raw: body, statusCode: res.statusCode, transient: res.statusCode >= 500 });
+                    resolve({ ok: false, description: 'NATIVE_INVALID_JSON_RESPONSE', raw: body.slice(0, 500), statusCode: res.statusCode, transient: res.statusCode >= 500, transport: 'NATIVE_IPV4' });
                 }
             });
         });
         req.setTimeout(timeoutMs, () => req.destroy(new Error(`TELEGRAM_TIMEOUT:${timeoutMs}ms`)));
-        req.on('error', err => resolve({ ok: false, description: err.message, transient: true, transport: 'NATIVE_IPV4' }));
+        req.on('error', err => resolve({ ok: false, description: err.message, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: /TIMEOUT|ECONNRESET|EPIPE/i.test(String(err.message || err)) }));
         req.write(postData);
         req.end();
     });
@@ -237,31 +364,38 @@ function telegramCurlIstegiAt(apiPath, veri, options = {}) {
         const timeoutMs = Math.max(2500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
         const timeoutSeconds = Math.max(3, Math.ceil(timeoutMs / 1000));
         const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/${apiPath}`;
-        const args = ['-4', '-sS', '--connect-timeout', '3', '--max-time', String(timeoutSeconds), '-X', 'POST', url, '-H', 'Content-Type: application/json', '--data-binary', JSON.stringify(veri)];
+        const marker = '__AGROS_HTTP_STATUS__:';
+        const args = ['-4', '--http1.1', '-sS', '--connect-timeout', '3', '--max-time', String(timeoutSeconds), '--no-keepalive', '-X', 'POST', url, '-H', 'Content-Type: application/json', '--data-binary', JSON.stringify(veri), '-w', `\n${marker}%{http_code}`];
         execFile('curl', args, { timeout: timeoutMs + 1500, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+            const out = String(stdout || '');
+            const markerIndex = out.lastIndexOf(`\n${marker}`);
+            const raw = (markerIndex >= 0 ? out.slice(0, markerIndex) : out).trim();
+            const statusCode = markerIndex >= 0 ? Number(out.slice(markerIndex + marker.length + 1).trim()) : 0;
             if (err) {
                 const aciklama = String(err.message || err);
                 resolve({
                     ok: false,
                     description: `CURL_FALLBACK:${aciklama}`,
                     raw: String(stderr || ''),
+                    statusCode,
                     transient: true,
                     transport: 'CURL_IPV4',
-                    ambiguousDelivery: /TIMEOUT|TIMED OUT|ETIMEDOUT/i.test(aciklama)
+                    ambiguousDelivery: /TIMEOUT|TIMED OUT|ETIMEDOUT|ECONNRESET/i.test(aciklama)
                 });
                 return;
             }
-            const raw = String(stdout || '').trim();
             if (!raw) {
-                resolve({ ok: false, description: 'CURL_EMPTY_RESPONSE', raw: String(stderr || ''), transient: true, transport: 'CURL_IPV4' });
+                resolve({ ok: false, description: 'CURL_EMPTY_RESPONSE', raw: String(stderr || ''), statusCode, transient: true, transport: 'CURL_IPV4', ambiguousDelivery: true });
                 return;
             }
             try {
                 const parsed = JSON.parse(raw);
                 parsed.transport = 'CURL_IPV4';
+                parsed.statusCode = statusCode;
+                if (!parsed.ok && statusCode >= 500) parsed.transient = true;
                 resolve(parsed);
             } catch (_) {
-                resolve({ ok: false, description: 'CURL_INVALID_JSON_RESPONSE', raw: raw.slice(0, 500), transient: true, transport: 'CURL_IPV4' });
+                resolve({ ok: false, description: 'CURL_INVALID_JSON_RESPONSE', raw: raw.slice(0, 500), statusCode, transient: true, transport: 'CURL_IPV4', ambiguousDelivery: statusCode >= 200 && statusCode < 300 });
             }
         });
     });
@@ -269,58 +403,55 @@ function telegramCurlIstegiAt(apiPath, veri, options = {}) {
 
 async function telegramTekDeneme(apiPath, veri, options = {}) {
     const priority = telegramOncelik(options);
+    const now = Date.now();
+    const nativeOpen = telegramTransport.nativeCircuitUntil > now;
+    const curlOpen = telegramTransport.curlCircuitUntil > now;
+    const atMostOnce = options.atMostOnce === true;
     const nativeTimeout = priority === 'critical'
-        ? Math.min(2500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS))
-        : Math.min(4000, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
+        ? Math.min(6000, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS))
+        : Math.min(3500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
 
-    // Tekil kritik bildirimlerde (startup/pusu) yalnız bir taşıma denemesi yapılır.
-    // Native timeout sonrası curl fallback aynı Telegram mesajını iki kez teslim edebildiği için
-    // preferCurl+atMostOnce hattı doğrudan curl kullanır; retry/fallback yapmaz.
-    if (options.preferCurl === true) {
-        const curlDirect = await telegramCurlIstegiAt(apiPath, veri, options);
-        if (curlDirect?.ok) {
-            telegramStats.curlFallbackOk++;
-            telegramNativeBypassUntil = Date.now() + TELEGRAM_NATIVE_BYPASS_MS;
-            return { ...curlDirect, singleDelivery: true };
-        }
-        telegramStats.curlFallbackFailed++;
-        if (options.atMostOnce === true) return { ...curlDirect, singleDelivery: true };
+    // Tekil pusu gibi at-most-once mesajlar tek taze Native bağlantı kullanır.
+    // Timeout/bağlantı kopması belirsiz teslimdir; ikinci taşıma ile çift mesaj riski alınmaz.
+    if (atMostOnce) {
+        const one = await telegramNativeIstegiAt(apiPath, veri, { ...options, timeoutMs: nativeTimeout, freshConnection: true });
+        telegramTransportKaydet('native', one);
+        if (one?.ambiguousDelivery) telegramStats.ambiguousDelivery++;
+        return { ...one, singleDelivery: true };
     }
 
-    // AWS yolunda Native HTTPS ardışık biçimde başarısızsa her mesajı aynı timeout'a sokma.
-    // Curl IPv4 doğrulandıktan sonra süreli devre kesici aktif olur; süre bitince Native tekrar denenir.
-    if (Date.now() < telegramNativeBypassUntil) {
-        telegramStats.nativeBypassed++;
-        const curlDirect = await telegramCurlIstegiAt(apiPath, veri, options);
-        if (curlDirect?.ok) {
-            telegramStats.curlFallbackOk++;
-            return curlDirect;
-        }
-        telegramStats.curlFallbackFailed++;
-        const nativeEmergency = await telegramNativeIstegiAt(apiPath, veri, { ...options, timeoutMs: nativeTimeout });
-        if (nativeEmergency?.ok) {
-            telegramNativeBypassUntil = 0;
-            return { ...nativeEmergency, transport: 'NATIVE_IPV4_EMERGENCY' };
-        }
+    const nativeProbeAllowed = !nativeOpen || (priority === 'critical' && now - telegramTransport.lastNativeProbeAt >= TELEGRAM_CRITICAL_PROBE_INTERVAL_MS);
+    if (nativeProbeAllowed) {
+        telegramTransport.lastNativeProbeAt = now;
+        // Telegram bildirim hacmi düşüktür; stale keep-alive soketi yerine her teslimde taze
+        // IPv4 TLS bağlantısı kullanmak uzun süre çalışan AWS sürecinde daha güvenilirdir.
+        const native = await telegramNativeIstegiAt(apiPath, veri, { ...options, timeoutMs: nativeTimeout, freshConnection: true });
+        telegramTransportKaydet('native', native);
+        if (native?.ok) return native;
         telegramStats.nativeFailed++;
-        return curlDirect || nativeEmergency;
+        if (native?.ambiguousDelivery) {
+            telegramStats.ambiguousDelivery++;
+            return native;
+        }
+        if (!telegramTransportHatasi(native)) return native;
+    } else {
+        telegramStats.nativeBypassed++;
     }
 
-    const native = await telegramNativeIstegiAt(apiPath, veri, { ...options, timeoutMs: nativeTimeout });
-    if (native?.ok) {
-        telegramNativeBypassUntil = 0;
-        return { ...native, transport: 'NATIVE_IPV4' };
+    if (curlOpen) {
+        telegramStats.circuitFastFail++;
+        return { ok: false, transient: true, circuitOpen: true, description: 'TELEGRAM_CURL_CIRCUIT_OPEN' };
     }
-    telegramStats.nativeFailed++;
+    telegramTransport.lastCurlProbeAt = now;
     const curl = await telegramCurlIstegiAt(apiPath, veri, options);
+    telegramTransportKaydet('curl', curl);
     if (curl?.ok) {
         telegramStats.curlFallbackOk++;
-        telegramNativeBypassUntil = Date.now() + TELEGRAM_NATIVE_BYPASS_MS;
-        console.log(`✅ [TELEGRAM TRANSPORT] ${priority} Native IPv4 başarısız; curl IPv4 fallback doğrulandı. Native devre kesici ${Math.round(TELEGRAM_NATIVE_BYPASS_MS / 60000)} dk aktif.`);
         return curl;
     }
     telegramStats.curlFallbackFailed++;
-    return curl || native;
+    if (curl?.ambiguousDelivery) telegramStats.ambiguousDelivery++;
+    return curl;
 }
 
 async function telegramDayanikliIstegiAt(apiPath, veri, options = {}) {
@@ -334,16 +465,15 @@ async function telegramDayanikliIstegiAt(apiPath, veri, options = {}) {
         if (gecen < TELEGRAM_MIN_INTERVAL_MS) await bekle(TELEGRAM_MIN_INTERVAL_MS - gecen);
         telegramSonIstekZamani[lane] = Date.now();
         son = await telegramTekDeneme(apiPath, veri, { ...options, priority });
-        if (son?.ok) return son;
+        if (son?.ok || son?.ambiguousDelivery === true) return son;
         const aciklama = String(son?.description || son?.raw || '');
         const rateLimited = aciklama.includes('Too Many Requests') || Number(son?.error_code) === 429;
-        const transient = son?.transient === true || /TIMEOUT|ECONNRESET|EAI_AGAIN|CURL_FALLBACK/i.test(aciklama) || rateLimited;
-        if (!transient || deneme >= retryCount) break;
-        const retryAfterMs = Math.max(500, Number(son?.parameters?.retry_after || 0) * 1000, 500 * (deneme + 1));
-        console.log(`⚠️ Telegram kritik geçici hata; yeniden denenecek ${deneme + 1}/${retryCount} | ${aciklama || 'geçici hata'}`);
+        const transient = telegramTransportHatasi(son) || rateLimited;
+        if (!transient || deneme >= retryCount || son?.circuitOpen) break;
+        const retryAfterMs = Math.max(750, Number(son?.parameters?.retry_after || 0) * 1000, 750 * (deneme + 1));
         await bekle(retryAfterMs);
     }
-    if (!son?.ok) console.error(`❌ Telegram HTTP Hatası: ${son?.description || son?.raw || 'bilinmeyen hata'}`);
+    if (!son?.ok && !son?.coalesced && !son?.dropped) telegramHataLogla(son, priority);
     return son || { ok: false, description: 'Telegram yanıtı alınamadı' };
 }
 
@@ -431,13 +561,10 @@ async function telegramMesajGonder(mesaj, options = {}) {
                 if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
                 let sonuc = await yerelTelegramIstegiAt('sendMessage', payload,
                     { ...options, priority, coalesceKey: options.coalesceKey ? `${options.coalesceKey}:${chat_id}:${idx}` : undefined });
-                if (!telegramMinimalModuAktif() && !sonuc?.ok && !sonuc?.coalesced && !sonuc?.dropped && options.atMostOnce !== true) {
-                    const aciklama = sonuc?.description || sonuc?.raw || 'bilinmeyen hata';
-                    if (!/TIMEOUT/i.test(String(aciklama))) {
-                        sonuc = await yerelTelegramIstegiAt('sendMessage', {
-                            chat_id, text: telegramHtmlTemizle(text), disable_web_page_preview: true
-                        }, { ...options, priority });
-                    }
+                if (!telegramMinimalModuAktif() && options.atMostOnce !== true && telegramDuzMetinFallbackUygun(sonuc)) {
+                    sonuc = await yerelTelegramIstegiAt('sendMessage', {
+                        chat_id, text: telegramHtmlTemizle(text), disable_web_page_preview: true
+                    }, { ...options, priority, retryCount: 0 });
                 }
                 sonuclar.push({ chat_id, parca: idx + 1, toplamParca: parcalar.length, sonuc });
             } catch (err) {
@@ -453,24 +580,23 @@ async function telegramMesajGonderHizli(mesaj) {
 async function telegramMesajGonderTekil(mesaj, options = {}) {
     return telegramMesajGonder(mesaj, {
         ...options,
-        timeoutMs: Math.max(8000, Number(options.timeoutMs || 12000)),
+        timeoutMs: Math.max(6000, Number(options.timeoutMs || 10000)),
         retryCount: 0,
         priority: 'critical',
-        preferCurl: true,
-        atMostOnce: true
+        atMostOnce: true,
+        freshConnection: true
     });
 }
 
 // Açılış gibi mutlaka görünmesi gereken kritik bildirimler için teslim-öncelikli hat.
 // Tekil pusu hattı at-most-once kalır; startup ise Native IPv4 -> curl IPv4 fallback
-// ve kontrollü retry kullanır. Böylece geçici Telegram/AWS ağ kesintisinde mesaj kaybolmaz.
+// ve sınırlı retry kullanır. Belirsiz teslimde çift mesaj üretmemek için tekrar yapılmaz.
 async function telegramMesajGonderKritikTeslim(mesaj, options = {}) {
     return telegramMesajGonder(mesaj, {
         ...options,
-        timeoutMs: Math.max(12000, Number(options.timeoutMs || 18000)),
-        retryCount: Math.max(1, Math.min(3, Number(options.retryCount ?? TELEGRAM_RETRY_COUNT))),
+        timeoutMs: Math.max(8000, Number(options.timeoutMs || 12000)),
+        retryCount: Math.max(0, Math.min(2, Number(options.retryCount ?? TELEGRAM_RETRY_COUNT))),
         priority: 'critical',
-        preferCurl: false,
         atMostOnce: false
     });
 }
@@ -509,7 +635,7 @@ async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
         if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
         let gonderim = await yerelTelegramIstegiAt('sendMessage', payload,
             { priority: 'panel', retryCount: 0, coalesceKey: `live-panel:${chat_id}` });
-        if (!telegramMinimalModuAktif() && !gonderim?.ok && !gonderim?.coalesced && !gonderim?.dropped) {
+        if (!telegramMinimalModuAktif() && telegramDuzMetinFallbackUygun(gonderim)) {
             gonderim = await yerelTelegramIstegiAt('sendMessage', {
                 chat_id, text: telegramHtmlTemizle(guvenliMesaj), disable_web_page_preview: true
             }, { priority: 'panel', retryCount: 0, coalesceKey: `live-panel-plain:${chat_id}` });
@@ -526,9 +652,18 @@ async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
     state.sonCanliRaporMetni = guvenliMesaj;
 }
 
+async function binanceTimeSync(options = {}) {
+    return binanceTimeAuthority.sync(options);
+}
+function binanceTimeStartPeriodic() { return binanceTimeAuthority.start(); }
+function binanceTimeHealth() { return binanceTimeAuthority.health(); }
+
 module.exports = {
     client,
     binanceEndpoint,
+    binanceTimeSync,
+    binanceTimeStartPeriodic,
+    binanceTimeHealth,
     state,
     telegramMesajGonder,
     telegramMesajGonderHizli,
@@ -540,5 +675,15 @@ module.exports = {
     telegramKuyrukOzeti,
     telegramMinimalModuAktif,
     telegramTekMesajLimiti,
-    telegramMetniTekMesajaIndir
+    telegramMetniTekMesajaIndir,
+    _test: {
+        telegramTransportHatasi,
+        telegramDuzMetinFallbackUygun,
+        telegramTransportKaydet,
+        telegramTransportOzeti,
+        telegramHataLogla,
+        telegramTransport,
+        telegramStats,
+        telegramErrorLog
+    }
 };

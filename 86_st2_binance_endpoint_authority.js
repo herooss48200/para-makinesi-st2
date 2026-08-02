@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.10.1 — BINANCE FUTURES ENDPOINT AUTHORITY
+ * AGROS ST2 v6.11.0 — BINANCE FUTURES ENDPOINT AUTHORITY
  *
  * binance-api-node v0.13.x Futures endpoint anahtarı `httpFutures`'tır.
  * Eski `baseURL` alanı istemci tarafından güvenilir şekilde kullanılmaz.
@@ -52,13 +52,17 @@ function resolve() {
   });
 }
 
-function clientOptions(apiKey, apiSecret) {
+function clientOptions(apiKey, apiSecret, runtime = {}) {
   const endpoint = resolve();
+  const recvWindow = Math.max(5000, Math.min(60000, Number(runtime.recvWindow || process.env.AGROS_BINANCE_RECV_WINDOW_MS || 15000)));
   return {
     apiKey,
     apiSecret,
     // binance-api-node 0.13.x için doğru USDⓈ-M Futures endpoint anahtarı.
-    httpFutures: endpoint.httpFutures
+    httpFutures: endpoint.httpFutures,
+    // Signed istekler Binance server-time authority üzerinden üretilir.
+    getTime: typeof runtime.getTime === 'function' ? runtime.getTime : undefined,
+    recvWindow
   };
 }
 
@@ -69,7 +73,7 @@ function realTradingEndpointValid(endpoint = resolve()) {
 }
 
 module.exports = {
-  VERSION: 'v6.10.1-BINANCE-FUTURES-ENDPOINT-AUTHORITY',
+  VERSION: 'v6.11.0-BINANCE-FUTURES-ENDPOINT-AUTHORITY',
   MAINNET_HTTP,
   TESTNET_HTTP,
   normalizeUrl,

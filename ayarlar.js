@@ -458,7 +458,8 @@ const ayarlar = {
     // ========================================
     // SİSTEM VE VERİ TARAMA
     // ========================================
-    pingInterval: 500,
+    // v6.11.0: fiyat/pozisyon koruma döngüsü hızlı kalır; 500ms spin ve ağ baskısı azaltılır.
+    pingInterval: 1000,
     taranacakCoinSayisi: 200,
     // null/0 bırakılırsa varsayılan süre kullanılır. Canlı sniper tetik aktif olduğu için ST cache 10 sn'de bir tazelenir,
     // emir kararı ise her ana döngüde canlı fiyatla tekrar hesaplanır.
@@ -641,13 +642,26 @@ const ayarlar = {
     // Trade Engine değişmez; asılı istekler iptal edilir, aynı mum istekleri birleştirilir.
     binanceAgEszamanlilik: 3,
     binanceAgIsciSayisi: 8,
+    // v6.11.0: ilk piyasa ısınması kontrollü biçimde biraz daha hızlıdır; canlı döngü 3 bağlantıda kalır.
+    binanceStartupAgEszamanlilik: 5,
+    binanceStartupAgIsciSayisi: 10,
+    startupMarketReadyOrani: 0.95,
+    startupMarketGuardLogAralikMs: 60000,
+    // İmzalı Futures çağrıları Binance sunucu saatine bağlanır; -1021'de bir kez zorunlu senkron + tek retry.
+    binanceSignedRecvWindowMs: 15000,
+    binanceTimeSyncIntervalMs: 300000,
+    binanceTimeMaxAgeMs: 600000,
+    binanceTimeSyncTimeoutMs: 5000,
+    binanceTimeSyncSamples: 3,
+    // Stop yalnız tamamlanmış Renko adımında ve bu minimum aralıktan sonra borsada yenilenir.
+    gercekStopMinGuncellemeAralikMs: 3000,
     binanceAgTimeoutMs: 15000,
     binanceAgRetry: 2,
     binanceAgRetryTabanMs: 900,
     // v6.10.7 - Kapanmış mum yoksa 200 coinlik toplu indirme yapılmaz.
     kapanmisMumYayinGecikmesiMs: 3000,
     binanceTopluVeriRetryMs: 90000,
-    globalHistoricalStartupWarmupMs: 120000,
+    globalHistoricalStartupWarmupMs: 600000,
 
     // v4.7.0 - 2000+ öğrenmenin tam DNA sonuçlarını Family/LAB/FULL katmanlarında korur.
     // Yalnız sanal/gölge ileri doğrulama yapar; ikinci emir açmaz ve gerçek emir yetkisi vermez.
@@ -741,6 +755,7 @@ const ayarlar = {
     renkoCikisCanliModu: 'SAFE_COMMISSION_BRICK_TRAIL',
     renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
     renkoCikisVarsayilanTugla: 1.00,
+    renkoCikisStopGuncellemeAdimTugla: 1.00,
     // Tek kapanışın aşırı sıkı profili canlıya taşımasını engeller. İşlem açılışını engellemez;
     // yeterli kanıt yoksa güvenli varsayılan exit profili kullanılır.
     // N5 mevcut öğrenilmiş profili kullanmak için bekleme değildir.

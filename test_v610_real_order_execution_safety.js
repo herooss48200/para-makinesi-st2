@@ -188,6 +188,8 @@ Module._load = function patched(request, parent, isMain) {
     ayarlar.gercekEmirOnayKodu = 'LIVE_TRADING_CONFIRMED';
     ayarlar.gercekEmirAnaAgZorunlu = true;
     const h = require('./1_hafiza.js');
+    h.binanceTimeHealth = () => ({ healthy: true, synced: true, offsetMs: 0 });
+    h.binanceTimeSync = async () => ({ healthy: true, synced: true, offsetMs: 0 });
     h.state.basamaklar.BTCUSDT = { tickSize: 0.1, pricePrecision: 1, quantityPrecision: 3 };
     h.state.basamaklar.ETHUSDT = { tickSize: 0.01, pricePrecision: 2, quantityPrecision: 3 };
     h.state.basamaklar.BNBUSDT = { tickSize: 0.01, pricePrecision: 2, quantityPrecision: 3 };

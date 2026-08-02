@@ -74,7 +74,7 @@ Module._load=function(req,parent,isMain){
     assert(!executionSource.includes('record.maxActivePositions'),'kalıcı kayıt pozisyon limiti için ikinci kaynak olmamalı');
     assert(!motorSource.includes('maxActivePositions: risk.maxActivePositions'),'motor pozisyon limiti aktarıp ayarı ezmemeli');
     assert(executionSource.includes('realOrderBridge.liveRiskProfile().maxActivePositions'),'execution limiti doğrudan Ayarlar sayfasından okumalı');
-    const h=require('./1_hafiza.js'); h.state.basamaklar.BTCUSDT={tickSize:0.1,pricePrecision:1};
+    const h=require('./1_hafiza.js'); h.binanceTimeHealth=()=>({healthy:true,synced:true,offsetMs:0}); h.binanceTimeSync=async()=>({healthy:true,synced:true,offsetMs:0}); h.state.basamaklar.BTCUSDT={tickSize:0.1,pricePrecision:1};
     const ex=require('./85_st2_real_order_execution.js');
     assert.strictEqual(ex._test.algoPayloadRows({orders:[{algoId:1}]}).length,1);
     const ctx={sym:'BTCUSDT',yon:'LONG',girisFiyati:100,miktar:0.1,sl:98,tp:104,girisAnalizi:{patternId:'X',sonKapaliTuglaZamani:1},realOrderReadiness:{key:'X'}};

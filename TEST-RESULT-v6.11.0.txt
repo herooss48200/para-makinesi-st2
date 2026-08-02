@@ -1,0 +1,25 @@
+AGROS ST2 v6.11.0 — GOLDEN LIVE CHAIN
+Test date: 2026-08-01
+
+RESULT: PASS
+
+Verification completed:
+- 125 JavaScript files passed syntax validation.
+- Complete npm regression chain passed from v6.7.2 through v6.11.0.
+- Source workspace full chain: PASS.
+- Clean staging copy full chain: PASS.
+- Entry binding, Premier gate and position-frozen Exit assignment: PASS.
+- Commission-safe Renko trail and completed-brick stop quantization: PASS.
+- Manual/external close auto-rearm and close commit barrier: PASS.
+- Real order creation, protection, rollback and exact accounting tests: PASS.
+- Binance server-time offset, explicit recvWindow injection and one guarded -1021 retry: PASS.
+- Startup protection-first gate, single warmup wave and guarded historical runtime: PASS.
+- Telegram ambiguous delivery, circuit breaker, queue bounds and duplicate fallback protection: PASS.
+- Atomic stop cooldown/minimum interval local fast-fail with zero Binance network call: PASS.
+- Restart orphan cleanup single account-wide pass and nonblocking close notification contract: PASS.
+
+Test environment note:
+Dependency-resolution shims were used only inside the isolated verification environment.
+They are not included in this ZIP. The target repository/AWS uses its normal installed npm dependencies.
+
+Financial performance is not guaranteed by software tests. Controlled live evidence remains mandatory.

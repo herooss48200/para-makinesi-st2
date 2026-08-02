@@ -78,7 +78,7 @@ const Module = require('module');
     const runtime = require('./79_st2_global_historical_runtime.js');
     const status = runtime.activate({ warmupMs: 30_000, scheduler: fn => { deferred = fn; return { unref(){} }; } });
     assert.strictEqual(summaryCalls, 0, 'startup activate ağır historical summary çalıştırdı');
-    assert.strictEqual(status.activation, 'READ_ONLY_REFRESH_DEFERRED');
+    assert.strictEqual(status.activation, 'READ_ONLY_REFRESH_DEFERRED_GUARDED');
     assert.strictEqual(typeof deferred, 'function', 'historical arka plan işi planlanmadı');
     runtime._resetForTest();
     Module._load = originalLoad;

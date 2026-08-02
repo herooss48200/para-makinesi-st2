@@ -1558,13 +1558,23 @@ async function izSurmeyiGuncelle() {
             if (!retry.ok) {
                 const now = Date.now();
                 const signature = `${retry.reason}|${pendingStop}`;
-                if (pos.realStopRetryLastLogSignature !== signature || now - Number(pos.realStopRetryLastLogAt || 0) >= 60_000) {
+                const logDue = pos.realStopRetryLastLogSignature !== signature || now - Number(pos.realStopRetryLastLogAt || 0) >= 60_000;
+                if (logDue) {
                     const koruma = retry.emergencyClosed ? 'Pozisyon acil kapatıldı' : (retry.oldRestored ? 'Eski stop geri kuruldu' : 'Eski koruma aktif');
-                    console.error(`⏳ [GERÇEK STOP YENİDEN DENEME] ${pos.sym} ${pos.yon} | ${koruma} | ${retry.reason}`);
+                    console.warn(`⏳ [GERÇEK STOP YENİDEN DENEME] ${pos.sym} ${pos.yon} | ${koruma} | ${retry.reason}`);
                     pos.realStopRetryLastLogSignature = signature;
                     pos.realStopRetryLastLogAt = now;
                 }
-                realExecution.persistPosition(pos, retry.globalBlocked ? 'REAL_STOP_RETRY_GLOBAL_BLOCK' : 'REAL_STOP_RETRY_PENDING');
+                // Cooldown sırasında saniyede bir aynı state kaydını yazarak diski/state dosyasını şişirme.
+                // Neden değiştiğinde, global blokta veya 60 saniyelik sağlık damgasında kalıcılaştır.
+                const persistDue = retry.globalBlocked === true ||
+                    pos.realStopRetryLastPersistSignature !== signature ||
+                    now - Number(pos.realStopRetryLastPersistAt || 0) >= 60_000;
+                if (persistDue) {
+                    pos.realStopRetryLastPersistSignature = signature;
+                    pos.realStopRetryLastPersistAt = now;
+                    realExecution.persistPosition(pos, retry.globalBlocked ? 'REAL_STOP_RETRY_GLOBAL_BLOCK' : 'REAL_STOP_RETRY_PENDING');
+                }
                 continue;
             }
             const oldStop = Number(pos.sl);
@@ -1645,7 +1655,14 @@ async function izSurmeyiGuncelle() {
                     pos.pendingRealStopPrice = yeniSl;
                     pos.renkoExitSafetyRejectReason = replacement.reason;
                     realExecution.persistPosition(pos, 'REAL_STOP_RETRY_SCHEDULED');
-                    console.error(`❌ [ATOMİK STOP GÜNCELLEME HATASI] ${pos.sym} | Yeni stop kurulamadı, eski koruma tutuldu ve aday yeniden denemeye alındı | ${replacement.reason}`);
+                    const now = Date.now();
+                    const signature = `${replacement.reason}|${yeniSl}`;
+                    if (pos.realStopReplaceLastErrorSignature !== signature || now - Number(pos.realStopReplaceLastErrorAt || 0) >= 60_000) {
+                        const prefix = ['STOP_REPLACE_MIN_INTERVAL','STOP_REPLACE_COOLDOWN'].includes(replacement.reason) ? '⏳' : '⚠️';
+                        console.warn(`${prefix} [ATOMİK STOP GÜNCELLEME BEKLEME] ${pos.sym} | Eski koruma aktif, aday yeniden denenecek | ${replacement.reason}`);
+                        pos.realStopReplaceLastErrorSignature = signature;
+                        pos.realStopReplaceLastErrorAt = now;
+                    }
                 } else {
                     delete pos.pendingRealStopPrice;
                     pos.renkoExitLastSafetyLog = null;

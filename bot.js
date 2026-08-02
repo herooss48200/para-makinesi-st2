@@ -18,16 +18,24 @@ let sonCanliRapor = 0;
 let pusuRaporCalisiyor = false;
 let ilkSt2TaramaTamamlandi = false;
 let startupPanelPlanlandi = false;
+let sonStartupGateLog = 0;
+let startupEarlyDeliveryPromise = null;
 
 async function baslat() {
     console.log('=== [PARA MAKİNESİ AUTOMATION SYSTEM] STARTING ===');
     console.log(`🧩 Versiyon: ${versiyonBilgi.kisaOzet()}`);
 
     try {
+        startupEarlyDeliveryPromise = null;
         kaliciHafiza.yukle();
         const safeStartup = require('./74_st2_safe_startup.js');
         safeStartup.verifyOrThrow();
         await piyasa.sembolleriYukle();
+        // v6.11.0: Signed Futures çağrıları ve restart mutabakatı raw sistem saatine bırakılmaz.
+        const timeHealth = await h.binanceTimeSync({ force: true });
+        if (!ayarlar.sanalEmirModu && timeHealth?.healthy !== true) throw new Error('BINANCE_TIME_AUTHORITY_NOT_READY');
+        h.binanceTimeStartPeriodic();
+        console.log(`⏱️ [BINANCE TIME AUTHORITY] ${timeHealth?.healthy ? 'HEALTHY' : 'DEGRADED'} | Offset ${Number(timeHealth?.offsetMs || 0)} ms | RTT ${Number(timeHealth?.lastRttMs || 0)} ms`);
         await piyasa.acikPozisyonlariBorsadanDevral();
         accountingContinuity.initializeMigration();
         kaliciHafiza.kaydet('accounting-continuity-migration');
@@ -54,36 +62,57 @@ async function baslat() {
                     ...(!ayarlar.sanalEmirModu ? [`🧪 Geri yüklenen Shadow/GAP: ${h.state.aktifPozisyonlar.filter(p => p?.sanal !== false).length}`] : []),
                     '⏳ Tarihsel veri ve Renko hazırlığı sürüyor; işlem defteri korunuyor.'
                 ].join('\n');
-                setImmediate(async () => {
-                    try {
-                        const sonuclar = await h.telegramMesajGonderKritikTeslim(earlyMessage, {
-                            coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}`
-                        });
-                        const basarili = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
-                        const belirsiz = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ambiguousDelivery === true);
-                        if (basarili || belirsiz) {
-                            const sentAt = Date.now();
-                            fsEarly.mkdirSync(pathEarly.dirname(stampFileEarly), { recursive: true });
-                            fsEarly.writeFileSync(stampFileEarly, JSON.stringify({
-                                lastSentAt: sentAt,
-                                version: versiyonBilgi.botSurumu,
-                                delivery: basarili ? 'EARLY_OK' : 'EARLY_AMBIGUOUS_NO_RETRY'
-                            }, null, 2));
-                            console.log(`${basarili ? '✅' : '⚠️'} [ST2 EARLY STARTUP TELEGRAM] ${basarili ? 'Teslim doğrulandı' : 'Teslim belirsiz; tekrar yok'} | ${new Date(sentAt).toISOString()}`);
-                        } else {
-                            console.log('⚠️ [ST2 EARLY STARTUP TELEGRAM] Teslim doğrulanmadı; normal startup görevi daha sonra yeniden deneyecek.');
+                startupEarlyDeliveryPromise = new Promise(resolve => {
+                    setImmediate(async () => {
+                        try {
+                            const sonuclar = await h.telegramMesajGonderKritikTeslim(earlyMessage, {
+                                coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}`
+                            });
+                            const basarili = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
+                            const belirsiz = Array.isArray(sonuclar) && sonuclar.some(x => x?.sonuc?.ambiguousDelivery === true);
+                            if (basarili || belirsiz) {
+                                const sentAt = Date.now();
+                                fsEarly.mkdirSync(pathEarly.dirname(stampFileEarly), { recursive: true });
+                                fsEarly.writeFileSync(stampFileEarly, JSON.stringify({
+                                    lastSentAt: sentAt,
+                                    version: versiyonBilgi.botSurumu,
+                                    delivery: basarili ? 'EARLY_OK' : 'EARLY_AMBIGUOUS_NO_RETRY'
+                                }, null, 2));
+                                console.log(`${basarili ? '✅' : '⚠️'} [ST2 EARLY STARTUP TELEGRAM] ${basarili ? 'Teslim doğrulandı' : 'Teslim belirsiz; tekrar yok'} | ${new Date(sentAt).toISOString()}`);
+                            } else {
+                                console.log('⚠️ [ST2 EARLY STARTUP TELEGRAM] Teslim doğrulanmadı; normal startup görevi daha sonra yeniden deneyecek.');
+                            }
+                        } catch (err) {
+                            console.error(`⚠️ [ST2 EARLY STARTUP TELEGRAM HATASI] ${err.message}`);
+                        } finally {
+                            resolve();
                         }
-                    } catch (err) {
-                        console.error(`⚠️ [ST2 EARLY STARTUP TELEGRAM HATASI] ${err.message}`);
-                    }
+                    });
                 });
             }
         }
 
-        await revizyon.derinGecmisiInsaEt();
+        // Ağır 200-coin mum/ST hazırlığı ana koruma döngüsünü bloke etmez.
+        // Bu sırada açık pozisyon mutabakatı ve iz sürme çalışır; yeni girişler fail-closed bekler.
+        h.state.startupMarketReady = false;
+        setImmediate(() => {
+            Promise.resolve(revizyon.derinGecmisiInsaEt())
+                .then(summary => {
+                    console.log(`${summary?.ready ? '✅' : '⚠️'} [STARTUP MARKET WARMUP] ${summary?.ready ? 'ENTRY GATE AÇILDI' : 'ENTRY GATE KAPALI'} | ${Number(summary?.pusuHazir || 0)}/${Number(summary?.total || 0)} mum | ${Number(summary?.trendHazir || 0)}/${Number(summary?.total || 0)} ST`);
+                })
+                .catch(err => {
+                    h.state.startupMarketReady = false;
+                    h.state.startupMarketWarmup = { ...(h.state.startupMarketWarmup || {}), durum: 'FAILED', hataMesaji: err.message, tamamlanma: new Date().toISOString() };
+                    console.error(`❌ [STARTUP MARKET WARMUP] ${err.message} | Yeni giriş kapalı, pozisyon koruma açık.`);
+                });
+        });
 
-        const historicalRuntimeStatus = globalHistoricalRuntime.activate({ warmupMs: ayarlar.globalHistoricalStartupWarmupMs || 120000 });
-        console.log(`🌍 [GLOBAL HISTORICAL RUNTIME] ${historicalRuntimeStatus.activation} | Isınma ${Math.round(Number(historicalRuntimeStatus.warmupMs || 0) / 1000)} sn | Coin ${historicalRuntimeStatus.readyCoins}/${historicalRuntimeStatus.coins} | Sinyal ${historicalRuntimeStatus.signals} | Pattern ${historicalRuntimeStatus.patterns} | Mutabakat ${historicalRuntimeStatus.reconciliationOk ? 'OK' : 'ARKA PLANDA'}`);
+        const historicalRuntimeStatus = globalHistoricalRuntime.activate({
+            warmupMs: ayarlar.globalHistoricalStartupWarmupMs || 600000,
+            retryMs: 300000,
+            canRun: () => h.state.startupMarketReady === true && !h.state.aktifPozisyonlar.some(pos => pos?.sanal === false)
+        });
+        console.log(`🌍 [GLOBAL HISTORICAL RUNTIME] ${historicalRuntimeStatus.activation} | Isınma ${Math.round(Number(historicalRuntimeStatus.warmupMs || 0) / 1000)} sn | Gerçek pozisyon varsa ertelenir | Coin ${historicalRuntimeStatus.readyCoins}/${historicalRuntimeStatus.coins} | Sinyal ${historicalRuntimeStatus.signals} | Pattern ${historicalRuntimeStatus.patterns} | Mutabakat ${historicalRuntimeStatus.reconciliationOk ? 'OK' : 'ARKA PLANDA'}`);
 
         // v4.0.1: Yeni katmanların gerçekten yüklendiğini düşük maliyetli biçimde doğrula.
         // Ağır DNA/exit geçmişi başlangıçta yeniden hesaplanmaz; kayıtlı modeller kullanılır.
@@ -143,6 +172,9 @@ async function baslat() {
             }, gecikme).unref?.();
         };
         const startupTelegramTask = async () => {
+            // Erken teslim tamamlanmadan zengin startup mesajını başlatma; aynı açılışta çift mesaj üretme.
+            if (startupEarlyDeliveryPromise) await startupEarlyDeliveryPromise.catch(() => {});
+            try { startupLastSentAt = Number(JSON.parse(fs.readFileSync(startupStampFile, 'utf8'))?.lastSentAt || 0); } catch (_) {}
             if (Date.now() - startupLastSentAt >= startupCooldownMs) {
                 // v6.7.2 compatibility proof only: h.telegramMesajGonderTekil(baslangicMesaji)
                 const sonuclar = await h.telegramMesajGonderKritikTeslim(baslangicMesaji, { coalesceKey: `st2-startup:${versiyonBilgi.botSurumu}` });
@@ -176,18 +208,25 @@ async function baslat() {
                     h.state.canliFiyatlar[sym] = parseFloat(price);
                 }
 
+                // Koruma ve manuel/harici kapanış mutabakatı her zaman yeni giriş taramasından önce gelir.
+                await p.izSurmeyiGuncelle();
                 if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
-                    const st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
-                    if (!ilkSt2TaramaTamamlandi) {
-                        ilkSt2TaramaTamamlandi = true;
-                        console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
-                        startupPanelPlanla('ILK_ST2_TARAMA', 0);
+                    if (h.state.startupMarketReady === true) {
+                        const st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
+                        if (!ilkSt2TaramaTamamlandi) {
+                            ilkSt2TaramaTamamlandi = true;
+                            console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
+                            startupPanelPlanla('ILK_ST2_TARAMA', 0);
+                        }
+                    } else if (Date.now() - sonStartupGateLog >= Math.max(30000, Number(ayarlar.startupMarketGuardLogAralikMs || 60000))) {
+                        sonStartupGateLog = Date.now();
+                        const warm = h.state.startupMarketWarmup || {};
+                        console.log(`⏳ [STARTUP ENTRY GATE] Yeni giriş kapalı | Piyasa hazırlığı ${warm.durum || 'BEKLIYOR'} | Mum ${Number(warm.pusuHazir || 0)} | ST ${Number(warm.trendHazir || 0)} | Pozisyon koruma aktif`);
                     }
-                } else {
+                } else if (h.state.startupMarketReady === true) {
                     await p.piyasayiTaraVePusuKur();
                     await p.pusulariDenetleVeIslemAc();
                 }
-                await p.izSurmeyiGuncelle();
                 // v6.4.1: Telegram pusu bildirimi ana piyasa döngüsünü bekletmez.
                 // Aynı anda yalnız tek pusu raporu çalışır; yenileri bir sonraki turda güncel state ile birleşir.
                 // ST2 kendi tekil/açılış pusu dedupe hattını kullanır. Eski genel pusu raporu
@@ -235,7 +274,7 @@ async function baslat() {
             } finally {
                 donguCalisiyor = false;
             }
-        }, ayarlar.pingInterval || 500);
+        }, ayarlar.pingInterval || 1000);
 
         setImmediate(() => {
             startupTelegramTask().catch(err => console.error(`⚠️ [ST2 STARTUP RAPOR ARKA PLAN HATASI] ${err.message}`));

@@ -145,12 +145,18 @@ async function acikPozisyonlariBorsadanDevral() {
             const satirlar = recoveredClosures.slice(0, 10).map(row =>
                 `${row.symbol || 'YOK'} | ${row.reason || 'MUTABAKAT'} | Net ${Number(row.netPnl || 0).toFixed(6)} | ${row.accountingExact ? 'KESİN' : 'KISMİ'}`
             );
-            await h.telegramMesajGonder([
+            const mesaj = [
                 '🔄 GERÇEK RESTART KAPANIŞ MUTABAKATI',
                 ...satirlar,
                 recoveredClosures.length > 10 ? `… +${recoveredClosures.length - 10} kayıt` : '',
                 'ℹ️ Restart sırasında kapanmış bu işlemler execution audit/state içine işlendi; otomatik bilimsel öğrenmeye eklenmedi.'
-            ].filter(Boolean).join('\n')).catch(err => console.error(`⚠️ [RESTART KAPANIŞ TELEGRAM] ${err.message}`));
+            ].filter(Boolean).join('\n');
+            // Kapanış muhasebesi/state commit'i tamamlandıktan sonra Telegram ulaşımı startup'ı
+            // bloke edemez. Bildirim kritik kuyrukta arka planda gider; başarısızlık mutabakatı geri almaz.
+            setImmediate(() => {
+                Promise.resolve(h.telegramMesajGonderKritikTeslim(mesaj, { coalesceKey: 'restart-close-reconciliation' }))
+                    .catch(err => console.error(`⚠️ [RESTART KAPANIŞ TELEGRAM] ${err.message}`));
+            });
         }
         if (reconciliation.blocked) {
             throw new Error(`GERCEK_RESTART_FAIL_CLOSED:KORUMA_HATASI=${reconciliation.protectionFailures || 0}`);
