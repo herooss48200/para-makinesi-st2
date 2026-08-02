@@ -4,16 +4,26 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const Module = require('module');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-v672-'));
 process.env.AGROS_DATA_DIR = tmp;
 
+const originalLoad = Module._load;
+Module._load = function patched(request, parent, isMain) {
+  if (request === 'dotenv') return { config: () => ({ parsed: {} }) };
+  if (request === 'binance-api-node') return { default: () => ({}) };
+  if (request === 'axios') return { create: () => ({}), get: async () => ({ data: {} }), post: async () => ({ data: {} }) };
+  if (request === 'technicalindicators') return {};
+  return originalLoad.call(this, request, parent, isMain);
+};
+
 const evo = require('./74_st2_renko_exit_evolution.js');
-assert.strictEqual(evo.VERSION, 'v6.11.0-GOLDEN-LIVE-CHAIN');
+assert.strictEqual(evo.VERSION, 'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
 assert.strictEqual(evo.BRICK_LIVE_MODE(), true, 'canlı model komisyon güvenli Renko tuğla takibi olmalı');
 assert(evo.DEFAULT_TAKEOVER() >= 0.25, 'varsayılan takeover sıfır olamaz');
 assert(evo.DEFAULT_ATR() >= 1.0, 'varsayılan ATR çarpanı sıfır olamaz');
-assert(evo.SAFE_FLOOR_MIN() >= 0.15, 'güvenli taban komisyon + net kâr tamponunu karşılamalı');
+assert(evo.SAFE_FLOOR_MIN() >= 0.40, 'güvenli taban komisyon + net kâr tamponunu karşılamalı');
 
 // Eski/bozuk state içindeki null veya 0 profil yeni pozisyona sıfır takeover/ATR atayamaz.
 fs.writeFileSync(evo.STATE_FILE, JSON.stringify({
@@ -33,7 +43,7 @@ assert(['SAFE_DEFAULT_BRICK_TRAIL','PERSISTED_BRICK_TRAIL','NET_ECONOMY_LEARNED_
 assert(profile.takeoverPct >= 0.25);
 assert(profile.atrMultiplier >= 1.0);
 assert(profile.captureRatio >= 0.40);
-assert(profile.safeFloorPct >= 0.15);
+assert(profile.safeFloorPct >= 0.40);
 
 const pos = {
   sym: 'SAFEUSDT', yon: 'SHORT', girisFiyati: 100, sl: 101,
@@ -42,7 +52,7 @@ const pos = {
 const assignment = evo.assign(pos);
 assert(assignment.assignedTakeoverPct >= 0.25);
 assert(assignment.assignedAtrMultiplier >= 1.0);
-assert(assignment.assignedSafeFloorPct >= 0.15);
+assert(assignment.assignedSafeFloorPct >= 0.40);
 const atEntry = evo.update(pos, 100);
 assert.strictEqual(atEntry.active, false, 'güvenli kâr koruması oluşmadan Renko takip devreye girmemeli');
 assert.strictEqual(atEntry.reason, 'COMMISSION_SAFE_PROTECTION_NOT_READY');
@@ -50,13 +60,13 @@ assert.strictEqual(atEntry.reason, 'COMMISSION_SAFE_PROTECTION_NOT_READY');
 // BE/komisyon koruması doğrulandığında stop girişe değil, komisyon sonrası pozitif tabana taşınır.
 pos.breakevenAktif = true;
 pos.korunanKarYuzdesi = 0.12;
-const activatePrice = 99.60;
-pos.execution = { pricePath: [{ price: activatePrice, pnlPct: 0.40, atrPct: 0.20, ts: Date.now() }] };
+const activatePrice = 99.20;
+pos.execution = { pricePath: [{ price: activatePrice, pnlPct: 0.80, atrPct: 0.20, ts: Date.now() }] };
 const activated = evo.update(pos, activatePrice);
 assert.strictEqual(activated.active, true);
 assert.strictEqual(activated.justActivated, true);
 const protectedGrossPct = (100 - pos.sl) / 100 * 100;
-assert(protectedGrossPct >= 0.149, `korunan brüt kâr tabanı yetersiz: ${protectedGrossPct}`);
+assert(protectedGrossPct >= 0.399, `korunan brüt kâr tabanı yetersiz: ${protectedGrossPct}`);
 assert(pos.sl < 100, 'SHORT stop girişin altında, kâr bölgesinde olmalı');
 
 // Çetele kapanışta gerçekten uygulanan öğrenen ATR metoduna taşınmalı.
@@ -125,4 +135,4 @@ assert(!hafiza.includes('preferCurl: true'), 'tekil Telegram curl-first olmamal�
 assert(hafiza.includes('atMostOnce: true'), 'tekil Telegram at-most-once olmalı');
 assert(hafiza.includes('options.atMostOnce !== true'), 'HTML fallback tekil hatta kapalı olmalı');
 assert(bot.includes('h.telegramMesajGonderTekil(baslangicMesaji'), 'startup tekil teslim hattını kullanmalı');
-console.log('✅ v6.11.0 single-delivery Native Telegram + safe runner exit + report truth passed');
+console.log('✅ v6.11.1 single-delivery Native Telegram + safe runner exit + report truth passed');

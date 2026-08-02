@@ -191,10 +191,12 @@ function pozisyonSatiri(p) {
         GUVENLI_KAR_ESIGI_BEKLENIYOR: { stage: 'K0', label: 'Güvenli kâr eşiği bekleniyor' },
         KOMISYON_GUVENLI_KORUMA_BEKLENIYOR: { stage: 'K0', label: 'Komisyon güvenli koruma bekleniyor' },
         BE_AKTIF_TAKEOVER_BEKLIYOR: { stage: 'K1', label: 'BE aktif, takeover bekleniyor' },
-        BE_AKTIF_KOMISYON_GUVENLI_FIYAT_BEKLENIYOR: { stage: 'K1', label: 'BE aktif, net güvenli fiyat bekleniyor' },
+        BE_AKTIF_KOMISYON_GUVENLI_FIYAT_BEKLENIYOR: { stage: 'K1', label: 'BE aktif, brüt kâr tabanı bekleniyor' },
+        BE_AKTIF_CANLI_AKTIVASYON_BEKLENIYOR: { stage: 'K1', label: 'BE aktif, canlı aktivasyon bekleniyor' },
         RENKO_TAKEOVER_AKTIF: { stage: 'K2', label: 'Renko yönetimi aktif' },
         ATR_TAKEOVER_AKTIF: { stage: 'K2', label: 'Öğrenen ATR yönetimi aktif' },
         RENKO_TUGLA_TAKIP_AKTIF: { stage: 'K2', label: 'Renko tuğla kâr takibi aktif' },
+        NET_KAR_TABANI_KILITLI_TRAIL_AKTIF: { stage: 'K2', label: 'Min net kâr kilitli, Renko trail aktif' },
         RENKO_STOP_GUNCELLENDI: { stage: 'K3', label: 'Renko yönetimi stop güncelledi' },
         RENKO_STOP_KORUNUYOR: { stage: 'K3', label: 'Renko koruma stopu aktif' }
     })[protectionState] || { stage: p.renkoExitActivated === true ? 'K2' : (p.breakevenAktif === true ? 'K1' : 'K0'), label: 'Durum doğrulanıyor' };
@@ -209,7 +211,11 @@ function pozisyonSatiri(p) {
     if (brickLive) {
         if (Number.isFinite(trail) && trail > 0) satir += ` | Canlı Trail ${trail.toFixed(2)}T`;
         if (Number.isFinite(Number(atama.assignedActivationProfitPct))) satir += ` | Aktivasyon %${Number(atama.assignedActivationProfitPct).toFixed(2)}`;
-        if (Number.isFinite(Number(atama.assignedSafeFloorPct))) satir += ` | Net taban %${Number(atama.assignedSafeFloorPct).toFixed(2)}`;
+        if (Number.isFinite(Number(atama.assignedSafeFloorPct))) satir += ` | Brüt taban %${Number(atama.assignedSafeFloorPct).toFixed(2)}`;
+        const minNet = Number.isFinite(Number(atama.assignedMinimumNetProfitPct))
+            ? Number(atama.assignedMinimumNetProfitPct)
+            : Math.max(0, Number(atama.assignedSafeFloorPct || 0) - renkoExitEvolution.ROUND_TRIP_COMMISSION_PCT());
+        satir += ` | Min net %${minNet.toFixed(2)}`;
         const kaynak = String(atama.trailSource || 'SAFE_DEFAULT_BRICK_TRAIL')
             .replace('NET_ECONOMY_LEARNED_BRICK_TRAIL', 'Öğrenilmiş')
             .replace('PERSISTED_BRICK_TRAIL', 'Kalıcı')

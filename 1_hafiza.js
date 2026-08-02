@@ -325,7 +325,7 @@ function telegramNativeIstegiAt(apiPath, veri, options = {}) {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(postData),
                 'Connection': freshConnection ? 'close' : 'keep-alive',
-                'User-Agent': 'AGROS-ST2/6.11.0'
+                'User-Agent': 'AGROS-ST2/6.11.1'
             }
         };
         const req = https.request(requestOptions, (res) => {

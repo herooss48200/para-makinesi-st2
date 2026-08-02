@@ -22,6 +22,9 @@ try {
   const ayarlar = require('./ayarlar.js');
   const evolution = require('./74_st2_renko_exit_evolution.js');
   ayarlar.renkoCikisCanliModu = 'ADAPTIVE_ATR_MFE';
+  // Tarihsel v6.10.6 davranış kanıtı kendi %0.15/%0.05 parametreleriyle korunur; v6.11.1 varsayılanları ayrı testtedir.
+  ayarlar.renkoCikisGuvenliKarTabaniYuzde = 0.15;
+  ayarlar.renkoCikisMinimumNetKarYuzde = 0.05;
 
   assert.strictEqual(evolution.MIN_ATR(), 1.25, 'ATR alt sınırı ekonomi korumasına yükselmedi');
   assert.strictEqual(evolution.MAX_CAPTURE(), 0.70, 'MFE capture üst sınırı %70 değil');

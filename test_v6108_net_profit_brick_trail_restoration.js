@@ -21,6 +21,11 @@ Module._load = function patched(request, parent, isMain) {
 try {
   const ayarlar = require('./ayarlar.js');
   const evo = require('./74_st2_renko_exit_evolution.js');
+  // Tarihsel v6.10.8 canlı model kanıtı eski parametreleriyle korunur; v6.11.1 varsayılanları ayrı testtedir.
+  ayarlar.renkoCikisGuvenliKarTabaniYuzde = 0.15;
+  ayarlar.renkoCikisMinimumNetKarYuzde = 0.05;
+  ayarlar.tpAdimYuzdesi = 0.40;
+  ayarlar.breakevenTetikKademe = 1;
   assert.strictEqual(ayarlar.renkoCikisCanliModu, 'SAFE_COMMISSION_BRICK_TRAIL');
   assert.strictEqual(evo.BRICK_LIVE_MODE(), true);
   assert(evo.SAFE_FLOOR_MIN() >= evo.ROUND_TRIP_COMMISSION_PCT() + evo.MIN_NET_PROFIT_PCT());

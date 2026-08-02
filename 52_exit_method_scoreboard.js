@@ -32,7 +32,7 @@ function assignmentFor(pos){
   if(a){
     const brick=String(a.liveExitMode||'').toUpperCase()==='SAFE_COMMISSION_BRICK_TRAIL';
     return brick
-      ? {id:'RENKO_COMMISSION_SAFE_BRICK_TRAIL',label:'Komisyon Güvenli Renko Tuğla Takibi',source:'ASSIGNED_AT_OPEN',detail:`Güvenli taban %${num(a.assignedSafeFloorPct).toFixed(2)} | Trail ${num(a.assignedTrailBricks,1).toFixed(2)}T`}
+      ? {id:'RENKO_COMMISSION_SAFE_BRICK_TRAIL',label:'Komisyon Güvenli Renko Tuğla Takibi',source:'ASSIGNED_AT_OPEN',detail:`Brüt taban %${num(a.assignedSafeFloorPct).toFixed(2)} | Min net %${num(a.assignedMinimumNetProfitPct,Math.max(0,num(a.assignedSafeFloorPct)-0.10)).toFixed(2)} | Trail ${num(a.assignedTrailBricks,1).toFixed(2)}T`}
       : {id:'RENKO_ADAPTIVE_ATR_MFE',label:'Öğrenen ATR + MFE Kâr Takibi',source:'ASSIGNED_AT_OPEN',detail:`Takeover %${num(a.assignedTakeoverPct).toFixed(2)} | ATR ${num(a.assignedAtrMultiplier).toFixed(2)}× | MFE %${(num(a.assignedCaptureRatio)*100).toFixed(0)}`};
   }
   const plan=pos?.exitPlanShadow;

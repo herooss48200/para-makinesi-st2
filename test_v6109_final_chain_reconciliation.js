@@ -87,7 +87,7 @@ const p1=makePos('P1');
 const a1=exit.assign(p1);
 assert.strictEqual(a1.assignedTrailBricks,1.25);
 assert.strictEqual(a1.positionSpecific,true);
-assert(['V6109_POSITION_FROZEN','V6110_POSITION_FROZEN'].includes(a1.assignmentSchema));
+assert(['V6109_POSITION_FROZEN','V6110_POSITION_FROZEN','V6111_POSITION_FROZEN'].includes(a1.assignmentSchema));
 assert(a1.assignmentId.startsWith('RXT-'));
 assert.strictEqual(a1.assignedActivationProfitPct,0.8,'0.60 threshold must map to K2 = 0.80 in 0.40 steps');
 
@@ -156,9 +156,9 @@ for (const marker of ['const renkoExitAtamasi = renkoExitEvolution.assign(yeniPo
 // 10) Version and operation contract.
 const version=require('./versiyon.js');
 const op=require('./82_st2_operation_transparency.js');
-assert(version.botSurumu.startsWith('6.11.0-'));
-assert.strictEqual(op.VERSION,'v6.11.0-GOLDEN-LIVE-CHAIN');
-assert.strictEqual(exit.VERSION,'v6.11.0-GOLDEN-LIVE-CHAIN');
+assert(version.botSurumu.startsWith('6.11.1-')); 
+assert.strictEqual(op.VERSION,'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
+assert.strictEqual(exit.VERSION,'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
 
 fs.rmSync(tmp,{recursive:true,force:true});
 console.log('✅ v6.10.9 final Entry binding + position-frozen Exit trail + exact net-profit replay chain passed');

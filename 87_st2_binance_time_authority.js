@@ -230,7 +230,7 @@ function requestServerTime(baseUrl, timeoutMs = DEFAULT_TIMEOUT_MS) {
       method: 'GET',
       family: 4,
       timeout: timeoutMs,
-      headers: { Accept: 'application/json', Connection: 'close', 'User-Agent': 'AGROS-ST2/6.11.0' }
+      headers: { Accept: 'application/json', Connection: 'close', 'User-Agent': 'AGROS-ST2/6.11.1' }
     }, response => {
       let body = '';
       response.setEncoding('utf8');

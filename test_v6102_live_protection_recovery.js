@@ -21,8 +21,8 @@ const client = {
     if (symbol) return rows.filter(x => x.symbol === symbol).concat(rows.some(x=>x.symbol===symbol)?[]:[{symbol,positionAmt:'0',entryPrice:'0',positionSide:'BOTH'}]);
     return rows;
   },
-  futuresOpenOrders: async payload => payload?.conditional ? { orders: state.algos.filter(x => x.algoStatus === 'NEW') } : [],
-  futuresGetOpenAlgoOrders: async () => ({ orders: state.algos.filter(x => x.algoStatus === 'NEW') }),
+  futuresOpenOrders: async payload => payload?.conditional ? { orders: state.algos.filter(x => x.algoStatus === 'NEW' && (!payload?.symbol || x.symbol === payload.symbol)) } : [],
+  futuresGetOpenAlgoOrders: async payload => ({ orders: state.algos.filter(x => x.algoStatus === 'NEW' && (!payload?.symbol || x.symbol === payload.symbol)) }),
   futuresCreateAlgoOrder: async payload => {
     const row={...payload,algoId:state.nextAlgo++,algoStatus:'NEW',orderType:payload.type}; state.algos.push(row); return { data: row };
   },
@@ -66,9 +66,9 @@ Module._load=function(req,parent,isMain){
     const ayarlar=require('./ayarlar.js');
     assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar,2);
     assert.strictEqual(ayarlar.mevcutKaldirac,5);
-    assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon,1);
+    assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon,2);
     const bridge=require('./50_real_order_readiness_bridge.js');
-    assert.deepStrictEqual(bridge.liveRiskProfile(),{marginUsdt:2,notionalUsdt:10,leverage:5,marginType:'ISOLATED',maxActivePositions:1,protectionRequired:true});
+    assert.deepStrictEqual(bridge.liveRiskProfile(),{marginUsdt:2,notionalUsdt:10,leverage:5,marginType:'ISOLATED',maxActivePositions:2,protectionRequired:true});
     const executionSource=fs.readFileSync(path.join(__dirname,'85_st2_real_order_execution.js'),'utf8');
     const motorSource=fs.readFileSync(path.join(__dirname,'motor.js'),'utf8');
     assert(!executionSource.includes('record.maxActivePositions'),'kalıcı kayıt pozisyon limiti için ikinci kaynak olmamalı');
@@ -82,10 +82,19 @@ Module._load=function(req,parent,isMain){
     const fill=await ex.executeEntry({reservation:r,quantity:0.1,referencePrice:100,minQty:0.001,minNotional:5,maxNotionalDeviationPct:2,client});
     const protections=await ex.installProtections({reservation:r,side:'LONG',stopPrice:98,takeProfitPrice:104,client});
     assert(protections.stop.algoId&&protections.takeProfit.algoId,'gecikmeli/wrapped algo doğrulanmadı');
-    // Simulate a filled entry followed by protection-chain failure; rollback must account both fills and set persistent block.
+    // İkinci bağımsız gerçek pozisyon kabul edilmeli ve kendi koruma çiftini almalıdır.
     const r2=await ex.reserveEntry({symbol:'ETHUSDT',side:'LONG',context:{...ctx,sym:'ETHUSDT',girisAnalizi:{patternId:'Y',sonKapaliTuglaZamani:2}},client});
-    // BTC still active should already enforce max=1.
-    assert.strictEqual(r2.ok,false,'tek aktif pozisyon ayarı uygulanmadı');
+    assert.strictEqual(r2.ok,true,'ikinci aktif pozisyon kontrollü 2-slot politikasında kabul edilmedi');
+    await ex.executeEntry({reservation:r2,quantity:0.1,referencePrice:100,minQty:0.001,minNotional:5,maxNotionalDeviationPct:2,client});
+    const protections2=await ex.installProtections({reservation:r2,side:'LONG',stopPrice:98,takeProfitPrice:104,client});
+    assert(protections2.stop.algoId&&protections2.takeProfit.algoId,'ikinci pozisyon bağımsız koruma alamadı');
+    assert.strictEqual(state.algos.filter(x=>x.algoStatus==='NEW'&&x.symbol==='BTCUSDT').length,2);
+    assert.strictEqual(state.algos.filter(x=>x.algoStatus==='NEW'&&x.symbol==='ETHUSDT').length,2);
+    const rLimit=await ex.reserveEntry({symbol:'SOLUSDT',side:'LONG',context:{...ctx,sym:'SOLUSDT',girisAnalizi:{patternId:'LIM',sonKapaliTuglaZamani:22}},client});
+    assert.strictEqual(rLimit.ok,false,'üçüncü gerçek pozisyon 2/2 limitinde reddedilmedi');
+    assert(/AKTIF_POZISYON_LIMITI:2\/2/.test(rLimit.reason),`beklenmeyen limit nedeni: ${rLimit.reason}`);
+
+    // Bir koruma zinciri başarısız olursa yalnız tam fill muhasebesiyle rollback ve kalıcı blok oluşmalıdır.
     await ex.rollbackEntry({reservation:r,side:'LONG',reason:'STOP_MARKET_ALGO_DOGRULANAMADI',client});
     const rec=ex.readState().records[r.fingerprint];
     assert.strictEqual(rec.status,'ROLLED_BACK');
@@ -94,8 +103,8 @@ Module._load=function(req,parent,isMain){
     assert.strictEqual(rec.accounting.commission,0.008,'iki taraf komisyonu toplanmadı');
     assert.strictEqual(ex.readState().globalBlock?.reason,'GERCEK_KORUMA_ZINCIRI_BASARISIZ');
     assert.strictEqual(state.missingSymbolCalls,0,'Algo GET/CANCEL çağrılarında zorunlu symbol eksik');
-    const r3=await ex.reserveEntry({symbol:'ETHUSDT',side:'LONG',context:{...ctx,sym:'ETHUSDT',girisAnalizi:{patternId:'Z',sonKapaliTuglaZamani:3}},client});
+    const r3=await ex.reserveEntry({symbol:'SOLUSDT',side:'LONG',context:{...ctx,sym:'SOLUSDT',girisAnalizi:{patternId:'Z',sonKapaliTuglaZamani:3}},client});
     assert.strictEqual(r3.ok,false); assert(/^GLOBAL_BLOCK:/.test(r3.reason));
-    console.log('✅ v6.10.2 settings risk + delayed Algo verification + protection global block + exact rollback accounting passed');
+    console.log('✅ v6.11.1 two real slots + independent protections + third-slot rejection + rollback accounting passed');
   } finally { Module._load=originalLoad; fs.rmSync(tempDir,{recursive:true,force:true}); }
-})().catch(e=>{console.error('❌ v6.10.2 test failed:',e.stack||e);process.exitCode=1;});
+})().catch(e=>{console.error('❌ v6.11.1 two-slot test failed:',e.stack||e);process.exitCode=1;});

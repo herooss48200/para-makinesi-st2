@@ -1,0 +1,23 @@
+AGROS ST2 v6.11.1 — PROFIT FLOOR & TWO SLOT
+Test tarihi: 03.08.2026
+
+SONUÇ: PASS
+
+Tam npm regression zinciri geçti:
+- Full source syntax: 126 JavaScript dosyası
+- v6.7.2–v6.11.0 geriye dönük güvenlik/regression testleri
+- v6.11.1 minimum net kâr tabanı testi
+- Bekleyen açık pozisyon güvenlik göçü
+- Aktif eski pozisyonun geriye dönük sıkılaştırılmaması
+- Brüt +%0.40 / minimum net +%0.30 floor-first doğrulaması
+- 0.50 tamamlanmış-tuğla stop güncellemesi
+- Dondurulmuş pozisyon trail mesafesi
+- İki bağımsız gerçek pozisyon rezervasyonu/fill/SL-TP koruması
+- Üçüncü gerçek pozisyonun 2/2 limitinde reddi
+- Rollback ve kesin komisyon muhasebesi
+- Binance zaman otoritesi / startup gate / Telegram circuit / atomik stop zinciri
+
+Paket dışı test yardımcıları:
+- Yerel test sırasında oluşturulan geçici node_modules stub klasörü pakete dahil edilmedi.
+- npm ci, çalışma ortamındaki registry mirror üzerinde ws@7.5.11 için 404 verdi; tam test zinciri bağımlılık çağrıları test stublarıyla çalıştırıldı.
+- AWS ve normal npm registry ortamında dağıtımdan önce yeniden npm ci + npm test zorunludur.

@@ -610,7 +610,8 @@ const ayarlar = {
     // Marjin: calisilmakIstenenUsdtMiktar (2), kaldıraç: mevcutKaldirac (5); notional 10 USDT türetilir.
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
-    gercekEmirMaxAktifPozisyon: 1,
+    // v6.11.1: iki bağımsız gerçek pozisyonun fill/SL-TP/Renko/kapanış zincirini doğrulamak için kontrollü 2 slot.
+    gercekEmirMaxAktifPozisyon: 2,
     // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
     // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
     canliShadowOgrenmeAktif: true,
@@ -755,7 +756,8 @@ const ayarlar = {
     renkoCikisCanliModu: 'SAFE_COMMISSION_BRICK_TRAIL',
     renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
     renkoCikisVarsayilanTugla: 1.00,
-    renkoCikisStopGuncellemeAdimTugla: 1.00,
+    // v6.11.1: 1.00T güncelleme adımı güçlü hareketlerde fazla giveback üretiyordu; yalnız tamamlanmış 0.50T adımında ilerler.
+    renkoCikisStopGuncellemeAdimTugla: 0.50,
     // Tek kapanışın aşırı sıkı profili canlıya taşımasını engeller. İşlem açılışını engellemez;
     // yeterli kanıt yoksa güvenli varsayılan exit profili kullanılır.
     // N5 mevcut öğrenilmiş profili kullanmak için bekleme değildir.
@@ -774,9 +776,11 @@ const ayarlar = {
     // MFE yüzdesi takeover anında değil, tepe kâr takeover'ın en az 2 katına ulaştığında
     // ATR ve MFE runner takibi devreye girer. O zamana kadar yalnız güvenli kâr tabanı korunur.
     renkoCikisMfeKorumaAktivasyonCarpani: 2.00,
-    // Komisyon sonrası en az +%0.05 net bırakacak güvenli brüt taban değişmedi.
-    renkoCikisGuvenliKarTabaniYuzde: 0.15,
-    renkoCikisMinimumNetKarYuzde: 0.05,
+    // v6.11.1: Takeover gerçekleştiğinde neredeyse başa baş kapanış kabul edilmez.
+    // %0.10 tahmini gidiş-dönüş komisyon sonrası en az +%0.30 net bırakacak brüt taban %0.40'tır.
+    // Başlangıç SL değişmez; bu taban yalnız canlı aktivasyon/BE doğrulandıktan sonra kilitlenir.
+    renkoCikisGuvenliKarTabaniYuzde: 0.40,
+    renkoCikisMinimumNetKarYuzde: 0.30,
     renkoCikisMinimumDevralmaYuzde: 0.25,
     renkoCikisMinimumAtrCarpani: 1.25,
     renkoCikisOnlineEmaAlpha: 0.35,
