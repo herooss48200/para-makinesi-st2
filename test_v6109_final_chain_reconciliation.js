@@ -17,6 +17,8 @@ ayarlar.renkoCikisIlkAtamaKapanis = 5;
 ayarlar.renkoCikisGuvenliKarTabaniYuzde = 0.15;
 ayarlar.renkoCikisMinimumNetKarYuzde = 0.05;
 ayarlar.sanalKomisyonOrani = 0.0005;
+ayarlar.renkoCikisKarTabaniAktivasyonYuzde = 0.20;
+ayarlar.renkoCikisCanliAktivasyonYuzde = 0.60;
 ayarlar.stopTakipModu = 'KADEME';
 ayarlar.tpAdimYuzdesi = 0.40;
 ayarlar.breakevenTetikKademe = 2;
@@ -89,7 +91,7 @@ assert.strictEqual(a1.assignedTrailBricks,1.25);
 assert.strictEqual(a1.positionSpecific,true);
 assert(['V6109_POSITION_FROZEN','V6110_POSITION_FROZEN','V6111_POSITION_FROZEN'].includes(a1.assignmentSchema));
 assert(a1.assignmentId.startsWith('RXT-'));
-assert.strictEqual(a1.assignedActivationProfitPct,0.8,'0.60 threshold must map to K2 = 0.80 in 0.40 steps');
+assert.strictEqual(a1.assignedActivationProfitPct,0.6,'canlı aktivasyon doğrudan %0.60 ayarından gelmeli; kademe/2 katı uygulanmamalı');
 
 // 4) Every trade gets a unique, frozen assignment.
 const p2=makePos('P2');
@@ -110,7 +112,7 @@ assert.strictEqual(a3.assignedTrailBricks,0.50,'New trade must receive current p
 const rows=[
   {price:100.20},{price:100.81},{price:100.90},{price:100.10}
 ];
-const rr=exit.brickReplay(rows,'LONG',100,1,1.25,0.8,0.15,100.10);
+const rr=exit.brickReplay(rows,'LONG',100,1,1.25,0.6,0.15,100.10);
 assert.strictEqual(rr.activated,true);
 assert.strictEqual(rr.exitReason,'COMMISSION_SAFE_FLOOR');
 assert(Math.abs(rr.grossPct-0.15)<1e-9);
@@ -125,7 +127,7 @@ const live=makePos('LIVE',{
 exit.assign(live);
 let low=exit.updateBrick(live,100.10);
 assert.strictEqual(low.active,false);
-assert.strictEqual(low.reason,'CURRENT_PRICE_BELOW_COMMISSION_SAFE_FLOOR');
+assert.strictEqual(low.reason,'CURRENT_PRICE_BELOW_DIRECT_FLOOR_ARM_THRESHOLD');
 let up=exit.updateBrick(live,100.90);
 assert.strictEqual(up.active,true);
 const stop1=live.sl;
@@ -156,9 +158,9 @@ for (const marker of ['const renkoExitAtamasi = renkoExitEvolution.assign(yeniPo
 // 10) Version and operation contract.
 const version=require('./versiyon.js');
 const op=require('./82_st2_operation_transparency.js');
-assert(version.botSurumu.startsWith('6.11.1-')); 
-assert.strictEqual(op.VERSION,'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
-assert.strictEqual(exit.VERSION,'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
+assert(version.botSurumu.startsWith('6.11.2-')); 
+assert.strictEqual(op.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
+assert.strictEqual(exit.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 
 fs.rmSync(tmp,{recursive:true,force:true});
 console.log('✅ v6.10.9 final Entry binding + position-frozen Exit trail + exact net-profit replay chain passed');

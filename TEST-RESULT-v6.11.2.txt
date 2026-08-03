@@ -1,0 +1,25 @@
+AGROS ST2 v6.11.2 — DIRECT PROFIT FLOOR & TWO SLOT
+Test date: 2026-08-03
+
+RESULT: PASS
+
+Validated:
+- 126 JavaScript source files syntax checked.
+- Full npm test regression chain passed.
+- Real position limit is read from ayarlar.js and accepts 0/1/2/3... values.
+- Controlled default is 2; third real position is rejected at 2/2.
+- Live Renko activation is direct +0.60, independent of tpAdimYuzdesi and breakevenTetikKademe.
+- Profit floor arm is direct +0.50.
+- Gross locked floor is +0.40; target minimum net is +0.30.
+- Stop update step is 0.50 completed brick.
+- Existing learned trail distance remains frozen per position.
+- Waiting open positions migrate to direct floor/activation settings.
+- Already-active legacy trailing positions are not retrospectively tightened.
+- Profit floor lock and Renko trail activation are separate K1/K2 events.
+- Stop is monotonic and never loosens.
+- Telegram/operation reports show floor trigger, gross floor, minimum net and direct activation separately.
+
+Environment note:
+- npm ci could not complete in the ChatGPT container because the internal package mirror returned 404 for ws@7.5.11.
+- The complete regression suite was executed with temporary local dependency stubs for dotenv/binance-api-node/axios/technicalindicators; those stubs are not included in the package.
+- Run npm ci and npm test again in the local repo and AWS before PM2 restart.

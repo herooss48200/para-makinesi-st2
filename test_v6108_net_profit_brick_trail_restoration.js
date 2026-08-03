@@ -24,8 +24,10 @@ try {
   // Tarihsel v6.10.8 canlı model kanıtı eski parametreleriyle korunur; v6.11.1 varsayılanları ayrı testtedir.
   ayarlar.renkoCikisGuvenliKarTabaniYuzde = 0.15;
   ayarlar.renkoCikisMinimumNetKarYuzde = 0.05;
+  ayarlar.renkoCikisKarTabaniAktivasyonYuzde = 0.40;
+  ayarlar.renkoCikisCanliAktivasyonYuzde = 0.40;
   ayarlar.tpAdimYuzdesi = 0.40;
-  ayarlar.breakevenTetikKademe = 1;
+  ayarlar.breakevenTetikKademe = 9; // canlı aktivasyonu artık etkilememeli
   assert.strictEqual(ayarlar.renkoCikisCanliModu, 'SAFE_COMMISSION_BRICK_TRAIL');
   assert.strictEqual(evo.BRICK_LIVE_MODE(), true);
   assert(evo.SAFE_FLOOR_MIN() >= evo.ROUND_TRIP_COMMISSION_PCT() + evo.MIN_NET_PROFIT_PCT());
@@ -57,11 +59,11 @@ try {
 
   const before = evo.update(pos, 100.30);
   assert.strictEqual(before.active, false);
-  assert.strictEqual(before.reason, 'COMMISSION_SAFE_PROTECTION_NOT_READY');
+  assert.strictEqual(before.reason, 'CURRENT_PRICE_BELOW_DIRECT_FLOOR_ARM_THRESHOLD');
 
-  // Komisyon sonrası güvenli taban oluşunca canlı Renko tuğla takibi devralır.
-  pos.breakevenAktif = true;
-  pos.korunanKarYuzdesi = 0.12;
+  // Doğrudan ayarlı eşik görülünce canlı Renko tuğla takibi devralır; eski BE kademesi gerekmez.
+  pos.breakevenAktif = false;
+  pos.korunanKarYuzdesi = 0;
   pos.execution.pricePath.push({ price: 100.40, pnlPct: 0.40, atrPct: 0.01, at: Date.now() });
   const activated = evo.update(pos, 100.40);
   assert.strictEqual(activated.active, true);

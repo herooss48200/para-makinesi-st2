@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.11.1-profit-floor-two-slot",
-  "description": "AGROS ST2 v6.11.1: takeover sonrası minimum net +%0.30 kâr tabanı, 0.50 tamamlanmış-tuğla stop adımı ve kontrollü iki gerçek pozisyon doğrulaması.",
+  "version": "6.11.2-direct-profit-floor-two-slot",
+  "description": "AGROS ST2 v6.11.2: doğrudan ayarlı +%0.50 taban arm, +%0.60 Renko aktivasyonu, minimum net +%0.30 kâr tabanı, 0.50T stop adımı ve ayarlanabilir gerçek pozisyon limiti.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6111",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -35,7 +35,7 @@
     "test:v6108": "node test_v6108_net_profit_brick_trail_restoration.js",
     "test:v6109": "node test_v6109_final_chain_reconciliation.js",
     "test:v6110": "node test_v6110_golden_live_chain.js",
-    "test:v6111": "node test_v6111_profit_floor_two_slot.js"
+    "test:v6112": "node test_v6112_direct_profit_floor_two_slot.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

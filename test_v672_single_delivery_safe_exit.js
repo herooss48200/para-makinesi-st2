@@ -19,7 +19,7 @@ Module._load = function patched(request, parent, isMain) {
 };
 
 const evo = require('./74_st2_renko_exit_evolution.js');
-assert.strictEqual(evo.VERSION, 'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
+assert.strictEqual(evo.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 assert.strictEqual(evo.BRICK_LIVE_MODE(), true, 'canlı model komisyon güvenli Renko tuğla takibi olmalı');
 assert(evo.DEFAULT_TAKEOVER() >= 0.25, 'varsayılan takeover sıfır olamaz');
 assert(evo.DEFAULT_ATR() >= 1.0, 'varsayılan ATR çarpanı sıfır olamaz');
@@ -55,11 +55,12 @@ assert(assignment.assignedAtrMultiplier >= 1.0);
 assert(assignment.assignedSafeFloorPct >= 0.40);
 const atEntry = evo.update(pos, 100);
 assert.strictEqual(atEntry.active, false, 'güvenli kâr koruması oluşmadan Renko takip devreye girmemeli');
-assert.strictEqual(atEntry.reason, 'COMMISSION_SAFE_PROTECTION_NOT_READY');
+assert.strictEqual(atEntry.reason, 'CURRENT_PRICE_BELOW_DIRECT_FLOOR_ARM_THRESHOLD');
 
-// BE/komisyon koruması doğrulandığında stop girişe değil, komisyon sonrası pozitif tabana taşınır.
-pos.breakevenAktif = true;
-pos.korunanKarYuzdesi = 0.12;
+// Doğrudan canlı aktivasyon görüldüğünde stop girişe değil, komisyon sonrası pozitif tabana taşınır.
+// Eski BE kademe alanları artık canlı Renko aktivasyonunu belirlemez.
+pos.breakevenAktif = false;
+pos.korunanKarYuzdesi = 0;
 const activatePrice = 99.20;
 pos.execution = { pricePath: [{ price: activatePrice, pnlPct: 0.80, atrPct: 0.20, ts: Date.now() }] };
 const activated = evo.update(pos, activatePrice);

@@ -25,10 +25,11 @@ try {
   // Tarihsel v6.10.6 davranış kanıtı kendi %0.15/%0.05 parametreleriyle korunur; v6.11.1 varsayılanları ayrı testtedir.
   ayarlar.renkoCikisGuvenliKarTabaniYuzde = 0.15;
   ayarlar.renkoCikisMinimumNetKarYuzde = 0.05;
+  ayarlar.renkoCikisMfeKorumaAktivasyonYuzde = 1.00;
 
   assert.strictEqual(evolution.MIN_ATR(), 1.25, 'ATR alt sınırı ekonomi korumasına yükselmedi');
   assert.strictEqual(evolution.MAX_CAPTURE(), 0.70, 'MFE capture üst sınırı %70 değil');
-  assert.strictEqual(evolution.MFE_ARM_MULTIPLIER(), 2, 'runner aktivasyonu takeover x2 değil');
+  assert.strictEqual(evolution.MFE_ARM_PROFIT_PCT(), 1.00, 'runner aktivasyonu doğrudan ayardan okunmuyor');
 
   const pos = {
     sym: 'TESTUSDT', yon: 'LONG', girisFiyati: 100, sl: 98,
@@ -68,7 +69,7 @@ try {
   assert.strictEqual(breathing.mfeFloor, null, 'takeover sonrası nefes bölgesinde MFE stop devreye girdi');
   assert(Math.abs(pos.sl - 100.15) < 1e-9, 'nefes bölgesinde güvenli taban gereksiz sıkılaştı');
 
-  // Peak %1.00 olduğunda runner aktif olur; ATR çok küçük olsa bile stop peak'in %70'inden sıkı olamaz.
+  // Doğrudan ayarlı peak %1.00 olduğunda runner aktif olur; ATR çok küçük olsa bile stop peak'in %70'inden sıkı olamaz.
   pos.execution.pricePath.push({ price: 101.00, pnlPct: 1.00, atrPct: 0.05, at: Date.now() + 3 });
   const runner = evolution.update(pos, 101.00);
   assert(runner.atrStop > 0, 'runner aşamasında ATR stop üretilmedi');

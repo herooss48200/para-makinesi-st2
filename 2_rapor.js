@@ -196,6 +196,10 @@ function pozisyonSatiri(p) {
         RENKO_TAKEOVER_AKTIF: { stage: 'K2', label: 'Renko yönetimi aktif' },
         ATR_TAKEOVER_AKTIF: { stage: 'K2', label: 'Öğrenen ATR yönetimi aktif' },
         RENKO_TUGLA_TAKIP_AKTIF: { stage: 'K2', label: 'Renko tuğla kâr takibi aktif' },
+        DOGRUDAN_KAR_TABANI_ESIGI_BEKLENIYOR: { stage: 'K0', label: 'Doğrudan kâr tabanı eşiği bekleniyor' },
+        MINIMUM_NET_KAR_TABANI_KILITLI: { stage: 'K1', label: 'Minimum net kâr tabanı kilitli' },
+        KAR_TABANI_KILITLI_RENKO_AKTIVASYON_BEKLENIYOR: { stage: 'K1', label: 'Kâr tabanı kilitli, Renko aktivasyonu bekleniyor' },
+        DOGRUDAN_AKTIVASYON_RENKO_TRAIL_AKTIF: { stage: 'K2', label: 'Doğrudan aktivasyonla Renko trail aktif' },
         NET_KAR_TABANI_KILITLI_TRAIL_AKTIF: { stage: 'K2', label: 'Min net kâr kilitli, Renko trail aktif' },
         RENKO_STOP_GUNCELLENDI: { stage: 'K3', label: 'Renko yönetimi stop güncelledi' },
         RENKO_STOP_KORUNUYOR: { stage: 'K3', label: 'Renko koruma stopu aktif' }
@@ -210,7 +214,8 @@ function pozisyonSatiri(p) {
     const brickLive = String(atama.liveExitMode || '').toUpperCase() === 'SAFE_COMMISSION_BRICK_TRAIL';
     if (brickLive) {
         if (Number.isFinite(trail) && trail > 0) satir += ` | Canlı Trail ${trail.toFixed(2)}T`;
-        if (Number.isFinite(Number(atama.assignedActivationProfitPct))) satir += ` | Aktivasyon %${Number(atama.assignedActivationProfitPct).toFixed(2)}`;
+        if (Number.isFinite(Number(atama.assignedFloorArmProfitPct))) satir += ` | Taban tetik %${Number(atama.assignedFloorArmProfitPct).toFixed(2)}`;
+        if (Number.isFinite(Number(atama.assignedActivationProfitPct))) satir += ` | Renko aktivasyon %${Number(atama.assignedActivationProfitPct).toFixed(2)}`;
         if (Number.isFinite(Number(atama.assignedSafeFloorPct))) satir += ` | Brüt taban %${Number(atama.assignedSafeFloorPct).toFixed(2)}`;
         const minNet = Number.isFinite(Number(atama.assignedMinimumNetProfitPct))
             ? Number(atama.assignedMinimumNetProfitPct)

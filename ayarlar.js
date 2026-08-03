@@ -610,7 +610,8 @@ const ayarlar = {
     // Marjin: calisilmakIstenenUsdtMiktar (2), kaldıraç: mevcutKaldirac (5); notional 10 USDT türetilir.
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
-    // v6.11.1: iki bağımsız gerçek pozisyonun fill/SL-TP/Renko/kapanış zincirini doğrulamak için kontrollü 2 slot.
+    // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
+    // Şimdiki kontrollü doğrulama değeri 2'dir.
     gercekEmirMaxAktifPozisyon: 2,
     // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
     // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
@@ -756,7 +757,7 @@ const ayarlar = {
     renkoCikisCanliModu: 'SAFE_COMMISSION_BRICK_TRAIL',
     renkoCikisAdayTugla: [0.50, 0.75, 1.00, 1.25, 1.50, 1.75, 2.00],
     renkoCikisVarsayilanTugla: 1.00,
-    // v6.11.1: 1.00T güncelleme adımı güçlü hareketlerde fazla giveback üretiyordu; yalnız tamamlanmış 0.50T adımında ilerler.
+    // v6.11.2: 1.00T güncelleme adımı güçlü hareketlerde fazla giveback üretiyordu; yalnız tamamlanmış 0.50T adımında ilerler.
     renkoCikisStopGuncellemeAdimTugla: 0.50,
     // Tek kapanışın aşırı sıkı profili canlıya taşımasını engeller. İşlem açılışını engellemez;
     // yeterli kanıt yoksa güvenli varsayılan exit profili kullanılır.
@@ -773,14 +774,16 @@ const ayarlar = {
     renkoCikisVarsayilanMfeYakalamaOrani: 0.55,
     renkoCikisMinimumMfeYakalamaOrani: 0.40,
     renkoCikisMaksimumMfeYakalamaOrani: 0.70,
-    // MFE yüzdesi takeover anında değil, tepe kâr takeover'ın en az 2 katına ulaştığında
-    // ATR ve MFE runner takibi devreye girer. O zamana kadar yalnız güvenli kâr tabanı korunur.
-    renkoCikisMfeKorumaAktivasyonCarpani: 2.00,
-    // v6.11.1: Takeover gerçekleştiğinde neredeyse başa baş kapanış kabul edilmez.
-    // %0.10 tahmini gidiş-dönüş komisyon sonrası en az +%0.30 net bırakacak brüt taban %0.40'tır.
-    // Başlangıç SL değişmez; bu taban yalnız canlı aktivasyon/BE doğrulandıktan sonra kilitlenir.
+    // v6.11.2: Canlı kâr tabanı ve Renko devralması doğrudan ayarlardan yönetilir.
+    // Hiçbir eşik tpAdimYuzdesi × kademe veya başka bir '2 katı' kuralından türetilmez.
+    // +%0.50 görüldüğünde brüt +%0.40 (yaklaşık net +%0.30) tabanı kilitlenir.
+    // +%0.60 görüldüğünde pozisyona atanmış, dondurulmuş tuğla takibi devreye girer.
+    renkoCikisKarTabaniAktivasyonYuzde: 0.50,
+    renkoCikisCanliAktivasyonYuzde: 0.60,
     renkoCikisGuvenliKarTabaniYuzde: 0.40,
     renkoCikisMinimumNetKarYuzde: 0.30,
+    // ATR/MFE yalnız gölge replay'dir; runner arm seviyesi de çarpanla değil doğrudan ayarlanır.
+    renkoCikisMfeKorumaAktivasyonYuzde: 1.20,
     renkoCikisMinimumDevralmaYuzde: 0.25,
     renkoCikisMinimumAtrCarpani: 1.25,
     renkoCikisOnlineEmaAlpha: 0.35,
