@@ -470,7 +470,10 @@ function minimalCanliRaporMetniOlustur() {
     const binanceSaat = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy: false, offsetMs: 0 };
     const tgSaglik = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0, transport: {} };
     const tgTransport = tgSaglik.transport || {};
-    const startupGate = h.state.startupMarketReady === true ? 'READY' : String(h.state.startupMarketWarmup?.durum || 'BEKLIYOR');
+    const warm = h.state.startupMarketWarmup || {};
+    const startupGate = h.state.startupMarketReady === true
+        ? 'READY'
+        : `${String(warm.durum || 'BEKLIYOR')}/${String(warm.asama || 'YOK')} ${Number(warm.islenen || 0)}/${Number(warm.toplam || veriSagligi.secilen || 0)}`;
     const offsetMetni = `${Number(binanceSaat.offsetMs || 0) >= 0 ? '+' : ''}${Number(binanceSaat.offsetMs || 0)}ms`;
     const lines = [
         `📊 AGROS ST2 OPERASYON — ${require('./versiyon.js').botSurumu}`,
@@ -486,7 +489,7 @@ function minimalCanliRaporMetniOlustur() {
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         ...yonSatirlari('Shadow', shadow),
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
-        `🚪 Entry Evolution N${Number(evo.total?.closed || 0)} | Replay Net ${sign(evo.total?.net)} | Öğrenilmiş giriş ${Number(evo.total?.assigned || 0)} | Uygulama ${Number(evo.decisionChain?.entry?.matched || 0)}/${Number(evo.decisionChain?.entry?.assigned || 0)}`,
+        `🎯 Giriş Yetkisi ST2 Renko + ST1 Gate + Referans Kırılımı | Entry Evolution yalnız GÖLGE`,
         `🧪 DNA Exit Replay (GÖLGE) Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}`,
         `🧱 CANLI RENKO KÂR TAKİBİ Atanmış ${replayKatman.takeoverAssigned} | Devrede ${replayKatman.takeoverActivated} | Bekleyen ${replayKatman.takeoverWaiting} | Öğrenilmiş ${replayKatman.takeoverLearnedActive} | Kalıcı ${replayKatman.takeoverPersistedActive} | Varsayılan ${replayKatman.takeoverDefaultActive} | Hata ${replayKatman.takeoverAssignmentErrors}`,
     ];

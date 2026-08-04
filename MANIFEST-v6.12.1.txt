@@ -1,0 +1,40 @@
+AGROS ST2 v6.12.1 CUMULATIVE UPDATE MANIFEST
+Base: v6.11.2 / commit 6d2e028
+
+Runtime files:
+2_rapor.js
+69_operation_intelligence_dashboard.js
+72_st2_renko_entry.js
+73_st2_renko_entry_evolution.js
+87_st2_st1_entry_gate.js
+ayarlar.js
+bot.js
+package-lock.json
+package.json
+revizyon.js
+versiyon.js
+
+Regression tests:
+test_v6105_active_exit_report_reconciliation.js
+test_v6108_net_profit_brick_trail_restoration.js
+test_v6109_final_chain_reconciliation.js
+test_v6110_golden_live_chain.js
+test_v6112_direct_profit_floor_two_slot.js
+test_v6120_st1_gated_renko_directional_report.js
+test_v6121_core_first_startup_warmup.js
+
+Documentation:
+AWS-ST2-v6.12.1.md
+CHANGELOG-v6.12.1.md
+TEST-RESULT-v6.12.1.txt
+MANIFEST-v6.12.1.txt
+SHA256SUMS.txt
+
+Excluded:
+node_modules/
+.git/
+data/
+logs/
+logs-st2/
+.env
+state/ledger runtime files

@@ -1,0 +1,24 @@
+AGROS ST2 v6.12.1 — TEST RESULT
+================================
+
+Package version:
+6.12.1-core-first-warmup-st1-gated-renko
+
+Full npm test chain:
+PASS
+
+New regression:
+PASS — v6.12.1 core-first 15m+3m startup gate + progressive health + deferred 1m shadow
+
+Verified behaviors:
+- 15m Renko and 3m ST1 are the startup core.
+- Entry Gate opens from core readiness.
+- 1m sniper is not requested before the core summary resolves.
+- 1m sniper loads later in LOW-priority background mode.
+- Startup progress is visible.
+- v6.12.0 ST1-gated reference-break and fresh-cross safety still pass.
+- v6.11.2 direct profit floor, frozen trail and two-slot tests still pass.
+- Full historical regression chain passes.
+
+Important limitation:
+The automated test uses deterministic mocked Binance candle responses. Actual AWS/Binance startup duration must be confirmed with the new progress logs before live acceptance.

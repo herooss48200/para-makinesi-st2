@@ -112,7 +112,8 @@ try {
   assert(reportSource.includes('DNA Exit Replay (GÖLGE)'));
   assert(reportSource.includes('CANLI RENKO KÂR TAKİBİ'));
   assert(reportSource.includes('Entry Evolution'));
-  assert(reportSource.includes('Uygulama ${Number(evo.decisionChain?.entry?.matched'));
+  assert(reportSource.includes('Entry Evolution yalnız GÖLGE'));
+  assert(!reportSource.includes('Uygulama ${Number(evo.decisionChain?.entry?.matched'));
 
   const motorSource = fs.readFileSync(path.join(__dirname, 'motor.js'), 'utf8');
   assert(motorSource.includes('RENKO_EXIT_ASSIGN_ERROR'), 'sanal pozisyonda Renko Exit ataması scoreboard öncesinde dondurulmuyor');

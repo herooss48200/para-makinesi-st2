@@ -651,9 +651,9 @@ const ayarlar = {
     // Trade Engine değişmez; asılı istekler iptal edilir, aynı mum istekleri birleştirilir.
     binanceAgEszamanlilik: 3,
     binanceAgIsciSayisi: 8,
-    // v6.11.0: ilk piyasa ısınması kontrollü biçimde biraz daha hızlıdır; canlı döngü 3 bağlantıda kalır.
-    binanceStartupAgEszamanlilik: 5,
-    binanceStartupAgIsciSayisi: 10,
+    // v6.12.1: yalnız başlangıç çekirdeği (15m Renko + 3m ST1) için kontrollü hız; canlı döngü 3 bağlantıda kalır.
+    binanceStartupAgEszamanlilik: 8,
+    binanceStartupAgIsciSayisi: 16,
     startupMarketReadyOrani: 0.95,
     startupMarketGuardLogAralikMs: 60000,
     // İmzalı Futures çağrıları Binance sunucu saatine bağlanır; -1021'de bir kez zorunlu senkron + tek retry.
