@@ -143,7 +143,7 @@ async function baslat() {
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
             `🧪 Emir Modu: ${emirModu}\n` +
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
-            `📊 Strateji: ${ayarlar.renkoOnayPeriyodu || '1m'} Renko SuperTrend onayı + ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} Renko pusu + canlı fiyat tetik\n` +
+            `📊 Strateji: ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} Renko pusu + ST1 ${ayarlar.pusuPeriyodu}/${ayarlar.superTrendPeriyodu || ayarlar.trendPeriyodu} giriş kapısı + referans tuğla canlı kırılımı\n` +
             `📡 İzlenen Evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)} | Veri ${h.state.sembolVeriSagligi?.durum || 'BEKLIYOR'}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
             `🧬 Sanal öğrenme: Renko exact-context + Premier kalite puanı\n` +

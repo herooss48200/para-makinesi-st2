@@ -11,6 +11,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const pusuNotificationDedupe = require('./81_st2_pusu_notification_dedupe.js');
+const st1EntryGate = require('./87_st2_st1_entry_gate.js');
 
 let baslangicPusuOzetiGonderildi = false;
 let baslangicPusuOzetiIsleniyor = false;
@@ -137,8 +138,23 @@ function aktifTuglaMesafesi(pusu) {
 }
 
 
-function tetikFiyati(pusu) {
+function entryEvolutionShadowTetikFiyati(pusu) {
     return entryEvolution.targetPrice(pusu, aktifTuglaMesafesi(pusu));
+}
+
+function canliTetikFiyati(pusu) {
+    if (String(pusu?.yon || '').toUpperCase() === 'LONG') {
+        return Number(pusu?.referansTuglaHigh || pusu?.referansSeviye || 0);
+    }
+    if (String(pusu?.yon || '').toUpperCase() === 'SHORT') {
+        return Number(pusu?.referansTuglaLow || pusu?.referansSeviye || 0);
+    }
+    return 0;
+}
+
+// Geriye uyumlu dış isim: v6.12.0 itibarıyla gerçek tetik referans Renko tuğlasıdır.
+function tetikFiyati(pusu) {
+    return canliTetikFiyati(pusu);
 }
 
 
@@ -149,6 +165,7 @@ function storeHazirla() {
     store.pusular ||= {};
     store.sonPatternSignature ||= {};
     store.pusuTelegramBildirimleri ||= {};
+    store.sonIptalPatternSignature ||= {};
     store.boxSize ||= {};
     store.onayBoxSize1m ||= {};
     return store;
@@ -189,7 +206,7 @@ function renkoKanitiMetni(sym, pusu, target, price, st) {
         `⏱️ Kaynak ${ayarlar.renkoKaynakPeriyodu || '15m'} kapanmış mum | ATR(${Number(ayarlar.renkoAtrPeriod || 14)}) | Box ${fiyatFormatla(pusu?.renkoBoxSize)}`,
         `📊 BB: Alt ${fiyatFormatla(bb.altBand)} | Orta ${fiyatFormatla(bb.ortaBand)} | Üst ${fiyatFormatla(bb.ustBand)}`,
         `📐 Band farkı: ${fiyatFormatla(bb.bandFarkFiyat)} fiyat / ${Number(bb.bandFarkTugla || 0).toFixed(4)} tuğla | Tolerans ${Number(bb.toleransTugla || 0).toFixed(2)} tuğla (${fiyatFormatla(bb.toleransFiyat)}) | Temas ${bb.temas ? 'TRUE ✅' : 'FALSE ❌'}`,
-        `🎯 Referans ${fiyatFormatla(pusu?.referansSeviye)} | Tetik ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${st?.trend || 'YOK'}`,
+        `🎯 Referans ${fiyatFormatla(pusu?.referansSeviye)} | Canlı tetik ${fiyatFormatla(target)} | Evolution shadow ${fiyatFormatla(entryEvolutionShadowTetikFiyati(pusu))} | Canlı ${fiyatFormatla(price)} | ST1 ${st?.trend || st?.superTrendYonu || 'YOK'}`,
         `🧬 Son ${bricks.length} tuğla: ${dizi || 'YOK'}`,
         ...satirlar
     ].join('\n');
@@ -243,10 +260,13 @@ function auditBaslat() {
         longPusu: 0, shortPusu: 0, tetikBekleyen: 0,
         pusuDegerlendirilen: 0, fiyatTetigi: 0, fiyatBekleyen: 0, fiyatEksik: 0,
         stOnayi: 0, stReddi: 0, birlikteUygun: 0, pozisyonAcildi: 0, pozisyonReddedildi: 0,
+        st1GateUygun: 0, st1GateBekleyen: 0, st1GateReddi: 0, tazeKirilim: 0,
+        eskiKirilimEngeli: 0, gecGirisReddi: 0, st2ContextIptal: 0,
         red: {
             ATR_YETERSIZ: 0, RENKO_YETERSIZ: 0, PATTERN_YOK: 0,
             BB_YETERSIZ: 0, BB_GECERSIZ: 0, BB_TEMAS_YOK: 0, PUSU_SURESI_DOLDU: 0, ONAY_1M_RENKO_YETERSIZ: 0,
-            LONG_ALT_BAND_TEMASI_YOK: 0, SHORT_UST_BAND_TEMASI_YOK: 0, ORTA_BAND_BOLGE_RED: 0
+            LONG_ALT_BAND_TEMASI_YOK: 0, SHORT_UST_BAND_TEMASI_YOK: 0, ORTA_BAND_BOLGE_RED: 0,
+            ST1_GATE_RED: 0, ST1_GEC_GIRIS: 0, ST2_CONTEXT_INVALIDATED: 0, LEGACY_PUSU_INVALIDATED: 0
         }
     };
 }
@@ -295,12 +315,20 @@ function bollingerSenaryosu(match, bollinger, boxSize) {
 
 function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit = null) {
     const store = storeHazirla();
+    const mevcutBaslangic = store.pusular[sym] || null;
     const longMatch = core.longPatternTespit(bricks);
     const shortMatch = core.shortPatternTespit(bricks);
     const candidates = [longMatch, shortMatch].filter(Boolean);
     if (audit) audit.patternAday += candidates.length;
+
     if (!candidates.length) {
         if (audit) audit.red.PATTERN_YOK++;
+        if (mevcutBaslangic) {
+            store.sonIptalPatternSignature[sym] = mevcutBaslangic.patternSignature;
+            delete store.pusular[sym];
+            if (audit) { audit.st2ContextIptal++; audit.red.ST2_CONTEXT_INVALIDATED++; }
+            console.log(`🧯 [ST2 PUSU İPTAL] ${sym} ${mevcutBaslangic.yon} | Güncel kapanmış 15m Renko patterni artık geçerli değil.`);
+        }
         return null;
     }
 
@@ -317,56 +345,82 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
             }
             continue;
         }
-        const signature = core.patternSignature(match);
-        const mevcut = store.pusular[sym];
-        // Aktif pusu, tetiklenene veya Renko yaş limiti dolana kadar korunur.
-        // Yeni tarama aynı sembolde yeni bir aday üretse bile aktif pusuyu yenileyip
-        // bekleme süresini sıfırlamaz ve Telegram'a tekrar pusu göndermez.
-        if (mevcut) return mevcut;
-        if (store.sonPatternSignature[sym] === signature) continue;
 
-        store.pusular[sym] = core.pusuOlustur(sym, match, scenario);
+        const signature = core.patternSignature(match);
+        const mevcut = store.pusular[sym] || null;
+        if (mevcut && mevcut.patternSignature === signature && mevcut.yon === match.yon) {
+            mevcut.sonSt2DogrulamaMumZamani = Number(candles?.at(-1)?.closeTime || 0);
+            mevcut.st2ContextValid = true;
+            return mevcut;
+        }
+
+        if (mevcut) {
+            store.sonIptalPatternSignature[sym] = mevcut.patternSignature;
+            delete store.pusular[sym];
+            if (audit) { audit.st2ContextIptal++; audit.red.ST2_CONTEXT_INVALIDATED++; }
+            console.log(`♻️ [ST2 PUSU YENİLENDİ] ${sym} | ${mevcut.patternSignature} → ${signature}`);
+        }
+
+        // Süresi dolmuş, karşıtlaşmış veya kullanılmış aynı mantıksal Renko olayı yeniden açılamaz.
+        if (store.sonIptalPatternSignature[sym] === signature) continue;
+
+        const yeniPusu = core.pusuOlustur(sym, match, scenario);
+        const kaynakSonMum = Array.isArray(candles) ? candles.at(-1) : null;
+        yeniPusu.kaynakSonKapaliMumZamani = Number(kaynakSonMum?.closeTime || 0);
+        yeniPusu.sonSt2DogrulamaMumZamani = yeniPusu.kaynakSonKapaliMumZamani;
+        yeniPusu.olusumZamani = Date.now();
+        yeniPusu.pusuSchema = 2;
+        yeniPusu.st2ContextValid = true;
+        yeniPusu.entryTimingAuthority = 'ST1_GATE_RENKO_REFERENCE_BREAK';
+        yeniPusu.entryEvolutionMode = 'SHADOW_ONLY';
+        yeniPusu.canliTetikFiyati = canliTetikFiyati(yeniPusu);
+        const ilkCanliFiyat = Number(h.state.canliFiyatlar?.[sym] || 0);
+        yeniPusu.canliTetikKurulu = ilkCanliFiyat > 0 && (yeniPusu.yon === 'LONG'
+            ? ilkCanliFiyat < yeniPusu.canliTetikFiyati
+            : ilkCanliFiyat > yeniPusu.canliTetikFiyati);
+        yeniPusu.sonCanliFiyat = ilkCanliFiyat > 0 ? ilkCanliFiyat : null;
+        yeniPusu.gateYokkenKirilim = false;
+        store.pusular[sym] = yeniPusu;
+
         const exactContext = exactContextHesapla(candles, match, bricks, bollinger, boxSize);
-        store.pusular[sym].rbb = exactContext.rbb;
-        store.pusular[sym].rbbw = exactContext.rbbw;
-        store.pusular[sym].atrRegime = exactContext.atrRegime;
-        store.pusular[sym].trend20 = exactContext.trend20;
-        store.pusular[sym].exactContextSnapshot = exactContext;
-        store.pusular[sym].renkoBb = { ...scenario, zone: exactContext.rbb, widthRegime: exactContext.rbbw };
-        store.pusular[sym].renkoBoxSize = Number(boxSize || 0);
-        store.pusular[sym].renkoSonTuglaDizisi = exactContext.renko6;
-        store.pusular[sym].renkoSon10Tugla = tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10));
-        const pusuKaniti = pusuOlusumKanitiMetni(sym, store.pusular[sym]);
-        store.pusular[sym].renkoPusuKanitMetni = pusuKaniti;
-        const gateOzeti = pusuGateOzeti(store.pusular[sym]);
-        store.pusular[sym].exactDnaKeyAtSignal = gateOzeti.dnaKey;
-        store.pusular[sym].exactDnaIdAtSignal = gateOzeti.dnaId;
-        store.pusular[sym].historicalExecutionModeAtSignal = gateOzeti.executionMode;
-        store.pusular[sym].historicalGateReasonAtSignal = gateOzeti.reason;
-        store.pusular[sym].historicalCompletionAtSignal = gateOzeti.completion;
-        store.pusular[sym].premierScoreAtSignal = gateOzeti.premierScore;
-        store.pusular[sym].premierScoreValueAtSignal = gateOzeti.score;
+        yeniPusu.rbb = exactContext.rbb;
+        yeniPusu.rbbw = exactContext.rbbw;
+        yeniPusu.atrRegime = exactContext.atrRegime;
+        yeniPusu.trend20 = exactContext.trend20;
+        yeniPusu.exactContextSnapshot = exactContext;
+        yeniPusu.renkoBb = { ...scenario, zone: exactContext.rbb, widthRegime: exactContext.rbbw };
+        yeniPusu.renkoBoxSize = Number(boxSize || 0);
+        yeniPusu.renkoSonTuglaDizisi = exactContext.renko6;
+        yeniPusu.renkoSon10Tugla = tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10));
+        const pusuKaniti = pusuOlusumKanitiMetni(sym, yeniPusu);
+        yeniPusu.renkoPusuKanitMetni = pusuKaniti;
+        const gateOzeti = pusuGateOzeti(yeniPusu);
+        yeniPusu.exactDnaKeyAtSignal = gateOzeti.dnaKey;
+        yeniPusu.exactDnaIdAtSignal = gateOzeti.dnaId;
+        yeniPusu.historicalExecutionModeAtSignal = gateOzeti.executionMode;
+        yeniPusu.historicalGateReasonAtSignal = gateOzeti.reason;
+        yeniPusu.historicalCompletionAtSignal = gateOzeti.completion;
+        yeniPusu.premierScoreAtSignal = gateOzeti.premierScore;
+        yeniPusu.premierScoreValueAtSignal = gateOzeti.score;
         console.log(`\n${pusuKaniti}\n`);
 
-        // Pusu Telegram kanıtı yalnız aynı sembol + mantıksal Pattern olayının ilk oluşumunda gönderilir.
-        // Pusu tetiklenip silinse veya taramada tekrar oluşturulsa bile aynı imza yeniden bildirilmez.
         const bildirimAnahtari = `${sym}|${signature}`;
         const dahaOnceBildirildi = Boolean(store.pusuTelegramBildirimleri[bildirimAnahtari]);
         if (!dahaOnceBildirildi) {
             store.pusuTelegramBildirimleri[bildirimAnahtari] = Date.now();
             if (ayarlar.renkoPusuKanitTelegram !== false) {
                 if (!baslangicPusuOzetiGonderildi) {
-                    baslangicPusuKuyrugu.push({ sym, yon: match.yon, patternId: match.patternId, patternKodu: store.pusular[sym].patternKodu, patternSignature: signature, pusuKaniti, ...gateOzeti });
+                    baslangicPusuKuyrugu.push({ sym, yon: match.yon, patternId: match.patternId, patternKodu: yeniPusu.patternKodu, patternSignature: signature, pusuKaniti, ...gateOzeti });
                 } else {
                     const patternId = String(match.patternId || 'PATTERN').trim();
-                    const patternKodu = String(store.pusular[sym].patternKodu || match.patternCode || '').trim();
+                    const patternKodu = String(yeniPusu.patternKodu || match.patternCode || '').trim();
                     const patternEtiketi = patternKodu && !/^(undefined|null|nan)$/i.test(patternKodu)
                         ? `${patternId} (${patternKodu})`
                         : patternId;
                     const modEtiketi = gateOzeti.executionMode === 'PREMIER' ? '🏆 PREMIER' : gateOzeti.executionMode === 'SHADOW' ? '👻 SHADOW' : '❓ UNKNOWN';
                     const skorMetni = gateOzeti.relativeCohort > 0 ? ` | Skor ${gateOzeti.score.toFixed(1)}/${gateOzeti.scoreThreshold.toFixed(1)} | #${gateOzeti.relativeRank}/${gateOzeti.relativeCohort}` : '';
                     const skorAciklama = pusuSkorAciklama(gateOzeti);
-                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\n🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi}${skorMetni}\n🧾 ${gateOzeti.reason}\n${skorAciklama ? `${skorAciklama}\n` : ''}BB temas ✅ | Referans ${fiyatFormatla(store.pusular[sym].referansSeviye)} | Tetik ${fiyatFormatla(tetikFiyati(store.pusular[sym]))}`;
+                    const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>\n${sym} ${match.yon} | ${patternEtiketi}\n🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi}${skorMetni}\n🧾 ${gateOzeti.reason}\n${skorAciklama ? `${skorAciklama}\n` : ''}BB temas ✅ | Referans kırılım ${fiyatFormatla(yeniPusu.canliTetikFiyati)} | Entry Evolution shadow ${fiyatFormatla(entryEvolutionShadowTetikFiyati(yeniPusu))}\n⏳ Giriş: ST1 aynı yönlü 15m pusu + 3m ST ve taze canlı kırılım birlikte.`;
                     h.telegramMesajGonderTekil(kisaMesaj, { coalesceKey: `st2-yeni-pusu:${bildirimAnahtari}` })
                         .then(sonuclar => {
                             const ok = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
@@ -384,22 +438,43 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
             if (match.yon === 'LONG') { audit.bbLongTemas++; audit.longPusu++; }
             else { audit.bbShortTemas++; audit.shortPusu++; }
         }
-        return store.pusular[sym];
+        return yeniPusu;
     }
 
+    if (mevcutBaslangic && store.pusular[sym]) {
+        store.sonIptalPatternSignature[sym] = mevcutBaslangic.patternSignature;
+        delete store.pusular[sym];
+        if (audit) { audit.st2ContextIptal++; audit.red.ST2_CONTEXT_INVALIDATED++; }
+        console.log(`🧯 [ST2 PUSU İPTAL] ${sym} ${mevcutBaslangic.yon} | Güncel Renko/BB bağlamı aynı yönlü pusuyu doğrulamıyor.`);
+    }
     if (audit) audit.red.BB_TEMAS_YOK++;
     return null;
 }
 
-function eskiPusuyuSuresiDolduysaSil(sym, bricks, audit = null) {
+function eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit = null) {
     const store = storeHazirla();
     const pusu = store.pusular[sym];
-    if (!pusu || !Array.isArray(bricks) || !bricks.length) return false;
-    const sonra = bricks.filter(b => Number(b.closeTime) > Number(pusu.sonKapaliTuglaZamani)).length;
-    const limit = Math.max(1, Number(ayarlar.maxPusuBeklemeTugla || 3));
-    if (sonra < limit) return false;
+    if (!pusu) return false;
+
+    const sourceTime = Number(pusu.kaynakSonKapaliMumZamani || 0);
+    if (!(sourceTime > 0)) {
+        store.sonIptalPatternSignature[sym] = pusu.patternSignature;
+        delete store.pusular[sym];
+        if (audit) audit.red.LEGACY_PUSU_INVALIDATED++;
+        console.log(`🧯 [ST2 LEGACY PUSU İPTAL] ${sym} ${pusu.yon} | Kapanmış 15m kaynak zamanı yok; eski pusu yeni girişte kullanılamaz.`);
+        return true;
+    }
+
+    const kapanmisKaynakMumlar = (Array.isArray(candles) ? candles : [])
+        .filter(c => Number(c?.closeTime || 0) > sourceTime && Number(c?.closeTime || 0) <= Date.now());
+    const limit = Math.max(1, Number(ayarlar.maxPusuBeklemeMum ?? 3));
+    pusu.gecenKaynakMumSayisi = kapanmisKaynakMumlar.length;
+    if (kapanmisKaynakMumlar.length < limit) return false;
+
+    store.sonIptalPatternSignature[sym] = pusu.patternSignature;
     delete store.pusular[sym];
     if (audit) audit.red.PUSU_SURESI_DOLDU++;
+    console.log(`⏰ [ST2 PUSU İPTAL] ${sym} ${pusu.yon} | ${kapanmisKaynakMumlar.length}/${limit} kapanmış ${ayarlar.pusuPeriyodu || '15m'} mum geçti; eski Renko bağlamı taşınmadı.`);
     return true;
 }
 
@@ -409,44 +484,124 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     if (!pusu) return false;
 
     if (audit) audit.pusuDegerlendirilen++;
-    const price = Number(h.state.canliFiyatlar[sym]);
-    // v6.10.9: Entry Evolution kararı bir kez seçilir; tetik, Premier gate ve pozisyon kaydı
-    // aynı dondurulmuş tuğla kararını kullanır.
+    const price = Number(h.state.canliFiyatlar?.[sym] || 0);
+    if (!(price > 0)) {
+        if (audit) audit.fiyatEksik++;
+        return false;
+    }
+
+    // Entry Evolution seçimi korunur ancak v6.12.0'da yalnız shadow replay/kalite kanıtıdır.
+    // Bu satır eski binding testleri ve bilimsel kanıt zinciri için bilinçli olarak korunur.
     const adaptiveEntryDecision = aktifTuglaKarari(pusu);
     const selectedEntryBrick = Number(adaptiveEntryDecision.brick);
     const target = entryEvolution.targetPrice(pusu, selectedEntryBrick);
+    const liveTarget = canliTetikFiyati(pusu);
     const historicalEntryGate = adaptiveDnaEntry.gateDecision({
         ...pusu,
         renkoEntryBrickDistance: selectedEntryBrick,
         adaptiveDnaEntryDecision: adaptiveEntryDecision
     }, selectedEntryBrick);
-    const st = onay1m || birDakikaRenkoSuperTrend(sym);
-    const fiyatUygun = price > 0 && (pusu.yon === 'LONG' ? price >= target : price <= target);
-    const stUygun = pusu.yon === 'LONG' ? st.trend === 'UP' : st.trend === 'DOWN';
-    pusu.fiyatTetigiGoruldu = fiyatUygun;
-    pusu.superTrendOnayi = stUygun;
-    if (audit) {
-        if (!(price > 0)) audit.fiyatEksik++;
-        else if (fiyatUygun) audit.fiyatTetigi++;
-        else audit.fiyatBekleyen++;
-        if (stUygun) audit.stOnayi++; else audit.stReddi++;
-        if (fiyatUygun && stUygun) audit.birlikteUygun++;
+
+    if (!(liveTarget > 0)) {
+        store.sonIptalPatternSignature[sym] = pusu.patternSignature;
+        delete store.pusular[sym];
+        if (audit) { audit.st1GateReddi++; audit.red.ST1_GATE_RED++; }
+        console.log(`🧯 [ST2 PUSU İPTAL] ${sym} ${pusu.yon} | Referans Renko tetik seviyesi geçersiz.`);
+        return false;
     }
 
-    // Tetik ve 1m Renko ST aynı değerlendirme anında geçerli olmalıdır; eski onay latch edilmez.
-    if (!fiyatUygun || !stUygun) return false;
+    const renkoStShadow = onay1m || birDakikaRenkoSuperTrend(sym);
+    const renkoStShadowUygun = pusu.yon === 'LONG' ? renkoStShadow?.trend === 'UP' : renkoStShadow?.trend === 'DOWN';
+    if (audit) {
+        if (renkoStShadowUygun) audit.stOnayi++;
+        else audit.stReddi++;
+    }
 
-    const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, st);
+    const st1Gate = ayarlar.st2St1GirisKapisiAktif === false
+        ? { uygun: true, hardReject: false, reason: 'ST1_GATE_CONFIG_DISABLED', superTrendYonu: null, trendPeriyodu: null, stKaynak: 'DISABLED' }
+        : st1EntryGate.degerlendir(sym, pusu.yon, price, liveTarget);
+    pusu.sonSt1Gate = {
+        uygun: st1Gate.uygun === true,
+        hardReject: st1Gate.hardReject === true,
+        reason: st1Gate.reason || 'UNKNOWN',
+        superTrendYonu: st1Gate.superTrendYonu || st1Gate.superTrend?.trend || null,
+        trendPeriyodu: st1Gate.trendPeriyodu || st1Gate.superTrend?.periyot || null,
+        stKaynak: st1Gate.stKaynak || st1Gate.superTrend?.kaynak || null,
+        evaluatedAt: st1Gate.evaluatedAt || new Date().toISOString()
+    };
+
+    if (st1Gate.hardReject) {
+        store.sonIptalPatternSignature[sym] = pusu.patternSignature;
+        delete store.pusular[sym];
+        if (audit) {
+            audit.st1GateReddi++;
+            audit.red.ST1_GATE_RED++;
+            if (st1Gate.reason === 'ST1_GEC_GIRIS_SINIRI_ASILDI') {
+                audit.gecGirisReddi++;
+                audit.red.ST1_GEC_GIRIS++;
+            }
+        }
+        console.log(`🧯 [ST1 GATE PUSU İPTAL] ${sym} ${pusu.yon} | ${st1Gate.reason}`);
+        return false;
+    }
+
+    const tetikOncesiTaraf = pusu.yon === 'LONG' ? price < liveTarget : price > liveTarget;
+    const tetikGecildi = pusu.yon === 'LONG' ? price >= liveTarget : price <= liveTarget;
+    if (tetikOncesiTaraf) {
+        pusu.canliTetikKurulu = true;
+        pusu.gateYokkenKirilim = false;
+    }
+
+    const tazeKirilim = Boolean(pusu.canliTetikKurulu) && tetikGecildi;
+    pusu.fiyatTetigiGoruldu = tazeKirilim;
+    pusu.superTrendOnayi = st1Gate.uygun === true;
+    pusu.sonCanliFiyat = price;
+
+    if (audit) {
+        if (tetikGecildi) audit.fiyatTetigi++;
+        else audit.fiyatBekleyen++;
+        if (st1Gate.uygun) audit.st1GateUygun++;
+        else audit.st1GateBekleyen++;
+        if (tazeKirilim) audit.tazeKirilim++;
+        else if (tetikGecildi) audit.eskiKirilimEngeli++;
+        if (tazeKirilim && st1Gate.uygun) audit.birlikteUygun++;
+    }
+
+    // Fiyat ST1 kapısı geçerli değilken kırdıysa eski kırılım latch edilmez.
+    // Yeniden giriş için fiyatın referansın öbür tarafına dönüp tetik kapısını tekrar kurması gerekir.
+    if (tazeKirilim && !st1Gate.uygun) {
+        pusu.canliTetikKurulu = false;
+        pusu.gateYokkenKirilim = true;
+        pusu.gateYokkenKirilimZamani = Date.now();
+        pusu.gateYokkenKirilimFiyati = price;
+        console.log(`🧊 [ESKİ KIRILIM ENGELİ] ${sym} ${pusu.yon} | Referans ${fiyatFormatla(liveTarget)} kırıldı fakat ST1 aynı anda uygun değildi (${st1Gate.reason}). Reset + yeni kırılım beklenecek.`);
+        return false;
+    }
+
+    if (!st1Gate.uygun || !tazeKirilim) return false;
+
+    // Bu taze kırılım yalnız bir kez tüketilir. Emir katmanı reddetse bile eski kırılım tekrar kullanılmaz.
+    pusu.canliTetikKurulu = false;
+    pusu.tazeKirilimZamani = Date.now();
+    pusu.tazeKirilimFiyati = price;
+
+    const renkoKanit = renkoKanitiMetni(sym, pusu, liveTarget, price, {
+        trend: st1Gate.superTrendYonu || st1Gate.superTrend?.trend || 'YOK'
+    });
     console.log(`\n${renkoKanit}\n`);
+    console.log(`🎯 [ST1-GATED RENKO TETİK] ${sym} ${pusu.yon} | Referans ${fiyatFormatla(liveTarget)} | Canlı ${fiyatFormatla(price)} | ST1 ${st1Gate.reason} | Evolution ${selectedEntryBrick.toFixed(2)}T SHADOW (${fiyatFormatla(target)})`);
 
     const girisAnalizi = {
         entryStrategy: 'ST2_RENKO',
+        entryTimingAuthority: 'ST1_GATE_RENKO_REFERENCE_BREAK',
+        entryEvolutionMode: 'SHADOW_ONLY',
         pusuPeriyodu: ayarlar.renkoKaynakPeriyodu || '15m',
-        sniperPeriyodu: ayarlar.renkoOnayPeriyodu || '1m',
-        trendPeriyodu: '1m_RENKO',
+        sniperPeriyodu: st1Gate.trendPeriyodu || ayarlar.superTrendPeriyodu || '3m',
+        trendPeriyodu: st1Gate.trendPeriyodu || ayarlar.superTrendPeriyodu || '3m',
         hedefFiyati: pusu.referansSeviye,
-        tetikFiyati: target,
-        tetikYuzdesiAyar: Number(ayarlar.renkoTetikYuzdesi || 0),
+        tetikFiyati: liveTarget,
+        entryEvolutionShadowTetikFiyati: target,
+        tetikYuzdesiAyar: 0,
         renkoEntryBrickDistance: selectedEntryBrick,
         adaptiveDnaEntryDecision: adaptiveEntryDecision,
         historicalEntryGate,
@@ -454,15 +609,31 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
             verified: Math.abs(Number(historicalEntryGate.brick) - selectedEntryBrick) <= 1e-9,
             selectedBrick: selectedEntryBrick,
             gateBrick: Number(historicalEntryGate.brick),
-            targetPrice: target,
-            source: adaptiveEntryDecision.source || 'UNKNOWN',
-            reason: adaptiveEntryDecision.reason || historicalEntryGate.reason || 'UNKNOWN',
+            targetPrice: liveTarget,
+            shadowTargetPrice: target,
+            source: 'RENKO_REFERENCE_BRICK_WITH_ST1_GATE',
+            reason: st1Gate.reason || adaptiveEntryDecision.reason || historicalEntryGate.reason || 'UNKNOWN',
+            timingAuthority: 'ST1_GATE_RENKO_REFERENCE_BREAK',
+            evolutionMode: 'SHADOW_ONLY',
             frozenAt: new Date().toISOString()
         },
-        tetikModu: 'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE',
+        tetikModu: 'RENKO_REFERENCE_BREAK_WITH_ST1_GATE',
         girisFiyati: price,
-        superTrendYonu: st.trend,
-        stKaynak: '1m_RENKO',
+        tetikSapmaYuzde: Number(st1Gate.gecGiris?.sapmaYuzde || 0),
+        gecGirisUygun: st1Gate.gecGiris?.uygun !== false,
+        maxGirisSapmaYuzde: Number(st1Gate.gecGiris?.maxSapmaYuzde || ayarlar.maxGirisSapmaYuzde || 0),
+        superTrendYonu: st1Gate.superTrendYonu || st1Gate.superTrend?.trend || null,
+        stKaynak: `ST1_${st1Gate.stKaynak || st1Gate.superTrend?.kaynak || 'UNKNOWN'}`,
+        st1EntryGate: st1Gate,
+        st1PusuSenaryosu: st1Gate.pusu?.senaryo || null,
+        st1PusuTargetLevel: Number(st1Gate.pusu?.targetLevel || 0),
+        st1KendiTetigiKirildi: st1Gate.st1KendiTetigiKirildi === true,
+        renkoOnay1mShadow: {
+            trend: renkoStShadow?.trend || null,
+            uygun: renkoStShadowUygun,
+            boxSize: Number(store.onayBoxSize1m?.[sym] || 0),
+            authority: 'SHADOW_ONLY'
+        },
         senaryo: pusu.senaryo,
         patternId: pusu.patternId,
         patternAilesi: pusu.patternAilesi,
@@ -470,7 +641,9 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         patternUzunlugu: pusu.patternUzunlugu,
         referansTipi: pusu.referansTipi,
         referansSeviye: pusu.referansSeviye,
-        renkoBoxSize: store.boxSize?.[sym] || 0,
+        referansTuglaHigh: pusu.referansTuglaHigh,
+        referansTuglaLow: pusu.referansTuglaLow,
+        renkoBoxSize: store.boxSize?.[sym] || pusu.renkoBoxSize || 0,
         renkoBb: pusu.renkoBb || null,
         rbb: pusu.rbb,
         rbbw: pusu.rbbw,
@@ -482,12 +655,18 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         renkoSon10Tugla: pusu.renkoSon10Tugla || [],
         renkoKanitMetni: renkoKanit,
         pusuDebug: renkoKanit,
+        kaynakSonKapaliMumZamani: pusu.kaynakSonKapaliMumZamani,
+        gecenKaynakMumSayisi: Number(pusu.gecenKaynakMumSayisi || 0),
         renkoOnayBoxSize1m: store.onayBoxSize1m?.[sym] || 0,
         pusuTuglasi: { ...pusu }
     };
+
     const ok = await m.pozisyonAc(sym, pusu.yon, price, girisAnalizi);
     if (audit) { if (ok) audit.pozisyonAcildi++; else audit.pozisyonReddedildi++; }
-    if (ok) delete store.pusular[sym];
+    if (ok) {
+        store.sonIptalPatternSignature[sym] = pusu.patternSignature;
+        delete store.pusular[sym];
+    }
     return ok;
 }
 
@@ -500,8 +679,8 @@ function auditLogla(audit) {
     const aktif = Object.values(store.pusular || {});
     console.log(`🧱 [ST2 RENKO AUDIT] Evren ${audit.evrenToplam} | Taranan ${audit.sembol} | Açık atlandı ${audit.acikPozisyonAtlandi} | Veri eksik ${audit.veriEksik} | Süre ${audit.sureMs} ms | Sembol ${audit.sembol} | 15m ATR ${audit.atrHazir} | Renko ${audit.renkoHazir} (min ${audit.renkoMin ?? 0}/max ${audit.renkoMax}) | Pattern aday ${audit.patternAday} | Yeni pattern ${audit.yeniPattern} | BB hazır ${audit.bbHazir} | BB temas L${audit.bbLongTemas}/S${audit.bbShortTemas} | 1m Renko ST ${audit.onay1mRenkoHazir} (UP ${audit.onay1mUp}/DOWN ${audit.onay1mDown}) | Yeni pusu L${audit.longPusu}/S${audit.shortPusu} | Aktif ${aktif.length}`);
     if (Number(audit.bildirimHafizaTemizlenen || 0) > 0) console.log(`🧹 [ST2 PUSU DEDUPE] Eski/fazla bildirim anahtarı temizlendi: ${audit.bildirimHafizaTemizlenen}`);
-    console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → Fiyat tetik ${audit.fiyatTetigi} → 1m ST onay ${audit.stOnayi} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Ret: Mesafe ${audit.fiyatBekleyen} | Fiyat eksik ${audit.fiyatEksik} | 1m ST ${audit.stReddi} | Pozisyon katmanı ${audit.pozisyonReddedildi}`);
-    console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu süresi doldu ${audit.red.PUSU_SURESI_DOLDU} | 1m ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ}`);
+    console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → ST1 uygun ${audit.st1GateUygun} → Taze kırılım ${audit.tazeKirilim} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Bekleyen: Tetik ${audit.fiyatBekleyen} ST1 ${audit.st1GateBekleyen} | Engelli: Eski kırılım ${audit.eskiKirilimEngeli} ST1 red ${audit.st1GateReddi} Geç giriş ${audit.gecGirisReddi} Bağlam ${audit.st2ContextIptal} | 1m Renko ST shadow Uygun ${audit.stOnayi}/Red ${audit.stReddi} | Pozisyon katmanı ${audit.pozisyonReddedildi}`);
+    console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu 15m süre ${audit.red.PUSU_SURESI_DOLDU} | ST1 red ${audit.red.ST1_GATE_RED} | Geç giriş ${audit.red.ST1_GEC_GIRIS} | ST2 bağlam ${audit.red.ST2_CONTEXT_INVALIDATED} | Legacy pusu ${audit.red.LEGACY_PUSU_INVALIDATED} | 1m ST shadow yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ}`);
     const dagilim = Object.entries(audit.patternDagilimi || {}).sort().map(([k,v]) => `${k}:${v}`).join(' ') || 'YOK';
     console.log(`🧱 [ST2 RENKO PATTERN] ${dagilim}`);
     for (const [i, x] of (audit.yakinRedAdaylari || []).entries()) {
@@ -533,7 +712,7 @@ async function taraVeDegerlendir() {
         store.seriler[sym] = bricks;
         store.boxSize[sym] = box;
 
-        eskiPusuyuSuresiDolduysaSil(sym, bricks, audit);
+        eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit);
         const bbPeriod = Number(ayarlar.renkoBollingerPeriod || ayarlar.bollingerperiod || 20);
         if (bricks.length < bbPeriod) { audit.red.BB_YETERSIZ++; continue; }
         const bb = m.hesaplaBollinger(bricks.map(x => Number(x.close)));
@@ -618,6 +797,8 @@ async function taraVeDegerlendir() {
 module.exports = {
     ...core,
     tetikFiyati,
+    canliTetikFiyati,
+    entryEvolutionShadowTetikFiyati,
     dnaKisaId,
     pusuGateOzeti,
     pusuBildirimHafizasiniTemizle,

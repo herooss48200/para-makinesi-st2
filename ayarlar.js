@@ -164,7 +164,14 @@ const ayarlar = {
     renkoGirisGuncelPencere: 10,
     renkoGirisGuncelAgirlik: 0.65,
     renkoGirisMinSkorIyilesme: 0.005,
-    maxPusuBeklemeTugla: 3,
+    // v6.12.0: Entry Evolution gerçek giriş zamanını artık bekletmez; bütün tuğla adayları
+    // bilimsel shadow replay olarak korunur. Canlı giriş yetkisi ST1 kapısı + referans Renko kırılımındadır.
+    renkoGirisCanliYetkiAktif: false,
+    st2St1GirisKapisiAktif: true,
+    st2St1KarsiYonPusuIptal: true,
+    st2St1KarsiTrendPusuIptal: true,
+    // ST2 pususu Renko tuğla üretim hızına göre saatlerce yaşamaz; kapanmış 15m kaynak mumuyla yaşlanır.
+    maxPusuBeklemeTugla: 3, // legacy/rapor uyumluluğu; canlı süre yetkisi maxPusuBeklemeMum'dadır.
 
 
     // v2.1.13: Geç giriş koruması.

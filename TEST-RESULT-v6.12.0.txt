@@ -1,0 +1,53 @@
+AGROS ST2 v6.12.0 — TEST RESULT
+================================
+
+Base:
+  6d2e028 fix(st2): v6.11.2 direct profit floor and two real slots
+
+Version:
+  package: 6.12.0-st1-gated-renko-directional-report
+  runtime: 6.12.0-ST1-GATED-RENKO-DIRECTIONAL-REPORT
+
+Final command:
+  npm test
+
+Result:
+  PASS
+  Clean v6.11.2 base + update ZIP overlay simulation: PASS
+
+Coverage summary:
+  - Full source syntax: 129 JavaScript files PASS
+  - v6.7.2 through v6.11.2 regression chain PASS
+  - Real order execution safety PASS
+  - Binance Futures endpoint authority PASS
+  - Two independent real slots and third-slot rejection PASS
+  - Stop/protection recovery and rollback accounting PASS
+  - Manual-close auto-rearm PASS
+  - Safe direct profit floor and runner breathing zone PASS
+  - Close commit barrier and operational resilience PASS
+  - Net-profit Renko brick trail restoration PASS
+  - Entry binding / frozen Exit / exact net replay PASS
+  - Golden live chain PASS
+  - v6.11.2 direct floor/activation, no 2x rule, frozen trail and 2-slot PASS
+  - v6.12.0 ST1-gated Renko reference entry PASS
+  - Old-break reuse prevention PASS
+  - ST1 own trigger + 3m current ST gate PASS
+  - 3 closed 15m candle freshness/expiry PASS
+  - Entry Evolution Shadow-only timing PASS
+  - Scientific/Real/Shadow LONG-SHORT reconciliation PASS
+
+New v6.12.0 integration scenario:
+  1. SHORT Renko reference is armed above trigger.
+  2. Price breaks reference while ST1 is unavailable: no order; break is consumed.
+  3. ST1 later becomes valid while price stays below: no old-break order.
+  4. Price resets above reference: trigger re-arms.
+  5. Fresh break with ST1 15m pusu + ST1 own trigger + 3m DOWN: exactly one order.
+
+Critical files intentionally unchanged:
+  - 74_st2_renko_exit_evolution.js
+  - 85_st2_real_order_execution.js
+  - 86_st2_close_lifecycle.js
+  - 50_real_order_readiness_bridge.js
+
+Test-environment note:
+  The isolated build environment could not complete a fresh npm dependency download because its configured registry did not provide ws@7.5.11. Full source/regression tests were therefore executed with minimal load-only stubs for dotenv and binance-api-node; no Binance/network action was performed. Before deployment, npm test must be rerun in the AWS development worktree using its already installed real dependencies. The live PM2 process was not changed or restarted.

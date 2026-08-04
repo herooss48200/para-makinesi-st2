@@ -458,6 +458,10 @@ function minimalCanliRaporMetniOlustur() {
         .sort((a, b) => Date.parse(b.at || 0) - Date.parse(a.at || 0)).slice(0, 3);
     const pfMetni = v => Number(v) >= 999 ? '∞' : Number(v || 0).toFixed(2);
     const sign = (v, d = 4) => `${Number(v || 0) >= 0 ? '+' : ''}${Number(v || 0).toFixed(d)}`;
+    const yonSatirlari = (etiket, ozet) => ['LONG', 'SHORT'].map(yon => {
+        const x = ozet?.byDirection?.[yon] || {};
+        return `↳ ${etiket} ${yon} N${Number(x.n || 0)} | ✅${Number(x.tp || 0)} ❌${Number(x.sl || 0)} ⚖️${Number(x.be || 0)} | WR %${Number(x.wr || 0).toFixed(1)} | Net ${sign(x.net)} | PF ${pfMetni(x.pf)}`;
+    });
     const health = evo.health || {};
     const stateN = Number(health.stateRecords || 0);
     const ledgerN = Number(health.ledgerRecords || 0);
@@ -476,8 +480,11 @@ function minimalCanliRaporMetniOlustur() {
         `📡 Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Tarama ${veriSagligi.taranan}/${veriSagligi.secilen} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
         `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
         `💰 Bilimsel Premier N${Number(premierScientific.n || 0)} | ✅${Number(premierScientific.tp || 0)} ❌${Number(premierScientific.sl || 0)} ⚖️${Number(premierScientific.be || 0)} | Net ${sign(premierScientific.net)} | PF ${pfMetni(premierScientific.pf)}`,
+        ...yonSatirlari('Bilimsel', premierScientific),
         `💳 Gerçek Premier N${Number(realPremier.n || 0)} | ✅${Number(realPremier.tp || 0)} ❌${Number(realPremier.sl || 0)} ⚖️${Number(realPremier.be || 0)} | Net ${sign(realPremier.net)} | PF ${pfMetni(realPremier.pf)}`,
+        ...yonSatirlari('Gerçek', realPremier),
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
+        ...yonSatirlari('Shadow', shadow),
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
         `🚪 Entry Evolution N${Number(evo.total?.closed || 0)} | Replay Net ${sign(evo.total?.net)} | Öğrenilmiş giriş ${Number(evo.total?.assigned || 0)} | Uygulama ${Number(evo.decisionChain?.entry?.matched || 0)}/${Number(evo.decisionChain?.entry?.assigned || 0)}`,
         `🧪 DNA Exit Replay (GÖLGE) Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}`,

@@ -30,5 +30,5 @@ const text = transparency.closingText(restartGapPosition, {
 assert(text.includes('Giriş 0.50 tuğla | N3'), 'Entry N3 kapanış raporunda korunmalı');
 assert(text.includes('Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'), 'eski dondurulmuş N0 metni rapor anında N3 ile uzlaştırılmalı');
 assert(!text.includes('Entry Replay kanıtı yok; kendi LAB Exit'), 'N3 varken kanıt yok çelişkisi görünmemeli');
-assert.strictEqual(version.botSurumu, '6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
+assert.strictEqual(version.botSurumu, '6.12.0-ST1-GATED-RENKO-DIRECTIONAL-REPORT');
 console.log('✅ v6.10.8 DNA Exit shadow/live Renko separation + Restart-GAP Entry/Exit wording reconciliation passed');

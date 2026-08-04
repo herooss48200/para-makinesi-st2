@@ -12,6 +12,13 @@ function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d}
 function clamp(v,min=0,max=100){return Math.max(min,Math.min(max,v))}
 function signed(v,d=2){const x=n(v);return `${x>=0?'+':''}${x.toFixed(d)}`}
 function pf(v){return n(v)>=999?'∞':n(v).toFixed(2)}
+function directionRows(label,summary){
+  const by=summary?.byDirection||{};
+  return ['LONG','SHORT'].map(yon=>{
+    const x=by[yon]||{};
+    return `${label} ${yon}: N${n(x.n)} | ✅${n(x.tp)} ❌${n(x.sl)} ⚖️${n(x.be)} | WR %${n(x.wr).toFixed(1)} | Net ${signed(x.net,4)} | PF ${pf(x.pf)}`;
+  });
+}
 function scientificOutcome(row){
   const explicit=String(row?.result?.outcome||row?.result?.sonuc||'').toUpperCase();
   if(['TP','SL','BE'].includes(explicit)) return explicit;
@@ -29,7 +36,11 @@ function scientificPremierRow(row){
     ||pos?.renkoPremierDecision?.premier===true;
   return upper&&!shadowOnly;
 }
-function summarizeScientificRows(rows=[]){
+function scientificDirection(row){
+  const yon=String(row?.pos?.yon||row?.pos?.side||row?.result?.yon||row?.result?.side||row?.yon||'').toUpperCase();
+  return yon==='LONG'||yon==='SHORT'?yon:'UNKNOWN';
+}
+function summarizeScientificRowsBase(rows=[]){
   const out={n:0,tp:0,sl:0,be:0,net:0,grossProfit:0,grossLoss:0};
   for(const row of rows){
     const net=winningIntelligence.actualNet(row);
@@ -45,6 +56,18 @@ function summarizeScientificRows(rows=[]){
   out.pf=out.grossLoss>0?out.grossProfit/out.grossLoss:(out.grossProfit>0?999:0);
   out.expectancy=out.n?out.net/out.n:0;
   out.reconciled=out.n===out.tp+out.sl+out.be;
+  return out;
+}
+function summarizeScientificRows(rows=[]){
+  const out=summarizeScientificRowsBase(rows);
+  const groups={LONG:[],SHORT:[],UNKNOWN:[]};
+  for(const row of rows) groups[scientificDirection(row)].push(row);
+  out.byDirection={
+    LONG:summarizeScientificRowsBase(groups.LONG),
+    SHORT:summarizeScientificRowsBase(groups.SHORT),
+    UNKNOWN:summarizeScientificRowsBase(groups.UNKNOWN)
+  };
+  out.directionalReconciled=out.n===out.byDirection.LONG.n+out.byDirection.SHORT.n+out.byDirection.UNKNOWN.n;
   return out;
 }
 function scientificLedgerPartitions(rows=null){
@@ -120,8 +143,14 @@ function telegram(activePositions=[], prebuilt=null){
   // Premier'in açık TP/SL/BE sayaçlarını çıkarıyordu. Pozitif netli BE kayıtlarında
   // bu iki sınıflandırma çakışıyor ve N104 yanında 67+39+0=106 gibi sonuç doğuruyordu.
   const scientificPartitions=scientificLedgerPartitions();
+  const premierDirectional=scientificPartitions.premier;
+  const realPremierDirectional=scientificPartitions.realPremier;
   const shadow=scientificPartitions.shadow;
   t+=`👻 Shadow sonuçları: N${shadow.n} | ✅${shadow.tp} ❌${shadow.sl} ⚖️${shadow.be} | WR %${shadow.wr.toFixed(1)} | Net ${signed(shadow.net,4)} | PF ${pf(shadow.pf)} | Exp ${signed(shadow.expectancy,4)} ${shadow.reconciled?'✅':'⚠️'}\n`;
+  t+=`\n🧭 <b>YÖNSEL SONUÇLAR</b>\n`;
+  t+=directionRows('💰 Bilimsel Premier',premierDirectional).join('\n')+'\n';
+  t+=directionRows('💳 Gerçek Premier',realPremierDirectional).join('\n')+'\n';
+  t+=directionRows('👻 Shadow',shadow).join('\n')+'\n';
   if(n(r.opened)||n(r.active)||n(r.closed)||d.candidates.length){
     t+=`☠️ Reverse: Açılan ${n(r.opened)} | Aktif ${n(r.active)} | N${n(r.closed)} | Net ${signed(r.net,4)} | PF ${pf(r.profitFactor)}\n`;
   }
@@ -152,4 +181,4 @@ function telegram(activePositions=[], prebuilt=null){
   const yorum=commentary(d); if(yorum.length)t+='\n\n🧠 <b>AGROS YORUMU</b>\n'+yorum.join('\n');
   return t;
 }
-module.exports={VERSION,componentScore,build,commentary,telegram,scientificOutcome,scientificPremierRow,summarizeScientificRows,scientificLedgerPartitions};
+module.exports={VERSION,componentScore,build,commentary,telegram,scientificOutcome,scientificDirection,scientificPremierRow,summarizeScientificRows,summarizeScientificRowsBase,scientificLedgerPartitions};

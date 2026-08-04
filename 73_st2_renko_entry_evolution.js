@@ -261,8 +261,10 @@ function dynamicExitHit(id,ctx,row){
 }
 function replayCandidate(pos,result,pusu,brickDistance,points){
   const yon=String(pusu.yon).toUpperCase(), entry=targetPrice(pusu,brickDistance), activeAtOpen=n(pos?.girisAnalizi?.renkoEntryBrickDistance,0.25);
+  const shadowOnlyTiming=String(pos?.girisAnalizi?.entryEvolutionMode||'').toUpperCase()==='SHADOW_ONLY';
   let triggerIndex=points.findIndex(x=>yon==='SHORT'?x.p<=entry:x.p>=entry);
-  if(triggerIndex<0 && brickDistance<=activeAtOpen+1e-9) triggerIndex=0;
+  // v6.12.0: gerçek giriş referans Renko + ST1 kapısındaysa aday tuğla tetiklenmiş varsayılamaz.
+  if(triggerIndex<0 && !shadowOnlyTiming && brickDistance<=activeAtOpen+1e-9) triggerIndex=0;
   if(triggerIndex<0) return {triggered:false,reason:'TETIKLENMEDI'};
   const risk=frozenRisk(pos), exitPlan=frozenExit(pos), value=n(pos.pozisyonDegeri,n(pos.miktar)*entry), commission=n(result.commission||result.komisyon);
   let stopPct=-risk.stopPct, beActive=false, peak=0, peakAtrPct=null, exitPrice=null, exitReason='ACTUAL_CLOSE', path=[];
@@ -296,7 +298,11 @@ function auditDecisionChain(s,pos,result,ga,pusu,points){
   const binding=ga?.entryDecisionBinding||{};
   const entryBrick=n(binding.selectedBrick, n(ga.renkoEntryBrickDistance,DEFAULT_BRICK()));
   const gateBrick=n(binding.gateBrick, entryBrick);
-  const target=n(binding.targetPrice, targetPrice(pusu,entryBrick));
+  const shadowOnlyEvolution=String(ga?.entryEvolutionMode||binding?.evolutionMode||'').toUpperCase()==='SHADOW_ONLY';
+  const shadowTarget=n(binding.shadowTargetPrice, targetPrice(pusu,entryBrick));
+  const target=shadowOnlyEvolution
+    ? n(binding.targetPrice, n(ga.tetikFiyati, n(ga.referansSeviye)))
+    : n(binding.targetPrice, shadowTarget);
   const actual=n(pos?.girisFiyati||pos?.entryPrice);
   const entryAssigned=target>0&&entryBrick>0;
   const entryApplied=actual>0&&binding.verified!==false;
@@ -309,10 +315,12 @@ function auditDecisionChain(s,pos,result,ga,pusu,points){
   const entryReason=!entryAssigned?'ATAMA_EKSIK'
     :!bindingMatched?'ENTRY_BINDING_ERROR'
     :!entryApplied?'UYGULAMA_EKSIK'
-    :directionMatched?'TETIK_VE_GATE_AYNI_TUGLA':'TETIK_YONU_TERSI';
+    :directionMatched
+      ? (shadowOnlyEvolution?'ST1_GATE_RENKO_REFERENCE_APPLIED_EVOLUTION_SHADOW':'TETIK_VE_GATE_AYNI_TUGLA')
+      :'TETIK_YONU_TERSI';
   auditMark(s,'entry',{
     assigned:entryAssigned,applied:entryApplied,matched:directionMatched,reason:entryReason,
-    detail:{assignedBrick:entryBrick,gateBrick,target,actual,side,tolerance:entryTol,bindingVerified:binding.verified===true}
+    detail:{assignedBrick:entryBrick,gateBrick,target,shadowTarget,actual,side,tolerance:entryTol,bindingVerified:binding.verified===true,shadowOnlyEvolution,timingAuthority:ga?.entryTimingAuthority||binding?.timingAuthority||null}
   });
 
   const stopPct=Math.max(0.01,n(pos?.labLifecycleProfile?.stopPct,n(ayarlar.sabitStopYuzdesi,1.5)));
@@ -357,7 +365,7 @@ function applyAccepted(s,pos,result,tradeId,markBridge=true){
   pos.girisAnalizi=ga; const yon=String(pos?.yon||ga.yon||'').toUpperCase(); const patternCode=ga.patternKodu; const pusu={yon,referansSeviye:n(ga.referansSeviye),renkoBoxSize:n(ga.renkoBoxSize)}; const points=rawPath(pos,result);
   if(markBridge) bridgeMark(s,'ACCEPTED','RECORDED',pos); auditDecisionChain(s,pos,result,ga,pusu,points);
   const profile=ensureProfile(s,yon,patternCode,ga.patternId); profile.renkoSequence=ga.renkoSonTuglaDizisi||snap.renkoSonTuglaDizisi||patternCode; profile.renkoBb=ga.renkoBb||snap.renkoBb||null; profile.renkoSuperTrend=ga.renkoSuperTrend||pos?.renkoSuperTrend||null; profile.closed++;
-  profile.lastReplay={at:new Date().toISOString(),tradeId,actualBrick:n(ga.renkoEntryBrickDistance,DEFAULT_BRICK()),candidates:{}};
+  profile.lastReplay={at:new Date().toISOString(),tradeId,actualBrick:String(ga.entryEvolutionMode||'').toUpperCase()==='SHADOW_ONLY'?null:n(ga.renkoEntryBrickDistance,DEFAULT_BRICK()),selectedShadowBrick:n(ga.renkoEntryBrickDistance,DEFAULT_BRICK()),entryEvolutionMode:ga.entryEvolutionMode||'LIVE_AUTHORITY',entryTimingAuthority:ga.entryTimingAuthority||null,candidates:{}};
   for(const c of CANDIDATES()){ const replay=replayCandidate(pos,result,pusu,c,points); profile.lastReplay.candidates[c.toFixed(2)]=replay; observe(profile.candidates[c.toFixed(2)],replay.triggered,replay.net); }
   try { profile.lastAdaptiveDnaDecision=adaptiveDnaEntry.observe(pos,result,profile.lastReplay.candidates,tradeId); } catch(e) { profile.lastAdaptiveDnaError=e.message; }
   if(shouldEvaluate(profile)){ const pick=choose(profile); profile.lastEvaluationClosed=profile.closed; profile.lastDecision=pick.reason; if(pick.ready&&ayarlar.renkoGirisOtomatikAktiflestirme!==false){ profile.previousBrick=profile.activeBrick; profile.activeBrick=Number(pick.best.key); profile.changedAt=new Date().toISOString(); profile.history.unshift({at:profile.changedAt,from:profile.previousBrick,to:profile.activeBrick,closed:profile.closed,net:r(pick.best.net),pf:r(pick.best.pf),expectancy:r(pick.best.expectancy),reason:pick.reason}); profile.history=profile.history.slice(0,50); } }
