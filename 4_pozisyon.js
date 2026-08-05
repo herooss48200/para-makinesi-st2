@@ -4,6 +4,7 @@ const ayarlar = require('./ayarlar.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
+const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
@@ -1054,6 +1055,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         renkoBoxSize: pos?.girisAnalizi?.renkoBoxSize || pos?.renkoBoxSize || st2PusuSnapshot.renkoBoxSize,
         renkoEntryBrickDistance: pos?.girisAnalizi?.renkoEntryBrickDistance || pos?.renkoEntryBrickDistance || Number(ayarlar.renkoGirisVarsayilanTugla || 0.75)
     };
+    let renkoEntryConfirmationResult = null;
     if (!manuelDisKapanis) try { renkoEntryEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
@@ -1067,6 +1069,20 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         mfeYuzde: Number(pos?.journey?.mfePct || pos?.execution?.mfePct || pos?.maxKarYuzde || 0),
         maeYuzde: Number(pos?.journey?.maePct || pos?.execution?.maePct || pos?.maxZararYuzde || 0)
     }); } catch (e) { console.log(`⚠️ [W%R CYCLE SHADOW] ${e.message}`); }
+    if (!manuelDisKapanis) try {
+        renkoEntryConfirmationResult = renkoEntryConfirmationShadow.close(pos, {
+            net: netKarZarar,
+            outcome: kaliteSonuc,
+            reason: duzeltilmisSebep,
+            exitPrice: kapanisFiyati,
+            restartGap: restartGap.isQuarantined(pos),
+            notional: pozisyonDegeri,
+            commissionRate: gercekMuhasebe && pozisyonDegeri > 0
+                ? toplamKomisyon / (pozisyonDegeri * 2)
+                : komisyonOrani,
+            closedAt: Date.now()
+        });
+    } catch (e) { console.log(`⚠️ [RENKO ENTRY CONFIRMATION SHADOW] ${e.message}`); }
     if (!manuelDisKapanis) try { renkoExitEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
@@ -1183,6 +1199,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         replayValidation: exitReplayRecord?.shadowExitValidation || null,
         replayUnavailableReason
     }) +
+    renkoEntryConfirmationShadow.telegramText(renkoEntryConfirmationResult) +
     (gercekMuhasebe
         ? `\n\n💳 <b>GERÇEK FILL MUHASEBESİ</b>\nKaynak: Binance User Trades | Fill ${hamGercekMuhasebe.tradeCount || 0} | Muhasebe ${hamGercekMuhasebe.accountingExact === false ? 'KISMİ (yabancı komisyon asseti ayrı)' : 'TAM'}`
         : '') +
@@ -1428,6 +1445,18 @@ function guvenliStopUygula(pos, oncekiSl, adaySl) {
 }
 
 async function izSurmeyiGuncelle() {
+    // v6.12.3-R2: Ana işlem kapanmış olsa bile Renko giriş teyit gölge adayları
+    // kendi bağımsız yaşam döngülerini sürdürür. Bu çağrı emir/pozisyon açmaz.
+    try {
+        const shadowTick = renkoEntryConfirmationShadow.tickAll(h.state.canliFiyatlar || {}, Date.now());
+        for (const mesaj of shadowTick.telegramMessages || []) {
+            await h.telegramMesajGonder(mesaj).catch(err =>
+                console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TG] ${err.message}`));
+        }
+    } catch (e) {
+        console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TICK] ${e.message}`);
+    }
+
     if (h.state.aktifPozisyonlar.length === 0) return;
 
     let borsaPozisyonlar = [];
@@ -1448,6 +1477,14 @@ async function izSurmeyiGuncelle() {
         const sanalPozisyon = ayarlar.sanalEmirModu || pos.sanal;
         analizMerkezi.journeyGuncelle(pos, canliFiyat);
         exitOptimizer.tickGuncelle(pos, canliFiyat);
+        // Yalnız gölge: R→G / G→R sonrası 0.25T–0.75T alternatif girişlerini izler.
+        // Canlı stop, emir ve Exit Evolution pozisyonunu değiştirmez.
+        const entryConfirmationTick = renkoEntryConfirmationShadow.update(pos, canliFiyat);
+        for (const row of entryConfirmationTick.emitted || []) {
+            const mesaj = renkoEntryConfirmationShadow.lifecycleTelegramText(row);
+            if (mesaj) await h.telegramMesajGonder(mesaj).catch(err =>
+                console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TG] ${err.message}`));
+        }
         renkoExitEvolution.assign(pos);
         const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
 

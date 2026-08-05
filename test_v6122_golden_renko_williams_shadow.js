@@ -43,23 +43,29 @@ step(-5, 1);      // T1
 step(-50, 2);     // tepe reset
 step(-4, 3);      // T2
 step(-50, 4);     // tepe reset
-step(-95, 5);     // D1, önce T2
+step(-95, 5);     // D1, önce T2; henüz dönüş yok
 let snap = lab.snapshotFromState('TESTUSDT', 'LONG', s, -95);
+assert.strictEqual(snap.supported, false);
+step(-80, 6);     // dipten nötre doğru dönüş
+snap = lab.snapshotFromState('TESTUSDT', 'LONG', s, -80);
 assert.strictEqual(snap.supported, true);
 assert.strictEqual(snap.pattern, 'T2-D1');
-assert.strictEqual(snap.zone, 'BOTTOM');
+assert.strictEqual(snap.turnState, 'VALID_TURN');
 
-step(-50, 6);     // dip reset
-step(-98, 7);     // D2
-snap = lab.snapshotFromState('TESTUSDT', 'LONG', s, -98);
+step(-50, 7);     // dip reset
+step(-98, 8);     // D2; henüz dönüş yok
+step(-79, 9);     // ikinci dipten dönüş
+snap = lab.snapshotFromState('TESTUSDT', 'LONG', s, -79);
 assert.strictEqual(snap.pattern, 'T2-D2');
+assert.strictEqual(snap.supported, true);
 
-step(-50, 8);     // çıkış
-step(-3, 9);      // T1, önce D2
-snap = lab.snapshotFromState('TESTUSDT', 'SHORT', s, -3);
+step(-50, 10);    // çıkış
+step(-3, 11);     // T1, önce D2; henüz dönüş yok
+step(-20, 12);    // tepeden nötre doğru dönüş
+snap = lab.snapshotFromState('TESTUSDT', 'SHORT', s, -20);
 assert.strictEqual(snap.supported, true);
 assert.strictEqual(snap.pattern, 'D2-T1');
-assert.strictEqual(snap.zone, 'TOP');
+assert.strictEqual(snap.turnState, 'VALID_TURN');
 
 const src72 = fs.readFileSync(path.join(__dirname, '72_st2_renko_entry.js'), 'utf8');
 assert(src72.includes("entryTimingAuthority: 'RENKO_EVOLUTION_1M_RENKO_ST'"), 'Golden Renko timing authority eksik');
@@ -84,7 +90,7 @@ assert.strictEqual(lab.close(pos, result).reason, 'DUPLICATE_CLOSE');
 assert.strictEqual(lab.summary().totals.n, 1);
 
 const version = require('./versiyon.js');
-assert.strictEqual(version.botSurumu, '6.12.2-GOLDEN-RENKO-FINAL-WILLIAMS-SHADOW');
+assert.strictEqual(version.botSurumu, '6.12.3-R2-RENKO-ENTRY-CONFIRMATION-FULL-LIFECYCLE-SHADOW');
 
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log('✅ v6.12.2 FINAL Golden Renko + learned Entry Evolution + Williams %R shadow passed');
+console.log('✅ v6.12.2 compatibility: Golden Renko + Entry Evolution + Williams shadow foundation passed');

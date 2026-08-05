@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const assert = require('assert');
 const fs = require('fs');
@@ -91,7 +91,7 @@ assert.strictEqual(a1.assignedTrailBricks,1.25);
 assert.strictEqual(a1.positionSpecific,true);
 assert(['V6109_POSITION_FROZEN','V6110_POSITION_FROZEN','V6111_POSITION_FROZEN'].includes(a1.assignmentSchema));
 assert(a1.assignmentId.startsWith('RXT-'));
-assert.strictEqual(a1.assignedActivationProfitPct,0.6,'canlı aktivasyon doğrudan %0.60 ayarından gelmeli; kademe/2 katı uygulanmamalı');
+assert.strictEqual(a1.assignedActivationProfitPct,0.6,'canlÄ± aktivasyon doÄŸrudan %0.60 ayarÄ±ndan gelmeli; kademe/2 katÄ± uygulanmamalÄ±');
 
 // 4) Every trade gets a unique, frozen assignment.
 const p2=makePos('P2');
@@ -158,9 +158,9 @@ for (const marker of ['const renkoExitAtamasi = renkoExitEvolution.assign(yeniPo
 // 10) Version and operation contract.
 const version=require('./versiyon.js');
 const op=require('./82_st2_operation_transparency.js');
-assert(version.botSurumu.startsWith('6.12.2-'));
+assert(version.botSurumu.startsWith('6.12.3-'));
 assert.strictEqual(op.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 assert.strictEqual(exit.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 
 fs.rmSync(tmp,{recursive:true,force:true});
-console.log('✅ v6.10.9 final Entry binding + position-frozen Exit trail + exact net-profit replay chain passed');
+console.log('âœ… v6.10.9 final Entry binding + position-frozen Exit trail + exact net-profit replay chain passed');

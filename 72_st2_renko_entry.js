@@ -13,6 +13,7 @@ const path = require('path');
 const pusuNotificationDedupe = require('./81_st2_pusu_notification_dedupe.js');
 const st1EntryGate = require('./87_st2_st1_entry_gate.js'); // yalnız shadow etki etiketi
 const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
+const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 
 let baslangicPusuOzetiGonderildi = false;
 let baslangicPusuOzetiIsleniyor = false;
@@ -544,7 +545,20 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     // Fiyat seçilmiş seviyenin doğru tarafında ve 1m Renko ST aynı yöndeyse giriş yapılır.
     if (!fiyatUygun || !stUygun) return false;
 
-    const williamsShadow = williamsCycleShadow.entrySnapshot(sym, pusu.yon, store.seriler?.[sym] || []);
+    const onayBricks1m = renkoSt?.bricks || store.onaySerileri1m?.[sym] || [];
+    // v6.12.3: Williams dönüş gölgesi artık gerçek giriş zaman otoritesiyle aynı 1m Renko serisini izler.
+    // Emir engellemez; uç bölgede kalmayı değil, nötre doğru dönüşü etiketler.
+    const williamsShadow = williamsCycleShadow.entrySnapshot(sym, pusu.yon, onayBricks1m);
+    // v6.12.3: Erken/yalancı giriş hipotezi için R→G / G→R sonrası 0.25T–0.75T
+    // alternatifleri yalnız gölgede dondurulur. Golden Renko canlı kararı değişmez.
+    const renkoEntryConfirmation = renkoEntryConfirmationShadow.entrySnapshot(
+        sym,
+        pusu.yon,
+        onayBricks1m,
+        Number(store.onayBoxSize1m?.[sym] || pusu.renkoOnayBoxSize1m || 0),
+        price,
+        { at: Date.now(), williamsTurnState: williamsShadow?.turnState || null }
+    );
     const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, renkoSt);
     console.log(`\n${renkoKanit}\n`);
     console.log(`🎯 [GOLDEN RENKO TETİK] ${sym} ${pusu.yon} | Entry ${selectedEntryBrick.toFixed(2)}T ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${renkoSt?.trend || 'YOK'} | ST1 shadow ${st1Shadow?.reason || 'YOK'} | W%R ${williamsShadow.pattern}`);
@@ -579,6 +593,7 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         stKaynak: '1m_RENKO',
         st1EntryGateShadow: { ...st1Shadow, authority: 'SHADOW_ONLY', blocksEntry: false },
         williamsCycleShadow: williamsShadow,
+        renkoEntryConfirmationShadow: renkoEntryConfirmation,
         senaryo: pusu.senaryo,
         patternId: pusu.patternId,
         patternAilesi: pusu.patternAilesi,

@@ -14,6 +14,7 @@ const labPremier = require('./62_lab_premier_league.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
+const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const realOrderPreparation = require('./67_real_order_preparation_intelligence.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
@@ -447,6 +448,7 @@ function minimalCanliRaporMetniOlustur() {
     const veriSagligi = st2VeriSagligiOzeti();
     const replayKatman = st2ReplayKatmanOzeti(tumAktifler);
     const wrShadow = williamsCycleShadow.summary();
+    const entryConfirmShadow = renkoEntryConfirmationShadow.summary();
     const op = operationIntelligence.build(tumAktifler);
     const aggregate = op.model?.aggregate || {};
     const accounting = op.model?.accounting || {};
@@ -492,7 +494,8 @@ function minimalCanliRaporMetniOlustur() {
         ...yonSatirlari('Shadow', shadow),
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
         `🎯 Giriş Yetkisi Golden ST2 Renko | Entry Evolution CANLI | 1m Renko ST | ST1 yalnız GÖLGE`,
-        `🔬 W%R Gölge N${Number(wrShadow.totals?.n || 0)} | Destek analizi ${Number(wrShadow.profiles?.length || 0)} profil | Tepe -10..0 / Dip -100..-90 | Emir etkisi YOK`,
+        `🔬 W%R Dönüş Gölgesi N${Number(wrShadow.totals?.n || 0)} | Profil ${Number(wrShadow.profiles?.length || 0)} | 1m Renko uçtan nötre dönüş | Emir etkisi YOK`,
+        `🧪 1m Renko Giriş Teyit Gölgesi Aynı pencere aday N${Number(entryConfirmShadow.sameWindow?.totals?.n || 0)} | Tam yaşam aday N${Number(entryConfirmShadow.lifecycle?.totals?.n || 0)} | Deney ${Number(entryConfirmShadow.activeExperiments || 0)} (Bekleyen ${Number(entryConfirmShadow.activeWaiting || 0)} / Açık ${Number(entryConfirmShadow.activeOpen || 0)}) | Emir etkisi YOK`,
         `🧪 DNA Exit Replay (GÖLGE) Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}`,
         `🧱 CANLI RENKO KÂR TAKİBİ Atanmış ${replayKatman.takeoverAssigned} | Devrede ${replayKatman.takeoverActivated} | Bekleyen ${replayKatman.takeoverWaiting} | Öğrenilmiş ${replayKatman.takeoverLearnedActive} | Kalıcı ${replayKatman.takeoverPersistedActive} | Varsayılan ${replayKatman.takeoverDefaultActive} | Hata ${replayKatman.takeoverAssignmentErrors}`,
     ];
@@ -579,6 +582,7 @@ function canliRaporMetniOlustur() {
         const veriSagligi = st2VeriSagligiOzeti();
         const replayKatman = st2ReplayKatmanOzeti(tumAktifler);
     const wrShadow = williamsCycleShadow.summary();
+    const entryConfirmShadow = renkoEntryConfirmationShadow.summary();
         const renkoPremierPattern = Number(adaptiveSummary.health?.historicalPremierProfiles || 0);
         const renkoShadowDna = Math.max(0, Number(adaptiveSummary.health?.historicalProfiles || 0) - renkoPremierPattern);
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;
@@ -588,6 +592,7 @@ function canliRaporMetniOlustur() {
         mesaj += `🏆 Premier: N${Number(premierSonuc.closed || 0)} | ✅${Number(premierSonuc.tp || 0)} ❌${Number(premierSonuc.sl || 0)} ⚖️${Number(premierSonuc.be || 0)}\n`;
         mesaj += `🌐 Evren: ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum} | Tarama ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}\n`;
         mesaj += `🚪 Entry Replay: N${Number(golgeSonuc.closed || 0)} | ✅${Number(golgeSonuc.tp || 0)} ❌${Number(golgeSonuc.sl || 0)} ⚖️${Number(golgeSonuc.be || 0)} | Net ${Number(golgeSonuc.net || 0) >= 0 ? '+' : ''}${Number(golgeSonuc.net || 0).toFixed(4)}\n`;
+        mesaj += `🧪 1m Teyit Shadow: Aynı pencere aday N${Number(entryConfirmShadow.sameWindow?.totals?.n || 0)} | Tam yaşam aday N${Number(entryConfirmShadow.lifecycle?.totals?.n || 0)} | Deney ${Number(entryConfirmShadow.activeExperiments || 0)} | Bekleyen ${Number(entryConfirmShadow.activeWaiting || 0)} | Açık ${Number(entryConfirmShadow.activeOpen || 0)}\n`;
         mesaj += `🧪 DNA Exit Replay (GÖLGE): Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}\n`;
         mesaj += `🧱 CANLI RENKO KÂR TAKİBİ: Atanmış ${replayKatman.takeoverAssigned} | Devrede ${replayKatman.takeoverActivated} | Bekleyen ${replayKatman.takeoverWaiting} | Öğrenilmiş ${replayKatman.takeoverLearnedActive} | Kalıcı ${replayKatman.takeoverPersistedActive} | Varsayılan ${replayKatman.takeoverDefaultActive} | Hata ${replayKatman.takeoverAssignmentErrors}\n`;
         mesaj += `🔬 Tuğla Replay: Profil ${replayKatman.takeoverProfiles} | Kapanış N${replayKatman.takeoverClosed} | Ekonomi kanıtlı ${replayKatman.takeoverLearned}\n`;

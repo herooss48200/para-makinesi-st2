@@ -1,0 +1,25 @@
+AGROS ST2 v6.12.3-R2 TEST SONUCU
+================================
+
+GEÇEN TESTLER
+- Full source syntax: 131 JavaScript dosyası geçti.
+- v6.10.8 aktif Exit rapor mutabakatı geçti.
+- v6.11.0 Golden canlı zincir / startup gate geçti.
+- v6.11.2 direct profit floor / frozen Renko trail / iki slot geçti.
+- v6.12.2 Golden Renko + Entry Evolution + Williams shadow uyumluluğu geçti.
+- v6.12.3-R2 SAME_WINDOW + FULL_LIFECYCLE testi geçti.
+
+R2 TEST KANITLARI
+- Ana işlem SL kapandıktan sonra üç aday beklemeye devam etti.
+- State cache temizlenerek restart simülasyonu yapıldı; açık deney geri yüklendi.
+- +0.25T, +0.50T ve +0.75T adayları ana işlem kapalıyken sonradan tetiklendi.
+- +0.25T adayının kâr tabanıyla bağımsız TP kapanışı doğrulandı.
+- +0.50T ve +0.75T adaylarının kendi ilk stoplarıyla bağımsız SL kapanışı doğrulandı.
+- Tetik penceresi dolan SHORT adaylarının FULL_LIFECYCLE NO_ENTRY kapanışı doğrulandı.
+- Parent duplicate close yeni deney yaratmadı.
+- tickAll çağrısının aktif pozisyon sayısı sıfırken de çalıştığı doğrulandı.
+
+TAM npm test NOTU
+- Paketleme ortamında `dotenv` modülü kurulmuş olmadığı için tam npm test zinciri v6.7.3 testinde durdu.
+- Bu, kaynak/test hatası değil paketleme ortamı bağımlılık eksikliğidir.
+- Yerel ST2 repoda mevcut node_modules ile `npm test` tamamen çalıştırılmadan commit/push yapılmamalıdır.

@@ -5,13 +5,13 @@
  *
  * Amaç:
  * - Ana ST2 Renko girişini ASLA açmaz veya engellemez.
- * - Kapanmış 15m ATR-Renko tuğlaları üzerinde Williams %R(14) hesaplar.
+ * - Kapanmış 1m ATR-Renko tuğlaları üzerinde Williams %R(14) hesaplar.
  * - Dar ekstrem bölgeleri izler:
  *     tepe  : -10 .. 0
  *     dip   : -100 .. -90
  * - Ayrı ziyaretleri T1/T2/T3+ ve D1/D2/D3+ olarak sayar.
- * - LONG girişte önceki tepe(ler) + mevcut dip ziyaretini,
- *   SHORT girişte önceki dip(ler) + mevcut tepe ziyaretini etiketler.
+ * - Uç bölgede kalmayı tek başına destek saymaz; nötr bölgeye doğru dönüşü arar.
+ * - LONG: yakın dipten yukarı dönüş; SHORT: yakın tepeden aşağı dönüş.
  * - Sonuçları yalnız shadow ledger/state dosyalarına yazar.
  */
 
@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v6.12.2-WILLIAMS-CYCLE-SHADOW-LAB';
+const VERSION = 'v6.12.3-WILLIAMS-TURN-SHADOW-LAB';
 const DATA_DIR = process.env.AGROS_DATA_DIR
     ? path.resolve(process.env.AGROS_DATA_DIR)
     : path.join(__dirname, 'data');
@@ -44,7 +44,10 @@ function settings() {
         topEnter: Math.min(0, Math.max(-100, n(ayarlar.williamsCycleTepeEsigi, -10))),
         topExit: Math.min(0, Math.max(-100, n(ayarlar.williamsCycleTepeResetEsigi, -20))),
         bottomEnter: Math.min(0, Math.max(-100, n(ayarlar.williamsCycleDipEsigi, -90))),
-        bottomExit: Math.min(0, Math.max(-100, n(ayarlar.williamsCycleDipResetEsigi, -80)))
+        bottomExit: Math.min(0, Math.max(-100, n(ayarlar.williamsCycleDipResetEsigi, -80))),
+        turnMaxBricks: Math.max(1, Math.floor(n(ayarlar.williamsCycleDonusMaxTugla, 3))),
+        turnMinDelta: Math.max(0, n(ayarlar.williamsCycleDonusMinFark, 0.01)),
+        neutralMid: Math.min(-1, Math.max(-99, n(ayarlar.williamsCycleGecNotrEsigi, -50)))
     };
 }
 
@@ -142,6 +145,11 @@ function blankSymbol() {
     return {
         lastBrickKey: null,
         lastValue: null,
+        previousValue: null,
+        lastDelta: 0,
+        brickSeq: 0,
+        lastTopSeq: null,
+        lastBottomSeq: null,
         currentZone: 'UNKNOWN',
         lastExtreme: null,
         topCount: 0,
@@ -175,6 +183,10 @@ function advanceState(previous, value, brickKey, at = Date.now(), cfg = settings
     };
 
     const x = Number(value);
+    const previousValue = Number.isFinite(Number(s.lastValue)) ? Number(s.lastValue) : null;
+    s.previousValue = previousValue;
+    s.lastDelta = previousValue == null || !Number.isFinite(x) ? 0 : round(x - previousValue, 4);
+    s.brickSeq = Math.max(0, n(s.brickSeq)) + 1;
     s.lastBrickKey = brickKey == null ? `${at}` : String(brickKey);
     s.lastValue = Number.isFinite(x) ? round(x, 4) : null;
     s.currentZone = zoneFor(x, cfg);
@@ -195,6 +207,7 @@ function advanceState(previous, value, brickKey, at = Date.now(), cfg = settings
         s.lastExtreme = 'TOP';
         s.topArmed = false;
         s.lastTopAt = at;
+        s.lastTopSeq = s.brickSeq;
         event = {
             type: 'TOP', count: s.topCount,
             precedingBottomCount: s.precedingBottomCount,
@@ -211,6 +224,7 @@ function advanceState(previous, value, brickKey, at = Date.now(), cfg = settings
         s.lastExtreme = 'BOTTOM';
         s.bottomArmed = false;
         s.lastBottomAt = at;
+        s.lastBottomSeq = s.brickSeq;
         event = {
             type: 'BOTTOM', count: s.bottomCount,
             precedingTopCount: s.precedingTopCount,
@@ -261,17 +275,37 @@ function snapshotFromState(sym, yon, symbolState, value = null) {
     let supported = false;
     let sourceCount = 0;
     let currentCount = 0;
+    let turnState = 'NO_RECENT_EXTREME';
+    const cfg = settings();
+    const seq = Math.max(0, n(s.brickSeq));
+    const delta = n(s.lastDelta);
+    const recentBottom = s.lastBottomSeq != null && seq - n(s.lastBottomSeq) <= cfg.turnMaxBricks;
+    const recentTop = s.lastTopSeq != null && seq - n(s.lastTopSeq) <= cfg.turnMaxBricks;
 
-    if (direction === 'LONG' && zone === 'BOTTOM') {
+    if (direction === 'LONG') {
         sourceCount = Math.max(0, n(s.precedingTopCount));
         currentCount = Math.max(0, n(s.bottomCount));
-        supported = sourceCount > 0 && currentCount > 0;
-        if (supported) pattern = `${eventCountLabel('T', sourceCount)}-${eventCountLabel('D', currentCount)}`;
-    } else if (direction === 'SHORT' && zone === 'TOP') {
+        if (recentBottom && delta > cfg.turnMinDelta) {
+            turnState = Number(s.lastValue) > cfg.neutralMid ? 'LATE_NEUTRAL' : 'VALID_TURN';
+        } else if (recentBottom && Math.abs(delta) <= cfg.turnMinDelta) {
+            turnState = 'EXTREME_STUCK';
+        } else if (recentTop && delta < -cfg.turnMinDelta) {
+            turnState = 'OPPOSITE_TURN';
+        }
+        supported = sourceCount > 0 && currentCount > 0 && turnState === 'VALID_TURN';
+        if (sourceCount > 0 && currentCount > 0) pattern = `${eventCountLabel('T', sourceCount)}-${eventCountLabel('D', currentCount)}`;
+    } else if (direction === 'SHORT') {
         sourceCount = Math.max(0, n(s.precedingBottomCount));
         currentCount = Math.max(0, n(s.topCount));
-        supported = sourceCount > 0 && currentCount > 0;
-        if (supported) pattern = `${eventCountLabel('D', sourceCount)}-${eventCountLabel('T', currentCount)}`;
+        if (recentTop && delta < -cfg.turnMinDelta) {
+            turnState = Number(s.lastValue) < cfg.neutralMid ? 'LATE_NEUTRAL' : 'VALID_TURN';
+        } else if (recentTop && Math.abs(delta) <= cfg.turnMinDelta) {
+            turnState = 'EXTREME_STUCK';
+        } else if (recentBottom && delta > cfg.turnMinDelta) {
+            turnState = 'OPPOSITE_TURN';
+        }
+        supported = sourceCount > 0 && currentCount > 0 && turnState === 'VALID_TURN';
+        if (sourceCount > 0 && currentCount > 0) pattern = `${eventCountLabel('D', sourceCount)}-${eventCountLabel('T', currentCount)}`;
     }
 
     return {
@@ -284,6 +318,9 @@ function snapshotFromState(sym, yon, symbolState, value = null) {
         zone,
         supported,
         pattern,
+        turnState,
+        lastDelta: round(s.lastDelta, 4),
+        recentExtremeAge: direction === 'LONG' && s.lastBottomSeq != null ? seq - n(s.lastBottomSeq) : direction === 'SHORT' && s.lastTopSeq != null ? seq - n(s.lastTopSeq) : null,
         sourceCount,
         currentCount,
         topCount: Math.max(0, n(s.topCount)),
@@ -299,7 +336,7 @@ function entrySnapshot(sym, yon, bricks) {
     const updated = update(sym, bricks);
     const state = readState();
     const snapshot = snapshotFromState(sym, yon, state.symbols[sym], updated?.value);
-    console.log(`🔬 [W%R SHADOW ENTRY] ${sym} ${String(yon).toUpperCase()} | ${snapshot.pattern} | Bölge ${snapshot.zone} | W%R ${Number(snapshot.value ?? -999).toFixed(2)} | Destek ${snapshot.supported ? 'EVET' : 'HAYIR'} | Emir etkisi YOK`);
+    console.log(`🔬 [W%R TURN SHADOW ENTRY] ${sym} ${String(yon).toUpperCase()} | ${snapshot.pattern} | ${snapshot.turnState} | Bölge ${snapshot.zone} | W%R ${Number(snapshot.value ?? -999).toFixed(2)} | Δ ${Number(snapshot.lastDelta || 0).toFixed(2)} | Destek ${snapshot.supported ? 'EVET' : 'HAYIR'} | Emir etkisi YOK`);
     return snapshot;
 }
 

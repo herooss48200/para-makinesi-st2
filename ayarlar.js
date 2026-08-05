@@ -181,6 +181,26 @@ const ayarlar = {
     williamsCycleTepeResetEsigi: -20,
     williamsCycleDipEsigi: -90,
     williamsCycleDipResetEsigi: -80,
+    // Uç bölgede yapışmak destek değildir; nötre doğru ilk 1–3 tuğlalık dönüş aranır.
+    williamsCycleDonusMaxTugla: 3,
+    williamsCycleDonusMinFark: 0.01,
+    williamsCycleGecNotrEsigi: -50,
+
+    // v6.12.3 — 1m Renko Entry Confirmation Shadow Lab.
+    // Canlı girişi/stopu/Exit Evolution'ı değiştirmez. Yalnız R→G veya G→R dönüşünden
+    // sonra 0.25T / 0.50T / 0.75T bekleseydik ne olurdu sorusunu ölçer.
+    renkoGirisTeyitShadowAktif: true,
+    renkoGirisTeyitShadowAdayTugla: [0.25, 0.50, 0.75],
+    renkoGirisTeyitShadowStopYuzde: 1.50,
+    renkoGirisTeyitShadowTabanTetikYuzde: 0.50,
+    renkoGirisTeyitShadowTakeoverYuzde: 0.60,
+    renkoGirisTeyitShadowBakisTugla: 40,
+    // Ana işlem kapandıktan sonra tetiklenmemiş adayların bekleme süresi.
+    renkoGirisTeyitShadowTetikBeklemeDakika: 60,
+    // Tetiklenen adayın kendi stop/Renko korumasıyla azami bağımsız yaşamı.
+    renkoGirisTeyitShadowMaksYasamDakika: 360,
+    renkoGirisTeyitShadowStateKayitAraligiMs: 15000,
+    renkoGirisTeyitShadowTamamlananSakla: 500,
 
 
     // v2.1.13: Geç giriş koruması.
