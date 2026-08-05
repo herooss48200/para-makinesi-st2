@@ -25,15 +25,19 @@ function overlapLog(kind, message) {
     overlapLogAt[kind] = now;
     console.log(message);
 }
+function startupOnayHazirSayisi() {
+    if (ayarlar.entryStrategyMode === 'ST2_RENKO') return Object.keys(h.state.sniperMumlar || {}).length;
+    return Object.keys(h.state.trendSuperTrend || {}).length;
+}
 function startupMarketDurumuGuncelle(source = 'REFRESH') {
     const total = Math.max(1, Number(h.state.semboller?.length || 0));
     const pusuHazir = Object.keys(h.state.yerelPusuHafizasi || {}).length;
-    const trendHazir = Object.keys(h.state.trendSuperTrend || {}).length;
+    const onayHazir = startupOnayHazirSayisi();
     const threshold = readyRatioThreshold();
     const pusuRatio = pusuHazir / total;
-    const trendRatio = trendHazir / total;
-    const ratio = Math.min(pusuRatio, trendRatio);
-    const ready = pusuRatio >= threshold && trendRatio >= threshold;
+    const onayRatio = onayHazir / total;
+    const ratio = Math.min(pusuRatio, onayRatio);
+    const ready = pusuRatio >= threshold && onayRatio >= threshold;
     const wasReady = h.state.startupMarketReady === true;
     const current = h.state.startupMarketWarmup || {};
 
@@ -43,15 +47,17 @@ function startupMarketDurumuGuncelle(source = 'REFRESH') {
         durum: ready ? 'READY' : (wasReady ? 'READY_CACHED' : (current.durum === 'CALISIYOR' ? 'CALISIYOR' : 'DEGRADED')),
         tamamlanma: ready ? (current.tamamlanma || new Date().toISOString()) : current.tamamlanma,
         pusuHazir,
-        trendHazir,
+        trendHazir: onayHazir,
+        sniperHazir: Object.keys(h.state.sniperMumlar || {}).length,
         oran: ratio,
         sonKontrol: new Date().toISOString(),
         sonKaynak: source
     };
     if (ready && !wasReady) {
-        console.log(`✅ [STARTUP ENTRY GATE] AÇILDI | Kaynak ${source} | Mum ${pusuHazir}/${total} | ST ${trendHazir}/${total} | Eşik %${(threshold * 100).toFixed(0)}`);
+        const onayEtiketi = ayarlar.entryStrategyMode === 'ST2_RENKO' ? '1m Renko veri' : 'ST1 trend';
+        console.log(`✅ [STARTUP ENTRY GATE] AÇILDI | Kaynak ${source} | 15m Mum ${pusuHazir}/${total} | ${onayEtiketi} ${onayHazir}/${total} | Eşik %${(threshold * 100).toFixed(0)}`);
     }
-    return { ready: h.state.startupMarketReady === true, currentReady: ready, pusuHazir, trendHazir, total, ratio, threshold };
+    return { ready: h.state.startupMarketReady === true, currentReady: ready, pusuHazir, trendHazir: onayHazir, onayHazir, total, ratio, threshold };
 }
 function periyodikTazelemeyiBaslat() {
     if (!pusuTimerRef) {
@@ -125,24 +131,25 @@ async function derinGecmisiInsaEt(options = {}) {
     const tumSemboller = [...(h.state.semboller || [])];
     const toplam = Math.max(1, tumSemboller.length);
     const pusuTf = pusuKaynakPeriyodu();
+    const sniperTf = ayarlar.sniperPeriyodu || ayarlar.renkoOnayPeriyodu || '1m';
     const trendTf = superTrendOnayPeriyodu();
 
     h.state.startupMarketReady = false;
     h.state.startupMarketWarmup = {
-        durum: 'CALISIYOR', asama: 'CORE_15M_3M', baslangic: new Date().toISOString(), tamamlanma: null,
+        durum: 'CALISIYOR', asama: 'CORE_15M_1M_RENKO', baslangic: new Date().toISOString(), tamamlanma: null,
         pusuHazir: 0, trendHazir: 0, sniperHazir: 0, islenen: 0, toplam,
         oran: 0, hata: 0, sonIlerleme: new Date().toISOString()
     };
-    console.log(`📥 [AŞAMALI BAŞLANGIÇ] Çekirdek piyasa verisi hazırlanıyor | 15m Renko + ${trendTf} ST1 | Eşzamanlılık ${startupConcurrency} | 1m sniper gölge sonra.`);
+    console.log(`📥 [AŞAMALI BAŞLANGIÇ] Golden Renko çekirdeği hazırlanıyor | ${pusuTf} ATR-Renko + ${sniperTf} Renko ST verisi | Eşzamanlılık ${startupConcurrency} | ${trendTf} ST1 yalnız shadow sonra.`);
 
     h.state.yerelPusuHafizasi={}; h.state.canliFiyatlar={}; h.state.sniperMumlar={}; h.state.sniperCanliMumlar={}; h.state.sniperSuperTrend={}; h.state.sniperSuperTrendCanli={}; h.state.trendMumlar={}; h.state.trendCanliMumlar={}; h.state.trendSuperTrend={}; h.state.trendSuperTrendCanli={}; h.state.sonPusuMumZamani={};
 
-    let islenen=0, pusuHata=0, trendHata=0;
+    let islenen=0, pusuHata=0, sniperHata=0;
     try {
         await sembolHavuzu(async sym => {
-            const [pusuSonuc, trendSonuc] = await Promise.allSettled([
+            const [pusuSonuc, sniperSonuc] = await Promise.allSettled([
                 mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH'),
-                mumCek(sym, trendTf, 80, `START_TREND:${sym}`, 'HIGH')
+                mumCek(sym, sniperTf, 80, `START_SNIPER:${sym}`, 'HIGH')
             ]);
 
             if (pusuSonuc.status === 'fulfilled') {
@@ -153,96 +160,92 @@ async function derinGecmisiInsaEt(options = {}) {
                 } else pusuHata++;
             } else pusuHata++;
 
-            if (trendSonuc.status === 'fulfilled') {
-                const trend = sadeceKapanmisMumlar(trendSonuc.value);
-                if (trend.length >= (ayarlar.superTrendPeriod || 10) + 2) {
-                    h.state.trendMumlar[sym] = trend;
-                    const st = m.hesaplaSuperTrend(trend);
-                    if (st?.trend) {
-                        h.state.trendSuperTrend[sym] = st.trend;
-                        h.state.sniperSuperTrend[sym] = st.trend; // geriye uyumlu 3m ST aliası
-                    } else trendHata++;
-                } else trendHata++;
-            } else trendHata++;
+            if (sniperSonuc.status === 'fulfilled') {
+                const sniper = sadeceKapanmisMumlar(sniperSonuc.value);
+                if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
+                    h.state.sniperMumlar[sym] = sniper;
+                } else sniperHata++;
+            } else sniperHata++;
 
             islenen++;
             const pusuHazir = Object.keys(h.state.yerelPusuHafizasi || {}).length;
-            const trendHazir = Object.keys(h.state.trendSuperTrend || {}).length;
-            const ratio = Math.min(pusuHazir / toplam, trendHazir / toplam);
+            const sniperHazir = Object.keys(h.state.sniperMumlar || {}).length;
+            const ratio = Math.min(pusuHazir / toplam, sniperHazir / toplam);
             h.state.startupMarketWarmup = {
                 ...(h.state.startupMarketWarmup || {}), durum: h.state.startupMarketReady === true ? 'READY' : 'CALISIYOR',
-                asama: 'CORE_15M_3M', islenen, toplam, pusuHazir, trendHazir,
-                oran: ratio, hata: pusuHata + trendHata, sonIlerleme: new Date().toISOString()
+                asama: 'CORE_15M_1M_RENKO', islenen, toplam, pusuHazir, trendHazir: sniperHazir, sniperHazir,
+                oran: ratio, hata: pusuHata + sniperHata, sonIlerleme: new Date().toISOString()
             };
             h.state.sembolVeriSagligi = {
                 ...(h.state.sembolVeriSagligi || {}),
                 durum: ratio >= threshold ? 'HEALTHY' : 'CALISIYOR',
                 istenen: Number(ayarlar.taranacakCoinSayisi || 200), secilen: toplam,
                 mumHazir: pusuHazir, mumHata: pusuHata,
-                superTrendHazir: trendHazir, superTrendHata: trendHata,
+                sniperHazir, superTrendHazir: sniperHazir, superTrendHata: sniperHata,
                 sonGuncelleme: new Date().toISOString()
             };
-            startupMarketDurumuGuncelle('INITIAL_CORE_PROGRESS');
+            startupMarketDurumuGuncelle('INITIAL_GOLDEN_RENKO_PROGRESS');
             if (islenen === toplam || islenen % 25 === 0) {
-                console.log(`⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] İşlenen ${islenen}/${toplam} | 15m Mum ${pusuHazir}/${toplam} | ${trendTf} ST ${trendHazir}/${toplam} | Hata ${pusuHata + trendHata}`);
+                console.log(`⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] İşlenen ${islenen}/${toplam} | ${pusuTf} Mum ${pusuHazir}/${toplam} | ${sniperTf} Renko ST veri ${sniperHazir}/${toplam} | Hata ${pusuHata + sniperHata}`);
             }
         }, { concurrency: startupConcurrency, workers: startupWorkers });
 
         h.state.semboller = tumSemboller;
         const pusuHazir = Object.keys(h.state.yerelPusuHafizasi || {}).length;
-        const trendHazir = Object.keys(h.state.trendSuperTrend || {}).length;
+        const sniperHazir = Object.keys(h.state.sniperMumlar || {}).length;
         const pusuRatio = pusuHazir / toplam;
-        const trendRatio = trendHazir / toplam;
+        const sniperRatio = sniperHazir / toplam;
         const now = Date.now();
         sonPusuDenemeBucket = closedCandleBucket(pusuTf, now);
         sonPusuDenemeZamani = now;
-        sonTrendDenemeBucket = closedCandleBucket(trendTf, now);
+        sonSniperDenemeBucket = closedCandleBucket(sniperTf, now);
         sonSuperTrendDenemeZamani = now;
         if (pusuRatio >= threshold) sonPusuBasariliBucket = sonPusuDenemeBucket;
-        if (trendRatio >= threshold) sonTrendBasariliBucket = sonTrendDenemeBucket;
-        h.state.sonTrendGuncellemeZamani = now;
+        if (sniperRatio >= threshold) sonSniperBasariliBucket = sonSniperDenemeBucket;
+        h.state.sonSniperGuncellemeZamani = now;
 
-        const gate = startupMarketDurumuGuncelle('INITIAL_CORE_COMPLETE');
+        const gate = startupMarketDurumuGuncelle('INITIAL_GOLDEN_RENKO_COMPLETE');
         h.state.sembolVeriSagligi = {
             ...(h.state.sembolVeriSagligi || {}),
             durum: gate.currentReady ? 'HEALTHY' : 'DEGRADED',
             mumHazir: pusuHazir, mumHata: pusuHata,
-            superTrendHazir: trendHazir, superTrendHata: trendHata,
+            sniperHazir, superTrendHazir: sniperHazir, superTrendHata: sniperHata,
             baslangicMumMs: now - baslangic, superTrendTazelemeMs: now - baslangic,
             sonGuncelleme: new Date().toISOString()
         };
         h.state.startupMarketWarmup = {
             ...(h.state.startupMarketWarmup || {}),
-            durum: gate.currentReady ? 'READY' : 'DEGRADED', asama: 'CORE_COMPLETE',
-            islenen: toplam, toplam, pusuHazir, trendHazir,
-            tamamlanma: new Date().toISOString(), hata: pusuHata + trendHata, sureMs: now - baslangic
+            durum: gate.currentReady ? 'READY' : 'DEGRADED', asama: 'GOLDEN_RENKO_CORE_COMPLETE',
+            islenen: toplam, toplam, pusuHazir, trendHazir: sniperHazir, sniperHazir,
+            tamamlanma: new Date().toISOString(), hata: pusuHata + sniperHata, sureMs: now - baslangic
         };
-        console.log(`${gate.currentReady ? '✅' : '⚠️'} [AŞAMALI BAŞLANGIÇ] ÇEKİRDEK ${gate.currentReady ? 'TAMAM' : 'DEGRADED'} | 15m Mum ${pusuHazir}/${toplam} | ${trendTf} ST ${trendHazir}/${toplam} | Eşik %${(threshold * 100).toFixed(0)} | Süre ${now - baslangic} ms.`);
+        console.log(`${gate.currentReady ? '✅' : '⚠️'} [AŞAMALI BAŞLANGIÇ] GOLDEN RENKO ${gate.currentReady ? 'TAMAM' : 'DEGRADED'} | ${pusuTf} Mum ${pusuHazir}/${toplam} | ${sniperTf} Renko ST veri ${sniperHazir}/${toplam} | Eşik %${(threshold * 100).toFixed(0)} | Süre ${now - baslangic} ms.`);
 
-        // 1m sniper/1m Renko kanıtı canlı giriş yetkisi değildir; çekirdek kapıyı bekletmeden LOW öncelikte doldurulur.
+        // ST1 3m yalnız shadow etki etiketi olarak arkada hazırlanır; giriş kapısını bekletmez.
         setImmediate(() => {
             superTrendHesapla(true, {
                 concurrency: ayarlar.binanceAgEszamanlilik || 3,
                 workers: ayarlar.binanceAgIsciSayisi || 8,
-                skipTrend: true,
+                skipSniper: true,
                 priority: 'LOW',
-                backgroundSniper: true
+                backgroundTrend: true
             }).then(x => {
                 if (x?.skipped) return;
-                console.log(`✅ [SNIPER GÖLGE ISINMA] 1m ${Number(x?.sniperGuncellenen || 0)}/${toplam} | Hata ${Number(x?.hata || 0)} | Giriş yetkisine etkisi YOK`);
-            }).catch(e => console.error(`⚠️ [SNIPER GÖLGE ISINMA] ${e.message} | Giriş yetkisi etkilenmedi.`));
+                console.log(`✅ [ST1 SHADOW ISINMA] ${trendTf} ${Number(x?.trendGuncellenen || 0)}/${toplam} | Hata ${Number(x?.hata || 0)} | Giriş yetkisine etkisi YOK`);
+            }).catch(e => console.error(`⚠️ [ST1 SHADOW ISINMA] ${e.message} | Golden Renko giriş yetkisi etkilenmedi.`));
         });
 
         return {
-            ready: gate.currentReady, pusuHazir, trendHazir, total: toplam,
-            ratio: gate.ratio, hata: pusuHata + trendHata, durationMs: now - baslangic,
-            coreRequests: toplam * 2, deferredSniperRequests: toplam
+            ready: gate.currentReady, pusuHazir, trendHazir: sniperHazir, sniperHazir, total: toplam,
+            ratio: gate.ratio, hata: pusuHata + sniperHata, durationMs: now - baslangic,
+            coreRequests: toplam * 2, deferredTrendRequests: toplam
         };
     } finally {
         ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
         periyodikTazelemeyiBaslat();
     }
 }
+
 
 async function pusuVerileriniTazele(options={}) {
     const baslangic=Date.now();
@@ -306,7 +309,7 @@ async function superTrendHesapla(baslangic=false, options={}) {
                 islenen++;
                 if(baslangic){
                     const toplam=Math.max(1,Number(h.state.semboller?.length||0));
-                    const asama=trendDue?'TREND_3M':'SNIPER_1M_GOLGE';
+                    const asama=sniperDue?'RENKO_ST_1M':'ST1_3M_SHADOW';
                     h.state.startupMarketWarmup={
                         ...(h.state.startupMarketWarmup||{}),durum:h.state.startupMarketReady===true?'READY':'CALISIYOR',
                         asama,islenen,toplam,trendHazir:trendDue?trendGuncellenen:Object.keys(h.state.trendSuperTrend||{}).length,sniperHazir:sniperDue?sniperGuncellenen:Object.keys(h.state.sniperMumlar||{}).length,sonIlerleme:new Date().toISOString()
@@ -315,9 +318,9 @@ async function superTrendHesapla(baslangic=false, options={}) {
                         ...(h.state.sembolVeriSagligi||{}),
                         sniperHazir:sniperDue?sniperGuncellenen:Object.keys(h.state.sniperMumlar||{}).length,superTrendHazir:trendDue?trendGuncellenen:Object.keys(h.state.trendSuperTrend||{}).length,secilen:toplam,sonGuncelleme:new Date().toISOString()
                     };
-                    if(trendDue) startupMarketDurumuGuncelle('INITIAL_SUPERTREND_PROGRESS');
+                    if(sniperDue || trendDue) startupMarketDurumuGuncelle('INITIAL_MARKET_PROGRESS');
                     if(islenen===toplam || islenen%25===0){
-                        console.log(`⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] ${asama} | İşlenen ${islenen}/${toplam} | 3m ST ${Object.keys(h.state.trendSuperTrend||{}).length}/${toplam} | 1m Gölge ${Object.keys(h.state.sniperMumlar||{}).length}/${toplam}`);
+                        console.log(`⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] ${asama} | İşlenen ${islenen}/${toplam} | 1m Renko veri ${Object.keys(h.state.sniperMumlar||{}).length}/${toplam} | 3m ST1 shadow ${Object.keys(h.state.trendSuperTrend||{}).length}/${toplam}`);
                     }
                 }
             }
@@ -332,10 +335,11 @@ async function superTrendHesapla(baslangic=false, options={}) {
         const sniperHazir=sniperDue?sniperGuncellenen:Object.keys(h.state.sniperMumlar||{}).length;
         const trendHazir=trendDue?trendGuncellenen:Object.keys(h.state.trendSuperTrend||{}).length;
         const pusuHazir=Object.keys(h.state.yerelPusuHafizasi||{}).length;
-        const coreHealthy=Math.min(pusuHazir/total,trendHazir/total)>=readyRatioThreshold();
-        h.state.sembolVeriSagligi={...(h.state.sembolVeriSagligi||{}),durum:coreHealthy?'HEALTHY':'DEGRADED',sniperHazir,superTrendHazir:trendHazir,superTrendHata:toplamHatali,superTrendTazelemeMs:Date.now()-baslamaZamani,sonGuncelleme:new Date().toISOString()};
-        if(trendDue) startupMarketDurumuGuncelle(baslangic ? 'INITIAL_SUPERTREND' : 'SUPERTREND_REFRESH');
-        console.log(`📊 [${new Date().toLocaleTimeString()}] Sniper gölge (${sniperTf}): ${sniperDue?sniperGuncellenen:'ATLANDI'} coin | ST1 trend/onay (${trendTf}): ${trendDue?trendGuncellenen:'ATLANDI'} coin güncellendi, ${toplamHatali} hata | süre ${Date.now()-baslamaZamani} ms.`);
+        const coreOnayHazir=ayarlar.entryStrategyMode==='ST2_RENKO'?sniperHazir:trendHazir;
+        const coreHealthy=Math.min(pusuHazir/total,coreOnayHazir/total)>=readyRatioThreshold();
+        h.state.sembolVeriSagligi={...(h.state.sembolVeriSagligi||{}),durum:coreHealthy?'HEALTHY':'DEGRADED',sniperHazir,superTrendHazir:coreOnayHazir,st1ShadowHazir:trendHazir,superTrendHata:toplamHatali,superTrendTazelemeMs:Date.now()-baslamaZamani,sonGuncelleme:new Date().toISOString()};
+        if(sniperDue || trendDue) startupMarketDurumuGuncelle(baslangic ? 'INITIAL_MARKET_DATA' : 'MARKET_DATA_REFRESH');
+        console.log(`📊 [${new Date().toLocaleTimeString()}] 1m Renko ST verisi (${sniperTf}): ${sniperDue?sniperGuncellenen:'ATLANDI'} coin | ST1 shadow (${trendTf}): ${trendDue?trendGuncellenen:'ATLANDI'} coin güncellendi, ${toplamHatali} hata | süre ${Date.now()-baslamaZamani} ms.`);
         return {skipped:false,sniperDue,trendDue,sniperGuncellenen,trendGuncellenen,hata:toplamHatali,durationMs:Date.now()-baslamaZamani};
     } finally { superTrendCalisiyor=false; }
 }

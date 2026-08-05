@@ -13,6 +13,7 @@ const labChampion = require('./61_lab_champion_engine.js');
 const labPremier = require('./62_lab_premier_league.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
+const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const realOrderPreparation = require('./67_real_order_preparation_intelligence.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
@@ -445,6 +446,7 @@ function minimalCanliRaporMetniOlustur() {
     const evo = renkoEntryEvolution.summary();
     const veriSagligi = st2VeriSagligiOzeti();
     const replayKatman = st2ReplayKatmanOzeti(tumAktifler);
+    const wrShadow = williamsCycleShadow.summary();
     const op = operationIntelligence.build(tumAktifler);
     const aggregate = op.model?.aggregate || {};
     const accounting = op.model?.accounting || {};
@@ -489,7 +491,8 @@ function minimalCanliRaporMetniOlustur() {
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         ...yonSatirlari('Shadow', shadow),
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
-        `🎯 Giriş Yetkisi ST2 Renko + ST1 Gate + Referans Kırılımı | Entry Evolution yalnız GÖLGE`,
+        `🎯 Giriş Yetkisi Golden ST2 Renko | Entry Evolution CANLI | 1m Renko ST | ST1 yalnız GÖLGE`,
+        `🔬 W%R Gölge N${Number(wrShadow.totals?.n || 0)} | Destek analizi ${Number(wrShadow.profiles?.length || 0)} profil | Tepe -10..0 / Dip -100..-90 | Emir etkisi YOK`,
         `🧪 DNA Exit Replay (GÖLGE) Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}`,
         `🧱 CANLI RENKO KÂR TAKİBİ Atanmış ${replayKatman.takeoverAssigned} | Devrede ${replayKatman.takeoverActivated} | Bekleyen ${replayKatman.takeoverWaiting} | Öğrenilmiş ${replayKatman.takeoverLearnedActive} | Kalıcı ${replayKatman.takeoverPersistedActive} | Varsayılan ${replayKatman.takeoverDefaultActive} | Hata ${replayKatman.takeoverAssignmentErrors}`,
     ];
@@ -575,6 +578,7 @@ function canliRaporMetniOlustur() {
         const scorePolicy = premierQuality.activePolicy();
         const veriSagligi = st2VeriSagligiOzeti();
         const replayKatman = st2ReplayKatmanOzeti(tumAktifler);
+    const wrShadow = williamsCycleShadow.summary();
         const renkoPremierPattern = Number(adaptiveSummary.health?.historicalPremierProfiles || 0);
         const renkoShadowDna = Math.max(0, Number(adaptiveSummary.health?.historicalProfiles || 0) - renkoPremierPattern);
         mesaj += `\n📊 <b>CANLI SONUÇ ÖZETİ</b>\n`;

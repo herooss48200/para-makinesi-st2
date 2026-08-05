@@ -3,6 +3,7 @@ const m = require('./motor.js');
 const ayarlar = require('./ayarlar.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
+const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
@@ -1058,6 +1059,14 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
         restartGap: restartGap.isQuarantined(pos)
     }); } catch (e) { console.log(`⚠️ [ST2 ENTRY EVOLUTION] ${e.message}`); }
+    if (!manuelDisKapanis) try { williamsCycleShadow.close(pos, {
+        net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
+        reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
+        restartGap: restartGap.isQuarantined(pos),
+        durationMs: Date.now() - Number(pos.acilisZamani || pos.zaman || Date.now()),
+        mfeYuzde: Number(pos?.journey?.mfePct || pos?.execution?.mfePct || pos?.maxKarYuzde || 0),
+        maeYuzde: Number(pos?.journey?.maePct || pos?.execution?.maePct || pos?.maxZararYuzde || 0)
+    }); } catch (e) { console.log(`⚠️ [W%R CYCLE SHADOW] ${e.message}`); }
     if (!manuelDisKapanis) try { renkoExitEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,

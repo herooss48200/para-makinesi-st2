@@ -1,15 +1,15 @@
 'use strict';
 // Compatibility marker: CALIBRATION-READY; gerçek emir için aktif kalibrasyon ayrıca zorunludur.
-// v6.12.1: çekirdek-önce piyasa ısınması + ilerleme kanıtı; ST2/ST1 giriş kurgusu korunur.
+// v6.12.2 FINAL: Golden Renko giriş zinciri + öğrenilmiş Entry Evolution canlı yetkisi.
 
 // v6.8.4 compatibility marker: 6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'CORE-FIRST-WARMUP-ST1-GATED-RENKO',
-    kod: 'AGROS ST2 v6.12.1 — CORE-FIRST STARTUP WARMUP & ST1 GATED RENKO',
-    botSurumu: '6.12.1-CORE-FIRST-WARMUP-ST1-GATED-RENKO',
-    stratejiSurumu: '1.0.36',
-    yayinTarihi: '04.08.2026',
+    kodAdi: 'GOLDEN-RENKO-FINAL-WILLIAMS-SHADOW',
+    kod: 'AGROS ST2 v6.12.2 — GOLDEN RENKO FINAL & WILLIAMS CYCLE SHADOW',
+    botSurumu: '6.12.2-GOLDEN-RENKO-FINAL-WILLIAMS-SHADOW',
+    stratejiSurumu: '1.0.37',
+    yayinTarihi: '05.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
 });
 

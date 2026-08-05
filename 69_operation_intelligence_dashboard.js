@@ -5,6 +5,7 @@
 const VERSION = 'v6.8.2-OPERATION-AND-LIFECYCLE-TRANSPARENCY';
 const runtimeVersion = require('./versiyon.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
+const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 const globalReconciliation = require('./78_st2_global_historical_reconciliation.js');
 const winningIntelligence = require('./75_st2_winning_intelligence.js');
@@ -129,6 +130,7 @@ function telegram(activePositions=[], prebuilt=null){
   const d=prebuilt||build(activePositions); const m=d.model; const a=m.aggregate||{}; const r=m.trackMetrics?.reverse||{}; const l=m.league||{}; const ac=m.accounting||{};
   const displayVersion = runtimeVersion.botSurumu || runtimeVersion.kod || VERSION;
   const renko = renkoEntryEvolution.summary();
+  const wrShadow = williamsCycleShadow.summary();
   const adaptiveSummary = adaptiveDnaEntry.summary();
   const renkoPremierPatterns = n(adaptiveSummary.health?.historicalPremierProfiles);
   const renkoShadowDnas = Math.max(0,n(adaptiveSummary.health?.historicalProfiles)-renkoPremierPatterns);
@@ -163,6 +165,7 @@ function telegram(activePositions=[], prebuilt=null){
   }
   t+=`📦 Premier gözlem defteri: Canlı bilimsel ${n(ac.activeScientific)} | Restart-GAP ${n(ac.activeGap)} | GAP kapanan ${n(ac.closedGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;
+  t+=`🔬 W%R Gölge: N${n(wrShadow.totals?.n)} | Profil ${n(wrShadow.profiles?.length)} | Tepe -10..0 / Dip -100..-90 | Emir etkisi YOK\n`;
   const top=d.premier.slice(0,5);
   if(top.length){
     t+='\n🏆 <b>PREMIER KARAR VE FORM ÖZETİ</b>\n';

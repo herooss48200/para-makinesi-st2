@@ -135,7 +135,8 @@ Module._load = function patched(request, parent, isMain) {
     h.state.startupMarketWarmup = { durum: 'DEGRADED' };
     h.state.semboller = ['AUSDT', 'BUSDT'];
     h.state.yerelPusuHafizasi = { AUSDT: [{}], BUSDT: [{}] };
-    h.state.trendSuperTrend = { AUSDT: 'UP', BUSDT: 'DOWN' };
+    h.state.sniperMumlar = { AUSDT: [{}], BUSDT: [{}] };
+    h.state.trendSuperTrend = {};
     const recoveredGate = rev._startupMarketDurumuGuncelle('TEST_RECOVERY');
     assert.strictEqual(recoveredGate.currentReady, true);
     assert.strictEqual(h.state.startupMarketReady, true, 'degraded startup did not recover entry gate');
@@ -149,7 +150,7 @@ Module._load = function patched(request, parent, isMain) {
     assert(realSrc.includes('gercekStopMinGuncellemeAralikMs'));
     assert(realSrc.includes('Hesap-geneli AGROS Algo/normal emir temizliği'));
     assert(!realSrc.includes('const symbols = new Set([\n    ...Object.values(state.records)'), 'startup still performs historical N-symbol algo sweep');
-    assert(marketSrc.includes("setImmediate(() => {\n                Promise.resolve(h.telegramMesajGonderKritikTeslim"));
+    assert(/setImmediate\(\(\)\s*=>\s*\{\s*Promise\.resolve\(h\.telegramMesajGonderKritikTeslim/.test(marketSrc));
     assert(!marketSrc.includes("await h.telegramMesajGonder([\n                '🔄 GERÇEK RESTART KAPANIŞ MUTABAKATI'"), 'restart close Telegram still blocks startup');
     const positionSrc = fs.readFileSync(path.join(__dirname, '4_pozisyon.js'), 'utf8');
     assert(positionSrc.includes('realStopRetryLastPersistSignature'));
@@ -173,7 +174,7 @@ Module._load = function patched(request, parent, isMain) {
     assert.strictEqual(cooldownResult.reason, 'STOP_REPLACE_COOLDOWN');
     assert.strictEqual(cooldownResult.localFastFail, true);
     assert.strictEqual(cooldownNetworkCalls, 0, 'cooldown performed an unnecessary Binance call');
-    assert.strictEqual(version.botSurumu, '6.12.1-CORE-FIRST-WARMUP-ST1-GATED-RENKO');
+    assert.strictEqual(version.botSurumu, '6.12.2-GOLDEN-RENKO-FINAL-WILLIAMS-SHADOW');
     assert.strictEqual(op.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(real.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');

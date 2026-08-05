@@ -112,7 +112,8 @@ try {
   assert(reportSource.includes('DNA Exit Replay (GÖLGE)'));
   assert(reportSource.includes('CANLI RENKO KÂR TAKİBİ'));
   assert(reportSource.includes('Entry Evolution'));
-  assert(reportSource.includes('Entry Evolution yalnız GÖLGE'));
+  assert(reportSource.includes('Entry Evolution CANLI'));
+  assert(reportSource.includes('ST1 yalnız GÖLGE'));
   assert(!reportSource.includes('Uygulama ${Number(evo.decisionChain?.entry?.matched'));
 
   const motorSource = fs.readFileSync(path.join(__dirname, 'motor.js'), 'utf8');
@@ -120,7 +121,7 @@ try {
   assert(motorSource.indexOf('renkoExitEvolution.assign(yeniPozisyon)') < motorSource.indexOf('exitMethodScoreboard.open(yeniPozisyon)'), 'sanal pozisyon ataması scoreboard sonrasına kalmış');
 
   const entrySource = fs.readFileSync(path.join(__dirname, '72_st2_renko_entry.js'), 'utf8');
-  assert(entrySource.includes('const adaptiveEntryDecision = aktifTuglaKarari(pusu);'), 'Entry Evolution seçimi pusu tetik fiyatına tekil bağlanmamış');
+  assert(entrySource.includes('const adaptiveEntryDecision = pusu.adaptiveEntryDecisionAtSignal || aktifTuglaKarari(pusu);'), 'Entry Evolution seçimi pusu tetik fiyatına tekil bağlanmamış');
   assert(entrySource.includes('renkoEntryBrickDistance: selectedEntryBrick'), 'seçilen giriş tuğlası pozisyona dondurulmuyor');
 
   const scoreboard = require('./52_exit_method_scoreboard.js');

@@ -1,0 +1,15 @@
+AGROS ST2 v6.12.2 FINAL R2 — TEST SONUCU
+
+DOĞRULANANLAR
+- test_v6110_golden_live_chain.js: PASS (Windows CRLF/LF bağımsız assertion)
+- test_v6112_direct_profit_floor_two_slot.js: PASS
+- test_v6122_golden_renko_williams_shadow.js: PASS
+- Öğrenilmiş Entry Evolution seviyesi korunuyor.
+- Öğrenilmemiş pattern varsayılanı 0.75T.
+- Golden Renko canlı giriş yetkisi: Entry Evolution hedefi + 1m Renko SuperTrend.
+- ST1 15m/3m hard gate ve taze yeniden kırılım zorunluluğu yok.
+- Williams %R yalnız gölge: tepe -10..0, dip -100..-90.
+- Premier matematiği değiştirilmedi; reddedilen geçerli sinyaller Shadow izlenir.
+
+TEST BAĞLAMI
+Kullanıcının Windows tam test zinciri v6.10.9 dahil PASS etmiş, v6.11.0 testi yalnız satır sonuna duyarlı metin eşleşmesinde durmuştu. FINAL R2 bu assertionı boşluk ve CRLF/LF bağımsız regex ile düzeltti. Düzeltilmiş v6.11.0 ile takip eden v6.11.2 ve v6.12.2 testleri birleşik tam kaynak üzerinde PASS oldu.

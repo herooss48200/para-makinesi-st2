@@ -143,10 +143,10 @@ async function baslat() {
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
             `🧪 Emir Modu: ${emirModu}\n` +
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
-            `📊 Strateji: ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} Renko pusu + ST1 ${ayarlar.pusuPeriyodu}/${ayarlar.superTrendPeriyodu || ayarlar.trendPeriyodu} giriş kapısı + referans tuğla canlı kırılımı\n` +
+            `📊 Strateji: ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} ATR-Renko pusu + Entry Evolution + 1m Renko SuperTrend\n` +
             `📡 İzlenen Evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)} | Veri ${h.state.sembolVeriSagligi?.durum || 'BEKLIYOR'}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
-            `🧬 Sanal öğrenme: Renko exact-context + Premier kalite puanı\n` +
+            `🧬 Sanal öğrenme: Renko exact-context + Premier kalite puanı + Williams %R dar-bölge gölge döngüsü\n` +
             `⭐ Premier seçimi: PF + expectancy + canlı form + Entry + Takeover + örnek güveni\n` +
             `📊 Karar: minimum kalite eşiği + göreceli sıralama; geçiş nedeni açık\n` +
             `🔒 Gerçek emir: fail-closed\n` +

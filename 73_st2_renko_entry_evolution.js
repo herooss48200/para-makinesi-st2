@@ -191,9 +191,9 @@ function choose(p){
   const rows=Object.entries(p.candidates||{}).map(([key,val])=>({key,...metric(val)}));
   const eligible=rows.filter(x=>x.triggered>=FIRST_ASSIGN()&&x.net>0&&x.pf>1&&x.expectancy>0&&x.weightedExpectancy>0)
     .sort((a,b)=>b.net-a.net||b.score-a.score||b.weightedExpectancy-a.weightedExpectancy||Number(a.key)-Number(b.key));
-  const best=eligible[0]||null; const current=rows.find(x=>x.key===n(p.activeBrick,0.25).toFixed(2))||null;
+  const best=eligible[0]||null; const current=rows.find(x=>x.key===n(p.activeBrick,DEFAULT_BRICK()).toFixed(2))||null;
   if(!best) return {ready:false,best:null,current,reason:`N${FIRST_ASSIGN()}_VE_POZITIF_NET_BEKLENIYOR`};
-  if(best.key===n(p.activeBrick,0.25).toFixed(2)) return {ready:false,best,current,reason:'MEVCUT_GIRIS_ZATEN_EN_COK_NET_KAZANDIRIYOR'};
+  if(best.key===n(p.activeBrick,DEFAULT_BRICK()).toFixed(2)) return {ready:false,best,current,reason:'MEVCUT_GIRIS_ZATEN_EN_COK_NET_KAZANDIRIYOR'};
   if(current&&current.triggered>=FIRST_ASSIGN()&&best.score<=current.score+MIN_IMPROVEMENT()) return {ready:false,best,current,reason:'FARK_ANLAMLI_DEGIL'};
   return {ready:true,best,current,reason:'EN_YUKSEK_NET_GUNCEL_AGIRLIKLI'};
 }
@@ -260,7 +260,7 @@ function dynamicExitHit(id,ctx,row){
   return {hit:false};
 }
 function replayCandidate(pos,result,pusu,brickDistance,points){
-  const yon=String(pusu.yon).toUpperCase(), entry=targetPrice(pusu,brickDistance), activeAtOpen=n(pos?.girisAnalizi?.renkoEntryBrickDistance,0.25);
+  const yon=String(pusu.yon).toUpperCase(), entry=targetPrice(pusu,brickDistance), activeAtOpen=n(pos?.girisAnalizi?.renkoEntryBrickDistance,DEFAULT_BRICK());
   const shadowOnlyTiming=String(pos?.girisAnalizi?.entryEvolutionMode||'').toUpperCase()==='SHADOW_ONLY';
   let triggerIndex=points.findIndex(x=>yon==='SHORT'?x.p<=entry:x.p>=entry);
   // v6.12.0: gerçek giriş referans Renko + ST1 kapısındaysa aday tuğla tetiklenmiş varsayılamaz.

@@ -164,14 +164,23 @@ const ayarlar = {
     renkoGirisGuncelPencere: 10,
     renkoGirisGuncelAgirlik: 0.65,
     renkoGirisMinSkorIyilesme: 0.005,
-    // v6.12.0: Entry Evolution gerçek giriş zamanını artık bekletmez; bütün tuğla adayları
-    // bilimsel shadow replay olarak korunur. Canlı giriş yetkisi ST1 kapısı + referans Renko kırılımındadır.
-    renkoGirisCanliYetkiAktif: false,
-    st2St1GirisKapisiAktif: true,
-    st2St1KarsiYonPusuIptal: true,
-    st2St1KarsiTrendPusuIptal: true,
-    // ST2 pususu Renko tuğla üretim hızına göre saatlerce yaşamaz; kapanmış 15m kaynak mumuyla yaşlanır.
-    maxPusuBeklemeTugla: 3, // legacy/rapor uyumluluğu; canlı süre yetkisi maxPusuBeklemeMum'dadır.
+    // v6.12.2: Golden Renko geri dönüşü. Öğrenilmiş Entry Evolution 0.25T–1.50T kararı
+    // canlı/sanal girişin fiyat yetkisidir; ST1 yalnız shadow etki etiketi olarak tutulur.
+    renkoGirisCanliYetkiAktif: true,
+    st2St1GirisKapisiAktif: false,
+    st2St1KarsiYonPusuIptal: false,
+    st2St1KarsiTrendPusuIptal: false,
+    // Pusu ömrü tekrar kapanmış Renko tuğlalarıyla ölçülür.
+    maxPusuBeklemeTugla: 3,
+
+    // Williams %R Cycle Shadow Lab — ana emri açmaz veya engellemez.
+    // Gürültüyü azaltmak için dar ekstrem bölgeler: tepe -10..0, dip -100..-90.
+    williamsCycleShadowAktif: true,
+    williamsCyclePeriod: 14,
+    williamsCycleTepeEsigi: -10,
+    williamsCycleTepeResetEsigi: -20,
+    williamsCycleDipEsigi: -90,
+    williamsCycleDipResetEsigi: -80,
 
 
     // v2.1.13: Geç giriş koruması.

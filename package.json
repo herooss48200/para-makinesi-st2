@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.12.1-core-first-warmup-st1-gated-renko",
-  "description": "AGROS ST2 v6.12.1: çekirdek-önce 15m Renko + 3m ST1 başlangıç ısınması, ilerleme kanıtı, ertelenmiş 1m gölge ve ST1-gated Renko giriş.",
+  "version": "6.12.2-golden-renko-final-williams-shadow",
+  "description": "AGROS ST2 v6.12.2 FINAL: öğrenilmiş Entry Evolution seviyeleri canlı yetki, 1m Renko SuperTrend, Premier/Shadow ayrımı korunur; Williams %R dar ekstrem döngüsü yalnız gölge.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112 && npm run test:v6120 && npm run test:v6121",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112 && npm run test:v6122",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -37,7 +37,8 @@
     "test:v6110": "node test_v6110_golden_live_chain.js",
     "test:v6112": "node test_v6112_direct_profit_floor_two_slot.js",
     "test:v6120": "node test_v6120_st1_gated_renko_directional_report.js",
-    "test:v6121": "node test_v6121_core_first_startup_warmup.js"
+    "test:v6121": "node test_v6121_core_first_startup_warmup.js",
+    "test:v6122": "node test_v6122_golden_renko_williams_shadow.js"
   },
   "dependencies": {
     "axios": "^1.13.2",
