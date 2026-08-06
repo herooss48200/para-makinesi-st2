@@ -270,7 +270,8 @@ async function pusuVerileriniTazele(options={}) {
         const hata=sonuclar.filter(x=>!x.ok).length;
         if(guncellenen/Math.max(1,h.state.semboller.length)>=readyRatioThreshold()) sonPusuBasariliBucket=bucket;
         h.state.sonPusuTaramaZamani=Date.now();
-        const mumCacheHazir=Object.keys(h.state.yerelPusuHafizasi||{}).length;
+        const aktifEvren=new Set((h.state.semboller||[]).map(String));
+        const mumCacheHazir=Object.keys(h.state.yerelPusuHafizasi||{}).filter(sym=>aktifEvren.has(String(sym))).length;
         h.state.sembolVeriSagligi={
             ...(h.state.sembolVeriSagligi||{}),
             durum:mumCacheHazir/Math.max(1,h.state.semboller.length)>=readyRatioThreshold()?'HEALTHY':'DEGRADED',
@@ -354,11 +355,12 @@ async function superTrendHesapla(baslangic=false, options={}) {
         const total=Math.max(1,h.state.semboller.length);
         const sniperHazir=sniperDue?sniperGuncellenen:Object.keys(h.state.sniperMumlar||{}).length;
         const trendHazir=trendDue?trendGuncellenen:Object.keys(h.state.trendSuperTrend||{}).length;
-        const pusuHazir=Object.keys(h.state.yerelPusuHafizasi||{}).length;
+        const aktifEvren=new Set((h.state.semboller||[]).map(String));
+        const pusuHazir=Object.keys(h.state.yerelPusuHafizasi||{}).filter(sym=>aktifEvren.has(String(sym))).length;
         const coreOnayHazir=ayarlar.entryStrategyMode==='ST2_RENKO'?sniperHazir:trendHazir;
         const coreHealthy=Math.min(pusuHazir/total,coreOnayHazir/total)>=readyRatioThreshold();
-        const sniperCacheHazir=Object.keys(h.state.sniperMumlar||{}).length;
-        const trendCacheHazir=Object.keys(h.state.trendSuperTrend||{}).length;
+        const sniperCacheHazir=Object.keys(h.state.sniperMumlar||{}).filter(sym=>aktifEvren.has(String(sym))).length;
+        const trendCacheHazir=Object.keys(h.state.trendSuperTrend||{}).filter(sym=>aktifEvren.has(String(sym))).length;
         const coreCacheHazir=ayarlar.entryStrategyMode==='ST2_RENKO'?sniperCacheHazir:trendCacheHazir;
         const cacheHealthy=Math.min(pusuHazir/total,coreCacheHazir/total)>=readyRatioThreshold();
         h.state.sembolVeriSagligi={

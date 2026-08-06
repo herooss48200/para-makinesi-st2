@@ -763,17 +763,46 @@ function updateBrick(pos, price) {
   const trail = n(a.assignedTrailBricks, DEFAULT_TRAIL());
   const brickStop = pos.yon === 'LONG' ? anchor - box * trail : anchor + box * trail;
   const floor = n(pos.renkoExitFirstProtectionStop, safeStop);
+
+  // v6.13.3: Geniş tuğla profillerinde (örn. 1.25T) brickStop uzun süre kâr
+  // tabanının altında kalabiliyordu. Bu durumda %1.5+ MFE görülmesine rağmen
+  // stop +%0.30 net tabanda kalıyor ve kazancın büyük kısmı geri veriliyordu.
+  // Öğrenilmiş MFE capture profili runner arm eşiğinden sonra dördüncü monoton
+  // stop adayıdır. Mevcut stopu veya güvenli tabanı asla aşağı çekemez.
+  const captureRatio = validCapture(a.assignedCaptureRatio);
+  const captureArmPct = Math.max(MFE_ARM_PROFIT_PCT(), validTakeover(a.assignedTakeoverPct));
+  // MFE audit zirvesi her tickte büyür; fakat canlı stop yalnız tamamlanmış Renko
+  // adımında yeniden fiyatlanır. Böylece sub-brick gürültü Binance stopunu oynatmaz.
+  if (completedSteps > 0) {
+    pos.renkoExitCommittedCapturePeakPct = Math.max(
+      n(pos.renkoExitCommittedCapturePeakPct),
+      peakPct
+    );
+  }
+  const committedCapturePeakPct = n(pos.renkoExitCommittedCapturePeakPct);
+  const captureStop = committedCapturePeakPct >= captureArmPct && captureRatio > 0
+    ? priceFromProfitPct(pos.yon, entry, committedCapturePeakPct * captureRatio)
+    : null;
+  const captureStopValue = Number(captureStop);
+  const captureCandidate = Number.isFinite(captureStopValue) && captureStopValue > 0
+    ? captureStopValue
+    : (pos.yon === 'LONG' ? 0 : Number.POSITIVE_INFINITY);
+
   const effective = pos.yon === 'LONG'
-    ? Math.max(currentStop, floor, brickStop)
-    : Math.min(currentStop, floor, brickStop);
+    ? Math.max(currentStop, floor, brickStop, captureCandidate)
+    : Math.min(currentStop, floor, brickStop, captureCandidate);
   if (!(effective > 0) || !Number.isFinite(effective)) {
-    return { active: true, justFloorLocked, justActivated, changed: floorChanged, reason: 'INVALID_EFFECTIVE_STOP', effective, brickStop, floor };
+    return { active: true, justFloorLocked, justActivated, changed: floorChanged, reason: 'INVALID_EFFECTIVE_STOP', effective, brickStop, floor, captureStop };
   }
   const changed = pos.yon === 'LONG' ? effective > old : effective < old;
   const eps = Math.max(1e-12, Math.abs(effective) * 1e-10);
   const source = Math.abs(effective - floor) <= eps
     ? 'KOMISYON_GUVENLI_TABAN'
-    : (Math.abs(effective - brickStop) <= eps ? 'RENKO_TUGLA_TAKIP' : 'MEVCUT_STOP');
+    : (Math.abs(effective - brickStop) <= eps
+      ? 'RENKO_TUGLA_TAKIP'
+      : (Number.isFinite(captureStopValue) && Math.abs(effective - captureStopValue) <= eps
+        ? 'MFE_KORUMA'
+        : 'MEVCUT_STOP'));
   if (changed) {
     pos.sl = effective;
     pos.renkoExitAppliedTrailBricks = trail;
@@ -794,8 +823,8 @@ function updateBrick(pos, price) {
     pos.renkoProtectionState = 'RENKO_TUGLA_TAKIP_AKTIF';
   }
   return {
-    active: true, justFloorLocked, justActivated, changed, effective, brickStop, safeFloor: floor,
-    source, sourceLabel: sourceLabel(source), peakProfitPct: peakPct, trail,
+    active: true, justFloorLocked, justActivated, changed, effective, brickStop, captureStop, safeFloor: floor,
+    source, sourceLabel: sourceLabel(source), peakProfitPct: peakPct, committedCapturePeakPct, trail, captureRatio, captureArmPct,
     rawPeak: pos.renkoExitPeak, trailAnchor: anchor, advancedBricks,
     stopUpdateStepBricks: stepBricks, liveMode: LIVE_MODE(),
     floorArmPct: readiness.floorArmPct, activationPct: readiness.activationPct,

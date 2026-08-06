@@ -400,7 +400,9 @@ function st2VeriSagligiOzeti() {
     return {
         istenen, secilen, durum,
         evrenMs: Number(evren.durationMs || veri.evrenYuklemeMs || 0),
-        mumHazir: Number(veri.mumHazir || 0), superTrendHazir: Number(veri.superTrendHazir || 0),
+        // Cache sayıları yardımcı/eski semboller yüzünden paydadan büyük görünemez.
+        mumHazir: Math.min(secilen, Math.max(0, Number(veri.mumHazir || 0))),
+        superTrendHazir: Math.min(secilen, Math.max(0, Number(veri.superTrendHazir || 0))),
         hata: Number(veri.hata || 0) + Number(veri.mumHata || 0) + Number(veri.superTrendHata || 0),
         taranan: Number(tarama.taranan || 0),
         taramaEvreni: Number(tarama.evren || secilen || 0),
