@@ -21,7 +21,7 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const version = require('./versiyon.js');
 
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 2, 'gerçek pozisyon limiti ayarlardan 2 olmalı');
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 10, 'gerçek pozisyon limiti ayarlardan 10 olmalı');
   assert.strictEqual(ayarlar.renkoCikisKarTabaniAktivasyonYuzde, 0.50);
   assert.strictEqual(ayarlar.renkoCikisCanliAktivasyonYuzde, 0.60);
   assert.strictEqual(ayarlar.renkoCikisGuvenliKarTabaniYuzde, 0.40);
