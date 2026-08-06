@@ -402,7 +402,14 @@ function st2VeriSagligiOzeti() {
         evrenMs: Number(evren.durationMs || veri.evrenYuklemeMs || 0),
         mumHazir: Number(veri.mumHazir || 0), superTrendHazir: Number(veri.superTrendHazir || 0),
         hata: Number(veri.hata || 0) + Number(veri.mumHata || 0) + Number(veri.superTrendHata || 0),
-        taranan: Number(tarama.taranan || 0), veriEksik: Number(tarama.veriEksik || 0), taramaMs: Number(tarama.sureMs || 0)
+        taranan: Number(tarama.taranan || 0),
+        taramaEvreni: Number(tarama.evren || secilen || 0),
+        veriEksik: Number(tarama.veriEksik || 0),
+        taramaMs: Number(tarama.sureMs || 0),
+        mumSonTur: Number(veri.mumSonTurGuncellenen || 0),
+        stSonTur: Number(veri.superTrendSonTurGuncellenen || 0),
+        pusuTazelemeCalisiyor: veri.pusuTazelemeCalisiyor === true,
+        stTazelemeCalisiyor: veri.superTrendTazelemeCalisiyor === true
     };
 }
 
@@ -485,7 +492,10 @@ function minimalCanliRaporMetniOlustur() {
         `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
         `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Score-Premier ${premierAktifler.length} | Shadow Öğrenme ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
         `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
-        `📡 Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Tarama ${veriSagligi.taranan}/${veriSagligi.secilen} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
+        `📡 Hazır cache Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | 1m Renko ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Son Renko tarama ${veriSagligi.taranan}/${veriSagligi.taramaEvreni} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
+        ...((veriSagligi.pusuTazelemeCalisiyor || veriSagligi.stTazelemeCalisiyor)
+            ? [`🔄 Veri tazeleme sürüyor | Son tur Mum ${veriSagligi.mumSonTur} | ST ${veriSagligi.stSonTur} | Hazır cache korunuyor`]
+            : []),
         `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
         `💰 Bilimsel Premier N${Number(premierScientific.n || 0)} | ✅${Number(premierScientific.tp || 0)} ❌${Number(premierScientific.sl || 0)} ⚖️${Number(premierScientific.be || 0)} | Net ${sign(premierScientific.net)} | PF ${pfMetni(premierScientific.pf)}`,
         ...yonSatirlari('Bilimsel', premierScientific),

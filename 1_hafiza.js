@@ -32,7 +32,7 @@ binanceTimeAuthority.wrapClient(client, SIGNED_FUTURES_METHODS, { recvWindow: Nu
 const state = {
     semboller: [],
     sembolEvreniKaniti: null,
-    sembolVeriSagligi: { durum: 'BEKLIYOR', istenen: 0, secilen: 0, mumHazir: 0, superTrendHazir: 0, hata: 0, sonGuncelleme: null },
+    sembolVeriSagligi: { durum: 'BEKLIYOR', istenen: 0, secilen: 0, mumHazir: 0, superTrendHazir: 0, mumSonTurGuncellenen: 0, superTrendSonTurGuncellenen: 0, pusuTazelemeCalisiyor: false, superTrendTazelemeCalisiyor: false, hata: 0, sonGuncelleme: null },
     st2TaramaSagligi: { durum: 'BEKLIYOR', evren: 0, taranan: 0, veriEksik: 0, sureMs: 0, sonTamamlanma: null },
     startupMarketReady: false,
     startupMarketWarmup: { durum: 'BEKLIYOR', baslangic: null, tamamlanma: null, pusuHazir: 0, trendHazir: 0, oran: 0, hata: 0 },
