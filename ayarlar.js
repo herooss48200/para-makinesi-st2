@@ -657,7 +657,7 @@ const ayarlar = {
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
     // Şimdiki kontrollü doğrulama değeri 2'dir.
-    gercekEmirMaxAktifPozisyon: 2,
+    gercekEmirMaxAktifPozisyon: 10,
     // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
     // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
     canliShadowOgrenmeAktif: true,
