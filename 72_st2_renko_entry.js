@@ -14,6 +14,8 @@ const pusuNotificationDedupe = require('./81_st2_pusu_notification_dedupe.js');
 const st1EntryGate = require('./87_st2_st1_entry_gate.js'); // yalnız shadow etki etiketi
 const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
 const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
+const renkoEntryModePolicy = require('./90_st2_renko_entry_mode_policy.js');
+// v6.12.3 compatibility marker: entryTimingAuthority: 'RENKO_EVOLUTION_1M_RENKO_ST'
 
 let baslangicPusuOzetiGonderildi = false;
 let baslangicPusuOzetiIsleniyor = false;
@@ -387,9 +389,17 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
         yeniPusu.renkoSonTuglaDizisi = exactContext.renko6;
         yeniPusu.renkoSon10Tugla = tuglaKaniti(bricks, Number(ayarlar.renkoKanitTuglaSayisi || 10));
         const frozenEntryDecision = aktifTuglaKarari(yeniPusu);
-        yeniPusu.renkoEntryBrickDistance = Number(frozenEntryDecision.brick || entryEvolution.DEFAULT_BRICK());
+        const entryModeDecision = renkoEntryModePolicy.select(yeniPusu);
+        yeniPusu.entryModeDecisionAtSignal = entryModeDecision;
+        yeniPusu.entryMode = entryModeDecision.selectedMode;
+        yeniPusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
+        // DIRECT offset mevcut Entry Evolution / Adaptive DNA otoritesinden gelir.
+        // CONFIRMED offset ise kapanmış 1m dönüş tuğlasından sonra ölçülür.
+        yeniPusu.renkoEntryBrickDistance = entryModeDecision.selectedMode === 'DIRECT'
+            ? Number(frozenEntryDecision.brick || entryEvolution.DEFAULT_BRICK())
+            : Number(entryModeDecision.selectedOffsetT || 0.25);
         yeniPusu.adaptiveEntryDecisionAtSignal = frozenEntryDecision;
-        yeniPusu.canliTetikFiyati = canliTetikFiyati(yeniPusu);
+        yeniPusu.canliTetikFiyati = entryModeDecision.selectedMode === 'DIRECT' ? canliTetikFiyati(yeniPusu) : null;
         const pusuKaniti = pusuOlusumKanitiMetni(sym, yeniPusu);
         yeniPusu.renkoPusuKanitMetni = pusuKaniti;
         const gateOzeti = pusuGateOzeti(yeniPusu);
@@ -497,18 +507,42 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     // Golden Renko: Entry Evolution kararı pusu oluşumunda dondurulur ve
     // gerçek/sanal girişin doğrudan fiyat yetkisidir.
     const adaptiveEntryDecision = pusu.adaptiveEntryDecisionAtSignal || aktifTuglaKarari(pusu);
-    const selectedEntryBrick = Number(pusu.renkoEntryBrickDistance || adaptiveEntryDecision.brick || entryEvolution.DEFAULT_BRICK());
-    const target = entryEvolution.targetPrice(pusu, selectedEntryBrick);
-    const historicalEntryGate = adaptiveDnaEntry.gateDecision({
+    const entryModeDecision = pusu.entryModeDecisionAtSignal || renkoEntryModePolicy.select(pusu);
+    pusu.entryModeDecisionAtSignal = entryModeDecision;
+    pusu.entryMode = entryModeDecision.selectedMode;
+    pusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
+    const selectedEntryBrick = Number(entryModeDecision.selectedMode === 'DIRECT'
+        ? (pusu.renkoEntryBrickDistance || adaptiveEntryDecision.brick || entryEvolution.DEFAULT_BRICK())
+        : (entryModeDecision.selectedOffsetT || 0.25));
+    const onayBricksForMode = onay1m?.bricks || store.onaySerileri1m?.[sym] || [];
+    const confirmationGate = entryModeDecision.selectedMode === 'CONFIRMED'
+        ? renkoEntryModePolicy.confirmationTarget(pusu, onayBricksForMode, Number(store.onayBoxSize1m?.[sym] || pusu.renkoOnayBoxSize1m || 0))
+        : null;
+    const target = entryModeDecision.selectedMode === 'CONFIRMED'
+        ? Number(confirmationGate?.targetPrice || 0)
+        : entryEvolution.targetPrice(pusu, selectedEntryBrick);
+    const historicalEntryGateRaw = adaptiveDnaEntry.gateDecision({
         ...pusu,
         renkoEntryBrickDistance: selectedEntryBrick,
         adaptiveDnaEntryDecision: adaptiveEntryDecision
     }, selectedEntryBrick);
+    // Premier/Shadow yeterlilik kapısı ile giriş zamanlaması birbirinden ayrıdır.
+    // CONFIRMED modunda gate'in öğrendiği DIRECT tuğla yalnız yeterlilik kanıtıdır;
+    // gerçek tetik offset'i seçilmiş CONFIRMED değeridir.
+    const historicalEntryGate = entryModeDecision.selectedMode === 'CONFIRMED'
+        ? { ...historicalEntryGateRaw, qualificationBrick: Number(historicalEntryGateRaw.brick), brick: selectedEntryBrick, entryMode: 'CONFIRMED' }
+        : historicalEntryGateRaw;
 
     if (!(target > 0)) {
+        if (entryModeDecision.selectedMode === 'CONFIRMED') {
+            pusu.confirmationWaitReason = confirmationGate?.reason || 'CONFIRMATION_NOT_READY';
+            pusu.sonCanliFiyat = price;
+            if (audit) audit.fiyatBekleyen++;
+            return false;
+        }
         store.sonIptalPatternSignature[sym] = pusu.patternSignature;
         delete store.pusular[sym];
-        console.log(`🧯 [ST2 PUSU İPTAL] ${sym} ${pusu.yon} | Entry Evolution tetik seviyesi geçersiz.`);
+        console.log(`🧯 [ST2 PUSU İPTAL] ${sym} ${pusu.yon} | DIRECT Entry Evolution tetik seviyesi geçersiz.`);
         return false;
     }
 
@@ -561,12 +595,16 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     );
     const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, renkoSt);
     console.log(`\n${renkoKanit}\n`);
-    console.log(`🎯 [GOLDEN RENKO TETİK] ${sym} ${pusu.yon} | Entry ${selectedEntryBrick.toFixed(2)}T ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${renkoSt?.trend || 'YOK'} | ST1 shadow ${st1Shadow?.reason || 'YOK'} | W%R ${williamsShadow.pattern}`);
+    console.log(`🎯 [GOLDEN RENKO TETİK] ${sym} ${pusu.yon} | Mode ${entryModeDecision.selectedMode} | Offset ${selectedEntryBrick.toFixed(2)}T ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${renkoSt?.trend || 'YOK'} | ST1 shadow ${st1Shadow?.reason || 'YOK'} | W%R ${williamsShadow.pattern}`);
 
     const girisAnalizi = {
         entryStrategy: 'ST2_RENKO',
-        entryTimingAuthority: 'RENKO_EVOLUTION_1M_RENKO_ST',
+        entryTimingAuthority: entryModeDecision.selectedMode === 'CONFIRMED' ? 'CLOSED_RENKO_REVERSAL_CONFIRMATION' : 'RENKO_EVOLUTION_1M_RENKO_ST',
         entryEvolutionMode: 'LIVE_AUTHORITY',
+        entryMode: entryModeDecision.selectedMode,
+        entryModeOffsetT: selectedEntryBrick,
+        entryModeDecision: entryModeDecision,
+        confirmationGate: confirmationGate,
         pusuPeriyodu: ayarlar.renkoKaynakPeriyodu || '15m',
         sniperPeriyodu: ayarlar.renkoOnayPeriyodu || '1m',
         trendPeriyodu: '1m_RENKO',
@@ -587,7 +625,7 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
             evolutionMode: 'LIVE_AUTHORITY',
             frozenAt: new Date().toISOString()
         },
-        tetikModu: 'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE',
+        tetikModu: entryModeDecision.selectedMode === 'CONFIRMED' ? 'RENKO_CLOSED_REVERSAL_PLUS_OFFSET' : 'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE',
         girisFiyati: price,
         superTrendYonu: renkoSt?.trend || null,
         stKaynak: '1m_RENKO',

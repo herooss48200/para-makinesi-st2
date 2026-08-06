@@ -175,7 +175,7 @@ function pozisyonSatiri(p) {
     }
 
     if (kademe) {
-        satir += ` | K${kademe}`;
+        satir += ` | TP${kademe}`;
     }
 
     const atama = p.renkoExitAssignment || {};
@@ -293,8 +293,9 @@ function learningEvolutionOzetMetni(s = {}) {
         const continuity = accountingContinuity.snapshot(h.state.aktifPozisyonlar || []);
         const current = continuity.current || {};
         const canonical = continuity.canonical || {};
-        const premierPartition = canonical.premier || {};
-        const shadowPartition = canonical.shadow || {};
+        const scientific = continuity.scientific || {};
+        const premierPartition = scientific.premier || canonical.premier || {};
+        const shadowPartition = scientific.shadow || canonical.shadow || {};
         const premierOpened = Number(premierPartition.opened ?? current.openedPremier ?? 0);
         const shadowOpened = Number(shadowPartition.opened ?? current.openedShadow ?? 0);
         const premierClosed = Number(premierPartition.closedScientific ?? current.closedPremier ?? 0);

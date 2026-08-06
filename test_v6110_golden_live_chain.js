@@ -114,7 +114,7 @@ Module._load = function patched(request, parent, isMain) {
     const syncIdx = botSrc.indexOf('await h.binanceTimeSync({ force: true })');
     const adoptIdx = botSrc.indexOf('await piyasa.acikPozisyonlariBorsadanDevral()');
     assert(syncIdx >= 0 && syncIdx < adoptIdx, 'time sync must precede exchange reconciliation');
-    assert(botSrc.includes('setImmediate(() => {\n            Promise.resolve(revizyon.derinGecmisiInsaEt())'));
+    assert(/setImmediate\s*\(\s*\(\)\s*=>\s*\{[\s\S]*?Promise\.resolve\s*\(\s*revizyon\.derinGecmisiInsaEt\s*\(\s*\)\s*\)/.test(botSrc), 'background historical warmup chain missing');
     assert(botSrc.indexOf('await p.izSurmeyiGuncelle();') < botSrc.indexOf("if (ayarlar.entryStrategyMode === 'ST2_RENKO')"));
     assert(botSrc.includes('h.state.startupMarketReady === true'));
     assert(botSrc.includes('[STARTUP ENTRY GATE]'));
@@ -174,7 +174,7 @@ Module._load = function patched(request, parent, isMain) {
     assert.strictEqual(cooldownResult.reason, 'STOP_REPLACE_COOLDOWN');
     assert.strictEqual(cooldownResult.localFastFail, true);
     assert.strictEqual(cooldownNetworkCalls, 0, 'cooldown performed an unnecessary Binance call');
-    assert.strictEqual(version.botSurumu, '6.12.3-R2-RENKO-ENTRY-CONFIRMATION-FULL-LIFECYCLE-SHADOW');
+    assert.strictEqual(version.botSurumu, '6.13.0-RENKO-REAL-ENTRY-MODE-POLICY');
     assert.strictEqual(op.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(real.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');

@@ -219,7 +219,7 @@ assert(src4.includes('renkoEntryConfirmationShadow.lifecycleTelegramText(row)'))
 assert(src4.includes('renkoEntryConfirmationShadow.close(pos'));
 
 const version = require('./versiyon.js');
-assert(String(version.botSurumu).includes('6.12.3'));
+assert(String(version.botSurumu).includes('6.13.0'));
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('✅ v6.12.3-R2 Williams turn + Renko confirmation SAME_WINDOW + FULL_LIFECYCLE shadow passed');

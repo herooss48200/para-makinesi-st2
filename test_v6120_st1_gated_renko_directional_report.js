@@ -194,7 +194,9 @@ assert(entrySource.includes("entryTimingAuthority: 'ST1_GATE_RENKO_REFERENCE_BRE
 assert(entrySource.includes("entryEvolutionMode: 'SHADOW_ONLY'"));
 assert(entrySource.includes('Boolean(pusu.canliTetikKurulu) && tetikGecildi'));
 assert(entrySource.includes('[ESKİ KIRILIM ENGELİ]'));
-assert(entrySource.includes('const target = entryEvolution.targetPrice(pusu, selectedEntryBrick);'), 'Entry Evolution shadow hedef hesabı korunmalı');
+assert(entrySource.includes("entryModeDecision.selectedMode === 'CONFIRMED'"), 'DIRECT/CONFIRMED giriş modu ayrımı bulunmalı');
+assert(entrySource.includes('Number(confirmationGate?.targetPrice || 0)'), 'CONFIRMED hedefi kapanmış dönüş + offset kapısından gelmeli');
+assert(entrySource.includes('entryEvolution.targetPrice(pusu, selectedEntryBrick)'), 'DIRECT Entry Evolution hedef hesabı korunmalı');
 const gateSource = fs.readFileSync('./87_st2_st1_entry_gate.js', 'utf8');
 assert(gateSource.includes('ST1_KENDI_TETIGI_BEKLENIYOR'), 'ST1 kendi tetik mantığı gerçek giriş kapısında korunmalı');
 assert(gateSource.includes('sonIndex - (maxBekleme - 1)'), 'ST1 pusu ömrü son 3 kapanmış 15m mum içinde yan etkisiz hesaplanmalı');

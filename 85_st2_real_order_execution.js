@@ -244,6 +244,9 @@ function contextFingerprint(symbol, side, context = {}) {
     pusu.referansTuglaId || analysis.referansTuglaId || 0,
     pusu.olusumZamani || analysis.olusumZamani || 0,
     pusu.referansSeviye || analysis.referansSeviye || 0,
+    analysis.entryMode || pusu.entryMode || 'DIRECT',
+    analysis.entryModeOffsetT || pusu.entryModeOffsetT || analysis.renkoEntryBrickDistance || 0,
+    analysis.confirmationGate?.reversal?.confirmation?.id || analysis.confirmationGate?.reversal?.confirmation?.closeTime || 0,
     readiness.key || context?.dnaIdentityKey || 'DNA_YOK'
   ].join('|');
   return hash(source, 32);

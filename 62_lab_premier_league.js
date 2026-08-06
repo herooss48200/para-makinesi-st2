@@ -690,7 +690,8 @@ function activeRows(activePositions = []) {
   }));
 }
 function premierAccounting(activePositions = [], observationAggregate = {}) {
-  const continuity = accountingContinuity.snapshot(activePositions); const canonical = continuity?.canonical?.premier || {};
+  const continuity = accountingContinuity.snapshot(activePositions);
+  const canonical = continuity?.scientific?.premier || continuity?.canonical?.premier || {};
   const observation = metrics(observationAggregate);
   // Ana Premier sayacı gözlem defterinin yalnız HISTORICAL_POSITIVE aggregate'idir.
   // Continuity katmanı yalnız GAP ayrımı için kullanılır; Reverse/Bottom eski sayaçları ana kasaya sızamaz.
@@ -708,6 +709,8 @@ function premierAccounting(activePositions = [], observationAggregate = {}) {
     observationOpened: observation.opened, observationClosed: observation.closed, observationActive: observation.active,
     observationOpenedDifference, observationClosedDifference, observationReconciled: true,
     continuityOpened: num(canonical.opened), continuityClosedScientific: num(canonical.closedScientific),
+    activeRealPremier: num(continuity?.scientific?.activeRealPremier),
+    activeVirtualPremier: num(continuity?.scientific?.activeVirtualPremier),
     equation: `${opened} = ${closedScientific} + ${activeScientific} + ${activeGap} + ${closedGap}`
   };
 }

@@ -78,7 +78,9 @@ assert.strictEqual(gate.decision.decisionFrozen,true,'Gate must mark frozen deci
 const entrySrc=fs.readFileSync(path.join(ROOT,'72_st2_renko_entry.js'),'utf8');
 const motorSrc=fs.readFileSync(path.join(ROOT,'motor.js'),'utf8');
 assert(entrySrc.includes('const adaptiveEntryDecision = pusu.adaptiveEntryDecisionAtSignal || aktifTuglaKarari(pusu);'));
-assert(entrySrc.includes('const target = entryEvolution.targetPrice(pusu, selectedEntryBrick);'));
+assert(entrySrc.includes("entryModeDecision.selectedMode === 'CONFIRMED'"), 'CONFIRMED giriş modu ayrımı bulunmalı');
+assert(entrySrc.includes('Number(confirmationGate?.targetPrice || 0)'), 'CONFIRMED hedefi kapanmış dönüş + offset kapısından gelmeli');
+assert(entrySrc.includes('entryEvolution.targetPrice(pusu, selectedEntryBrick)'), 'DIRECT hedefi Entry Evolution üzerinden korunmalı');
 assert(entrySrc.includes('entryDecisionBinding'));
 assert(motorSrc.includes('[ENTRY_BINDING_ERROR]'));
 assert(!motorSrc.includes('girisAnalizi.renkoEntryBrickDistance = gate.brick'));
@@ -158,7 +160,7 @@ for (const marker of ['const renkoExitAtamasi = renkoExitEvolution.assign(yeniPo
 // 10) Version and operation contract.
 const version=require('./versiyon.js');
 const op=require('./82_st2_operation_transparency.js');
-assert(version.botSurumu.startsWith('6.12.3-'));
+assert(version.botSurumu.startsWith('6.13.0-'));
 assert.strictEqual(op.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 assert.strictEqual(exit.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 

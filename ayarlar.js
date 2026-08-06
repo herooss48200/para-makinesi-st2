@@ -202,6 +202,15 @@ const ayarlar = {
     renkoGirisTeyitShadowStateKayitAraligiMs: 15000,
     renkoGirisTeyitShadowTamamlananSakla: 500,
 
+    // v6.13.0 — Tek gerçek giriş kapısı: DIRECT champion / CONFIRMED challenger.
+    // Güvenli dağıtımda false kalır; true olduğunda yalnız olgun ve anlamlı üstün
+    // CONFIRMED kanıt gerçek giriş zamanlamasını devralabilir.
+    renkoGirisModuOtomatikAktif: true,
+    renkoGirisModuMinTeyitOrnek: 20,
+    renkoGirisModuMinOrnek: 20,
+    renkoGirisModuMinSkorFarki: 8,
+    renkoGirisTeyitVarsayilanTugla: 0.25,
+
 
     // v2.1.13: Geç giriş koruması.
     // Hedef kırıldıktan sonra fiyat fazla kaçtıysa işlem açılmaz.

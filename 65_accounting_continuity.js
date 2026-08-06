@@ -11,7 +11,7 @@
 
 const h = require('./1_hafiza.js');
 
-const VERSION = 'v6.1.2-CANONICAL-RUNTIME-RECONCILIATION';
+const VERSION = 'v6.13.0-DUAL-DIMENSION-PREMIER-ACCOUNTING';
 const CLASSIFICATION_MODEL = 'CANONICAL-POSITION-PARTITION-v3';
 
 function n(value) {
@@ -52,11 +52,15 @@ function baseState() {
       openedPremier: 0,
       openedShadow: 0,
       openedReal: 0,
+      openedScientificPremier: 0,
+      openedScientificShadow: 0,
       closedScientific: 0,
       closedRestartGap: 0,
       closedPremier: 0,
       closedShadow: 0,
       closedReal: 0,
+      closedScientificPremier: 0,
+      closedScientificShadow: 0,
       legacyRecoveredClosed: 0,
       closedRestartGapRawBeforeRepair: 0,
       restartGapOverlapCorrection: 0,
@@ -202,17 +206,23 @@ function trackAtOpen(pos = {}) {
 
   const id = positionId(pos);
   const real = pos.sanal === false;
-  const premier = !real && isPremier(pos);
+  const premier = isPremier(pos);
 
   pos.accountingContinuityId = id;
   pos.accountingContinuityTracked = true;
+  // Backward-compatible execution track. Scientific league is independent:
+  // a real position may also be Premier and must count in both dimensions.
   pos.accountingContinuityTrack = real ? 'REAL' : (premier ? 'LAB_PREMIER' : 'LAB_SHADOW');
+  pos.accountingExecutionTrack = real ? 'REAL' : 'VIRTUAL';
+  pos.accountingScientificTrack = premier ? 'PREMIER' : 'SHADOW';
   pos.accountingContinuityOpenedAt = new Date().toISOString();
 
   st.current.opened += 1;
   if (real) st.current.openedReal += 1;
   else if (premier) st.current.openedPremier += 1;
   else st.current.openedShadow += 1;
+  if (premier) st.current.openedScientificPremier += 1;
+  else st.current.openedScientificShadow += 1;
   st.current.lastOpenAt = pos.accountingContinuityOpenedAt;
   return true;
 }
@@ -233,9 +243,13 @@ function trackAtClose(pos = {}, options = {}) {
     // GAP closures reconcile the position ledger, but they are not scientific
     // Premier/Shadow learning evidence.
     if (scientific) {
-      if (track === 'REAL') st.current.closedReal += 1;
-      else if (track === 'LAB_PREMIER') st.current.closedPremier += 1;
-      else if (track === 'LAB_SHADOW') st.current.closedShadow += 1;
+      const real = pos.sanal === false || track === 'REAL';
+      const premier = String(pos.accountingScientificTrack || '').toUpperCase() === 'PREMIER' || isPremier(pos);
+      if (real) st.current.closedReal += 1;
+      else if (premier) st.current.closedPremier += 1;
+      else st.current.closedShadow += 1;
+      if (premier) st.current.closedScientificPremier += 1;
+      else st.current.closedScientificShadow += 1;
     }
   } else {
     // Old migration positions stay outside the forward ledger. Their actual
@@ -306,15 +320,50 @@ function canonicalPartition(st, activePositions = h.state.aktifPozisyonlar || []
   };
 }
 
+
+function scientificPartition(st, activePositions = h.state.aktifPozisyonlar || []) {
+  const list = Array.isArray(activePositions) ? activePositions : [];
+  const active = activeBreakdown(list);
+  // GAP is a data-quality dimension, not a scientific league. Classify the
+  // position as Premier/Shadow first, then split scientific vs GAP.
+  const premierRows = list.filter(isPremier);
+  const shadowRows = list.filter(pos => !isPremier(pos));
+  const premierActiveScientific = premierRows.filter(pos => !isRestartGap(pos)).length;
+  const premierActiveGap = premierRows.filter(isRestartGap).length;
+  const shadowActiveScientific = shadowRows.filter(pos => !isRestartGap(pos)).length;
+  const shadowActiveGap = shadowRows.filter(isRestartGap).length;
+
+  const premierOpened = n(st.current.openedScientificPremier || st.current.openedPremier);
+  const premierClosed = n(st.current.closedScientificPremier || st.current.closedPremier);
+  const shadowOpened = n(st.current.openedScientificShadow || st.current.openedShadow);
+  const shadowClosed = n(st.current.closedScientificShadow || st.current.closedShadow);
+
+  const make = (opened, closedScientific, activeScientific, activeGap) => {
+    const closedGap = Math.max(0, opened - closedScientific - activeScientific - activeGap);
+    const difference = opened - closedScientific - activeScientific - activeGap - closedGap;
+    return { opened, closedScientific, activeScientific, activeGap, closedGap, difference, reconciled: difference === 0 };
+  };
+
+  return {
+    premier: make(premierOpened, premierClosed, premierActiveScientific, premierActiveGap),
+    shadow: make(shadowOpened, shadowClosed, shadowActiveScientific, shadowActiveGap),
+    activeRealPremier: active.realPremierPositions.length,
+    activeVirtualPremier: active.virtualPremierPositions.length,
+    activeRealShadow: active.realShadowPositions.length,
+    activeVirtualShadow: active.virtualShadowPositions.length
+  };
+}
+
 function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
   const st = ensure();
   const list = Array.isArray(activePositions) ? activePositions : [];
   const canonical = canonicalPartition(st, list);
+  const scientific = scientificPartition(st, list);
   const trackedOpenPositions = list
     .filter(pos => pos?.accountingContinuityTracked === true && pos?.accountingContinuityClosed !== true);
   const trackedActive = trackedOpenPositions.length;
   const trackedRestartGapActive = trackedOpenPositions.filter(isRestartGap).length;
-  const trackedScientificActive = trackedOpenPositions.filter(pos => !isRestartGap(pos) && pos?.sanal !== false).length;
+  const trackedScientificActive = trackedOpenPositions.filter(pos => !isRestartGap(pos)).length;
   const equationActive = Math.max(0, n(st.current.opened) - n(st.current.closed));
   const rawLedgerDifference = equationActive - trackedActive;
   // Eski forward sayaçları migration döneminde üst üste binmiş olabilir. Bilimsel
@@ -334,6 +383,7 @@ function snapshot(activePositions = h.state.aktifPozisyonlar || []) {
     legacy: { ...st.legacy },
     current: { ...st.current },
     canonical,
+    scientific,
     trackedActive,
     trackedRestartGapActive,
     trackedScientificActive,
@@ -376,5 +426,6 @@ module.exports = {
   legacyActivePositions,
   activeTrackPartition,
   canonicalPartition,
+  scientificPartition,
   repairLegacyClassification
 };

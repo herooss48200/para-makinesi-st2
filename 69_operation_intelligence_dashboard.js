@@ -7,6 +7,7 @@ const runtimeVersion = require('./versiyon.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
 const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
+const renkoEntryModePolicy = require('./90_st2_renko_entry_mode_policy.js');
 const adaptiveDnaEntry = require('./76_st2_adaptive_dna_entry.js');
 const globalReconciliation = require('./78_st2_global_historical_reconciliation.js');
 const winningIntelligence = require('./75_st2_winning_intelligence.js');
@@ -133,6 +134,7 @@ function telegram(activePositions=[], prebuilt=null){
   const renko = renkoEntryEvolution.summary();
   const wrShadow = williamsCycleShadow.summary();
   const entryConfirmShadow = renkoEntryConfirmationShadow.summary();
+  const entryModePolicy = renkoEntryModePolicy.summary();
   const adaptiveSummary = adaptiveDnaEntry.summary();
   const renkoPremierPatterns = n(adaptiveSummary.health?.historicalPremierProfiles);
   const renkoShadowDnas = Math.max(0,n(adaptiveSummary.health?.historicalProfiles)-renkoPremierPatterns);
@@ -140,7 +142,7 @@ function telegram(activePositions=[], prebuilt=null){
   // Restart-GAP veya eski upperLayerIncluded işaretleri üst başlığa sızamaz.
   const livePremier = n(ac.activeScientific);
   let t=`🧠 <b>AGROS OPERASYON MERKEZİ — ${displayVersion}</b>\n`;
-  t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(a.closed)}\n`;
+  t+=`🧬 Tarihsel exact Premier ${renkoPremierPatterns} | 👻 Tarihsel Shadow/izleme ${renkoShadowDnas} | 📦 Canlı Premier ${livePremier} | 📒 Kapanan Premier N${n(ac.closedScientific, n(a.closed))}\n`;
   t+=`💰 Premier sonuçları: ✅${n(a.tp)} ❌${n(a.sl)} ⚖️${n(a.be)} | WR %${(n(a.tp)+n(a.sl))?((n(a.tp)/(n(a.tp)+n(a.sl)))*100).toFixed(1):'0.0'} | Net ${signed(a.net,4)} | PF ${pf(a.profitFactor)} | Exp ${signed(a.expectancy,4)}\n`;
   // v6.8.1: Shadow sonucu doğrudan bilimsel ledger'ın Shadow satırlarından üretilir.
   // Eski yöntem, toplam ekonomide net işaretine göre sayılan wins/losses değerlerinden
@@ -165,10 +167,11 @@ function telegram(activePositions=[], prebuilt=null){
     t+='🔄 <b>GERÇEK LİG HAREKETLERİ</b>\n';
     t+=transitionRows.map(x=>`${x.type==='SHADOW_TO_PREMIER'?'⬆️':'⬇️'} ${x.labKey||'LAB'} | ${x.previousLeague} → ${x.newLeague} | N${n(x.metrics?.closed)} Net${signed(x.metrics?.net)} PF${pf(x.metrics?.profitFactor)} | ${x.reason}`).join('\n')+'\n';
   }
-  t+=`📦 Premier gözlem defteri: Canlı bilimsel ${n(ac.activeScientific)} | Restart-GAP ${n(ac.activeGap)} | GAP kapanan ${n(ac.closedGap)}\n`;
+  t+=`📦 Premier gözlem defteri: Canlı bilimsel ${n(ac.activeScientific)} (Gerçek ${n(ac.activeRealPremier)} / Sanal ${n(ac.activeVirtualPremier)}) | Restart-GAP ${n(ac.activeGap)} | GAP kapanan ${n(ac.closedGap)}\n`;
   t+=`🧮 Premier mutabakatı: ${ac.equation || '—'} | Fark ${signed(ac.difference,0)} ${ac.reconciled?'✅':'⚠️'}\n`;
   t+=`🔬 W%R Dönüş Gölgesi: N${n(wrShadow.totals?.n)} | Profil ${n(wrShadow.profiles?.length)} | 1m Renko uçtan nötre dönüş | Emir etkisi YOK\n`;
-  t+=`🧪 1m Giriş Teyit Gölgesi: Aynı pencere aday N${n(entryConfirmShadow.sameWindow?.totals?.n)} | Tam yaşam aday N${n(entryConfirmShadow.lifecycle?.totals?.n)} | Deney ${n(entryConfirmShadow.activeExperiments)} (Bekleyen ${n(entryConfirmShadow.activeWaiting)} / Açık ${n(entryConfirmShadow.activeOpen)}) | Emir etkisi YOK\n`;
+  t+=`🧪 1m Giriş Teyit Gölgesi: Aynı pencere aday N${n(entryConfirmShadow.sameWindow?.totals?.n)} | Tam yaşam aday N${n(entryConfirmShadow.lifecycle?.totals?.n)} | Deney ${n(entryConfirmShadow.activeExperiments)} (Bekleyen ${n(entryConfirmShadow.activeWaiting)} / Açık ${n(entryConfirmShadow.activeOpen)}) | Emir etkisi ${entryModePolicy.armed?'SEÇİCİ AKTİF':'YOK'}\n`;
+  t+=`🚪 Tek Giriş Kapısı: DIRECT champion | CONFIRMED challenger | Otomatik gerçek atama ${entryModePolicy.armed?'AÇIK':'KAPALI'} | Min teyit N${n(entryModePolicy.policy?.minConfirmedSamples)} | Min skor farkı ${n(entryModePolicy.policy?.minScoreAdvantage)}\n`;
   const top=d.premier.slice(0,5);
   if(top.length){
     t+='\n🏆 <b>PREMIER KARAR VE FORM ÖZETİ</b>\n';

@@ -69,7 +69,7 @@ assert.strictEqual(snap.turnState, 'VALID_TURN');
 
 const src72 = fs.readFileSync(path.join(__dirname, '72_st2_renko_entry.js'), 'utf8');
 assert(src72.includes("entryTimingAuthority: 'RENKO_EVOLUTION_1M_RENKO_ST'"), 'Golden Renko timing authority eksik');
-assert(src72.includes("tetikModu: 'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE'"), 'Entry Evolution canlı tetik modu eksik');
+assert(src72.includes("'RENKO_CLOSED_REVERSAL_PLUS_OFFSET'") && src72.includes("'RENKO_PATTERN_ADAPTIVE_BRICK_DISTANCE'"), 'DIRECT/CONFIRMED canlı tetik modları eksik');
 assert(src72.includes('if (!fiyatUygun || !stUygun) return false;'), 'Fiyat + 1m Renko ST ortak kapısı eksik');
 assert(src72.includes('entryEvolution.DEFAULT_BRICK()'), 'Giriş dosyası güvenli 0.75T varsayılanını kullanmıyor');
 assert(!src72.includes('RENKO_REFERENCE_BREAK_WITH_ST1_GATE'), 'Eski ST1-gated tetik kalmış');
@@ -90,7 +90,7 @@ assert.strictEqual(lab.close(pos, result).reason, 'DUPLICATE_CLOSE');
 assert.strictEqual(lab.summary().totals.n, 1);
 
 const version = require('./versiyon.js');
-assert.strictEqual(version.botSurumu, '6.12.3-R2-RENKO-ENTRY-CONFIRMATION-FULL-LIFECYCLE-SHADOW');
+assert.strictEqual(version.botSurumu, '6.13.0-RENKO-REAL-ENTRY-MODE-POLICY');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('✅ v6.12.2 compatibility: Golden Renko + Entry Evolution + Williams shadow foundation passed');
