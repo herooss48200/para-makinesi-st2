@@ -203,8 +203,8 @@ const ayarlar = {
     renkoGirisTeyitShadowTamamlananSakla: 500,
 
     // v6.13.0 — Tek gerçek giriş kapısı: DIRECT champion / CONFIRMED challenger.
-    // Güvenli dağıtımda false kalır; true olduğunda yalnız olgun ve anlamlı üstün
-    // CONFIRMED kanıt gerçek giriş zamanlamasını devralabilir.
+    // true olduğunda olgun ve anlamlı üstün CONFIRMED kanıtı, aynı tek gerçek
+    // giriş kapısında DIRECT zamanlamasının yerine geçebilir. İkinci emir zinciri oluşturmaz.
     renkoGirisModuOtomatikAktif: true,
     renkoGirisModuMinTeyitOrnek: 20,
     renkoGirisModuMinOrnek: 20,

@@ -37,24 +37,31 @@ function directEvidence(yon, patternCode) {
     const candidate = (profile?.candidates || []).find(x => Math.abs(n(x.brick) - brick) < 1e-9) || {};
     return { mode: MODES.DIRECT, offsetT: brick, profileKey: key, raw: candidate, ...metricScore(candidate) };
 }
-function confirmedEvidence(yon) {
+function confirmedEvidence(yon, patternCode = 'UNKNOWN') {
     const summary = confirmationLab.summary();
-    const rows = (summary.lifecycle?.profiles || [])
-        .filter(x => String(x.key || '').startsWith(`${String(yon).toUpperCase()}|`))
-        .map(x => ({ ...x, offsetT: n(String(x.key).split('|').at(-1).replace('T', '')) }))
-        .filter(x => x.offsetT > 0)
-        .map(x => ({ ...x, scored: metricScore(x) }))
+    const direction = String(yon).toUpperCase();
+    const pattern = String(patternCode || 'UNKNOWN').toUpperCase();
+    const all = (summary.lifecycle?.profiles || [])
+        .map(x => ({ ...x, parts: String(x.key || '').split('|') }))
+        .filter(x => x.parts[0] === direction)
+        .map(x => ({ ...x, offsetT: n(x.parts.at(-1).replace('T', '')) }))
+        .filter(x => x.offsetT > 0);
+    const exactRows = all.filter(x => x.parts.length >= 3 && x.parts[1] === pattern);
+    const legacyRows = all.filter(x => x.parts.length === 2);
+    const sourceRows = exactRows.length ? exactRows : legacyRows;
+    const rows = sourceRows
+        .map(x => ({ ...x, scored: metricScore(x), evidenceScope: exactRows.length ? 'EXACT_PATTERN' : 'DIRECTION_FALLBACK' }))
         .sort((a, b) => b.scored.score - a.scored.score || b.scored.samples - a.scored.samples || a.offsetT - b.offsetT);
     const best = rows[0] || null;
     return best
-        ? { mode: MODES.CONFIRMED, offsetT: best.offsetT, profileKey: best.key, raw: best, ...best.scored }
+        ? { mode: MODES.CONFIRMED, offsetT: best.offsetT, profileKey: best.key, evidenceScope: best.evidenceScope, raw: best, ...best.scored }
         : { mode: MODES.CONFIRMED, offsetT: n(ayarlar.renkoGirisTeyitVarsayilanTugla, 0.25), profileKey: `${yon}|NO_DATA`, ...metricScore({}) };
 }
 function select(pusu = {}) {
     const yon = String(pusu.yon || '').toUpperCase();
     const patternCode = String(pusu.patternKodu || pusu.patternCode || 'UNKNOWN').toUpperCase();
     const direct = directEvidence(yon, patternCode);
-    const confirmed = confirmedEvidence(yon);
+    const confirmed = confirmedEvidence(yon, patternCode);
     const armed = ayarlar.renkoGirisModuOtomatikAktif === true;
     const minConfirmed = Math.max(1, n(ayarlar.renkoGirisModuMinTeyitOrnek, 20));
     const minAdvantage = Math.max(0, n(ayarlar.renkoGirisModuMinSkorFarki, 8));

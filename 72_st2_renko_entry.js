@@ -433,8 +433,8 @@ ${sym} ${match.yon} | ${patternEtiketi}
 🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi}${skorMetni}
 🧾 ${gateOzeti.reason}
 ${skorAciklama ? `${skorAciklama}
-` : ''}BB temas ✅ | Referans ${fiyatFormatla(yeniPusu.referansSeviye)} | Entry Evolution ${Number(yeniPusu.renkoEntryBrickDistance || entryEvolution.DEFAULT_BRICK()).toFixed(2)}T → ${fiyatFormatla(yeniPusu.canliTetikFiyati)}
-⏳ Giriş: canlı fiyat Entry Evolution seviyesinde + 1m Renko SuperTrend aynı yön. ST1 yalnız gölge etiketi.`;
+` : ''}BB temas ✅ | Referans ${fiyatFormatla(yeniPusu.referansSeviye)} | Entry Mode ${yeniPusu.entryMode} | Offset ${Number(yeniPusu.entryModeOffsetT || yeniPusu.renkoEntryBrickDistance || entryEvolution.DEFAULT_BRICK()).toFixed(2)}T${yeniPusu.entryMode === 'DIRECT' ? ` → ${fiyatFormatla(yeniPusu.canliTetikFiyati)}` : ''}
+⏳ Giriş: ${yeniPusu.entryMode === 'CONFIRMED' ? 'kapanmış 1m Renko dönüşü + seçilmiş offset + aynı yön 1m Renko ST' : 'Entry Evolution seviyesi + aynı yön 1m Renko ST'}. Tek gerçek emir kapısı kullanılır; ST1 yalnız gölge etiketi.`;
                     h.telegramMesajGonderTekil(kisaMesaj, { coalesceKey: `st2-yeni-pusu:${bildirimAnahtari}` })
                         .then(sonuclar => {
                             const ok = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
@@ -591,7 +591,12 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         onayBricks1m,
         Number(store.onayBoxSize1m?.[sym] || pusu.renkoOnayBoxSize1m || 0),
         price,
-        { at: Date.now(), williamsTurnState: williamsShadow?.turnState || null }
+        {
+            at: Date.now(),
+            williamsTurnState: williamsShadow?.turnState || null,
+            patternCode: pusu.patternKodu,
+            patternId: pusu.patternId
+        }
     );
     const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, renkoSt);
     console.log(`\n${renkoKanit}\n`);
