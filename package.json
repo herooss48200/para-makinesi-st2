@@ -5,7 +5,7 @@
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112 && npm run test:v6122 && npm run test:v6123 && npm run test:v6130",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112 && npm run test:v6122 && npm run test:v6123 && npm run test:v6130 && npm run test:v6132",
     "test": "npm run check",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -40,7 +40,8 @@
     "test:v6121": "node test_v6121_core_first_startup_warmup.js",
     "test:v6122": "node test_v6122_golden_renko_williams_shadow.js",
     "test:v6123": "node test_v6123_renko_entry_confirmation_shadow.js",
-    "test:v6130": "node test_v6130_dual_dimension_premier_accounting.js"
+    "test:v6130": "node test_v6130_dual_dimension_premier_accounting.js",
+    "test:v6132": "node test_v6132_symbol_leverage_fallback.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

@@ -21,6 +21,7 @@ const identityChain = require('./66_identity_chain_repair.js');
 const operationTransparency = require('./82_st2_operation_transparency.js');
 const premierQuality = require('./83_st2_premier_quality_score.js');
 const realExecution = require('./85_st2_real_order_execution.js');
+const symbolLeveragePolicy = require('./91_st2_symbol_leverage_policy.js');
 
 function ondalikSayisi(step) {
     const n = Number(step);
@@ -709,9 +710,9 @@ const m = {
                     reason: `GERCEK_POZISYON_SLOTU_DOLU:${aktifGercekPozisyonSayisi()}/${risk.maxActivePositions}`
                 });
             }
-            const hedefGercekNotional = risk.notionalUsdt * ligBoyutCarpani;
-            const gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
-            const gercekNotional = gercekMiktar * canliFiyat;
+            let hedefGercekNotional = risk.notionalUsdt * ligBoyutCarpani;
+            let gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
+            let gercekNotional = gercekMiktar * canliFiyat;
             const onEmirSapmaYuzde = hedefGercekNotional > 0 ? Math.abs((gercekNotional - hedefGercekNotional) / hedefGercekNotional) * 100 : 999;
             const maksNotionalSapmaYuzde = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde);
             if (!Number.isFinite(maksNotionalSapmaYuzde) || maksNotionalSapmaYuzde < 0 ||
@@ -740,7 +741,7 @@ const m = {
                 return false;
             }
 
-            const kaldirac = risk.leverage;
+            let kaldirac = risk.leverage;
             const marjinTipi = risk.marginType;
             let fill = null;
             let protections = null;
@@ -750,9 +751,21 @@ const m = {
                     const text = String(err?.message || err || '');
                     if (!text.includes('-4046') && !/no need to change margin type/i.test(text)) throw err;
                 });
-                const leverageResult = await h.client.futuresLeverage({ symbol, leverage: kaldirac });
-                if (Number(leverageResult?.leverage) !== kaldirac) {
-                    throw new Error(`KALDIRAC_DOGRULANAMADI:${leverageResult?.leverage || 'YOK'}/${kaldirac}`);
+                const leverageDecision = await symbolLeveragePolicy.negotiate({
+                    symbol, requestedLeverage: kaldirac, client: h.client
+                });
+                kaldirac = leverageDecision.effective;
+                if (kaldirac !== risk.leverage) {
+                    hedefGercekNotional = risk.marginUsdt * kaldirac * ligBoyutCarpani;
+                    gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
+                    gercekNotional = gercekMiktar * canliFiyat;
+                    const fallbackSapma = hedefGercekNotional > 0
+                        ? Math.abs((gercekNotional - hedefGercekNotional) / hedefGercekNotional) * 100
+                        : 999;
+                    if (!gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional || fallbackSapma > maksNotionalSapmaYuzde) {
+                        throw new Error(`KALDIRAC_FALLBACK_BOYUT_FAIL_CLOSED:${kaldirac}x:${fallbackSapma.toFixed(3)}`);
+                    }
+                    console.warn(`⚠️ [SEMBOL KALDIRAÇ UYUMU] ${symbol} | İstenen ${risk.leverage}x reddedildi | Etkin ${kaldirac}x | Marjin ${risk.marginUsdt.toFixed(2)} USDT | Notional ${hedefGercekNotional.toFixed(2)} USDT`);
                 }
 
                 console.log(`📤 [GERÇEK EMİR GÖNDERİLİYOR] ${symbol} ${islemYonu} ${gercekMiktar} @ MARKET | Client ${reservation.ids.entry}`);
