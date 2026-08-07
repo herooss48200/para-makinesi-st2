@@ -10,6 +10,7 @@ const kaliciHafiza = require('./5_kalici_hafiza.js');
 const binanceAg = require('./64_binance_network_resilience.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const globalHistoricalRuntime = require('./79_st2_global_historical_runtime.js');
+const { createSt2LivePanelScheduler } = require('./92_st2_live_panel_scheduler.js');
 binanceAg.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
 
 let donguCalisiyor = false;
@@ -163,8 +164,6 @@ async function baslat() {
         const startupPanelPlanla = (reason, delayMs = null) => {
             if (startupPanelPlanlandi) return;
             startupPanelPlanlandi = true;
-            // ST2 startup paneli planlandığında periyodik canlı rapor aynı turda ikinci kez tetiklenmesin.
-            if (String(ayarlar.entryStrategyMode || '') === 'ST2_RENKO') sonCanliRapor = Date.now();
             const gecikme = delayMs == null
                 ? Math.max(5000, Number(ayarlar.st2StartupPanelGecikmeMs || 15000))
                 : Math.max(0, Number(delayMs) || 0);
@@ -192,12 +191,27 @@ async function baslat() {
             } else {
                 console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
             }
-            // ST2 canlı paneli yapılandırılmış coin evreninin ilk Renko taraması ve tekil açılış pusu özeti tamamlanmadan başlamaz.
-            // Böylece ağır panel üretimi ilk taramayı ve kritik pusu mesajını geciktirmez.
+            // ST2 canlı paneli bağımsız scheduler tarafından yalnız Entry Gate READY olduktan sonra başlatılır.
+            // Non-ST2 eski startup panel davranışı korunur.
             if (ayarlar.entryStrategyMode !== 'ST2_RENKO') startupPanelPlanla('GENEL_STARTUP');
         };
 
         console.log(`✅ SİSTEM HAZIR. DÖNGÜ BAŞLATILDI. Emir Modu: ${emirModu}`);
+
+        // v6.13.5-R11: ST2 canlı panel ritmi ağır 200-sembol Renko taramasının DIŞINDADIR.
+        // Gate READY olduğunda ilk panel hemen talep edilir; sonrasında ayarlanan cadence ile devam eder.
+        // Bu scheduler yalnız rapor ister; giriş/çıkış/Renko karar matematiğine dokunmaz.
+        if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
+            const st2LivePanelScheduler = createSt2LivePanelScheduler({
+                enabled: () => ayarlar.canliRaporAktif === true,
+                ready: () => h.state.startupMarketReady === true,
+                intervalMs: () => Number(ayarlar.canliRaporGuncellemeMs || 30000),
+                request: () => rapor.raporTalepEt(false),
+                onError: err => console.error(`⚠️ [ST2 LIVE PANEL SCHEDULER] ${err?.message || err}`)
+            });
+            st2LivePanelScheduler.start();
+            console.log(`📊 [ST2 LIVE PANEL SCHEDULER] Gate READY sonrası bağımsız cadence ${Math.round(Number(ayarlar.canliRaporGuncellemeMs || 30000) / 1000)} sn`);
+        }
 
         setInterval(async () => {
             if (donguCalisiyor) return;
@@ -218,7 +232,7 @@ async function baslat() {
                         if (!ilkSt2TaramaTamamlandi) {
                             ilkSt2TaramaTamamlandi = true;
                             console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
-                            startupPanelPlanla('ILK_ST2_TARAMA', 0);
+                            // R11: panel ilk tam Renko taramasını beklemez; bağımsız scheduler gate READY ile çalışır.
                         }
                     } else if (Date.now() - sonStartupGateLog >= Math.max(30000, Number(ayarlar.startupMarketGuardLogAralikMs || 60000))) {
                         sonStartupGateLog = Date.now();
@@ -243,12 +257,9 @@ async function baslat() {
                 }
 
                 const now = Date.now();
-                // ST2 startup sırasında ağır canlı paneli başlatma. Startup paneli yalnız Entry Gate READY
-                // ve ilk gerçek Renko taraması tamamlandıktan sonra startupPanelPlanla() üzerinden gelir.
-                // Önceki sonCanliRapor=0 davranışı ilk 1 saniyelik döngüde bu korumayı bypass ediyordu.
-                const canliRaporStartupIzinli = ayarlar.entryStrategyMode !== 'ST2_RENKO'
-                    || (h.state.startupMarketReady === true && ilkSt2TaramaTamamlandi === true);
-                if (ayarlar.canliRaporAktif && canliRaporStartupIzinli && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 60000)) {
+                // Non-ST2 eski periyodik rapor davranışı korunur.
+                // ST2 paneli yukarıdaki bağımsız scheduler tarafından yönetilir ve Renko taramasını beklemez.
+                if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && ayarlar.canliRaporAktif && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 60000)) {
                     sonCanliRapor = now;
                     rapor.raporTalepEt(false);
                 }

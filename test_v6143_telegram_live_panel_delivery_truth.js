@@ -5,19 +5,23 @@ const fs = require('fs');
 const Module = require('module');
 
 const src = fs.readFileSync('1_hafiza.js', 'utf8');
+const report = fs.readFileSync('2_rapor.js', 'utf8');
 const bot = fs.readFileSync('bot.js', 'utf8');
 const settings = fs.readFileSync('ayarlar.js', 'utf8');
 const version = fs.readFileSync('versiyon.js', 'utf8');
 
 assert(settings.includes('canliRaporGuncellemeMs: 30000'), '30 sn canlı panel sözleşmesi korunmalı');
-assert(bot.includes("h.state.startupMarketReady === true && ilkSt2TaramaTamamlandi === true"), 'R9 startup panel guard korunmalı');
+assert(settings.includes('telegramCanliPanelTimeoutMs: 6000'), 'panel teslim süresi bounded olmalı');
+assert(bot.includes('createSt2LivePanelScheduler'), 'ST2 panel ağır ana döngüden bağımsız olmalı');
 assert(src.includes('canliRaporSonMetinleri: {}'), 'chat-bazlı başarılı panel metni hafızası eksik');
-assert(src.includes('idempotent: true'), 'editMessageText idempotent retry işareti eksik');
-assert(src.includes("if (sonEditSonucu?.ok)"), 'panel edit başarısı doğrulanmalı');
-assert(src.includes('Coalesced iş teslim kanıtı değildir'), 'coalesced teslim başarı sayılmamalı');
-assert(src.includes('CANLI_RAPOR_TESLIM_EDILEMEDI'), 'sessiz panel teslim kaybı görünür olmalı');
-assert(!/state\.sonCanliRaporMetni = guvenliMesaj;\s*\n}\s*\n\s*async function binanceTimeSync/.test(src), 'başarısız teslim sonunda son panel metni ilerletilmemeli');
-assert(version.includes('6.13.5-R10-TELEGRAM-LIVE-PANEL-DELIVERY-TRUTH'), 'R10 sürüm etiketi eksik');
+assert(src.includes('idempotent: true'), 'editMessageText idempotent işareti eksik');
+assert(src.includes("retryCount: 0, timeoutMs: panelTimeoutMs"), 'live panel edit kendi uzun retry döngüsünü açmamalı');
+assert(src.includes('CANLI_PANEL_EDIT_RETRY_NEXT_TICK'), 'transient edit hatası yeni sendMessage yerine sonraki tickte denenmeli');
+assert(src.includes('telegramCanliPanelBekleyen'), 'latest-only canlı panel worker eksik');
+assert(src.includes("priority: 'detail', retryCount: 0, timeoutMs: panelTimeoutMs"), 'eski panel silme işi canlı panel workerını bekletmemeli');
+assert(src.includes("ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300"), '2xx invalid JSON belirsiz teslim sayılmalı');
+assert(!report.includes('await h.telegramCanliRaporGuncelle'), 'rapor mutex Telegram ağ teslimini beklememeli');
+assert(version.includes('6.13.5-R12-RENKO-1M-ST-READINESS-ENTRY-FUNNEL'), 'R11 sürüm etiketi eksik');
 
 const originalLoad = Module._load;
 Module._load = function(request, parent, isMain) {
@@ -33,10 +37,10 @@ try {
   assert.strictEqual(t.telegramIdempotentIstekMi('sendMessage', {}), false, 'sendMessage idempotent sayılmamalı');
   const editNoChange = t.telegramIdempotentSonucNormalize({ ok: false, description: 'Bad Request: message is not modified' }, 'editMessageText', { idempotent: true });
   assert.strictEqual(editNoChange.ok, true, 'message is not modified güvenli edit teslim kanıtı sayılmalı');
-  const sendNoChange = t.telegramIdempotentSonucNormalize({ ok: false, description: 'Bad Request: message is not modified' }, 'sendMessage', {});
-  assert.strictEqual(sendNoChange.ok, false, 'sendMessage hata sonucu başarıya çevrilmemeli');
+  assert.strictEqual(t.telegramEditYeniMesajGerektirir({ description: 'Bad Request: message to edit not found' }), true, 'silinmiş panelde yeni mesaj açılmalı');
+  assert.strictEqual(t.telegramEditYeniMesajGerektirir({ description: 'TELEGRAM_TIMEOUT:3500ms', transient: true }), false, 'timeout yeni panel balonu üretmemeli');
 } finally {
   Module._load = originalLoad;
 }
 
-console.log('✅ v6.13.5-R10 Telegram live panel delivery truth passed | 30s scheduler+R9 guard preserved; idempotent edit retry + delivered-only state');
+console.log('✅ v6.13.5-R12 Telegram delivery truth passed | bounded edit + latest-only worker + no transient send storm');
