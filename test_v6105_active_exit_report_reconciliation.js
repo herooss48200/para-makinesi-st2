@@ -4,9 +4,16 @@ const reportSource = require('fs').readFileSync('2_rapor.js', 'utf8');
 const transparency = require('./82_st2_operation_transparency.js');
 const version = require('./versiyon.js');
 
+
 assert(reportSource.includes('DNA Exit Replay (GÖLGE)'), 'DNA Exit Replay gölge katmanı açıkça ayrılmalı');
 assert(reportSource.includes('CANLI RENKO KÂR TAKİBİ'), 'canlı kâr yönetimi gölge replayden ayrı gösterilmeli');
 assert(reportSource.includes('Atama kanıtı N'), 'panel toplam tarihsel kanıt yerine aktif atama kanıtını açıkça yazmalı');
+assert(reportSource.includes('p?.sanal === false && giris'), 'gerçek pozisyon SL raporu için gerçek-emir yolu bulunmalı');
+assert(reportSource.includes('p.realStopLastAppliedTrigger'), 'rapor Binance’e son uygulanan stop fiyatını önceliklendirmeli');
+assert(reportSource.indexOf('p.realStopLastAppliedTrigger') < reportSource.indexOf('p.korunanKarYuzdesi'), 'gerçek stop legacy yüzde alanından önce değerlendirilmelidir');
+const dogeProtected = ((0.06941 - 0.06913) / 0.06913) * 100;
+assert(dogeProtected > 0.40 && dogeProtected < 0.41, 'DOGE canlı kanıtı yaklaşık +%0.405 brüt stop koruması üretmeli');
+assert(reportSource.includes("if (yon === 'SHORT') return ((giris - gercekStop) / giris) * 100;"), 'SHORT gerçek stop yön hesabı korunmalı');
 
 const restartGapPosition = {
   sym: 'OUSDT', yon: 'LONG', girisFiyati: 0.4979,
@@ -31,4 +38,4 @@ assert(text.includes('Giriş 0.50 tuğla | N3'), 'Entry N3 kapanış raporunda k
 assert(text.includes('Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'), 'eski dondurulmuş N0 metni rapor anında N3 ile uzlaştırılmalı');
 assert(!text.includes('Entry Replay kanıtı yok; kendi LAB Exit'), 'N3 varken kanıt yok çelişkisi görünmemeli');
 assert.strictEqual(version.botSurumu, '6.13.5-R4-RESTART-PROTECTION-REARM');
-console.log('✅ v6.10.8 DNA Exit shadow/live Renko separation + Restart-GAP Entry/Exit wording reconciliation passed');
+console.log('✅ v6.13.5-R4 report truth: real Binance stop priority + virtual legacy compatibility + Restart-GAP reconciliation passed');

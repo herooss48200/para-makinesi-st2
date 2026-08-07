@@ -126,14 +126,34 @@ function pozisyonKarYuzde(p) {
 }
 
 function pozisyonKorunanKar(p) {
+    const giris = pozisyonGiris(p);
+    const yon = pozisyonYon(p);
+
+    // Gerçek pozisyonda Telegram, eski yüzde alanından değil borsaya gerçekten
+    // uygulanmış stop fiyatından konuşur. Renko/K1/K2 stopu ilerlerken
+    // korunanKarYuzdesi legacy alanı 0 kalabildiği için onu yalnız fallback yap.
+    if (p?.sanal === false && giris) {
+        const gercekStopAdaylari = [
+            p.realStopLastAppliedTrigger,
+            p.sl,
+            p.stopLoss,
+            p.stop
+        ];
+        const gercekStop = gercekStopAdaylari
+            .map(Number)
+            .find(v => Number.isFinite(v) && v > 0);
+
+        if (gercekStop) {
+            if (yon === 'SHORT') return ((giris - gercekStop) / giris) * 100;
+            return ((gercekStop - giris) / giris) * 100;
+        }
+    }
+
     if (Number.isFinite(Number(p.korunanKarYuzdesi))) return Number(p.korunanKarYuzdesi);
     if (Number.isFinite(Number(p.korunanKarYuzde))) return Number(p.korunanKarYuzde);
     if (Number.isFinite(Number(p.korunanKar))) return Number(p.korunanKar);
 
-    const giris = pozisyonGiris(p);
     const sl = Number(p.sanalStop || p.stopLoss || p.sl || p.stop || 0);
-    const yon = pozisyonYon(p);
-
     if (!giris || !sl) return null;
 
     if (yon === 'SHORT') return ((giris - sl) / giris) * 100;
