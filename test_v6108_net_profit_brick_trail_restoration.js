@@ -58,8 +58,13 @@ try {
   assert.strictEqual(assignment.atrMfeExecution, 'SHADOW_REPLAY_ONLY');
 
   const before = evo.update(pos, 100.30);
-  assert.strictEqual(before.active, false);
-  assert.strictEqual(before.reason, 'CURRENT_PRICE_BELOW_DIRECT_FLOOR_ARM_THRESHOLD');
+  // v6.13.5-R3 K0.5: +%0.25 görülünce erken ekonomi tabanı aktiftir;
+  // fakat Renko takeover henüz başlamamıştır. Tarihsel v6.10.8 canlı aktivasyon
+  // eşiği (+%0.40) yine aşağıdaki adımda Renko'yu devraldırır.
+  assert.strictEqual(before.active, true);
+  assert.strictEqual(before.reason, 'EARLY_ECONOMY_FLOOR_LOCKED_DIRECT_FLOOR_WAITING');
+  assert.notStrictEqual(pos.renkoExitActivated, true);
+  assert(pos.sl >= 100.199999, `erken ekonomi tabanı korunmadı: ${pos.sl}`);
 
   // Doğrudan ayarlı eşik görülünce canlı Renko tuğla takibi devralır; eski BE kademesi gerekmez.
   pos.breakevenAktif = false;
@@ -69,7 +74,8 @@ try {
   assert.strictEqual(activated.active, true);
   assert.strictEqual(activated.justActivated, true);
   assert(pos.sl >= 100.149999, `komisyon sonrası net pozitif taban korunmadı: ${pos.sl}`);
-  assert.strictEqual(pos.renkoProtectionState, 'RENKO_STOP_GUNCELLENDI');
+  assert.strictEqual(pos.renkoProtectionState, 'RENKO_TUGLA_TAKIP_AKTIF');
+  assert(pos.sl >= 100.199999, `K0.5 tabanı takeover sırasında gevşedi: ${pos.sl}`);
 
   // ATR çok küçük ve MFE profili çok sıkı olsa bile canlı stop yalnız tuğla mesafesine göre ilerlemeli.
   assignment.assignedAtrMultiplier = 0.30;

@@ -46,6 +46,29 @@ function miktarKlip(sym, miktar) {
     return Number(duzeltilmis.toFixed(precision));
 }
 
+// v6.13.5 — Gerçek notional için daima aşağı yuvarlamak bazı sembollerde
+// hedef notionaldan izin verilen sınırın dışına düşürüyor (SOL: 0.13 => -%5.438).
+// Binance stepSize'a uygun floor/ceil adayından hedef notionala en yakın olan seçilir.
+// Risk kapısı yine minQty/minNotional/maxNotionalDeviation ile fail-closed kalır.
+function gercekMiktarHedefeEnYakinKlip(sym, miktar) {
+    const ham = Number(miktar);
+    if (!(ham > 0)) return 0;
+    const kural = h.state.basamaklar[sym];
+    if (!kural) return Number(ham.toFixed(2));
+    const step = Number(kural.stepSize) || Math.pow(10, -Number(kural.quantityPrecision || 0));
+    if (!(step > 0)) return miktarKlip(sym, ham);
+    const precision = ondalikSayisi(step);
+    const units = ham / step;
+    const floorQty = Math.max(0, Math.floor(units + 1e-12) * step);
+    const ceilQty = Math.max(0, Math.ceil(units - 1e-12) * step);
+    const candidates = [floorQty, ceilQty]
+        .map(x => Number(x.toFixed(precision)))
+        .filter((x, i, a) => x > 0 && a.indexOf(x) === i);
+    if (!candidates.length) return 0;
+    candidates.sort((a, b) => Math.abs(a - ham) - Math.abs(b - ham) || a - b);
+    return candidates[0];
+}
+
 
 
 function miktarKapasiteEngeliVar(audit) {
@@ -711,7 +734,7 @@ const m = {
                 });
             }
             let hedefGercekNotional = risk.notionalUsdt * ligBoyutCarpani;
-            let gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
+            let gercekMiktar = gercekMiktarHedefeEnYakinKlip(symbol, hedefGercekNotional / canliFiyat);
             let gercekNotional = gercekMiktar * canliFiyat;
             const onEmirSapmaYuzde = hedefGercekNotional > 0 ? Math.abs((gercekNotional - hedefGercekNotional) / hedefGercekNotional) * 100 : 999;
             const maksNotionalSapmaYuzde = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde);
@@ -1017,6 +1040,7 @@ const m = {
     },
 
     miktarKlip,
+    gercekMiktarHedefeEnYakinKlip,
     fiyatKlip
 };
 

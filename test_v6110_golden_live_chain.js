@@ -174,7 +174,7 @@ Module._load = function patched(request, parent, isMain) {
     assert.strictEqual(cooldownResult.reason, 'STOP_REPLACE_COOLDOWN');
     assert.strictEqual(cooldownResult.localFastFail, true);
     assert.strictEqual(cooldownNetworkCalls, 0, 'cooldown performed an unnecessary Binance call');
-    assert.strictEqual(version.botSurumu, '6.13.0-RENKO-REAL-ENTRY-MODE-POLICY');
+    assert.strictEqual(version.botSurumu, '6.13.5-R3-EARLY-ECONOMY-SAFE-FLOOR-SUCCESS-CONFIRMED-REAL-SIZE');
     assert.strictEqual(op.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(real.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');

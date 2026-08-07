@@ -28,6 +28,9 @@ const pos = {
     patternKey: 'LONG|L01',
     assignedTrailBricks: 1.25,
     assignedActivationProfitPct: 0.60,
+    assignedEarlyFloorArmProfitPct: 0.25,
+    assignedEarlySafeFloorPct: 0.20,
+    assignedEarlyMinimumNetProfitPct: 0.10,
     assignedFloorArmProfitPct: 0.50,
     assignedSafeFloorPct: 0.40,
     assignedMinimumNetProfitPct: 0.30,
@@ -41,20 +44,25 @@ const pos = {
   }
 };
 
-let r = exit.updateBrick(pos, 100.50);
-assert.strictEqual(pos.renkoProfitFloorLocked, true, 'profit floor +%0.50 seviyesinde kilitlenmeli');
-assert(pos.sl >= 100.39, `profit floor stopu beklenenden düşük: ${pos.sl}`);
+let r = exit.updateBrick(pos, 100.25);
+assert.strictEqual(pos.renkoEarlyEconomyFloorLocked, true, 'erken ekonomi floor +%0.25 seviyesinde kilitlenmeli');
+assert.strictEqual(pos.renkoProfitFloorLocked, undefined, 'K1 güçlü profit floor +%0.50 öncesi kilitlenmemeli');
+assert(pos.sl >= 100.19, `erken ekonomi stopu beklenenden düşük: ${pos.sl}`);
+
+r = exit.updateBrick(pos, 100.50);
+assert.strictEqual(pos.renkoProfitFloorLocked, true, 'K1 profit floor +%0.50 seviyesinde kilitlenmeli');
+assert(pos.sl >= 100.39, `K1 profit floor stopu beklenenden düşük: ${pos.sl}`);
 
 r = exit.updateBrick(pos, 100.60);
 assert.strictEqual(pos.renkoExitActivated, true, 'Renko trail +%0.60 seviyesinde aktive olmalı');
-assert(pos.sl >= 100.39, 'aktivasyon profit floor stopunu geriye çekmemeli');
+assert(pos.sl >= 100.39, 'aktivasyon K1 profit floor stopunu geriye çekmemeli');
 
 r = exit.updateBrick(pos, 101.60);
 const expectedCaptureStop = 100 * (1 + (1.60 * 0.69) / 100);
 assert.strictEqual(r.active, true);
 assert.strictEqual(r.source, 'MFE_KORUMA', `güçlü MFE sonrası kaynak MFE_KORUMA olmalı: ${r.source}`);
 assert(pos.sl >= expectedCaptureStop - 1e-9, `MFE capture stopu uygulanmadı: ${pos.sl} < ${expectedCaptureStop}`);
-assert(pos.sl > 100.40, 'stop güçlü MFE sonrasında yalnız profit floor seviyesinde kalmamalı');
+assert(pos.sl > 100.40, 'stop güçlü MFE sonrasında yalnız K1 profit floor seviyesinde kalmamalı');
 
 const frozen = pos.sl;
 r = exit.updateBrick(pos, 101.20);

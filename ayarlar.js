@@ -206,9 +206,13 @@ const ayarlar = {
     // true olduğunda olgun ve anlamlı üstün CONFIRMED kanıtı, aynı tek gerçek
     // giriş kapısında DIRECT zamanlamasının yerine geçebilir. İkinci emir zinciri oluşturmaz.
     renkoGirisModuOtomatikAktif: true,
-    renkoGirisModuMinTeyitOrnek: 20,
+    renkoGirisModuMinTeyitOrnek: 15,
     renkoGirisModuMinOrnek: 20,
-    renkoGirisModuMinSkorFarki: 8,
+    // CONFIRMED'ın görevi daha yüksek tekil kâr değil, yanlış girişleri elemek ve başarı olasılığını yükseltmektir.
+    // N15+ Full Lifecycle profili en az %75 başarı ve pozitif ekonomi üretiyorsa gerçek giriş zamanlamasını devralabilir.
+    renkoGirisModuMinBasariYuzde: 75,
+    // Geriye dönük uyumluluk: artık seçim kapısı değildir; başarı-öncelikli policy kullanılır.
+    renkoGirisModuMinSkorFarki: 0,
     renkoGirisTeyitVarsayilanTugla: 0.25,
 
 
@@ -821,8 +825,13 @@ const ayarlar = {
     renkoCikisMaksimumMfeYakalamaOrani: 0.70,
     // v6.11.2: Canlı kâr tabanı ve Renko devralması doğrudan ayarlardan yönetilir.
     // Hiçbir eşik tpAdimYuzdesi × kademe veya başka bir '2 katı' kuralından türetilmez.
-    // +%0.50 görüldüğünde brüt +%0.40 (yaklaşık net +%0.30) tabanı kilitlenir.
-    // +%0.60 görüldüğünde pozisyona atanmış, dondurulmuş tuğla takibi devreye girer.
+    // v6.13.5-R3: Erken ekonomi koruması K1 güvenli tabandan AYRIDIR.
+    // +%0.25 MFE görülünce başlangıç -%1.50 stop artık korunmaz; brüt +%0.20
+    // erken ekonomi tabanı kilitlenir (yaklaşık net +%0.10). Eski komisyon-güvenli
+    // K1 sözleşmesi +%0.50 -> +%0.40 ve K2 Renko aktivasyonu +%0.60 aynen korunur.
+    renkoCikisErkenEkonomiTetikYuzde: 0.25,
+    renkoCikisErkenEkonomiTabanYuzde: 0.20,
+    renkoCikisErkenEkonomiMinimumNetKarYuzde: 0.10,
     renkoCikisKarTabaniAktivasyonYuzde: 0.50,
     renkoCikisCanliAktivasyonYuzde: 0.60,
     renkoCikisGuvenliKarTabaniYuzde: 0.40,

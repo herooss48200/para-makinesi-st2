@@ -1,0 +1,20 @@
+AGROS ST2 v6.13.5-R3 — FINAL REGRESSION RESULT
+
+Full package regression chain executed end-to-end in the analysis environment with dependency shims for external modules.
+Result: PASS
+
+Validated contracts:
+- 144 JavaScript source syntax checks PASS.
+- v672 commission-safe K1 floor contract PASS.
+- v6102 10 real-slot + rollback safety PASS.
+- v6108 K0.5 early economy + historical brick-trail restoration PASS.
+- v6109 final Entry/Exit chain reconciliation PASS.
+- v6112 direct floor + frozen trail PASS.
+- v6123 Renko confirmation SAME_WINDOW + FULL_LIFECYCLE with K0.5 economy PASS.
+- v6133 MFE capture monotonic protection PASS.
+- v6134 unified real-entry CONFIRMED gate PASS.
+- v6135 early economy + success-first CONFIRMED + nearest-step real sizing PASS.
+- v6136 mature-direction success-first CONFIRMED fallback PASS.
+- v6137 K0.5 + K1 + K2 coexistence PASS.
+
+Deployment rule: run `npm test` once more in the actual ST2 workstation/AWS environment with installed production dependencies before PM2 restart.

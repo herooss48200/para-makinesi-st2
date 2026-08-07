@@ -34,6 +34,12 @@ const MAX_CAPTURE = () => clamp(Number(ayarlar.renkoCikisMaksimumMfeYakalamaOran
 const ROUND_TRIP_COMMISSION_PCT = () => Math.max(0, Number(ayarlar.sanalKomisyonOrani ?? 0.0005) * 2 * 100);
 const MIN_NET_PROFIT_PCT = () => Math.max(0, Number(ayarlar.renkoCikisMinimumNetKarYuzde || 0.05));
 const SAFE_FLOOR_MIN = () => Math.max(DEFAULT_SAFE_FLOOR(), ROUND_TRIP_COMMISSION_PCT() + MIN_NET_PROFIT_PCT());
+// v6.13.5-R3: K0.5 erken ekonomi tabanı, K1 komisyon-güvenli tabandan ayrıdır.
+// Bu sayede eski SAFE_FLOOR_MIN >= %0.40 sözleşmesi bozulmadan +%0.25 MFE sonrası
+// başlangıç -%1.50 stop pozitif ekonomi alanına taşınabilir.
+const EARLY_MIN_NET_PROFIT_PCT = () => Math.max(0, Number(ayarlar.renkoCikisErkenEkonomiMinimumNetKarYuzde ?? 0.10));
+const EARLY_SAFE_FLOOR_MIN = () => Math.max(0, Number(ayarlar.renkoCikisErkenEkonomiTabanYuzde ?? 0.20), ROUND_TRIP_COMMISSION_PCT() + EARLY_MIN_NET_PROFIT_PCT());
+const EARLY_FLOOR_ARM_PROFIT_PCT = () => Math.max(EARLY_SAFE_FLOOR_MIN() + 0.01, Number(ayarlar.renkoCikisErkenEkonomiTetikYuzde ?? 0.25));
 const FLOOR_ARM_PROFIT_PCT = () => Math.max(SAFE_FLOOR_MIN() + 0.01, Number(ayarlar.renkoCikisKarTabaniAktivasyonYuzde || SAFE_FLOOR_MIN() + 0.10));
 const LIVE_ACTIVATION_PROFIT_PCT = () => Math.max(FLOOR_ARM_PROFIT_PCT(), Number(ayarlar.renkoCikisCanliAktivasyonYuzde || FLOOR_ARM_PROFIT_PCT()));
 const MFE_ARM_PROFIT_PCT = () => Math.max(LIVE_ACTIVATION_PROFIT_PCT(), Number(ayarlar.renkoCikisMfeKorumaAktivasyonYuzde || LIVE_ACTIVATION_PROFIT_PCT()));
@@ -326,6 +332,9 @@ function assign(pos) {
     if (waitingForActivation) {
       current.assignedSafeFloorPct = Math.max(SAFE_FLOOR_MIN(), n(current.assignedSafeFloorPct, profile.safeFloorPct));
       current.assignedMinimumNetProfitPct = MIN_NET_PROFIT_PCT();
+      current.assignedEarlyFloorArmProfitPct = EARLY_FLOOR_ARM_PROFIT_PCT();
+      current.assignedEarlySafeFloorPct = EARLY_SAFE_FLOOR_MIN();
+      current.assignedEarlyMinimumNetProfitPct = EARLY_MIN_NET_PROFIT_PCT();
       current.assignedRoundTripCommissionPct = ROUND_TRIP_COMMISSION_PCT();
       current.assignedStopUpdateStepBricks = STOP_UPDATE_STEP_BRICKS();
       current.profitFloorPolicy = 'MIN_NET_PROFIT_THEN_FROZEN_BRICK_TRAIL';
@@ -362,6 +371,9 @@ function assign(pos) {
     assignedCaptureRatio: profile.captureRatio,
     assignedSafeFloorPct: Math.max(SAFE_FLOOR_MIN(), profile.safeFloorPct),
     assignedMinimumNetProfitPct: MIN_NET_PROFIT_PCT(),
+    assignedEarlyFloorArmProfitPct: EARLY_FLOOR_ARM_PROFIT_PCT(),
+    assignedEarlySafeFloorPct: EARLY_SAFE_FLOOR_MIN(),
+    assignedEarlyMinimumNetProfitPct: EARLY_MIN_NET_PROFIT_PCT(),
     assignedRoundTripCommissionPct: ROUND_TRIP_COMMISSION_PCT(),
     profitFloorPolicy: 'MIN_NET_PROFIT_THEN_FROZEN_BRICK_TRAIL',
     safetyPolicySchema: 'V6112_DIRECT_PROFIT_FLOOR',
@@ -639,15 +651,55 @@ function updateBrick(pos, price) {
     return { active: false, changed: false, reason: 'INVALID_STOP_INPUT', old, safeStop };
   }
 
+  // K0.5: +%0.25 MFE görüldüğünde başlangıç stopu artık -%1.50'de bırakılmaz.
+  // Bu erken ekonomi tabanı K1'in +%0.50 -> +%0.40 komisyon-güvenli sözleşmesinden
+  // ayrıdır; Renko aktivasyonu yine +%0.60'da başlar.
+  const earlyFloorPct = Math.max(EARLY_SAFE_FLOOR_MIN(), n(a.assignedEarlySafeFloorPct, EARLY_SAFE_FLOOR_MIN()));
+  const earlyArmPct = Math.max(earlyFloorPct + 0.01, n(a.assignedEarlyFloorArmProfitPct, EARLY_FLOOR_ARM_PROFIT_PCT()));
+  const earlyStop = priceFromProfitPct(pos.yon, entry, earlyFloorPct);
+  let earlyChanged = false;
+  let justEarlyFloorLocked = false;
+  if (pos.renkoExitActivated !== true && pos.renkoEarlyEconomyFloorLocked !== true && pnl + 1e-9 >= earlyArmPct) {
+    justEarlyFloorLocked = true;
+    pos.renkoEarlyEconomyFloorLocked = true;
+    pos.renkoEarlyEconomyFloorLockedAt = new Date().toISOString();
+    pos.renkoEarlyEconomyFloorGrossPct = earlyFloorPct;
+    pos.renkoEarlyEconomyFloorMinimumNetPct = Math.max(0, n(a.assignedEarlyMinimumNetProfitPct, earlyFloorPct - ROUND_TRIP_COMMISSION_PCT()));
+    const nextEarlyStop = pos.yon === 'LONG' ? Math.max(old, earlyStop) : Math.min(old, earlyStop);
+    earlyChanged = pos.yon === 'LONG' ? nextEarlyStop > old : nextEarlyStop < old;
+    if (earlyChanged) pos.sl = nextEarlyStop;
+    addTimeline(pos, 'EARLY_ECONOMY_FLOOR_LOCKED', {
+      stage: 'K0.5', price: currentPrice, profitPct: pnl, earlyArmPct,
+      grossEarlyFloorPct: earlyFloorPct, minimumNetProfitPct: pos.renkoEarlyEconomyFloorMinimumNetPct,
+      oldStop: old, stop: nextEarlyStop
+    });
+  }
+
   // K0: Doğrudan ayarlanan kâr tabanı arm eşiğine kadar başlangıç stopu korunur.
   if (!readiness.floorReady) {
+    const earlyLocked = pos.renkoEarlyEconomyFloorLocked === true;
+    if (earlyLocked) {
+      const effectiveEarlyStop = priceFromProfitPct(pos.yon, entry, earlyFloorPct);
+      const cur = n(pos.sl);
+      const shouldTighten = pos.yon === 'LONG' ? effectiveEarlyStop > cur : effectiveEarlyStop < cur;
+      if (shouldTighten) { pos.sl = effectiveEarlyStop; earlyChanged = true; }
+      pos.renkoProtectionStage = 'K0.5';
+      pos.renkoProtectionState = 'ERKEN_EKONOMI_TABANI_KILITLI';
+      a.status = 'EARLY_ECONOMY_FLOOR_LOCKED_WAITING_DIRECT_FLOOR';
+      return {
+        active: true, justEarlyFloorLocked, changed: earlyChanged, reason: 'EARLY_ECONOMY_FLOOR_LOCKED_DIRECT_FLOOR_WAITING',
+        currentProfitPct: pnl, earlyFloorPct, earlyArmPct, effective: n(pos.sl),
+        safeFloorPct: readiness.floorPct, floorArmPct: readiness.floorArmPct,
+        activationPct: readiness.activationPct, source: 'ERKEN_EKONOMI_TABANI', trail: n(a.assignedTrailBricks)
+      };
+    }
     pos.renkoProtectionStage = 'K0';
     pos.renkoProtectionState = 'DOGRUDAN_KAR_TABANI_ESIGI_BEKLENIYOR';
     a.status = 'WAITING_DIRECT_PROFIT_FLOOR';
     return {
       active: false, changed: false, reason: readiness.reason,
-      currentProfitPct: pnl, safeFloorPct: readiness.floorPct,
-      floorArmPct: readiness.floorArmPct, activationPct: readiness.activationPct,
+      currentProfitPct: pnl, earlyFloorPct, earlyArmPct,
+      safeFloorPct: readiness.floorPct, floorArmPct: readiness.floorArmPct, activationPct: readiness.activationPct,
       trail: n(a.assignedTrailBricks)
     };
   }
@@ -842,8 +894,9 @@ function takeoverText(pos) {
     return `🏁 <b>KOMİSYON GÜVENLİ RENKO KÂR TAKİBİ DEVREDE</b>\n\n` +
       `🔀 ${pos.sym} (${pos.yon})\n` +
       `🧩 Pattern: ${pos.girisAnalizi?.patternKodu || 'YOK'}\n` +
-      `🛡️ Taban kilitleme eşiği: %${n(a.assignedFloorArmProfitPct, FLOOR_ARM_PROFIT_PCT()).toFixed(2)}\n` +
-      `🔒 Brüt kâr tabanı: %${Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)).toFixed(2)}\n` +
+      `🟡 Erken ekonomi: +%${n(a.assignedEarlyFloorArmProfitPct, EARLY_FLOOR_ARM_PROFIT_PCT()).toFixed(2)} → stop +%${n(a.assignedEarlySafeFloorPct, EARLY_SAFE_FLOOR_MIN()).toFixed(2)}\n` +
+      `🛡️ Güçlü taban kilitleme eşiği: %${n(a.assignedFloorArmProfitPct, FLOOR_ARM_PROFIT_PCT()).toFixed(2)}\n` +
+      `🔒 Brüt güçlü kâr tabanı: %${Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)).toFixed(2)}\n` +
       `👑 Hedef minimum net: %${Math.max(0, n(a.assignedMinimumNetProfitPct, MIN_NET_PROFIT_PCT())).toFixed(2)}\n` +
       `🚀 Doğrudan Renko aktivasyonu: %${n(a.assignedActivationProfitPct, LIVE_ACTIVATION_PROFIT_PCT()).toFixed(2)}\n` +
       `🧱 Taban sonrası zirveden takip: ${n(a.assignedTrailBricks).toFixed(2)} tuğla\n` +
@@ -1245,6 +1298,7 @@ module.exports = {
   DEFAULT_TRAIL, DEFAULT_ATR, DEFAULT_CAPTURE, DEFAULT_TAKEOVER, DEFAULT_SAFE_FLOOR,
   MIN_TAKEOVER, MIN_ATR, MIN_CAPTURE, MAX_CAPTURE, LIVE_MODE, BRICK_LIVE_MODE,
   ROUND_TRIP_COMMISSION_PCT, MIN_NET_PROFIT_PCT, SAFE_FLOOR_MIN,
+  EARLY_MIN_NET_PROFIT_PCT, EARLY_SAFE_FLOOR_MIN, EARLY_FLOOR_ARM_PROFIT_PCT,
   FLOOR_ARM_PROFIT_PCT, LIVE_ACTIVATION_PROFIT_PCT, MFE_ARM_PROFIT_PCT,
   activeFor, activeProfileFor, assign, update, updateBrick, updateAdaptive, takeoverText, close, summary, telegram,
   activationProfitPctFor, assignmentIdFor, commissionSafeReady, brickReplay, STOP_UPDATE_STEP_BRICKS,

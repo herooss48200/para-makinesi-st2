@@ -10,7 +10,8 @@ Module._load = function(req, parent, isMain) {
     renkoGirisModuOtomatikAktif: true,
     renkoGirisModuMinTeyitOrnek: 20,
     renkoGirisModuMinOrnek: 20,
-    renkoGirisModuMinSkorFarki: 1,
+    renkoGirisModuMinBasariYuzde: 70,
+    renkoGirisModuMinSkorFarki: 0,
     renkoGirisTeyitVarsayilanTugla: 0.25
   };
   if (req === './73_st2_renko_entry_evolution.js') return {

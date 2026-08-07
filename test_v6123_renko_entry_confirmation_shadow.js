@@ -154,17 +154,22 @@ confirmation.tickAll({ MYXTEST: 102.00 }, 1_140_000);
 tick = confirmation.tickAll({ MYXTEST: 101.60 }, 1_200_000);
 assert(tick.emitted.some(x => x.result.label === '0.25T'));
 assert(tick.emitted.find(x => x.result.label === '0.25T').result.net > 0);
-
-// Daha geç iki varyant kendi başlangıç stoplarında kapanır.
-confirmation.tickAll({ MYXTEST: 100.00 }, 1_260_000);
-tick = confirmation.tickAll({ MYXTEST: 99.90 }, 1_320_000);
+// K0.5 nedeniyle +0.50T de aynı geri çekilmede küçük pozitif tabandan kapanır.
 assert(tick.emitted.some(x => x.result.label === '0.50T'));
+assert(tick.emitted.find(x => x.result.label === '0.50T').result.net > 0);
+
+// En geç +0.75T varyantı kendi başlangıç stopunda kapanır.
+tick = confirmation.tickAll({ MYXTEST: 100.00 }, 1_260_000);
+if (!tick.emitted.some(x => x.result.label === '0.75T')) {
+  tick = confirmation.tickAll({ MYXTEST: 99.90 }, 1_320_000);
+}
+assert(tick.emitted.some(x => x.result.label === '0.75T'));
 
 sum = confirmation.summary();
 assert.strictEqual(sum.lifecycle.totals.n, 3);
 assert.strictEqual(sum.lifecycle.totals.triggered, 3);
-assert.strictEqual(sum.lifecycle.totals.tp, 1);
-assert.strictEqual(sum.lifecycle.totals.sl, 2);
+assert.strictEqual(sum.lifecycle.totals.tp, 2);
+assert.strictEqual(sum.lifecycle.totals.sl, 1);
 assert.strictEqual(sum.activeExperiments, 0, 'Ana kapanmış ve tüm adaylar terminal ise deney arşivlenmeli');
 assert.strictEqual(sum.completedExperiments, 1);
 
@@ -219,7 +224,7 @@ assert(src4.includes('renkoEntryConfirmationShadow.lifecycleTelegramText(row)'))
 assert(src4.includes('renkoEntryConfirmationShadow.close(pos'));
 
 const version = require('./versiyon.js');
-assert(String(version.botSurumu).includes('6.13.0'));
+assert(String(version.botSurumu).includes('6.13.5-R3'));
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('✅ v6.12.3-R2 Williams turn + Renko confirmation SAME_WINDOW + FULL_LIFECYCLE shadow passed');
