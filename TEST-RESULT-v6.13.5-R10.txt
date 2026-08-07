@@ -1,0 +1,35 @@
+AGROS ST2 v6.13.5-R10 — TELEGRAM LIVE PANEL DELIVERY TRUTH
+Date: 2026-08-07
+
+ROOT CAUSE CONFIRMED IN SOURCE
+- bot.js 30s scheduler preserved: canliRaporGuncellemeMs = 30000.
+- R9 startup guard preserved and latches after READY + first Renko scan.
+- Live panel delivery layer could silently lose an edit on ambiguous transport delivery.
+- editMessageText was handled with sendMessage-style ambiguous-delivery safety even though edit is idempotent.
+- live report memory could advance without verified Telegram delivery, hiding stale-panel failures.
+
+R10 FIX
+- editMessageText is explicitly idempotent and may safely verify/retry through curl.
+- Telegram "message is not modified" after retry is treated as already-delivered edit proof.
+- sendMessage remains non-idempotent; duplicate-message protection unchanged.
+- live-panel last-text memory advances only after verified edit/send success.
+- coalesced is not treated as delivery proof.
+- failed/dropped live panel delivery emits CANLI_RAPOR_TESLIM_EDILEMEDI.
+
+PASSED LOCALLY
+- Full source syntax: 150 JS files
+- v6.13.5-R8 known-good market-data rollback
+- v6.13.5-R9 startup panel guard
+- v6.13.5-R8 transport rollback
+- v6.13.4 unified Entry Evolution DIRECT/CONFIRMED real gate
+- v6.13.6 success-first CONFIRMED policy
+- v6.10.0 real-order execution safety
+- v6.11.0 golden live chain incl. 95% startup gate
+- v6.11.2 direct profit floor / two-slot
+- v6.12.2 Golden Renko + Williams shadow compatibility
+- v6.13.5-R8 active exit/report truth
+- v6.10.9 final entry/exit chain reconciliation
+- v6.13.5-R10 Telegram live panel delivery truth
+
+NOTE
+Full npm test could not be executed in the artifact container because its internal npm mirror returned 404 for ws@7.5.11. This is an environment dependency-fetch limitation, not a test failure. Run npm test in the existing ST2/AWS workspace where node_modules is already present before restart.

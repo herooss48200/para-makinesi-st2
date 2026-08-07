@@ -6,7 +6,7 @@ const version = require('./versiyon.js');
 const bot = fs.readFileSync('./bot.js', 'utf8');
 const network = fs.readFileSync('./64_binance_network_resilience.js', 'utf8');
 
-assert.strictEqual(version.botSurumu, '6.13.5-R9-STARTUP-PANEL-GUARD');
+assert.strictEqual(version.botSurumu, '6.13.5-R10-TELEGRAM-LIVE-PANEL-DELIVERY-TRUTH');
 
 assert(bot.includes("const canliRaporStartupIzinli = ayarlar.entryStrategyMode !== 'ST2_RENKO'"),
   'ST2 startup canlı rapor guard tanımlı olmalı');

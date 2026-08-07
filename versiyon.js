@@ -1,14 +1,14 @@
 'use strict';
 // Compatibility marker: CALIBRATION-READY; gerçek emir için aktif kalibrasyon ayrıca zorunludur.
-// v6.13.5-R9: ST2 startup sırasında periyodik canlı panel bypassı kapatıldı; R8 known-good market-data korunur.
+// v6.13.5-R10: Canlı Telegram panelinde teslim-doğruluğu ve idempotent edit retry güvenliği eklendi; R9 startup guard korunur.
 // R4'e kadar canlıda kanıtlanan market-data motoru geri yüklendi; doğru telemetri raporu korunur.
 
 // v6.8.4 compatibility marker: 6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
     kodAdi: 'RENKO-ENTRY-CONFIRMATION-FULL-LIFECYCLE-SHADOW',
-    kod: 'AGROS ST2 v6.13.5-R9 — STARTUP PANEL GUARD',
-    botSurumu: '6.13.5-R9-STARTUP-PANEL-GUARD',
+    kod: 'AGROS ST2 v6.13.5-R10 — TELEGRAM LIVE PANEL DELIVERY TRUTH',
+    botSurumu: '6.13.5-R10-TELEGRAM-LIVE-PANEL-DELIVERY-TRUTH',
     stratejiSurumu: '1.0.39',
     yayinTarihi: '07.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
