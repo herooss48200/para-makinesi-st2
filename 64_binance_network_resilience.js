@@ -22,7 +22,9 @@ const DEFAULTS = {
     maxDelayMs: 5000,
     concurrency: 3,
     requestSpacingMs: 35,
-    cacheTtlMs: 0
+    cacheTtlMs: 0,
+    // Bulk market-data requests must never wait forever behind higher-priority traffic.
+    queueTimeoutMs: 45000
 };
 
 const agent = new https.Agent({
@@ -52,6 +54,7 @@ const stats = {
     deduped: 0,
     cacheHit: 0,
     timeout: 0,
+    queueTimeout: 0,
     transientFailure: 0,
     promoted: 0,
     lastError: '',
@@ -105,7 +108,7 @@ function geciciAgHatasi(err) {
         'bad gateway'
     ].some(x => mesaj.includes(x)) || [
         'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ECONNABORTED',
-        'ECONNREFUSED', 'EPIPE', 'UND_ERR_CONNECT_TIMEOUT'
+        'ECONNREFUSED', 'EPIPE', 'UND_ERR_CONNECT_TIMEOUT', 'EQUEUEWAIT'
     ].includes(kod);
 }
 
@@ -157,6 +160,31 @@ function queueSort() {
     queue.sort((a, b) => (b.priority - a.priority) || (a.id - b.id));
 }
 
+function queueTimerTemizle(task) {
+    if (task?.queueTimer) clearTimeout(task.queueTimer);
+    if (task) task.queueTimer = null;
+}
+
+function queueTimeoutKur(task) {
+    const waitMs = Math.max(1000, Number(task?.options?.queueTimeoutMs ?? DEFAULTS.queueTimeoutMs));
+    if (!Number.isFinite(waitMs) || waitMs <= 0) return;
+    task.queueTimer = setTimeout(() => {
+        if (task.status !== 'queued') return;
+        const index = queue.indexOf(task);
+        if (index >= 0) queue.splice(index, 1);
+        task.status = 'queue-timeout';
+        const err = new Error(`${task.options.label || task.key || 'BINANCE_QUEUE'}:QUEUE_WAIT_TIMEOUT:${waitMs}ms`);
+        err.code = 'EQUEUEWAIT';
+        stats.queueTimeout++;
+        hataKaydet(err);
+        if (task.key && inFlightByKey.get(task.key) === task.promise) inFlightByKey.delete(task.key);
+        if (task.key && taskByKey.get(task.key) === task) taskByKey.delete(task.key);
+        task.reject(err);
+        pump();
+    }, waitMs);
+    if (typeof task.queueTimer.unref === 'function') task.queueTimer.unref();
+}
+
 function pump() {
     if (pumpTimer) return;
     const run = () => {
@@ -171,6 +199,7 @@ function pump() {
                 if (typeof pumpTimer.unref === 'function') pumpTimer.unref();
                 return;
             }
+            queueTimerTemizle(task);
             task.status = 'active';
             active++;
             lastStartAt = Date.now();
@@ -238,13 +267,15 @@ function kuyrukluIstek(key, fn, options = {}) {
         reject: rejectTask,
         promise,
         priority: priorityValue(options.priority),
-        status: 'queued'
+        status: 'queued',
+        queueTimer: null
     };
     if (normalizedKey) {
         inFlightByKey.set(normalizedKey, promise);
         taskByKey.set(normalizedKey, task);
     }
     queue.push(task);
+    queueTimeoutKur(task);
     queueSort();
     stats.queued++;
     pump();
@@ -415,6 +446,7 @@ function durumOzeti({ reset = false } = {}) {
 }
 
 function testReset() {
+    for (const task of queue) queueTimerTemizle(task);
     queue.length = 0;
     inFlightByKey.clear();
     taskByKey.clear();

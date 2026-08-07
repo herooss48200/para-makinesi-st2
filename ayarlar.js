@@ -693,9 +693,26 @@ const ayarlar = {
     // Trade Engine değişmez; asılı istekler iptal edilir, aynı mum istekleri birleştirilir.
     binanceAgEszamanlilik: 3,
     binanceAgIsciSayisi: 8,
-    // v6.12.1: yalnız başlangıç çekirdeği (15m Renko + 3m ST1) için kontrollü hız; canlı döngü 3 bağlantıda kalır.
-    binanceStartupAgEszamanlilik: 8,
-    binanceStartupAgIsciSayisi: 16,
+    // v6.13.5-R5: başlangıç çekirdeği fail-fast + yüksek ama Binance-dostu eşzamanlılıkla hazırlanır.
+    // Canlı döngü genel ağ sınırı 3 bağlantıda kalır; yalnız startup geçici olarak 10'a çıkar.
+    binanceStartupAgEszamanlilik: 10,
+    binanceStartupAgIsciSayisi: 20,
+    binanceStartupTimeoutMs: 8000,
+    binanceStartupRetry: 0,
+    binanceStartupQueueTimeoutMs: 30000,
+    binanceStartupRequestSpacingMs: 15,
+    // Hazır cache tekrar tam tarihçe indirmez; yalnız son kapanmış mumları alıp mevcut seriyle birleştirir.
+    pusuDeltaMumLimiti: 3,
+    superTrendDeltaMumLimiti: 3,
+    binanceBulkRefreshTimeoutMs: 8000,
+    binanceBulkRefreshRetry: 0,
+    binanceBulkRefreshQueueTimeoutMs: 15000,
+    binanceBulkRefreshRequestSpacingMs: 20,
+    pusuRefreshMaxTurMs: 120000,
+    superTrendRefreshMaxTurMs: 55000,
+    // ST1 yalnız shadow; core 1m Renko yenilemesinin önüne geçmez.
+    st1ShadowStartupGecikmeMs: 60000,
+    st1ShadowTazelemeMs: 180000,
     startupMarketReadyOrani: 0.95,
     startupMarketGuardLogAralikMs: 60000,
     // İmzalı Futures çağrıları Binance sunucu saatine bağlanır; -1021'de bir kez zorunlu senkron + tek retry.
@@ -711,7 +728,8 @@ const ayarlar = {
     binanceAgRetryTabanMs: 900,
     // v6.10.7 - Kapanmış mum yoksa 200 coinlik toplu indirme yapılmaz.
     kapanmisMumYayinGecikmesiMs: 3000,
-    binanceTopluVeriRetryMs: 90000,
+    // R5 delta refresh hafif olduğu için başarısız tur 90 sn beklemez; 30 sn sonra kontrollü yeniden denenir.
+    binanceTopluVeriRetryMs: 30000,
     globalHistoricalStartupWarmupMs: 600000,
 
     // v4.7.0 - 2000+ öğrenmenin tam DNA sonuçlarını Family/LAB/FULL katmanlarında korur.

@@ -1,0 +1,33 @@
+AGROS ST2 v6.13.5-R5 — MARKET DATA FAST REFRESH
+Tarih: 07.08.2026
+
+PASS — node test_v674_full_source_syntax.js
+  ✅ full source syntax | 145 JavaScript dosyası
+
+PASS — node test_v6138_market_data_fast_refresh.js
+  ✅ fail-fast startup profile
+  ✅ bounded queue wait / EQUEUEWAIT watchdog
+  ✅ 15m warm-cache delta request = 3 mum + history merge
+  ✅ 1m warm-cache delta request = 3 mum + history merge
+  ✅ shared bulk lock prevents 15m + ST refresh pile-up
+  ✅ 1m raw cache vs computed Renko ST truthful report
+
+PASS — affected safety/regression tests
+  ✅ test_v6105_active_exit_report_reconciliation.js
+  ✅ test_v6109_final_chain_reconciliation.js
+  ✅ test_v6110_golden_live_chain.js
+  ✅ test_v6112_direct_profit_floor_two_slot.js
+  ✅ test_v6122_golden_renko_williams_shadow.js
+  ✅ test_v6123_renko_entry_confirmation_shadow.js
+  ✅ test_v6133_profit_capture_and_cache_accounting.js
+  ✅ test_v6137_early_economy_floor_contract.js
+
+FULL npm test note:
+  Model çalışma ortamında node_modules yok. npm test, test:v673 aşamasında `Cannot find module dotenv` ile bağımlılık yükleme öncesi durdu. npm ci denemesi paket aynası erişimi nedeniyle tamamlanamadı. Bu bir R5 test assertion/code failure değildir.
+  Final tam npm test kullanıcı ST2 klasöründe ve AWS'de mevcut bağımlılıklarla zorunludur.
+
+Canlı öncesi beklenen doğrulama:
+  - Golden startup eski 1.765.230 ms değerinden belirgin biçimde kısa olmalı.
+  - `Önceki SuperTrend tazelemesi sürüyor` saatlerce tekrarlamamalı.
+  - Telegram: Mum 200/200 | 1m Veri ~200/200 | Renko ST hesap X | Yetersiz Y.
+  - Entry funnel `Evolution fiyat uygun 0` gösterebilir; R5 strateji filtresini gevşetmez.
