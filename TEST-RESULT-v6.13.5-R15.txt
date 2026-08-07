@@ -1,0 +1,15 @@
+AGROS ST2 v6.13.5-R15 TEST RESULT
+====================================
+PASS: npm test (critical fast suite)
+PASS: v6148 dedicated ticker + startup isolation
+  - ticker bypasses shared bulk queue
+  - ticker uses dedicated HTTPS Agent
+  - hung LOW bulk request does not block ticker
+PASS: v6147 hard deadline / first-audit isolation
+PASS: v6146 core loop liveness + ST1 shadow isolation
+PASS: v6145 1m Renko ST readiness 80/240/480
+PASS: Telegram cadence/delivery truth
+PASS: real-order safety / Golden Live Chain / profit floor
+PASS: Williams shadow / Renko confirmation lifecycle
+PASS: R8 bulk transport semantics preserved
+PASS: full source syntax — 156 JavaScript files

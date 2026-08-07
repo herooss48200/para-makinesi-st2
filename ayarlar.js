@@ -723,7 +723,7 @@ const ayarlar = {
     // Stop yalnız tamamlanmış Renko adımında ve bu minimum aralıktan sonra borsada yenilenir.
     gercekStopMinGuncellemeAralikMs: 3000,
     binanceAgTimeoutMs: 15000,
-    // R14: ana işlem döngüsünün global fiyat çağrısı bulk KLINE işinden bağımsız hızlı fail eder.
+    // R15: global ticker dedicated agent kullanır; startup boşken çağrılmaz ve canlı döngüde hızlı fail eder.
     futuresTickerTimeoutMs: 6000,
     futuresTickerRetry: 0,
     binanceAgRetry: 2,

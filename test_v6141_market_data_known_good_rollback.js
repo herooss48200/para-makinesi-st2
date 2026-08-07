@@ -4,7 +4,7 @@ const fs=require('fs');
 const version=require('./versiyon.js');
 const settings=require('./ayarlar.js');
 
-assert.strictEqual(version.botSurumu,'6.13.5-R14-CRITICAL-TICKER-DEADLINE-FIRST-AUDIT-ISOLATION');
+assert.strictEqual(version.botSurumu,'6.13.5-R15-DEDICATED-TICKER-STARTUP-ISOLATION');
 const rev=fs.readFileSync('./revizyon.js','utf8');
 const net=fs.readFileSync('./64_binance_network_resilience.js','utf8');
 
@@ -33,4 +33,4 @@ assert.strictEqual(Number(settings.binanceAgRetry),2);
 assert.strictEqual(Number(settings.binanceTopluVeriRetryMs),90000);
 assert.strictEqual(Number(settings.futuresTickerTimeoutMs),6000);
 assert.strictEqual(Number(settings.futuresTickerRetry),0);
-console.log('✅ v6.13.5-R14 network baseline passed | R8 bulk semantics preserved + reserved CRITICAL slot + wall-clock deadline');
+console.log('✅ v6.13.5-R15 network baseline passed | R8 bulk semantics preserved + reserved CRITICAL slot + wall-clock deadline');

@@ -52,4 +52,4 @@ assert(!report.includes('await h.telegramCanliRaporGuncelle'), 'rapor mutex netw
 assert(renko.includes('await new Promise(resolve => setImmediate(resolve))'), 'Renko scan event-loop fairness yield eksik');
 assert(renko.includes('renkoProofConsoleYaz(pusuKaniti)'), 'verbose proof normal console için kontrollü olmalı');
 
-console.log('✅ v6.13.5-R14 live panel runtime cadence passed | READY -> immediate, then exact 30s requests independent of full Renko scan');
+console.log('✅ v6.13.5-R15 live panel runtime cadence passed | READY -> immediate, then exact 30s requests independent of full Renko scan');

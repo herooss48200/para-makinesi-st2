@@ -236,8 +236,14 @@ async function baslat() {
 
             donguCalisiyor = true;
             donguBaslangic = Date.now();
-            donguAsama = 'FUTURES_PRICES';
+            donguAsama = 'STARTUP_WAIT';
             try {
+                // R15: ST2 startup warmup sırasında açık pozisyon yoksa global ticker çağrısı yapılmaz.
+                // Pozisyon varsa koruma için ticker çalışır; gate READY olduğunda giriş motoru kendi dedicated ticker hattını kullanır.
+                const st2StartupBos = ayarlar.entryStrategyMode === 'ST2_RENKO' && h.state.startupMarketReady !== true && h.state.aktifPozisyonlar.length === 0;
+                if (st2StartupBos) return;
+
+                donguAsama = 'FUTURES_PRICES';
                 const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000, retries: ayarlar.futuresTickerRetry ?? 0, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
                 for (const [sym, price] of Object.entries(fiyatlar)) {
                     h.state.canliFiyatlar[sym] = parseFloat(price);

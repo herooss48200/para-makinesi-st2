@@ -31,4 +31,4 @@ const raw80=candles(80);
 const box=core.atr(raw80,14);
 const bricks=core.renkoUret(raw80,box);
 assert(raw80.length===80 && box>0 && bricks.length < 12, 'Test fixture: ham veri hazır ama Renko-ST derinliği yetersiz olmalı');
-console.log(`✅ v6.13.5-R14 1m Renko ST readiness passed | raw80=${raw80.length} | bricks=${bricks.length} | gate uses actual ST readiness + 240/480 repair`);
+console.log(`✅ v6.13.5-R15 1m Renko ST readiness passed | raw80=${raw80.length} | bricks=${bricks.length} | gate uses actual ST readiness + 240/480 repair`);

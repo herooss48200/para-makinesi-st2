@@ -34,6 +34,19 @@ const agent = new https.Agent({
     keepAliveMsecs: 1000
 });
 
+// R15: global ticker is control-plane data for the main trading loop.
+// It MUST NOT share sockets/queue with 200-symbol KLINE bulk traffic.
+const criticalTickerAgent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 1,
+    maxFreeSockets: 1,
+    scheduling: 'lifo',
+    keepAliveMsecs: 1000,
+    timeout: 10000
+});
+let tickerDirectInFlight = null;
+let tickerDirectCache = null;
+
 const queue = [];
 const inFlightByKey = new Map();
 const taskByKey = new Map();
@@ -303,7 +316,7 @@ function httpsJson(urlString, options = {}) {
         req = https.request(url, {
             method: 'GET',
             family: 4,
-            agent,
+            agent: options.agent || agent,
             headers: {
                 'Accept': 'application/json',
                 'User-Agent': 'AGROS/5.0.3',
@@ -380,17 +393,43 @@ function binanceMumlariCek(symbol, interval, limit = 80, options = {}) {
 
 function binanceFiyatlariCek(options = {}) {
     const cfg = { ...DEFAULTS, ...options, cacheTtlMs: options.cacheTtlMs ?? 700 };
+    const now = Date.now();
+    if (tickerDirectCache && tickerDirectCache.expiresAt > now) {
+        stats.cacheHit++;
+        return Promise.resolve(tickerDirectCache.value);
+    }
+    if (tickerDirectInFlight) {
+        stats.deduped++;
+        return tickerDirectInFlight;
+    }
+
     const url = publicUrlOlustur('/fapi/v1/ticker/price');
-    return kuyrukluIstek('TICKER:ALL', () => httpsJson(url, {
+    stats.started++;
+    let currentPromise;
+    currentPromise = retryIleCalistir(() => httpsJson(url, {
         timeoutMs: cfg.timeoutMs,
-        label: cfg.label || 'TICKER_ALL'
-    }).then(rows => {
-        const out = {};
-        for (const row of rows || []) {
-            if (row?.symbol && row?.price !== undefined) out[row.symbol] = String(row.price);
-        }
-        return out;
-    }), cfg);
+        label: cfg.label || 'TICKER_ALL',
+        agent: criticalTickerAgent
+    }), cfg)
+        .then(rows => {
+            const out = {};
+            for (const row of rows || []) {
+                if (row?.symbol && row?.price !== undefined) out[row.symbol] = String(row.price);
+            }
+            stats.succeeded++;
+            const ttl = Math.max(0, Number(cfg.cacheTtlMs || 0));
+            if (ttl > 0) tickerDirectCache = { value: out, expiresAt: Date.now() + ttl };
+            return out;
+        })
+        .catch(err => {
+            hataKaydet(err);
+            throw err;
+        })
+        .finally(() => {
+            if (tickerDirectInFlight === currentPromise) tickerDirectInFlight = null;
+        });
+    tickerDirectInFlight = currentPromise;
+    return currentPromise;
 }
 
 async function havuzdaCalistir(items, worker, concurrency = DEFAULTS.concurrency) {
@@ -442,6 +481,9 @@ function testReset() {
     lastStartAt = 0;
     if (pumpTimer) clearTimeout(pumpTimer);
     pumpTimer = null;
+    tickerDirectInFlight = null;
+    tickerDirectCache = null;
+    criticalTickerAgent.destroy();
     for (const key of Object.keys(stats)) stats[key] = typeof stats[key] === 'number' ? 0 : '';
 }
 
@@ -459,5 +501,6 @@ module.exports = {
     durumOzeti,
     _publicUrlOlustur: publicUrlOlustur,
     _httpsJson: httpsJson,
+    _criticalTickerAgent: criticalTickerAgent,
     _testReset: testReset
 };

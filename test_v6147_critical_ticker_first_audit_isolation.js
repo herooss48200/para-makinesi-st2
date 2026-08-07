@@ -8,7 +8,7 @@ const version = require('./versiyon.js');
 const ayarlar = require('./ayarlar.js');
 
 (async () => {
-  assert.strictEqual(version.botSurumu, '6.13.5-R14-CRITICAL-TICKER-DEADLINE-FIRST-AUDIT-ISOLATION');
+  assert.strictEqual(version.botSurumu, '6.13.5-R15-DEDICATED-TICKER-STARTUP-ISOLATION');
   assert.strictEqual(ayarlar.futuresTickerRetry, 0, 'ticker retry must fail-fast; next main-loop tick is the retry');
   assert(Number(ayarlar.futuresTickerTimeoutMs) <= 6000, 'ticker wall deadline must stay short');
 
@@ -65,7 +65,7 @@ const ayarlar = require('./ayarlar.js');
   assert(elapsed >= 850 && elapsed < 1800, `hard deadline elapsed ${elapsed}ms`);
 
   ag._testReset();
-  console.log(`✅ v6.13.5-R14 critical ticker + first-audit isolation passed | CRITICAL overflow <400ms | hard deadline ${elapsed}ms`);
+  console.log(`✅ v6.13.5-R15 critical ticker + first-audit isolation passed | CRITICAL overflow <400ms | hard deadline ${elapsed}ms`);
 })().catch(err => {
   console.error(err.stack || err);
   process.exit(1);
