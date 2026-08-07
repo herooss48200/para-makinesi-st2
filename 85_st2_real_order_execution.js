@@ -277,6 +277,14 @@ function stopRecoveryClientId(symbol, side, fingerprint, stopPrice) {
   return `${OWNED_PREFIX}R-${sym}-${dir}-${hash(`${fingerprint}|${Number(stopPrice).toPrecision(14)}|${Date.now()}`, 16)}`.slice(0, 36);
 }
 
+function restartProtectionClientId(symbol, side, fingerprint, type, triggerPrice) {
+  const sym = sanitize(symbol, 6);
+  const dir = upper(side) === 'LONG' ? 'L' : 'S';
+  const kind = /TAKE_PROFIT/i.test(String(type || '')) ? 'T' : 'S';
+  const nonce = `${Date.now()}|${process.pid}|${crypto.randomBytes(3).toString('hex')}`;
+  return `${OWNED_PREFIX}X-${kind}-${sym}-${dir}-${hash(`${fingerprint}|${kind}|${Number(triggerPrice).toPrecision(14)}|${nonce}`, 12)}`.slice(0, 36);
+}
+
 function accountingRecordFields(accounting = {}) {
   return {
     accountingExact: accounting?.accountingExact === true,
@@ -1372,11 +1380,31 @@ async function ensureProtectionForPosition(pos, client = h.client) {
     (candidate.algoId && String(row.algoId) === String(candidate.algoId)) ||
     (candidate.clientAlgoId && row.clientAlgoId === candidate.clientAlgoId)
   );
-  let stop = findExisting(existing.stop);
-  let takeProfit = findExisting(existing.takeProfit);
+  const findDesiredActive = (type, triggerPrice) => open.find(row =>
+    ownedId(row?.clientAlgoId || row?.clientOrderId) &&
+    ACTIVE_ALGO_STATUSES.has(algoOrderStatus(row)) &&
+    algoOrderType(row) === type &&
+    triggerEqual(symbol, protectionTrigger(row), triggerPrice)
+  );
+
+  // Restart sırasında state'teki eski clientAlgoId terminal (CANCELED/EXPIRED/FINISHED) olabilir.
+  // Aynı clientAlgoId Binance'te yeniden kullanılamaz. Önce borsada aynı amaç/fiyatta aktif bir
+  // AGST2 koruması varsa onu sahiplen; yoksa yalnız restart için taze clientAlgoId üret.
+  // Böylece eski terminal emri idempotent recovery diye tekrar tekrar doğrulamaya çalışıp
+  // botu fail-closed restart döngüsüne sokmaz. Yeni koruma doğrulanmadan hiçbir aktif koruma silinmez.
+  let stop = findExisting(existing.stop) || findDesiredActive('STOP_MARKET', pos.sl);
+  let takeProfit = findExisting(existing.takeProfit) || findDesiredActive('TAKE_PROFIT_MARKET', pos.tp);
   const ids = clientIds(symbol, side, fingerprint);
-  if (!stop) stop = await createProtection({ symbol, side, type: 'STOP_MARKET', triggerPrice: pos.sl, clientAlgoId: ids.stop, client });
-  if (!takeProfit) takeProfit = await createProtection({ symbol, side, type: 'TAKE_PROFIT_MARKET', triggerPrice: pos.tp, clientAlgoId: ids.takeProfit, client });
+  if (!stop) {
+    const clientAlgoId = restartProtectionClientId(symbol, side, fingerprint, 'STOP_MARKET', pos.sl);
+    stop = await createProtection({ symbol, side, type: 'STOP_MARKET', triggerPrice: pos.sl, clientAlgoId, client });
+    audit('RESTART_PROTECTION_REARMED', { symbol, type: 'STOP_MARKET', oldClientAlgoId: existing.stop?.clientAlgoId || null, clientAlgoId: stop?.clientAlgoId || clientAlgoId, algoId: stop?.algoId || null, triggerPrice: stop?.triggerPrice || pos.sl });
+  }
+  if (!takeProfit) {
+    const clientAlgoId = restartProtectionClientId(symbol, side, fingerprint, 'TAKE_PROFIT_MARKET', pos.tp);
+    takeProfit = await createProtection({ symbol, side, type: 'TAKE_PROFIT_MARKET', triggerPrice: pos.tp, clientAlgoId, client });
+    audit('RESTART_PROTECTION_REARMED', { symbol, type: 'TAKE_PROFIT_MARKET', oldClientAlgoId: existing.takeProfit?.clientAlgoId || null, clientAlgoId: takeProfit?.clientAlgoId || clientAlgoId, algoId: takeProfit?.algoId || null, triggerPrice: takeProfit?.triggerPrice || pos.tp });
+  }
 
   // Aynı sembolde geçmiş atomik yenilemeden kalmış AGROS stoplarını temizle. En az bir doğrulanmış
   // stop ve TP elde edilmeden hiçbir eski koruma iptal edilmez.
@@ -1612,5 +1640,5 @@ module.exports = {
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
   ensureProtectionForPosition, startupReconcile, statusSummary,
-  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable, protectionTrigger, triggerEqual, adoptDesiredStop }
+  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, restartProtectionClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable, protectionTrigger, triggerEqual, adoptDesiredStop }
 };

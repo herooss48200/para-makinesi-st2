@@ -305,11 +305,24 @@ Module._load = function patched(request, parent, isMain) {
     const startup = await execution.startupReconcile(mockClient);
     assert.strictEqual(startup.blocked, false);
     assert.strictEqual(startup.adopted, 1);
-    const adopted = startup.positions.find(p => p.sym === 'ETHUSDT');
+    let adopted = startup.positions.find(p => p.sym === 'ETHUSDT');
     assert.ok(adopted && adopted.sanal === false && adopted.scientificLearningExcluded === true, 'Harici pozisyon güvenli/adopted işaretlenmedi');
     assert.ok(adopted.gercekEmirYurutme.protections.stop && adopted.gercekEmirYurutme.protections.takeProfit, 'Restart korumaları kurulmadı');
     assert.ok(!activeStatus(mockClient._state.algoOrders.find(o => o.clientAlgoId === 'AGST2S-XRP-O-RPHAN')?.algoStatus), 'Orphan Algo emri temizlenmedi');
     assert.strictEqual(mockClient._state.regularOrders.find(o => o.clientOrderId === 'AGST2E-XRP-O-RPHAN')?.status, 'CANCELED', 'Orphan normal emir temizlenmedi');
+
+    // Regression: restart öncesinde state'in işaret ettiği stop Binance'te CANCELED olmuş olabilir.
+    // Aynı terminal clientAlgoId tekrar kullanılmamalı; aktif pozisyon için taze restart-rearm stopu
+    // kurulup doğrulanmalı ve startup fail-closed döngüsüne girmemeli.
+    const canceledRestartStopId = adopted.gercekEmirYurutme.protections.stop.clientAlgoId;
+    await mockClient.futuresCancelAlgoOrder({ symbol: 'ETHUSDT', clientAlgoId: canceledRestartStopId });
+    const rearmStartup = await execution.startupReconcile(mockClient);
+    assert.strictEqual(rearmStartup.blocked, false, 'CANCELED restart stopu yüzünden startup bloklandı');
+    adopted = rearmStartup.positions.find(p => p.sym === 'ETHUSDT');
+    const rearmedStop = adopted?.gercekEmirYurutme?.protections?.stop;
+    assert.ok(rearmedStop && activeStatus(rearmedStop.algoStatus || rearmedStop.status), 'Restart stopu yeniden aktif kurulmadı');
+    assert.notStrictEqual(rearmedStop.clientAlgoId, canceledRestartStopId, 'Terminal clientAlgoId restartta yeniden kullanıldı');
+    assert.ok(String(rearmedStop.clientAlgoId).startsWith('AGST2X-S-'), 'Restart stopu taze recovery kimliği kullanmadı');
 
     // Algo stop gerçekten tetiklendiyse manuel kapanış sayılmamalı.
     const stopAlgo = mockClient._state.algoOrders.find(o => o.clientAlgoId === adopted.gercekEmirYurutme.protections.stop.clientAlgoId);

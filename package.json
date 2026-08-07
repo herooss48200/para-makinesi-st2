@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.13.5-r3-early-economy-safe-floor-success-confirmed-real-size",
-  "description": "AGROS ST2 v6.13.5-R3: erken +%0.25 ekonomi tabanı, başarı-öncelikli CONFIRMED seçim politikası ve stepSize uyumlu hedefe-en-yakın gerçek emir boyutu.",
+  "version": "6.13.5-r4-restart-protection-rearm",
+  "description": "AGROS ST2 v6.13.5-R4: R3 ekonomi/CONFIRMED/real-size korunur; restartta iptal/terminal Algo koruması taze kimlikle yeniden kurulur ve doğrulanır.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
