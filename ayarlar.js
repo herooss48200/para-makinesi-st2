@@ -696,12 +696,21 @@ const ayarlar = {
     // v6.13.5-R5: başlangıç çekirdeği fail-fast + yüksek ama Binance-dostu eşzamanlılıkla hazırlanır.
     // Canlı döngü genel ağ sınırı 3 bağlantıda kalır; yalnız startup geçici olarak 10'a çıkar.
     binanceStartupAgEszamanlilik: 10,
-    binanceStartupAgIsciSayisi: 20,
+    // R6: startup worker sayısı socket concurrency'sini aşmaz; her worker iki core isteği açabildiği için
+    // 20 worker R5'te queue watchdog öncesi gereksiz kuyruk oluşturuyordu.
+    binanceStartupAgIsciSayisi: 10,
     binanceStartupTimeoutMs: 8000,
     binanceStartupRetry: 0,
     binanceStartupQueueTimeoutMs: 30000,
     binanceStartupRequestSpacingMs: 15,
+    // R6: eksik cache onarımı küçük hedefli turlarda yürür; normal delta hattını aç bırakmaz.
+    binanceRecoveryAgEszamanlilik: 4,
+    marketRecoveryBatchSize: 30,
+    marketStartupRepairRounds: 4,
+    marketStartupMaxWarmupMs: 360000,
+    marketRecoveryRoundDelayMs: 750,
     // Hazır cache tekrar tam tarihçe indirmez; yalnız son kapanmış mumları alıp mevcut seriyle birleştirir.
+    // Bu değer COIN limiti değil, sembol başına mum limitidir.
     pusuDeltaMumLimiti: 3,
     superTrendDeltaMumLimiti: 3,
     binanceBulkRefreshTimeoutMs: 8000,

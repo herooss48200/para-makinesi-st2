@@ -429,7 +429,10 @@ function st2VeriSagligiOzeti() {
         renko1mStHazir: Math.max(0, Number(tarama.onay1mRenkoHazir || 0)),
         renko1mStYetersiz: Math.max(0, Number(tarama.onay1mYetersiz || 0)),
         st1ShadowHazir: Math.min(secilen, Math.max(0, Number(veri.st1ShadowHazir || 0))),
-        hata: Number(veri.hata || 0) + Number(veri.mumHata || 0) + Number(veri.superTrendHata || 0),
+        cacheEksik: Math.max(0, Number(veri.mumEksik ?? (secilen - Number(veri.mumHazir || 0)))) +
+            Math.max(0, Number(veri.superTrendEksik ?? (secilen - Number(veri.renko1mVeriHazir ?? veri.sniperHazir ?? veri.superTrendHazir ?? 0)))),
+        istekHata: Math.max(0, Number(veri.mumHata || 0)) + Math.max(0, Number(veri.superTrendHata || 0)),
+        deadlineAtlanan: Math.max(0, Number(veri.pusuWatchdogKesilen || 0)) + Math.max(0, Number(veri.superTrendWatchdogKesilen || 0)),
         taranan: Number(tarama.taranan || 0),
         taramaEvreni: Number(tarama.evren || secilen || 0),
         veriEksik: Number(tarama.veriEksik || 0),
@@ -520,7 +523,7 @@ function minimalCanliRaporMetniOlustur() {
         `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
         `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Score-Premier ${premierAktifler.length} | Shadow Öğrenme ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
         `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
-        `📡 Hazır cache Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | 1m Veri ${veriSagligi.renko1mVeriHazir}/${veriSagligi.secilen} | Renko ST hesap ${veriSagligi.renko1mStHazir} | Yetersiz ${veriSagligi.renko1mStYetersiz} | Hata ${veriSagligi.hata} | Son Renko tarama ${veriSagligi.taranan}/${veriSagligi.taramaEvreni} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
+        `📡 Hazır cache Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | 1m Veri ${veriSagligi.renko1mVeriHazir}/${veriSagligi.secilen} | Renko ST hesap ${veriSagligi.renko1mStHazir} | Yetersiz ${veriSagligi.renko1mStYetersiz} | Eksik cache ${veriSagligi.cacheEksik} | İstek/veri hata ${veriSagligi.istekHata} | Deadline ${veriSagligi.deadlineAtlanan} | Son Renko tarama ${veriSagligi.taranan}/${veriSagligi.taramaEvreni} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Tarama eksik ${veriSagligi.veriEksik}`,
         ...((veriSagligi.pusuTazelemeCalisiyor || veriSagligi.stTazelemeCalisiyor)
             ? [`🔄 Veri tazeleme sürüyor | Son tur Mum ${veriSagligi.mumSonTur} | ST ${veriSagligi.stSonTur} | Hazır cache korunuyor`]
             : []),

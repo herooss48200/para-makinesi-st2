@@ -1,0 +1,41 @@
+AGROS ST2 v6.13.5-R6 — MARKET DATA RECOVERY FAIRNESS
+Test date: 2026-08-07
+
+PASS — node --check revizyon.js
+PASS — node --check 2_rapor.js
+PASS — node --check ayarlar.js
+PASS — node --check versiyon.js
+PASS — node --check test_v6139_market_data_recovery_fairness.js
+PASS — test_v674_full_source_syntax.js (146 JavaScript files)
+PASS — test_v6105_active_exit_report_reconciliation.js
+PASS — test_v6109_final_chain_reconciliation.js
+PASS — test_v6110_golden_live_chain.js
+PASS — test_v6112_direct_profit_floor_two_slot.js
+PASS — test_v6122_golden_renko_williams_shadow.js
+PASS — test_v6123_renko_entry_confirmation_shadow.js
+PASS — test_v6133_profit_capture_and_cache_accounting.js
+PASS — test_v6138_market_data_fast_refresh.js
+PASS — test_v6139_market_data_recovery_fairness.js
+  - worker <= network concurrency
+  - transient startup misses repaired by targeted repair round
+  - 15m degraded mode targets only missing symbols
+  - 1m degraded mode targets only missing symbols
+  - healthy mode returns to full-universe delta refresh
+  - delta limit 3 proven to be candles per symbol, not coin limit
+  - missing cache / request error / deadline telemetry separated
+
+Full `npm test` in reconstruction environment:
+- Began successfully and passed syntax + v672.
+- Stopped at v673 because the reconstructed source intentionally has no node_modules and therefore `dotenv` is unavailable in this sandbox.
+- This is an environment/dependency absence, not a test assertion failure.
+- Deployment validation must run `npm test` on the existing AWS ST2 runtime where dependencies are installed, before PM2 restart.
+
+UNCHANGED RUNTIME MODULES FROM R5:
+- 64_binance_network_resilience.js
+- 72_st2_renko_entry.js
+
+SAFETY CONTRACT:
+- startupMarketReadyOrani = 0.95 unchanged
+- real order fail-closed unchanged
+- Golden Renko / Entry Evolution decision math unchanged
+- no data/state/ledger/log/.env/node_modules included in patch

@@ -176,7 +176,7 @@ function candles(tfMs, count, start = Date.now() - tfMs * (count + 5), base = 10
     assert(stats.queueTimeout >= 1, 'queue timeout counter must increment');
     network._testReset();
 
-    console.log('✅ v6.13.5-R5 fast startup + delta refresh + queue watchdog + truthful 1m report passed');
+    console.log('✅ v6.13.5-R6 preserves R5 fast startup + delta refresh + queue watchdog + truthful 1m report passed');
 })().catch(err => {
     console.error(err.stack || err);
     process.exit(1);
