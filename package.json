@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.13.5-r13-core-loop-liveness-st1-shadow-isolation",
-  "description": "AGROS ST2 v6.13.5-R13: R12 1m Renko-ST readiness + first-scan liveness + ST1 shadow network isolation.",
+  "version": "6.13.5-r14-critical-ticker-deadline-first-audit-isolation",
+  "description": "AGROS ST2 v6.13.5-R14: critical ticker hard deadline + reserved socket + first-audit refresh isolation.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -55,10 +55,11 @@
     "test:v6143": "node test_v6143_telegram_live_panel_delivery_truth.js",
     "test:v6144": "node test_v6144_live_panel_runtime_cadence.js && node test_v6145_1m_renko_st_readiness.js",
     "test:v6145": "node test_v6145_1m_renko_st_readiness.js",
-    "test:telegram": "node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 92_st2_live_panel_scheduler.js && node --check revizyon.js && node test_v6142_startup_panel_guard.js && node test_v6143_telegram_live_panel_delivery_truth.js && node test_v6144_live_panel_runtime_cadence.js && node test_v6145_1m_renko_st_readiness.js && node test_v6146_core_loop_liveness_shadow_isolation.js",
+    "test:telegram": "node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 92_st2_live_panel_scheduler.js && node --check revizyon.js && node test_v6142_startup_panel_guard.js && node test_v6143_telegram_live_panel_delivery_truth.js && node test_v6144_live_panel_runtime_cadence.js && node test_v6145_1m_renko_st_readiness.js && node test_v6146_core_loop_liveness_shadow_isolation.js && node test_v6147_critical_ticker_first_audit_isolation.js",
     "test:fast": "npm run test:telegram && node test_v672_single_delivery_safe_exit.js && node test_v610_real_order_execution_safety.js && node test_v6105_active_exit_report_reconciliation.js && node test_v6109_final_chain_reconciliation.js && node test_v6110_golden_live_chain.js && node test_v6112_direct_profit_floor_two_slot.js && node test_v6122_golden_renko_williams_shadow.js && node test_v6123_renko_entry_confirmation_shadow.js && node test_v6140_market_data_transport_stability.js && node test_v6141_market_data_known_good_rollback.js",
     "test:full": "npm run check",
-    "test:v6146": "node test_v6146_core_loop_liveness_shadow_isolation.js"
+    "test:v6146": "node test_v6146_core_loop_liveness_shadow_isolation.js",
+    "test:v6147": "node test_v6147_critical_ticker_first_audit_isolation.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

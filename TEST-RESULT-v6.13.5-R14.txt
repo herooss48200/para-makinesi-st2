@@ -1,0 +1,13 @@
+AGROS ST2 v6.13.5-R14 TEST RESULT
+====================================
+PASS: npm test (critical fast suite)
+PASS: v6147 critical ticker + first-audit isolation
+  - CRITICAL overflow starts while LOW bulk slot is hung
+  - wall-clock hard deadline fires ~1s even when req.setTimeout is inert
+PASS: v6146 core loop liveness + ST1 shadow isolation
+PASS: v6145 1m Renko ST readiness + 80/240/480 repair
+PASS: v6144 30s live panel cadence
+PASS: real-order safety / Golden Live Chain / profit floor
+PASS: Williams shadow / Renko confirmation lifecycle
+PASS: R8 bulk transport semantics preserved
+PASS: full source syntax — 155 JavaScript files

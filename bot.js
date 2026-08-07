@@ -238,7 +238,7 @@ async function baslat() {
             donguBaslangic = Date.now();
             donguAsama = 'FUTURES_PRICES';
             try {
-                const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.binanceAgTimeoutMs || 15000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
+                const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000, retries: ayarlar.futuresTickerRetry ?? 0, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
                 for (const [sym, price] of Object.entries(fiyatlar)) {
                     h.state.canliFiyatlar[sym] = parseFloat(price);
                 }
@@ -254,7 +254,9 @@ async function baslat() {
                         if (!ilkSt2TaramaTamamlandi) {
                             ilkSt2TaramaTamamlandi = true;
                             console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
-                            // R13: ST1 yalnız shadow; ilk gerçek Renko auditinden önce 200-sembol ağ taraması başlatmaz.
+                            // R14: ilk canlı Renko auditinden önce hiçbir toplu refresh yok.
+                            // Audit kanıtından sonra önce çekirdek 15m/1m planı, sonra düşük öncelikli ST1 shadow planlanır.
+                            if (typeof revizyon.periyodikTazelemeyiBaslat === 'function') revizyon.periyodikTazelemeyiBaslat();
                             if (typeof revizyon.st1ShadowTazelemeyiBaslat === 'function') revizyon.st1ShadowTazelemeyiBaslat();
                             // R11: panel ilk tam Renko taramasını beklemez; bağımsız scheduler gate READY ile çalışır.
                         }

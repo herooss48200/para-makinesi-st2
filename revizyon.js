@@ -126,8 +126,8 @@ function periyodikTazelemeyiBaslat() {
         pusuTimerRef.unref?.();
     }
     if (!stTimerRef) {
-        // R13: çekirdek 1m ATR-Renko ST refresh, ST1 3m shadow'dan ayrıdır.
-        // Ana giriş verisi shadow 200-sembol taramasının ağ/mutex süresini beklemez.
+        // R14: bu plan yalnız ilk gerçek Golden Renko auditinden SONRA başlatılır.
+        // Böylece startup cache hazır olur olmaz ana ticker + ilk Renko scan temiz ağ hattı bulur.
         stTimerRef = setInterval(() => {
             superTrendHesapla(false, { skipTrend: true, priority: 'HIGH' })
                 .catch(e => console.error('❌ 1m Renko ST tazeleme üst hata:', e.message));
@@ -340,8 +340,8 @@ async function derinGecmisiInsaEt(options = {}) {
         };
         console.log(`${gate.currentReady ? '✅' : '⚠️'} [AŞAMALI BAŞLANGIÇ] GOLDEN RENKO ${gate.currentReady ? 'TAMAM' : 'DEGRADED'} | ${pusuTf} Mum ${pusuHazir}/${toplam} | ${sniperTf} Renko ST veri ${sniperHazir}/${toplam} | Eşik %${(threshold * 100).toFixed(0)} | Süre ${now - baslangic} ms.`);
 
-        // R13: ST1 3m shadow başlangıçta çalıştırılmaz.
-        // İlk gerçek Golden Renko taraması tamamlandıktan sonra bot.js ayrı düşük öncelikli planı başlatır.
+        // R14: startup sonrası hiçbir 200-sembol periyodik refresh ilk gerçek auditten önce başlamaz.
+        console.log('🛡️ [CORE REFRESH DEFERRED] İlk Golden Renko taraması tamamlanana kadar 15m/1m toplu refresh YOK');
         console.log('🧪 [ST1 SHADOW DEFERRED] İlk Golden Renko taraması tamamlanana kadar ağ isteği YOK | Giriş yetkisine etkisi YOK');
 
         return {
@@ -351,7 +351,7 @@ async function derinGecmisiInsaEt(options = {}) {
         };
     } finally {
         ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
-        periyodikTazelemeyiBaslat();
+        // R14: periyodikTazelemeyiBaslat() ilk canlı Renko auditinden sonra bot.js tarafından çağrılır.
     }
 }
 
@@ -515,4 +515,4 @@ function resetScheduleForTest(){
     if (st1ShadowDelayRef) clearTimeout(st1ShadowDelayRef);
     pusuTimerRef=null; stTimerRef=null; st1ShadowTimerRef=null; st1ShadowDelayRef=null;
 }
-module.exports={ derinGecmisiInsaEt, pusuVerileriniTazele, superTrendHesapla, st1ShadowTazelemeyiBaslat, _startupMarketDurumuGuncelle:startupMarketDurumuGuncelle, _readyRatioThreshold:readyRatioThreshold, _intervalMs:intervalMs, _closedCandleBucket:closedCandleBucket, _refreshDue:refreshDue, _resetScheduleForTest:resetScheduleForTest };
+module.exports={ derinGecmisiInsaEt, pusuVerileriniTazele, superTrendHesapla, periyodikTazelemeyiBaslat, st1ShadowTazelemeyiBaslat, _startupMarketDurumuGuncelle:startupMarketDurumuGuncelle, _readyRatioThreshold:readyRatioThreshold, _intervalMs:intervalMs, _closedCandleBucket:closedCandleBucket, _refreshDue:refreshDue, _resetScheduleForTest:resetScheduleForTest };

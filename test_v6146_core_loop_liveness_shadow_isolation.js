@@ -7,7 +7,7 @@ const bot = fs.readFileSync('./bot.js', 'utf8');
 const settings = require('./ayarlar.js');
 const version = require('./versiyon.js');
 
-assert.strictEqual(version.botSurumu, '6.13.5-R13-CORE-LOOP-LIVENESS-ST1-SHADOW-ISOLATION');
+assert.strictEqual(version.botSurumu, '6.13.5-R14-CRITICAL-TICKER-DEADLINE-FIRST-AUDIT-ISOLATION');
 assert.ok(rev.includes("superTrendHesapla(false, { skipTrend: true, priority: 'HIGH' })"),
   'core periodic refresh must update 1m Renko ST without ST1 shadow');
 assert.ok(!rev.includes("superTrendHesapla(true, {\n                concurrency: ayarlar.binanceAgEszamanlilik"),
@@ -28,4 +28,4 @@ assert.strictEqual(settings.st1ShadowPeriyodikAktif, true);
 assert.ok(Number(settings.st1ShadowIlkTaramaGecikmeMs) >= 30000);
 assert.strictEqual(Number(settings.st1ShadowIstekRetry), 0);
 
-console.log('✅ v6.13.5-R13 core loop liveness + ST1 shadow isolation passed | first Renko audit before shadow network load + watchdog truth');
+console.log('✅ v6.13.5-R14 core loop liveness + ST1 shadow isolation passed | first Renko audit before shadow network load + watchdog truth');
