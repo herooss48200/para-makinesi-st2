@@ -6,7 +6,7 @@ const version=require('./versiyon.js');
 const settings=require('./ayarlar.js');
 
 const sha=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
-assert.strictEqual(version.botSurumu,'6.13.5-R12-RENKO-1M-ST-READINESS-ENTRY-FUNNEL');
+assert.strictEqual(version.botSurumu,'6.13.5-R13-CORE-LOOP-LIVENESS-ST1-SHADOW-ISOLATION');
 const rev=fs.readFileSync('./revizyon.js','utf8');
 assert(!rev.includes('startupAgOverrides'),'R5 startup transport override must remain absent');
 assert(!rev.includes('bulkAgOverrides'),'R5 bulk transport override must remain absent');

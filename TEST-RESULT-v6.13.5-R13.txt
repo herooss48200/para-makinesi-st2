@@ -1,0 +1,19 @@
+AGROS ST2 v6.13.5-R13 TEST RESULT
+=====================================
+PASS: npm test (critical fast suite)
+PASS: v6146 core loop liveness + ST1 shadow isolation
+PASS: v6145 1m Renko ST readiness + 80/240/480 repair
+PASS: v6144 30s live panel runtime cadence
+PASS: v6143 Telegram delivery truth
+PASS: v6142 startup panel guard
+PASS: v672 single delivery safe exit
+PASS: v610 real order execution safety
+PASS: v6105 active exit/report reconciliation
+PASS: v6109 final chain
+PASS: v6110 Golden Live Chain
+PASS: v6112 profit floor
+PASS: v6122 Williams shadow
+PASS: v6123 Renko confirmation lifecycle
+PASS: v6140 network transport rollback
+PASS: v6141 R8 known-good market engine rollback
+PASS: full source syntax — 154 JavaScript files

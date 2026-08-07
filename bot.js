@@ -21,6 +21,9 @@ let ilkSt2TaramaTamamlandi = false;
 let startupPanelPlanlandi = false;
 let sonStartupGateLog = 0;
 let startupEarlyDeliveryPromise = null;
+let donguBaslangic = 0;
+let donguAsama = 'IDLE';
+let sonDonguWatchdogLog = 0;
 
 async function baslat() {
     console.log('=== [PARA MAKİNESİ AUTOMATION SYSTEM] STARTING ===');
@@ -213,11 +216,27 @@ async function baslat() {
             console.log(`📊 [ST2 LIVE PANEL SCHEDULER] Gate READY sonrası bağımsız cadence ${Math.round(Number(ayarlar.canliRaporGuncellemeMs || 30000) / 1000)} sn`);
         }
 
+        // R13: ana işlem döngüsü görünür liveness kanıtı.
+        // Karar matematiğini değiştirmez; yalnız uzun süren aşamayı açıklar.
+        setInterval(() => {
+            if (!donguCalisiyor || !donguBaslangic) return;
+            const gecen = Date.now() - donguBaslangic;
+            const esik = Math.max(15000, Number(ayarlar.st2MainLoopWatchdogMs || 20000));
+            const logAralik = Math.max(15000, Number(ayarlar.st2MainLoopWatchdogLogAralikMs || 30000));
+            if (gecen >= esik && Date.now() - sonDonguWatchdogLog >= logAralik) {
+                sonDonguWatchdogLog = Date.now();
+                const ag = binanceAg.durumOzeti();
+                console.warn(`⏱️ [ST2 MAIN LOOP WATCHDOG] Aşama ${donguAsama} | ${gecen} ms | Ağ aktif ${ag.active} kuyruk ${ag.queuedNow} inFlight ${ag.inFlight}`);
+            }
+        }, 5000).unref?.();
+
         setInterval(async () => {
             if (donguCalisiyor) return;
             if (Date.now() < h.state.cooldownBitis) return;
 
             donguCalisiyor = true;
+            donguBaslangic = Date.now();
+            donguAsama = 'FUTURES_PRICES';
             try {
                 const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.binanceAgTimeoutMs || 15000, retries: ayarlar.binanceAgRetry ?? 2, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
                 for (const [sym, price] of Object.entries(fiyatlar)) {
@@ -225,13 +244,18 @@ async function baslat() {
                 }
 
                 // Koruma ve manuel/harici kapanış mutabakatı her zaman yeni giriş taramasından önce gelir.
+                donguAsama = 'POSITION_PROTECTION';
                 await p.izSurmeyiGuncelle();
                 if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
                     if (h.state.startupMarketReady === true) {
+                        donguAsama = 'RENKO_SCAN';
                         const st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
+                        donguAsama = 'POST_RENKO';
                         if (!ilkSt2TaramaTamamlandi) {
                             ilkSt2TaramaTamamlandi = true;
                             console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
+                            // R13: ST1 yalnız shadow; ilk gerçek Renko auditinden önce 200-sembol ağ taraması başlatmaz.
+                            if (typeof revizyon.st1ShadowTazelemeyiBaslat === 'function') revizyon.st1ShadowTazelemeyiBaslat();
                             // R11: panel ilk tam Renko taramasını beklemez; bağımsız scheduler gate READY ile çalışır.
                         }
                     } else if (Date.now() - sonStartupGateLog >= Math.max(30000, Number(ayarlar.startupMarketGuardLogAralikMs || 60000))) {
@@ -296,6 +320,8 @@ async function baslat() {
                 }
             } finally {
                 donguCalisiyor = false;
+                donguBaslangic = 0;
+                donguAsama = 'IDLE';
             }
         }, ayarlar.pingInterval || 1000);
 

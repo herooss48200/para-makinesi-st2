@@ -521,6 +521,14 @@ const ayarlar = {
     // emir kararı ise her ana döngüde canlı fiyatla tekrar hesaplanır.
     pusuVeriTazelemeMs: null,
     superTrendTazelemeMs: null,
+    // R13: Golden Renko çekirdeği ST1 3m shadow ağ taramasından izole edilir.
+    st1ShadowPeriyodikAktif: true,
+    st1ShadowIlkTaramaGecikmeMs: 60000,
+    st1ShadowTazelemeMs: 180000,
+    st1ShadowIstekTimeoutMs: 6000,
+    st1ShadowIstekRetry: 0,
+    st2MainLoopWatchdogMs: 20000,
+    st2MainLoopWatchdogLogAralikMs: 30000,
     durumLogAraligiMs: 5000,
 
     trendBehaviorAktif: true,
