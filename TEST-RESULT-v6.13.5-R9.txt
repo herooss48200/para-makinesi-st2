@@ -1,0 +1,16 @@
+AGROS ST2 v6.13.5-R9 — STARTUP PANEL GUARD
+
+Regression contract:
+- ST2 live panel blocked during market warmup.
+- Gate READY + first Renko scan required before periodic panel.
+- Startup panel dedupe timestamp preserved.
+- R8 known-good network module preserved.
+
+Runtime evidence before patch:
+- Separate AWS network test: 320/320 success, retry 0, timeout 0.
+- Bot process startup: 16 -> 17 -> 19/201 while network queue stayed ~24 -> 21.
+
+Target acceptance:
+- Startup cache progresses without early heavy panel contention.
+- >=95% core data => Entry Gate READY.
+- First ST2 RENKO AUDIT then startup panel.

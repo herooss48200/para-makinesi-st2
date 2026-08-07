@@ -163,6 +163,8 @@ async function baslat() {
         const startupPanelPlanla = (reason, delayMs = null) => {
             if (startupPanelPlanlandi) return;
             startupPanelPlanlandi = true;
+            // ST2 startup paneli planlandığında periyodik canlı rapor aynı turda ikinci kez tetiklenmesin.
+            if (String(ayarlar.entryStrategyMode || '') === 'ST2_RENKO') sonCanliRapor = Date.now();
             const gecikme = delayMs == null
                 ? Math.max(5000, Number(ayarlar.st2StartupPanelGecikmeMs || 15000))
                 : Math.max(0, Number(delayMs) || 0);
@@ -241,7 +243,12 @@ async function baslat() {
                 }
 
                 const now = Date.now();
-                if (ayarlar.canliRaporAktif && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 60000)) {
+                // ST2 startup sırasında ağır canlı paneli başlatma. Startup paneli yalnız Entry Gate READY
+                // ve ilk gerçek Renko taraması tamamlandıktan sonra startupPanelPlanla() üzerinden gelir.
+                // Önceki sonCanliRapor=0 davranışı ilk 1 saniyelik döngüde bu korumayı bypass ediyordu.
+                const canliRaporStartupIzinli = ayarlar.entryStrategyMode !== 'ST2_RENKO'
+                    || (h.state.startupMarketReady === true && ilkSt2TaramaTamamlandi === true);
+                if (ayarlar.canliRaporAktif && canliRaporStartupIzinli && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 60000)) {
                     sonCanliRapor = now;
                     rapor.raporTalepEt(false);
                 }

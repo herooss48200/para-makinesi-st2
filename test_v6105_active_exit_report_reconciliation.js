@@ -37,5 +37,5 @@ const text = transparency.closingText(restartGapPosition, {
 assert(text.includes('Giriş 0.50 tuğla | N3'), 'Entry N3 kapanış raporunda korunmalı');
 assert(text.includes('Giriş kanıtlı; kendi LAB Exit doğrulanana kadar güvenli mevcut kademe'), 'eski dondurulmuş N0 metni rapor anında N3 ile uzlaştırılmalı');
 assert(!text.includes('Entry Replay kanıtı yok; kendi LAB Exit'), 'N3 varken kanıt yok çelişkisi görünmemeli');
-assert.strictEqual(version.botSurumu, '6.13.5-R8-MARKET-DATA-KNOWN-GOOD-ROLLBACK');
+assert.strictEqual(version.botSurumu, '6.13.5-R9-STARTUP-PANEL-GUARD');
 console.log('✅ v6.13.5-R8 report truth: real Binance stop priority + virtual legacy compatibility + Restart-GAP reconciliation passed');
