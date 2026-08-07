@@ -1,0 +1,24 @@
+'use strict';
+const assert=require('assert');
+const fs=require('fs');
+const crypto=require('crypto');
+const version=require('./versiyon.js');
+const settings=require('./ayarlar.js');
+
+const sha=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+assert.strictEqual(version.botSurumu,'6.13.5-R8-MARKET-DATA-KNOWN-GOOD-ROLLBACK');
+const rev=fs.readFileSync('./revizyon.js','utf8');
+assert(!rev.includes('startupAgOverrides'),'R5 startup transport override must remain absent');
+assert(!rev.includes('bulkAgOverrides'),'R5 bulk transport override must remain absent');
+assert(!rev.includes('marketBulkRefreshOwner'),'R5 bulk refresh lock must remain absent');
+assert(!rev.includes('eksikSembolleriOneAl'),'R6 missing-first scheduler must remain absent from rollback engine');
+assert(rev.includes('function cacheHazirSayisi(cache)') && rev.includes('filter(sym => aktif.has(String(sym))).length'),'post-R4 active-universe cache accounting shim must be preserved');
+assert.strictEqual(sha('./64_binance_network_resilience.js'),'c6de0b7b73eb7f8c6bdbd382979e3d7d3165bce2628e2dfcaf1c3a5f4e22055c','network resilience must be byte-identical to pre-R5 known-good engine');
+assert.strictEqual(Number(settings.binanceAgEszamanlilik),3);
+assert.strictEqual(Number(settings.binanceAgIsciSayisi),8);
+assert.strictEqual(Number(settings.binanceStartupAgEszamanlilik),8);
+assert.strictEqual(Number(settings.binanceStartupAgIsciSayisi),16);
+assert.strictEqual(Number(settings.binanceAgTimeoutMs),15000);
+assert.strictEqual(Number(settings.binanceAgRetry),2);
+assert.strictEqual(Number(settings.binanceTopluVeriRetryMs),90000);
+console.log('✅ v6.13.5-R8 rollback passed | pre-R5 market engine preserved + active-universe cache accounting shim + exact pre-R5 network');

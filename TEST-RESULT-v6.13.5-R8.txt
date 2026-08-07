@@ -1,0 +1,56 @@
+AGROS ST2 v6.13.5-R8 — MARKET DATA KNOWN GOOD ROLLBACK (CORRECTED FINAL)
+Date: 2026-08-07
+
+RESULT: PASS (targeted critical chain)
+
+Rollback proof:
+- 64_binance_network_resilience.js SHA256 = c6de0b7b73eb7f8c6bdbd382979e3d7d3165bce2628e2dfcaf1c3a5f4e22055c
+  Byte-identical to pre-R5 known-good network queue/transport engine.
+- revizyon.js preserves the pre-R5 market-data scheduler/refresh engine behavior, with one intentional post-R4 compatibility shim:
+  active-universe cache accounting (`aktifEvrenSeti` + `cacheHazirSayisi`).
+
+Restored market-data profile:
+- Normal network concurrency: 3
+- Normal workers: 8
+- Startup concurrency: 8
+- Startup workers: 16
+- Request timeout: 15000 ms
+- Retry: 2
+- Bulk retry cadence: 90000 ms
+- Startup fail-closed threshold: 95%
+
+Retired from runtime:
+- R5 fail-fast startup overrides
+- R5 delta scheduler / bulk lock
+- R5 queue wait expiry layer
+- R6 missing-first recovery scheduler
+- R7 startup/bulk transport override layer
+
+Preserved compatibility accounting:
+- Cache readiness counts only active trade-universe symbols.
+- Startup gate 15m/1m counts use active universe only.
+- 1m cache vs computed Renko ST report visibility remains.
+
+Executed PASS:
+- test_v6131_scan_health_snapshot.js
+- test_v6133_profit_capture_and_cache_accounting.js
+- test_v6138_market_data_fast_refresh.js
+- test_v6140_market_data_transport_stability.js
+- test_v6141_market_data_known_good_rollback.js
+- test_v6105_active_exit_report_reconciliation.js
+- test_v6109_final_chain_reconciliation.js
+- test_v6110_golden_live_chain.js
+- test_v6112_direct_profit_floor_two_slot.js
+- test_v6122_golden_renko_williams_shadow.js
+- test_v6123_renko_entry_confirmation_shadow.js
+- node --check revizyon.js
+- node --check 64_binance_network_resilience.js
+- node --check 2_rapor.js
+
+Full npm test in the model container stops at test_v673 only because this isolated container has no node_modules/dotenv. User/local ST2 has dependencies and should run full npm test before commit.
+
+Live acceptance required after deployment:
+- 15m and 1m startup cache >=95%
+- Entry Gate READY
+- ST2 RENKO AUDIT resumes on ~200 coin universe
+- pusu chain resumes
