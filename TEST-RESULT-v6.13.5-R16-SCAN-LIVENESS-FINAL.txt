@@ -1,0 +1,26 @@
+AGROS ST2 v6.13.5-R16 — SCAN LIVENESS FINAL
+Date: 2026-08-08
+
+PASS: npm test
+PASS: npm run test:full
+PASS: full source syntax
+PASS: v6149 market price fallback live chain
+PASS: v6150 DIRECT + CONFIRMED shared pozisyonAc authority
+PASS: v6151 200-symbol scan I/O liveness
+
+v6151 proof:
+- 200 Williams in-memory updates => 0 synchronous state writes
+- one post-scan batched flush => 1 write + 1 atomic rename
+- startup pusu Telegram delivery is background-only
+
+Runtime scope changed:
+- 72_st2_renko_entry.js
+- 88_st2_williams_cycle_shadow_lab.js
+
+Not changed:
+- Entry Evolution math
+- DIRECT/CONFIRMED selection math
+- Premier admission math
+- real order execution math
+- stop / profit floor / exit math
+- market price fallback contract

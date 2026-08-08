@@ -763,7 +763,7 @@ async function taraVeDegerlendir() {
         audit.renkoHazir++;
         store.seriler[sym] = bricks;
         store.boxSize[sym] = box;
-        williamsCycleShadow.update(sym, bricks); // shadow-only; girişe etkisi yok
+        williamsCycleShadow.update(sym, bricks, { persist: false }); // shadow-only; tarama içinde disk I/O YOK
         if (acikPozisyonVar) continue; // Williams izlenir; yeni pusu/pozisyon üretilmez.
 
         eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit);
@@ -788,12 +788,16 @@ async function taraVeDegerlendir() {
         sonTamamlanma: new Date().toISOString()
     };
     auditLogla(audit);
+    // Williams shadow state ilk 200-sembol taramasını bloke etmesin: RAM'de toplandı, tek flush arka planda.
+    if (typeof williamsCycleShadow.scheduleFlush === 'function') williamsCycleShadow.scheduleFlush();
 
     // Açılışta bulunan bütün mevcut pusular tek mesajda bir kez bildirilir.
     // Sonraki taramalarda yalnız yeni bulunan pusu kendi kanıt mesajıyla gönderilir.
+    // R16 scan-liveness: Telegram teslimi Renko audit/ilk tarama dönüşünü ASLA bloke etmez.
     if (!baslangicPusuOzetiGonderildi && !baslangicPusuOzetiIsleniyor) {
         baslangicPusuOzetiIsleniyor = true;
-        try {
+        setImmediate(async () => {
+            try {
             const benzersiz = [];
             const gorulen = new Set();
             for (const x of baslangicPusuKuyrugu) {
@@ -842,11 +846,12 @@ async function taraVeDegerlendir() {
                     console.log(`${ok ? '✅' : '⚠️'} [ST2 AÇILIŞ PUSU ÖZETİ] ${benzersiz.length} pusu | Telegram ${ok ? 'TEKİL TESLİM OK' : belirsiz ? 'TESLİM BELİRSİZ; AYNI BOOTTA TEKRAR YOK' : 'BAŞARISIZ; SONRAKİ TARAMADA YENİDEN DENEYECEK'}`);
                 }
             }
-        } catch (e) {
-            console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message} | Sonraki taramada yeniden denenecek`);
-        } finally {
-            baslangicPusuOzetiIsleniyor = false;
-        }
+            } catch (e) {
+                console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message} | Sonraki taramada yeniden denenecek`);
+            } finally {
+                baslangicPusuOzetiIsleniyor = false;
+            }
+        });
     }
     return audit;
 }
