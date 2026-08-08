@@ -5,15 +5,7 @@ const Module = require('module');
 
 function candles(tfMs,count,base=100){
   const start=Date.now()-tfMs*(count+2);
-  // Known-good fast path: 1m serisi gerçek ATR-Renko ST üretecek kadar yönlüdür.
-  // Düz/tuğlasız 80-mum senaryosunun 240/480 onarımı v6145 tarafından ayrıca test edilir.
-  return Array.from({length:count},(_,i)=>{
-    const step=tfMs===60000 ? i*0.10 : i*0.01;
-    const open=base+step;
-    const close=open+(tfMs===60000?0.08:0.005);
-    const wick=tfMs===60000?0.02:0.01;
-    return {openTime:start+i*tfMs,closeTime:start+(i+1)*tfMs-1,open:String(open),high:String(Math.max(open,close)+wick),low:String(Math.min(open,close)-wick),close:String(close),volume:'1'};
-  });
+  return Array.from({length:count},(_,i)=>{const open=base+(i*0.25);const close=open+0.20;return {openTime:start+i*tfMs,closeTime:start+(i+1)*tfMs-1,open:String(open),high:String(close+0.15),low:String(open-0.15),close:String(close),volume:'1'};});
 }
 
 (async()=>{

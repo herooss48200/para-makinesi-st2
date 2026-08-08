@@ -17,7 +17,7 @@ assert.strictEqual(Number(require('./ayarlar.js').binanceTopluVeriRetryMs), 9000
 
 // Visibility improvements remain; they are not part of the scheduler regression.
 assert(reportSource.includes('1m Veri ${veriSagligi.renko1mVeriHazir}'), '1m cache truth must remain visible');
-assert(reportSource.includes('Renko ST hesap ${veriSagligi.renko1mStHazir}'), 'computed 1m Renko ST truth must remain visible');
+assert(reportSource.includes('1m Renko ST ${veriSagligi.renko1mStHazir}'), 'computed 1m Renko ST truth must remain visible');
 assert(entrySource.includes('onay1mRenkoHazir: audit.onay1mRenkoHazir'), 'Renko audit truth must remain published');
 
 console.log('✅ v6.13.5-R8 fast-refresh retirement passed | R5 scheduler removed, visibility retained');

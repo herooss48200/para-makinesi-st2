@@ -1,0 +1,17 @@
+AGROS ST2 R12 GOLDEN LIVE RECOVERY FINAL
+========================================
+PASS: npm test
+PASS: npm run test:full
+PASS: full source syntax — 154 JavaScript files
+PASS: real order execution safety
+PASS: configurable 10 real slots + protections
+PASS: DIRECT / CONFIRMED unified entry gate
+PASS: Renko confirmation full lifecycle
+PASS: profit-floor / MFE / exit chain
+PASS: 1m Renko-ST readiness + 80→240→480 repair
+PASS: market-data known-good rollback / transport stability
+PASS: live-panel cadence and delivery truth
+PASS: v6153 200 symbols READY + 3x PRICE → PROTECTION → RENKO SCAN + zero loop errors
+
+Live reference from 7 Aug 2026:
+R12 repeatedly emitted ST2 RENKO AUDIT + ST2 GİRİŞ HUNİSİ over 200 symbols (~34s scan cycles).

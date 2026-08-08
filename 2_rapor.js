@@ -422,7 +422,14 @@ function st2VeriSagligiOzeti() {
         evrenMs: Number(evren.durationMs || veri.evrenYuklemeMs || 0),
         // Cache sayıları yardımcı/eski semboller yüzünden paydadan büyük görünemez.
         mumHazir: Math.min(secilen, Math.max(0, Number(veri.mumHazir || 0))),
-        superTrendHazir: Math.min(secilen, Math.max(0, Number(veri.superTrendHazir || 0))),
+        // 1m REST cache ile o cache'ten gerçekten hesaplanabilen Renko ST ayrı gerçeklerdir.
+        // ST1 shadow ısınması core 1m sayacını artık ezmez.
+        renko1mVeriHazir: Math.min(secilen, Math.max(0, Number(veri.renko1mVeriHazir ?? veri.sniperHazir ?? veri.superTrendHazir ?? 0))),
+        superTrendHazir: Math.min(secilen, Math.max(0, Number(veri.renko1mVeriHazir ?? veri.sniperHazir ?? veri.superTrendHazir ?? 0))),
+        renko1mStHazir: Math.min(secilen, Math.max(0, Number(veri.renko1mStHazir ?? tarama.onay1mRenkoHazir ?? 0))),
+        renko1mStYetersiz: Math.max(0, Number(veri.renko1mStYetersiz ?? tarama.onay1mYetersiz ?? 0)),
+        renko1mStDerinOnarim: Math.max(0, Number(veri.renko1mStDerinOnarim || 0)),
+        st1ShadowHazir: Math.min(secilen, Math.max(0, Number(veri.st1ShadowHazir || 0))),
         hata: Number(veri.hata || 0) + Number(veri.mumHata || 0) + Number(veri.superTrendHata || 0),
         taranan: Number(tarama.taranan || 0),
         taramaEvreni: Number(tarama.evren || secilen || 0),
@@ -431,7 +438,10 @@ function st2VeriSagligiOzeti() {
         mumSonTur: Number(veri.mumSonTurGuncellenen || 0),
         stSonTur: Number(veri.superTrendSonTurGuncellenen || 0),
         pusuTazelemeCalisiyor: veri.pusuTazelemeCalisiyor === true,
-        stTazelemeCalisiyor: veri.superTrendTazelemeCalisiyor === true
+        stTazelemeCalisiyor: veri.superTrendTazelemeCalisiyor === true,
+        pusuDegerlendirilen: Number(tarama.pusuDegerlendirilen || 0), fiyatTetigi: Number(tarama.fiyatTetigi || 0),
+        stOnayi: Number(tarama.stOnayi || 0), birlikteUygun: Number(tarama.birlikteUygun || 0),
+        pozisyonAcildi: Number(tarama.pozisyonAcildi || 0), fiyatBekleyen: Number(tarama.fiyatBekleyen || 0), stReddi: Number(tarama.stReddi || 0)
     };
 }
 
@@ -514,7 +524,7 @@ function minimalCanliRaporMetniOlustur() {
         `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
         `🛡️ State/Ledger ${stateN}/${ledgerN} ${stateOk ? '✅' : '⚠️'} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Score-Premier ${premierAktifler.length} | Shadow Öğrenme ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
         `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
-        `📡 Hazır cache Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | 1m Renko ST ${veriSagligi.superTrendHazir}/${veriSagligi.secilen} | Hata ${veriSagligi.hata} | Son Renko tarama ${veriSagligi.taranan}/${veriSagligi.taramaEvreni} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
+        `📡 Hazır cache Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | 1m Veri ${veriSagligi.renko1mVeriHazir}/${veriSagligi.secilen} | 1m Renko ST ${veriSagligi.renko1mStHazir}/${veriSagligi.secilen} | Yetersiz ${veriSagligi.renko1mStYetersiz} | Derin onarım ${veriSagligi.renko1mStDerinOnarim} | Hata ${veriSagligi.hata} | Son Renko tarama ${veriSagligi.taranan}/${veriSagligi.taramaEvreni} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
         ...((veriSagligi.pusuTazelemeCalisiyor || veriSagligi.stTazelemeCalisiyor)
             ? [`🔄 Veri tazeleme sürüyor | Son tur Mum ${veriSagligi.mumSonTur} | ST ${veriSagligi.stSonTur} | Hazır cache korunuyor`]
             : []),
@@ -526,6 +536,7 @@ function minimalCanliRaporMetniOlustur() {
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         ...yonSatirlari('Shadow', shadow),
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
+        `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
         `🎯 Giriş Yetkisi Golden ST2 Renko | Entry Evolution CANLI | 1m Renko ST | ST1 yalnız GÖLGE`,
         `🔬 W%R Dönüş Gölgesi N${Number(wrShadow.totals?.n || 0)} | Profil ${Number(wrShadow.profiles?.length || 0)} | 1m Renko uçtan nötre dönüş | Emir etkisi YOK`,
         `🧪 1m Renko Giriş Teyit Gölgesi Aynı pencere aday N${Number(entryConfirmShadow.sameWindow?.totals?.n || 0)} | Tam yaşam aday N${Number(entryConfirmShadow.lifecycle?.totals?.n || 0)} | Deney ${Number(entryConfirmShadow.activeExperiments || 0)} (Bekleyen ${Number(entryConfirmShadow.activeWaiting || 0)} / Açık ${Number(entryConfirmShadow.activeOpen || 0)}) | Emir etkisi YOK`,
@@ -1016,8 +1027,19 @@ async function raporGonder(oneCikar = false) {
     raporCalismaBaslangici = Date.now();
     try {
         const mesaj = canliRaporMetniOlustur();
-        if (ayarlar.canliRaporAktif) await h.telegramCanliRaporGuncelle(mesaj, oneCikar);
-        else if (oneCikar) await h.telegramMesajGonder(mesaj);
+        // R11: rapor üretim mutex'i Telegram ağ teslimini BEKLEMEZ.
+        // Canlı panel kendi latest-only worker'ında teslim edilir; 30 sn cadence bir ağ timeout'u yüzünden kilitlenmez.
+        if (ayarlar.canliRaporAktif) {
+            try {
+                Promise.resolve(h.telegramCanliRaporGuncelle(mesaj, oneCikar))
+                    .catch(err => console.error(`⚠️ [CANLI PANEL TESLİM HATASI] ${err?.message || err}`));
+            } catch (err) {
+                console.error(`⚠️ [CANLI PANEL KUYRUK HATASI] ${err?.message || err}`);
+            }
+        } else if (oneCikar) {
+            Promise.resolve(h.telegramMesajGonder(mesaj))
+                .catch(err => console.error(`⚠️ [CANLI PANEL TEKİL HATASI] ${err?.message || err}`));
+        }
 
         const detayIzinli = ayarlar.telegramMinimalOperasyonModu !== true && ayarlar.telegramDetayRaporlariAktif !== false;
         const detayAralikMs = Math.max(60000, Number(ayarlar.st2DetayRaporMinAralikMs || 900000));
