@@ -1,0 +1,21 @@
+AGROS ST2 v6.13.5-R16 TEST RESULT
+=================================
+PASS: npm run test:full
+PASS: npm test (fast critical suite)
+PASS: legacy test_v672_full_source_syntax.js
+PASS: legacy test_v673_full_source_syntax.js
+PASS: full source syntax — 159 JavaScript files
+PASS: v6111 legacy profit-floor compatibility under configurable 10-slot runtime
+PASS: v6145 real 1m Renko-ST readiness + 80/240/480 repair contract
+PASS: v6146 core-loop liveness + ST1 shadow isolation
+PASS: v6147 critical ticker hard deadline
+PASS: v6148 dedicated ticker transport/startup isolation
+PASS: v6149 closed-1m price fallback live chain + stale reject + real-position fail-closed
+PASS: v6150 DIRECT + CONFIRMED valid triggers reach shared pozisyonAc; confirmed-wait reason audited
+PASS: v610 real order execution safety
+PASS: v6110 Golden Live Chain
+PASS: v6112 profit-floor / Renko trail
+PASS: v6122 Williams shadow compatibility
+PASS: v6123 Renko confirmation lifecycle shadow
+PASS: v6134 unified entry mode live gate
+PASS: v6135/v6136 success-first confirmed policy

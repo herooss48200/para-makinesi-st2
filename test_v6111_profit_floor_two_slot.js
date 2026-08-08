@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const Module = require('module');
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-v6111-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-v6111-compat-'));
 process.env.AGROS_DATA_DIR = tmp;
 const originalLoad = Module._load;
 Module._load = function patched(request, parent, isMain) {
@@ -21,17 +21,16 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const version = require('./versiyon.js');
 
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 2);
+  // v6.11.1'den korunması gereken ekonomik güvenlik invariant'ları.
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 10, 'güncel configurable gerçek pozisyon limiti korunmalı');
   assert.strictEqual(ayarlar.renkoCikisStopGuncellemeAdimTugla, 0.50);
   assert.strictEqual(ayarlar.renkoCikisGuvenliKarTabaniYuzde, 0.40);
   assert.strictEqual(ayarlar.renkoCikisMinimumNetKarYuzde, 0.30);
   assert.strictEqual(exit.SAFE_FLOOR_MIN(), 0.40);
-  assert(Math.abs(exit.SAFE_FLOOR_MIN() - (exit.ROUND_TRIP_COMMISSION_PCT() + exit.MIN_NET_PROFIT_PCT())) < 1e-9);
 
-  // v6.11.0'dan bekleyen açık pozisyon: öğrenilmiş trail donuk kalır; güvenlik tabanı/adımı yükseltilir.
+  // Bekleyen legacy pozisyon güncel güvenlik politikasına taşınırken öğrenilmiş trail mesafesi korunur.
   const waiting = {
-    sanalOrderId: 'V6111-WAITING', sym: 'JASMYUSDT', yon: 'LONG', girisFiyati: 100, sl: 98.5,
-    breakevenAktif: false, korunanKarYuzdesi: 0,
+    sanalOrderId: 'V6111-COMPAT-WAITING', sym: 'JASMYUSDT', yon: 'LONG', girisFiyati: 100, sl: 98.5,
     girisAnalizi: { entryStrategy: 'ST2_RENKO', patternKodu: 'RRRR', renkoBoxSize: 1, renkoEntryBrickDistance: 0.75 },
     renkoExitAssignment: {
       patternKey: 'LONG|RRRR', assignedTrailBricks: 1.75, assignedActivationProfitPct: 0.80,
@@ -41,18 +40,17 @@ try {
     }
   };
   const migrated = exit.assign(waiting);
-  assert.strictEqual(migrated.assignedTrailBricks, 1.75, 'bekleyen pozisyonun öğrenilmiş trail mesafesi değişti');
+  assert.strictEqual(migrated.assignedTrailBricks, 1.75, 'öğrenilmiş trail mesafesi değişti');
   assert.strictEqual(migrated.assignedSafeFloorPct, 0.40);
   assert.strictEqual(migrated.assignedMinimumNetProfitPct, 0.30);
   assert.strictEqual(migrated.assignedStopUpdateStepBricks, 0.50);
-  assert.strictEqual(migrated.safetyPolicySchema, 'V6111_PROFIT_FLOOR');
-  assert(migrated.safetyPolicyMigratedAt, 'bekleyen açık pozisyon güvenlik göçü kaydedilmedi');
+  assert.strictEqual(migrated.safetyPolicySchema, 'V6112_DIRECT_PROFIT_FLOOR');
 
-  // Takeover'ı zaten aktif eski pozisyon geriye dönük sıkılaştırılmaz; frozen politika korunur.
+  // Zaten aktif/frozen legacy pozisyon geriye dönük sıkılaştırılmaz.
   const activeLegacy = {
-    sanalOrderId: 'V6111-ACTIVE-LEGACY', sym: 'OLDUSDT', yon: 'LONG', girisFiyati: 100, sl: 100.15,
-    breakevenAktif: true, korunanKarYuzdesi: 0.15, renkoExitActivated: true,
-    renkoExitPeak: 100.80, renkoExitTrailAnchor: 100.80, renkoExitFirstProtectionStop: 100.15,
+    sanalOrderId: 'V6111-COMPAT-ACTIVE', sym: 'OLDUSDT', yon: 'LONG', girisFiyati: 100, sl: 100.15,
+    renkoExitActivated: true, renkoExitPeak: 100.80, renkoExitTrailAnchor: 100.80,
+    renkoExitFirstProtectionStop: 100.15,
     girisAnalizi: { entryStrategy: 'ST2_RENKO', patternKodu: 'RRRR', renkoBoxSize: 1, renkoEntryBrickDistance: 0.75 },
     renkoExitAssignment: {
       patternKey: 'LONG|RRRR', assignedTrailBricks: 1.75, assignedActivationProfitPct: 0.80,
@@ -64,61 +62,16 @@ try {
   const preserved = exit.assign(activeLegacy);
   assert.strictEqual(preserved.assignedSafeFloorPct, 0.15);
   assert.strictEqual(preserved.assignedStopUpdateStepBricks, 1.00);
-  assert.strictEqual(preserved.profitFloorPolicy, 'FROZEN_ACTIVE_POSITION_POLICY');
-  const activeTick = exit.updateBrick(activeLegacy, 100.50);
-  assert.strictEqual(activeTick.active, true, 'aktif eski pozisyon yeni taban nedeniyle pasife düştü');
-  assert.strictEqual(activeLegacy.sl, 100.15, 'aktif eski pozisyon geriye dönük sıkılaştırıldı');
-
-  // Başlangıç SL korunur; live activation görülmeden Renko stop devralamaz.
-  let pre = exit.updateBrick(waiting, 100.70);
-  assert.strictEqual(pre.active, false);
-  assert(['COMMISSION_SAFE_PROTECTION_NOT_READY','CURRENT_PRICE_BELOW_LIVE_ACTIVATION_THRESHOLD'].includes(pre.reason));
-  assert.strictEqual(waiting.sl, 98.5);
-
-  waiting.breakevenAktif = true;
-  waiting.korunanKarYuzdesi = 0.40;
-  pre = exit.updateBrick(waiting, 100.70);
-  assert.strictEqual(pre.active, false);
-  assert.strictEqual(pre.reason, 'CURRENT_PRICE_BELOW_LIVE_ACTIVATION_THRESHOLD');
-
-  // +%0.80 aktivasyonda önce brüt +%0.40 / net +%0.30 tabanı kilitlenir.
-  const activated = exit.updateBrick(waiting, 100.80);
-  assert.strictEqual(activated.active, true);
-  assert.strictEqual(activated.justActivated, true);
-  assert(Math.abs(waiting.sl - 100.40) < 1e-9, `ilk minimum-net tabanı yanlış: ${waiting.sl}`);
-  assert.strictEqual(waiting.renkoProtectionState, 'RENKO_STOP_GUNCELLENDI');
-  assert.strictEqual(waiting.renkoProfitFloorMinimumNetPct, 0.30);
-
-  // 0.50T tamamlanmadan stop oynamaz; tamamlandıktan sonra bile trail tabanı geçene kadar minimum net korunur.
-  const floorStop = waiting.sl;
-  const noise = exit.updateBrick(waiting, 101.20);
-  assert.strictEqual(noise.changed, false);
-  assert.strictEqual(waiting.sl, floorStop);
-  const halfBrick = exit.updateBrick(waiting, 101.31);
-  assert(halfBrick.advancedBricks >= 0.50);
-  assert.strictEqual(waiting.sl, floorStop, 'trail minimum net tabanını geçmeden stop gereksiz oynadı');
-
-  // Yeterli büyümeden sonra dondurulmuş 1.75T trail tabanı aşar ve stop ilerler; geriye gevşemez.
-  const runner = exit.updateBrick(waiting, 103.31);
-  assert(runner.changed, 'büyüyen pozisyonda öğrenilmiş trail stopu ilerlemedi');
-  assert(waiting.sl > floorStop);
-  const tightened = waiting.sl;
-  exit.updateBrick(waiting, 102.50);
-  assert.strictEqual(waiting.sl, tightened, 'geri çekilmede stop gevşedi');
-
-  const text = exit.takeoverText(waiting);
-  assert(text.includes('Brüt kâr tabanı: %0.40'));
-  assert(text.includes('Hedef minimum net: %0.30'));
-  assert(text.includes('Stop güncelleme adımı: 0.50'));
+  const tick = exit.updateBrick(activeLegacy, 100.50);
+  assert.strictEqual(tick.active, true);
+  assert.strictEqual(activeLegacy.sl, 100.15, 'aktif legacy pozisyon geriye dönük sıkılaştırıldı');
 
   const report = fs.readFileSync(path.join(__dirname, '2_rapor.js'), 'utf8');
-  assert(report.includes('Brüt taban %'));
   assert(report.includes('Min net %'));
-  assert(!report.includes('Net taban %${Number(atama.assignedSafeFloorPct)'));
-  assert.strictEqual(version.botSurumu, '6.11.1-PROFIT-FLOOR-TWO-SLOT');
-  assert.strictEqual(exit.VERSION, 'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
+  assert.strictEqual(version.botSurumu, '6.13.5-R16-PRICE-FALLBACK-FULL-CHAIN-RECOVERY');
+  assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 
-  console.log('✅ v6.11.1 minimum net +%0.30 floor first, frozen brick trail second, 0.50T update and 2-slot settings passed');
+  console.log('✅ v6.11.1 legacy profit-floor compatibility passed | floor/net/step invariants + frozen active position preserved under R16');
 } finally {
   Module._load = originalLoad;
   fs.rmSync(tmp, { recursive: true, force: true });

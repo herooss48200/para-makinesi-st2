@@ -8,6 +8,7 @@ const rapor = require('./2_rapor.js');
 const versiyonBilgi = require('./versiyon.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const binanceAg = require('./64_binance_network_resilience.js');
+const marketPriceRuntime = require('./93_st2_market_price_runtime.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const globalHistoricalRuntime = require('./79_st2_global_historical_runtime.js');
 const { createSt2LivePanelScheduler } = require('./92_st2_live_panel_scheduler.js');
@@ -244,10 +245,30 @@ async function baslat() {
                 if (st2StartupBos) return;
 
                 donguAsama = 'FUTURES_PRICES';
-                const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000, retries: ayarlar.futuresTickerRetry ?? 0, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
-                for (const [sym, price] of Object.entries(fiyatlar)) {
-                    h.state.canliFiyatlar[sym] = parseFloat(price);
+                const firstSt2AuditPending = ayarlar.entryStrategyMode === 'ST2_RENKO'
+                    && h.state.startupMarketReady === true
+                    && !ilkSt2TaramaTamamlandi
+                    && h.state.aktifPozisyonlar.length === 0;
+                const priceRuntime = await marketPriceRuntime.refreshForMainLoop({
+                    state: h.state,
+                    symbols: h.state.semboller,
+                    activePositions: h.state.aktifPozisyonlar,
+                    settings: ayarlar,
+                    forceFallbackOnly: firstSt2AuditPending,
+                    fetchAll: () => binanceAg.binanceFiyatlariCek({
+                        timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000,
+                        retries: ayarlar.futuresTickerRetry ?? 0,
+                        baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900,
+                        priority: 'CRITICAL',
+                        label: 'FUTURES_PRICES'
+                    })
+                });
+                if (!priceRuntime.usable) {
+                    const cov = priceRuntime.coverage || {};
+                    console.warn(`⛔ [ST2 PRICE GATE] Giriş/koruma turu atlandı | Kaynak ${priceRuntime.source} | Taze ${Number(cov.fresh||0)}/${Number(cov.total||0)} | ${priceRuntime.error?.message || 'FRESH_PRICE_REQUIRED'}`);
+                    return;
                 }
+                donguAsama = `PRICE_READY:${priceRuntime.source}`;
 
                 // Koruma ve manuel/harici kapanış mutabakatı her zaman yeni giriş taramasından önce gelir.
                 donguAsama = 'POSITION_PROTECTION';

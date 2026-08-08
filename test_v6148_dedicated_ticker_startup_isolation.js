@@ -7,7 +7,7 @@ const ag = require('./64_binance_network_resilience.js');
 const version = require('./versiyon.js');
 
 (async () => {
-  assert.strictEqual(version.botSurumu, '6.13.5-R15-DEDICATED-TICKER-STARTUP-ISOLATION');
+  assert.strictEqual(version.botSurumu, '6.13.5-R16-PRICE-FALLBACK-FULL-CHAIN-RECOVERY');
   const bot = fs.readFileSync('./bot.js', 'utf8');
   const net = fs.readFileSync('./64_binance_network_resilience.js', 'utf8');
   assert(bot.includes("const st2StartupBos = ayarlar.entryStrategyMode === 'ST2_RENKO' && h.state.startupMarketReady !== true && h.state.aktifPozisyonlar.length === 0"), 'startup no-position ticker bypass missing');
@@ -56,7 +56,7 @@ const version = require('./versiyon.js');
   releaseLow('LOW_DONE');
   await low;
   ag._testReset();
-  console.log('✅ v6.13.5-R15 dedicated ticker + startup isolation passed | ticker bypasses shared bulk queue/agent');
+  console.log('✅ v6.13.5-R16 dedicated ticker + startup isolation passed | ticker bypasses shared bulk queue/agent');
 })().catch(err => {
   console.error(err.stack || err);
   process.exit(1);

@@ -726,6 +726,11 @@ const ayarlar = {
     // R15: global ticker dedicated agent kullanır; startup boşken çağrılmaz ve canlı döngüde hızlı fail eder.
     futuresTickerTimeoutMs: 6000,
     futuresTickerRetry: 0,
+    // R16: global ticker arızası giriş motorunu öldürmez; kapanmış 1m snapshot yalnız giriş için sınırlı fallback'tir.
+    st2FallbackPriceMaxAgeMs: 120000,
+    st2FallbackPriceLogIntervalMs: 30000,
+    futuresTickerBackoffBaseMs: 10000,
+    futuresTickerBackoffMaxMs: 60000,
     binanceAgRetry: 2,
     binanceAgRetryTabanMs: 900,
     // v6.10.7 - Kapanmış mum yoksa 200 coinlik toplu indirme yapılmaz.

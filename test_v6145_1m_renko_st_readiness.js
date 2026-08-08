@@ -16,7 +16,7 @@ assert(rev.includes('START_RENKO_ST_REPAIR_1') && rev.includes('START_RENKO_ST_R
 assert(ent.includes('h.state.renko1mStCache?.[sym]'), 'Entry scan önceden hesaplanmış 1m Renko-ST cache kullanmalı');
 assert(ent.includes("bricks.length < minBricks"), 'SuperTrend için minimum Renko tuğla derinliği açık kontrol edilmeli');
 assert(rep.includes('🚪 Giriş hunisi Değerlendirilen'), 'Canlı panel entry funnel göstermeli');
-assert(rep.includes('1m Renko ST ${veriSagligi.renko1mStHazir}/${veriSagligi.secilen}'), 'Panel ham veri ile gerçek ST readiness ayırmalı');
+assert(rep.includes('1m Renko ST hesap ${veriSagligi.renko1mStHazir}/${veriSagligi.secilen}'), 'Panel ham veri ile gerçek ST readiness ayırmalı');
 
 // 80 adet ham 1m mumun var olması, Renko-ST oluşacağını garanti etmez: wick yüksek, close dar sentetik seri.
 function candles(n){
@@ -31,4 +31,4 @@ const raw80=candles(80);
 const box=core.atr(raw80,14);
 const bricks=core.renkoUret(raw80,box);
 assert(raw80.length===80 && box>0 && bricks.length < 12, 'Test fixture: ham veri hazır ama Renko-ST derinliği yetersiz olmalı');
-console.log(`✅ v6.13.5-R15 1m Renko ST readiness passed | raw80=${raw80.length} | bricks=${bricks.length} | gate uses actual ST readiness + 240/480 repair`);
+console.log(`✅ v6.13.5-R16 1m Renko ST readiness passed | raw80=${raw80.length} | bricks=${bricks.length} | gate uses actual ST readiness + 240/480 repair`);

@@ -21,7 +21,7 @@ assert(src.includes('telegramCanliPanelBekleyen'), 'latest-only canlı panel wor
 assert(src.includes("priority: 'detail', retryCount: 0, timeoutMs: panelTimeoutMs"), 'eski panel silme işi canlı panel workerını bekletmemeli');
 assert(src.includes("ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300"), '2xx invalid JSON belirsiz teslim sayılmalı');
 assert(!report.includes('await h.telegramCanliRaporGuncelle'), 'rapor mutex Telegram ağ teslimini beklememeli');
-assert(version.includes('6.13.5-R15-DEDICATED-TICKER-STARTUP-ISOLATION'), 'R11 sürüm etiketi eksik');
+assert(version.includes('6.13.5-R16-PRICE-FALLBACK-FULL-CHAIN-RECOVERY'), 'R11 sürüm etiketi eksik');
 
 const originalLoad = Module._load;
 Module._load = function(request, parent, isMain) {
@@ -43,4 +43,4 @@ try {
   Module._load = originalLoad;
 }
 
-console.log('✅ v6.13.5-R15 Telegram delivery truth passed | bounded edit + latest-only worker + no transient send storm');
+console.log('✅ v6.13.5-R16 Telegram delivery truth passed | bounded edit + latest-only worker + no transient send storm');

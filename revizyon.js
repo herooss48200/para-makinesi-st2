@@ -4,6 +4,7 @@ const h = require('./1_hafiza.js');
 const m = require('./motor.js');
 const ag = require('./64_binance_network_resilience.js');
 const renkoCore = require('./72_st2_renko_core.js');
+const marketPriceRuntime = require('./93_st2_market_price_runtime.js');
 
 let pusuTazelemeCalisiyor = false;
 let superTrendCalisiyor = false;
@@ -233,7 +234,7 @@ async function derinGecmisiInsaEt(options = {}) {
     };
     console.log(`📥 [AŞAMALI BAŞLANGIÇ] Golden Renko çekirdeği hazırlanıyor | ${pusuTf} ATR-Renko + ${sniperTf} Renko ST verisi | Eşzamanlılık ${startupConcurrency} | ${trendTf} ST1 yalnız shadow sonra.`);
 
-    h.state.yerelPusuHafizasi={}; h.state.canliFiyatlar={}; h.state.sniperMumlar={}; h.state.sniperCanliMumlar={}; h.state.sniperSuperTrend={}; h.state.sniperSuperTrendCanli={}; h.state.trendMumlar={}; h.state.trendCanliMumlar={}; h.state.trendSuperTrend={}; h.state.trendSuperTrendCanli={}; h.state.sonPusuMumZamani={}; h.state.renko1mStHazirlik={}; h.state.renko1mStCache={};
+    h.state.yerelPusuHafizasi={}; h.state.canliFiyatlar={}; h.state.canliFiyatMeta={}; h.state.sniperMumlar={}; h.state.sniperCanliMumlar={}; h.state.sniperSuperTrend={}; h.state.sniperSuperTrendCanli={}; h.state.trendMumlar={}; h.state.trendCanliMumlar={}; h.state.trendSuperTrend={}; h.state.trendSuperTrendCanli={}; h.state.sonPusuMumZamani={}; h.state.renko1mStHazirlik={}; h.state.renko1mStCache={};
 
     let islenen=0, pusuHata=0, sniperHata=0;
     try {
@@ -255,6 +256,7 @@ async function derinGecmisiInsaEt(options = {}) {
                 const sniper = sadeceKapanmisMumlar(sniperSonuc.value);
                 if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
                     h.state.sniperMumlar[sym] = sniper;
+                    marketPriceRuntime.seedClosed1m(h.state, sym, sniper, 'STARTUP_CLOSED_1M');
                     const stAnaliz = renko1mHazirlikKaydet(sym, sniper, renko1mBaseLimit());
                     if (!stAnaliz.ready) sniperHata++;
                 } else {
@@ -299,6 +301,7 @@ async function derinGecmisiInsaEt(options = {}) {
                     const sniper = sadeceKapanmisMumlar(ham);
                     if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
                         h.state.sniperMumlar[sym] = sniper;
+                        marketPriceRuntime.seedClosed1m(h.state, sym, sniper, 'STARTUP_REPAIR_CLOSED_1M');
                         renko1mHazirlikKaydet(sym, sniper, limit);
                     }
                 } catch (_) {}
@@ -427,7 +430,7 @@ async function superTrendHesapla(baslangic=false, options={}) {
                     const fetchAndAnalyze=async (limit,label)=>{
                         const ham=await mumCek(sym, sniperTf, limit, label, requestPriority);
                         const sniper=sadeceKapanmisMumlar(ham);
-                        if(sniper.length>=Math.max(5,Number(ayarlar.renkoOnayAtrPeriod||14)+2)) h.state.sniperMumlar[sym]=sniper;
+                        if(sniper.length>=Math.max(5,Number(ayarlar.renkoOnayAtrPeriod||14)+2)) { h.state.sniperMumlar[sym]=sniper; marketPriceRuntime.seedClosed1m(h.state, sym, sniper, 'REFRESH_CLOSED_1M'); }
                         return renko1mHazirlikKaydet(sym,sniper,limit);
                     };
                     let stAnaliz=await fetchAndAnalyze(oncekiLimit,`SNIPER_CANDLE:${sym}`);
