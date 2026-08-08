@@ -115,9 +115,7 @@ Module._load = function patched(request, parent, isMain) {
     const adoptIdx = botSrc.indexOf('await piyasa.acikPozisyonlariBorsadanDevral()');
     assert(syncIdx >= 0 && syncIdx < adoptIdx, 'time sync must precede exchange reconciliation');
     assert(/setImmediate\s*\(\s*\(\)\s*=>\s*\{[\s\S]*?Promise\.resolve\s*\(\s*revizyon\.derinGecmisiInsaEt\s*\(\s*\)\s*\)/.test(botSrc), 'background historical warmup chain missing');
-    const protectionIdx = botSrc.indexOf('await p.izSurmeyiGuncelle();');
-    const renkoScanIdx = botSrc.indexOf("const st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();");
-    assert(protectionIdx >= 0 && renkoScanIdx >= 0 && protectionIdx < renkoScanIdx, 'position protection must run before heavy ST2 Renko scan');
+    assert(botSrc.indexOf('await p.izSurmeyiGuncelle();') < botSrc.indexOf("if (ayarlar.entryStrategyMode === 'ST2_RENKO')"));
     assert(botSrc.includes('h.state.startupMarketReady === true'));
     assert(botSrc.includes('[STARTUP ENTRY GATE]'));
     assert(botSrc.includes('startupEarlyDeliveryPromise'));
@@ -138,14 +136,10 @@ Module._load = function patched(request, parent, isMain) {
     h.state.semboller = ['AUSDT', 'BUSDT'];
     h.state.yerelPusuHafizasi = { AUSDT: [{}], BUSDT: [{}] };
     h.state.sniperMumlar = { AUSDT: [{}], BUSDT: [{}] };
-    h.state.renko1mStHazirlik = {};
     h.state.trendSuperTrend = {};
-    const rawOnlyGate = rev._startupMarketDurumuGuncelle('TEST_RAW_ONLY');
-    assert.strictEqual(rawOnlyGate.currentReady, false, 'raw 1m cache alone must not open Golden Renko entry gate');
-    h.state.renko1mStHazirlik = { AUSDT: { ready: true }, BUSDT: { ready: true } };
     const recoveredGate = rev._startupMarketDurumuGuncelle('TEST_RECOVERY');
     assert.strictEqual(recoveredGate.currentReady, true);
-    assert.strictEqual(h.state.startupMarketReady, true, 'degraded startup did not recover after real 1m Renko-ST readiness');
+    assert.strictEqual(h.state.startupMarketReady, true, 'degraded startup did not recover entry gate');
 
     // 5) Real-entry time health and stop protection hardening are fail-closed.
     const realSrc = fs.readFileSync(path.join(__dirname, '85_st2_real_order_execution.js'), 'utf8');
@@ -180,7 +174,7 @@ Module._load = function patched(request, parent, isMain) {
     assert.strictEqual(cooldownResult.reason, 'STOP_REPLACE_COOLDOWN');
     assert.strictEqual(cooldownResult.localFastFail, true);
     assert.strictEqual(cooldownNetworkCalls, 0, 'cooldown performed an unnecessary Binance call');
-    assert.strictEqual(version.botSurumu, '6.13.5-R16-PRICE-FALLBACK-FULL-CHAIN-RECOVERY');
+    assert.strictEqual(version.botSurumu, '6.13.5-R4-RESTART-PROTECTION-REARM');
     assert.strictEqual(op.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(real.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');

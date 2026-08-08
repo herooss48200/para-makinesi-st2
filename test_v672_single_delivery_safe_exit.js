@@ -117,7 +117,7 @@ const entry = fs.readFileSync('./72_st2_renko_entry.js', 'utf8');
 const operation = fs.readFileSync('./69_operation_intelligence_dashboard.js', 'utf8');
 const globalReport = fs.readFileSync('./78_st2_global_historical_reconciliation.js', 'utf8');
 assert(bot.includes('Tekil kritik teslim doğrulandı'), 'startup Telegram başarı kanıtı eksik');
-assert(bot.includes('createSt2LivePanelScheduler') && bot.includes('ready: () => h.state.startupMarketReady === true'), 'canlı panel Gate READY sonrası bağımsız scheduler ile başlamalı');
+assert(bot.includes("startupPanelPlanla('ILK_ST2_TARAMA', 0)"), 'canlı panel ilk ST2 taramasından sonra başlamalı');
 assert(entry.includes('await h.telegramMesajGonderTekil(mesaj'), 'açılış pusu özeti tekil kritik hattan gönderilmeli');
 assert(entry.includes('AYNI BOOTTA TEKRAR YOK'), 'belirsiz açılış teslimi aynı bootta tekrarlanmamalı');
 assert(entry.includes('st2-yeni-pusu:${bildirimAnahtari}'), 'yeni pusu coalesce anahtarı eksik');

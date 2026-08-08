@@ -71,8 +71,7 @@ assert(pos.sl >= frozen - 1e-12, 'monoton stop koruması: geri çekilme stopu a�
 const reportSrc = fs.readFileSync(path.join(__dirname, '2_rapor.js'), 'utf8');
 const refreshSrc = fs.readFileSync(path.join(__dirname, 'revizyon.js'), 'utf8');
 assert(reportSrc.includes('Math.min(secilen, Math.max(0, Number(veri.mumHazir || 0)))'), 'rapor cache payını paydaya clamp etmeli');
-assert(reportSrc.includes('renko1mVeriHazir: Math.min(secilen'), '1m veri cache payını paydaya clamp etmeli');
-assert(reportSrc.includes('Renko ST hesap'), 'rapor ham 1m veri ile hesaplanabilir Renko ST sayısını ayırmalı');
-assert(refreshSrc.includes('function cacheHazirSayisi(cache)') && refreshSrc.includes('filter(sym => aktif.has(String(sym))).length'), 'cache yalnız aktif ticaret evrenindeki sembolleri saymalı');
+assert(reportSrc.includes('Math.min(secilen, Math.max(0, Number(veri.superTrendHazir || 0)))'), 'ST cache payını paydaya clamp etmeli');
+assert(refreshSrc.includes("filter(sym=>aktifEvren.has(String(sym))).length"), 'cache yalnız aktif ticaret evrenindeki sembolleri saymalı');
 
 console.log('✅ v6.13.3 MFE capture ratchet + monotonic profit protection + active-universe cache accounting passed');

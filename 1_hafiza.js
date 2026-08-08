@@ -62,8 +62,6 @@ const state = {
     canliRaporMesajlari: {},
     canliRaporSonGonderimZamani: {},
     sonCanliRaporMetni: '',
-    // v6.13.5-R10: Canlı panel metni yalnız gerçekten teslim edilen chat için ilerletilir.
-    canliRaporSonMetinleri: {},
     gunlukLimitTarihi: new Date().toISOString().slice(0, 10),
     gunlukAcilanEmirSayisi: 0,
     basariOzeti: {
@@ -112,8 +110,6 @@ const telegramKuyrukLimitleri = { critical: 40, panel: 2, detail: 4 };
 let telegramKritikWorkerCalisiyor = false;
 let telegramBulkWorkerCalisiyor = false;
 const telegramSonIstekZamani = { critical: 0, bulk: 0 };
-let telegramCanliPanelWorkerCalisiyor = false;
-let telegramCanliPanelBekleyen = null;
 const telegramTransport = {
     nativeCircuitUntil: 0,
     curlCircuitUntil: 0,
@@ -260,19 +256,6 @@ function telegramDuzMetinFallbackUygun(result) {
     // Yalnız Telegram'ın HTML/entity ayrıştırma reddinde aynı mesajı düz metinle bir kez düzelt.
     return /can't parse entities|parse entities|unsupported start tag|bad request.*entity/i.test(text);
 }
-function telegramIdempotentIstekMi(apiPath, options = {}) {
-    return options.idempotent === true || String(apiPath || '') === 'editMessageText';
-}
-function telegramIdempotentSonucNormalize(result, apiPath, options = {}) {
-    if (!result || result.ok === true || !telegramIdempotentIstekMi(apiPath, options)) return result;
-    const text = String(result.description || result.raw || '');
-    // Native edit aslında ulaştıysa güvenli tekrar Telegram'dan "message is not modified" dönebilir.
-    // Bu, editMessageText için teslim kanıtıdır; sendMessage için ASLA başarı sayılmaz.
-    if (/message is not modified/i.test(text)) {
-        return { ...result, ok: true, idempotentAlreadyApplied: true, description: 'EDIT_ALREADY_APPLIED' };
-    }
-    return result;
-}
 function telegramTransportKaydet(transport, result) {
     const ok = result?.ok === true;
     const now = Date.now();
@@ -361,7 +344,7 @@ function telegramNativeIstegiAt(apiPath, veri, options = {}) {
                     if (!parsed.ok && res.statusCode >= 500) parsed.transient = true;
                     resolve(parsed);
                 } catch (_) {
-                    resolve({ ok: false, description: 'NATIVE_INVALID_JSON_RESPONSE', raw: body.slice(0, 500), statusCode: res.statusCode, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300 });
+                    resolve({ ok: false, description: 'NATIVE_INVALID_JSON_RESPONSE', raw: body.slice(0, 500), statusCode: res.statusCode, transient: res.statusCode >= 500, transport: 'NATIVE_IPV4' });
                 }
             });
         });
@@ -424,7 +407,6 @@ async function telegramTekDeneme(apiPath, veri, options = {}) {
     const nativeOpen = telegramTransport.nativeCircuitUntil > now;
     const curlOpen = telegramTransport.curlCircuitUntil > now;
     const atMostOnce = options.atMostOnce === true;
-    const idempotent = telegramIdempotentIstekMi(apiPath, options);
     const nativeTimeout = priority === 'critical'
         ? Math.min(6000, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS))
         : Math.min(3500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
@@ -445,16 +427,13 @@ async function telegramTekDeneme(apiPath, veri, options = {}) {
         // IPv4 TLS bağlantısı kullanmak uzun süre çalışan AWS sürecinde daha güvenilirdir.
         const native = await telegramNativeIstegiAt(apiPath, veri, { ...options, timeoutMs: nativeTimeout, freshConnection: true });
         telegramTransportKaydet('native', native);
-        const nativeNormalized = telegramIdempotentSonucNormalize(native, apiPath, options);
-        if (nativeNormalized?.ok) return nativeNormalized;
+        if (native?.ok) return native;
         telegramStats.nativeFailed++;
         if (native?.ambiguousDelivery) {
             telegramStats.ambiguousDelivery++;
-            // sendMessage gibi çoğaltılabilir çağrılarda belirsiz teslimde tekrar YOK.
-            // editMessageText idempotenttir: aynı message_id + aynı metin curl ile güvenle doğrulanabilir.
-            if (!idempotent) return native;
+            return native;
         }
-        if (!telegramTransportHatasi(native)) return nativeNormalized;
+        if (!telegramTransportHatasi(native)) return native;
     } else {
         telegramStats.nativeBypassed++;
     }
@@ -466,20 +445,18 @@ async function telegramTekDeneme(apiPath, veri, options = {}) {
     telegramTransport.lastCurlProbeAt = now;
     const curl = await telegramCurlIstegiAt(apiPath, veri, options);
     telegramTransportKaydet('curl', curl);
-    const curlNormalized = telegramIdempotentSonucNormalize(curl, apiPath, options);
-    if (curlNormalized?.ok) {
+    if (curl?.ok) {
         telegramStats.curlFallbackOk++;
-        return curlNormalized;
+        return curl;
     }
     telegramStats.curlFallbackFailed++;
     if (curl?.ambiguousDelivery) telegramStats.ambiguousDelivery++;
-    return curlNormalized;
+    return curl;
 }
 
 async function telegramDayanikliIstegiAt(apiPath, veri, options = {}) {
     let son = null;
     const priority = telegramOncelik(options);
-    const idempotent = telegramIdempotentIstekMi(apiPath, options);
     const defaultRetry = priority === 'critical' ? TELEGRAM_RETRY_COUNT : 0;
     const retryCount = Math.max(0, Math.min(2, Number.isFinite(Number(options.retryCount)) ? Number(options.retryCount) : defaultRetry));
     for (let deneme = 0; deneme <= retryCount; deneme++) {
@@ -488,7 +465,7 @@ async function telegramDayanikliIstegiAt(apiPath, veri, options = {}) {
         if (gecen < TELEGRAM_MIN_INTERVAL_MS) await bekle(TELEGRAM_MIN_INTERVAL_MS - gecen);
         telegramSonIstekZamani[lane] = Date.now();
         son = await telegramTekDeneme(apiPath, veri, { ...options, priority });
-        if (son?.ok || (son?.ambiguousDelivery === true && !idempotent)) return son;
+        if (son?.ok || son?.ambiguousDelivery === true) return son;
         const aciklama = String(son?.description || son?.raw || '');
         const rateLimited = aciklama.includes('Too Many Requests') || Number(son?.error_code) === 429;
         const transient = telegramTransportHatasi(son) || rateLimited;
@@ -629,7 +606,7 @@ async function telegramMesajDuzenle(chat_id, message_id, mesaj, options = {}) {
         const payload = { chat_id, message_id, text: hazir.text, disable_web_page_preview: true };
         if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
         return await yerelTelegramIstegiAt('editMessageText', payload,
-            { ...options, priority: options.priority || 'panel', retryCount: Number.isFinite(Number(options.retryCount)) ? Number(options.retryCount) : 1, idempotent: true, coalesceKey: options.coalesceKey || `panel-edit:${chat_id}` });
+            { ...options, priority: options.priority || 'panel', coalesceKey: options.coalesceKey || `panel-edit:${chat_id}` });
     } catch (err) {
         return { ok: false, description: err.message };
     }
@@ -638,119 +615,41 @@ async function telegramMesajSil(chat_id, message_id, options = {}) {
     try { return await yerelTelegramIstegiAt('deleteMessage', { chat_id, message_id }, { ...options, priority: options.priority || 'panel' }); }
     catch (err) { return { ok: false, description: err.message }; }
 }
-function telegramEditYeniMesajGerektirir(result) {
-    const text = String(result?.description || result?.raw || '').toLowerCase();
-    if (!text) return false;
-    return text.includes('message to edit not found')
-        || text.includes("message can't be edited")
-        || text.includes('message can not be edited')
-        || text.includes('message_id_invalid');
-}
-
-async function telegramCanliRaporTeslimEt(mesaj, oneCikar = false) {
+async function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
     if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) return;
     const now = Date.now();
     const hazir = telegramGonderimHazirla(mesaj);
     const guvenliMesaj = hazir.text;
     const yenidenGondermeMs = ayarlar.canliRaporYenidenGondermeMs || 0;
-    const panelTimeoutMs = Math.max(3000, Math.min(8000, Number(ayarlar.telegramCanliPanelTimeoutMs || 6000)));
     for (const chat_id of TELEGRAM_CHAT_IDS) {
         const kayitliMesajId = state.canliRaporMesajlari[chat_id];
         const sonGonderim = state.canliRaporSonGonderimZamani[chat_id] || 0;
         const sureDoldu = yenidenGondermeMs > 0 && now - sonGonderim >= yenidenGondermeMs;
         const yeniMesajGonder = oneCikar || !kayitliMesajId || sureDoldu;
-        const sonBasariliMetin = state.canliRaporSonMetinleri[chat_id] || '';
-        let sonEditSonucu = null;
-
         if (!yeniMesajGonder && kayitliMesajId) {
-            if (sonBasariliMetin === guvenliMesaj) continue;
-            sonEditSonucu = await telegramMesajDuzenle(chat_id, kayitliMesajId, guvenliMesaj, { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel:${chat_id}` });
-            if (sonEditSonucu?.ok) {
-                state.canliRaporSonMetinleri[chat_id] = guvenliMesaj;
-                state.sonCanliRaporMetni = guvenliMesaj;
-                continue;
-            }
-            // Coalesced iş teslim kanıtı değildir. Yeni iş gerçekten teslim edilmeden hafıza ilerletilmez.
-            if (sonEditSonucu?.coalesced) continue;
-            // Timeout/transport/ambiguous edit hatasında yeni sendMessage üretme: bu hem gecikmeyi
-            // büyütür hem çift panel riski yaratır. Sonraki 30 sn tick aynı message_id'yi yeniden dener.
-            if (!telegramEditYeniMesajGerektirir(sonEditSonucu)) {
-                telegramHataLogla({
-                    ...sonEditSonucu,
-                    description: `CANLI_PANEL_EDIT_RETRY_NEXT_TICK:${sonEditSonucu?.description || sonEditSonucu?.raw || 'bilinmeyen hata'}`
-                }, 'panel');
-                continue;
-            }
+            if (state.sonCanliRaporMetni === guvenliMesaj) continue;
+            const duzenleme = await telegramMesajDuzenle(chat_id, kayitliMesajId, guvenliMesaj, { priority: 'panel', coalesceKey: `live-panel:${chat_id}` });
+            if (duzenleme?.ok || duzenleme?.coalesced) continue;
         }
-
         const payload = { chat_id, text: guvenliMesaj, disable_web_page_preview: true };
         if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
         let gonderim = await yerelTelegramIstegiAt('sendMessage', payload,
-            { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel:${chat_id}` });
+            { priority: 'panel', retryCount: 0, coalesceKey: `live-panel:${chat_id}` });
         if (!telegramMinimalModuAktif() && telegramDuzMetinFallbackUygun(gonderim)) {
             gonderim = await yerelTelegramIstegiAt('sendMessage', {
                 chat_id, text: telegramHtmlTemizle(guvenliMesaj), disable_web_page_preview: true
-            }, { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel-plain:${chat_id}` });
+            }, { priority: 'panel', retryCount: 0, coalesceKey: `live-panel-plain:${chat_id}` });
         }
         if (gonderim?.ok && gonderim.result?.message_id) {
             const yeniMesajId = gonderim.result.message_id;
             state.canliRaporMesajlari[chat_id] = yeniMesajId;
             state.canliRaporSonGonderimZamani[chat_id] = now;
-            state.canliRaporSonMetinleri[chat_id] = guvenliMesaj;
-            state.sonCanliRaporMetni = guvenliMesaj;
             if (kayitliMesajId && kayitliMesajId !== yeniMesajId && ayarlar.canliRaporEskiMesajiSil) {
-                // Eski panel temizliği yeni panel teslimini/worker'ı bekletmez; panel işleri detail temizliğinden önceliklidir.
-                Promise.resolve(telegramMesajSil(chat_id, kayitliMesajId, {
-                    priority: 'detail', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `old-live-panel-delete:${chat_id}`
-                })).catch(() => {});
-            }
-            continue;
-        }
-
-        const teslimHatasi = gonderim || sonEditSonucu || { description: 'CANLI_RAPOR_TESLIM_SONUCU_YOK' };
-        if (!teslimHatasi?.coalesced) {
-            telegramHataLogla({
-                ...teslimHatasi,
-                description: `CANLI_RAPOR_TESLIM_EDILEMEDI:${teslimHatasi?.description || teslimHatasi?.raw || 'bilinmeyen hata'}`
-            }, 'panel');
-        }
-    }
-}
-
-async function telegramCanliPanelWorkerCalistir() {
-    if (telegramCanliPanelWorkerCalisiyor) return;
-    telegramCanliPanelWorkerCalisiyor = true;
-    try {
-        while (telegramCanliPanelBekleyen) {
-            const job = telegramCanliPanelBekleyen;
-            telegramCanliPanelBekleyen = null;
-            try {
-                await telegramCanliRaporTeslimEt(job.mesaj, job.oneCikar);
-            } catch (err) {
-                telegramHataLogla({ description: `CANLI_PANEL_WORKER:${err?.message || err}` }, 'panel');
+                await telegramMesajSil(chat_id, kayitliMesajId, { priority: 'panel' }).catch(() => {});
             }
         }
-    } finally {
-        telegramCanliPanelWorkerCalisiyor = false;
-        if (telegramCanliPanelBekleyen) {
-            const immediate = setImmediate(() => telegramCanliPanelWorkerCalistir().catch(err =>
-                telegramHataLogla({ description: `CANLI_PANEL_WORKER_RESTART:${err?.message || err}` }, 'panel')));
-            immediate.unref?.();
-        }
     }
-}
-
-function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
-    if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) return { queued: false, reason: 'TELEGRAM_NOT_CONFIGURED' };
-    const once = oneCikar === true || telegramCanliPanelBekleyen?.oneCikar === true;
-    const replaced = Boolean(telegramCanliPanelBekleyen);
-    telegramCanliPanelBekleyen = { mesaj: String(mesaj || ''), oneCikar: once, queuedAt: Date.now() };
-    if (!telegramCanliPanelWorkerCalisiyor) {
-        const immediate = setImmediate(() => telegramCanliPanelWorkerCalistir().catch(err =>
-            telegramHataLogla({ description: `CANLI_PANEL_WORKER_START:${err?.message || err}` }, 'panel')));
-        immediate.unref?.();
-    }
-    return { queued: true, latestOnly: true, replaced };
+    state.sonCanliRaporMetni = guvenliMesaj;
 }
 
 async function binanceTimeSync(options = {}) {
@@ -780,15 +679,11 @@ module.exports = {
     _test: {
         telegramTransportHatasi,
         telegramDuzMetinFallbackUygun,
-        telegramIdempotentIstekMi,
-        telegramIdempotentSonucNormalize,
         telegramTransportKaydet,
         telegramTransportOzeti,
         telegramHataLogla,
         telegramTransport,
         telegramStats,
-        telegramErrorLog,
-        telegramEditYeniMesajGerektirir,
-        telegramCanliPanelDurum: () => ({ workerCalisiyor: telegramCanliPanelWorkerCalisiyor, bekleyen: Boolean(telegramCanliPanelBekleyen) })
+        telegramErrorLog
     }
 };

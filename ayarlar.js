@@ -145,9 +145,7 @@ const ayarlar = {
     renkoBbTemasToleransTugla: 0.25, // ST2-only: band yaklaşımı en fazla çeyrek Renko tuğlası
     renkoKanitTuglaSayisi: 10,
     renkoYakinRedKanitSayisi: 3,
-    renkoPusuKanitTelegram: true, // yalnız kısa açılış özeti + kısa yeni pusu
-    renkoProofConsoleAktif: false, // ayrıntılı 10-tuğla proof normal runtime konsolunu boğmasın; gerektiğinde true
-    renkoRuntimeYieldEverySembol: 8, // 200-coin taramada timer/Telegram/event-loop adaleti; karar matematiğini değiştirmez
+    renkoPusuKanitTelegram: true, // yalnız kısa açılış özeti + kısa yeni pusu; ayrıntılı proof yalnız log
     // v6.3.7: canlı pusu bildirim hafızası sınırlı ve süreli tutulur.
     renkoPusuBildirimHafizaSaat: 168,
     renkoPusuBildirimHafizaMax: 5000,
@@ -155,10 +153,6 @@ const ayarlar = {
     renkoOnayAtrPeriod: 14,
     renkoOnaySuperTrendPeriod: 10,
     renkoOnaySuperTrendMultiplier: 3,
-    // R12: 80 mum yetmeyen sembollerde stratejiyi değiştirmeden aynı 1m ATR-Renko ST için derin tarihçe onarımı.
-    renkoOnayKaynakMumLimiti: 80,
-    renkoOnayDerinOnarimMumLimiti: 240,
-    renkoOnayMaksOnarimMumLimiti: 480,
     renkoAuditLogMs: 60000,
     renkoTetikYuzdesi: 0.05, // legacy; aktif tetik artık tuğla mesafesi evriminden gelir
     renkoGirisOgrenmeAktif: true,
@@ -494,12 +488,11 @@ const ayarlar = {
     // v6.8.3: Telegram yalnız operasyon ekranıdır. Bilimsel ayrıntılar state/ledger/loglarda kalır.
     telegramMinimalOperasyonModu: true,
     telegramMesajMaxKarakter: 3400,
-    telegramCanliPanelTimeoutMs: 6000, // panel freshness > uzun retry; Native->curl tek deneme, sonraki 30 sn doğal retry
     telegramDetayRaporlariAktif: false,
     telegramCanliRaporMaxPozisyon: 5,
     telegramAcilisPusuMaxSatir: 6,
     canliRaporAktif: true,
-    canliRaporGuncellemeMs: 30000, // aynı canlı panel içeriği/zamanı 30 sn cadence ile güncellenir
+    canliRaporGuncellemeMs: 30000,
     // v6.4.1: Büyük Entry/DNA/Renko replay raporları en fazla 5 dakikada bir kontrol edilir.
     st2DetayRaporMinAralikMs: 900000,
     st2DetayRaporStartupGecikmeMs: 180000,
@@ -507,7 +500,7 @@ const ayarlar = {
     st2GlobalHistoricalCacheMs: 300000,
     st2DetayRaporHeapLimitMb: 190,
     // Telegram editMessageText eski mesajı aşağı taşımaz. Bu süre dolunca eski ana tablo silinir ve yeni tablo en alta gönderilir.
-    canliRaporYenidenGondermeMs: 180000, // yeni Telegram balonu: 3 dk; 30 sn güncelleme editMessageText'tir
+    canliRaporYenidenGondermeMs: 180000,
     canliRaporEskiMesajiSil: true,
     telegramStopGuncellemeMesaji: false,
 
@@ -521,14 +514,6 @@ const ayarlar = {
     // emir kararı ise her ana döngüde canlı fiyatla tekrar hesaplanır.
     pusuVeriTazelemeMs: null,
     superTrendTazelemeMs: null,
-    // R13: Golden Renko çekirdeği ST1 3m shadow ağ taramasından izole edilir.
-    st1ShadowPeriyodikAktif: true,
-    st1ShadowIlkTaramaGecikmeMs: 60000,
-    st1ShadowTazelemeMs: 180000,
-    st1ShadowIstekTimeoutMs: 6000,
-    st1ShadowIstekRetry: 0,
-    st2MainLoopWatchdogMs: 20000,
-    st2MainLoopWatchdogLogAralikMs: 30000,
     durumLogAraligiMs: 5000,
 
     trendBehaviorAktif: true,
@@ -709,7 +694,6 @@ const ayarlar = {
     binanceAgEszamanlilik: 3,
     binanceAgIsciSayisi: 8,
     // v6.12.1: yalnız başlangıç çekirdeği (15m Renko + 3m ST1) için kontrollü hız; canlı döngü 3 bağlantıda kalır.
-    // v6.13.5-R8: R5/R6/R7 FAST-REFRESH scheduler tamamen emekliye ayrıldı; R4'e kadar sahada çalışan profil geri yüklendi.
     binanceStartupAgEszamanlilik: 8,
     binanceStartupAgIsciSayisi: 16,
     startupMarketReadyOrani: 0.95,
@@ -723,14 +707,6 @@ const ayarlar = {
     // Stop yalnız tamamlanmış Renko adımında ve bu minimum aralıktan sonra borsada yenilenir.
     gercekStopMinGuncellemeAralikMs: 3000,
     binanceAgTimeoutMs: 15000,
-    // R15: global ticker dedicated agent kullanır; startup boşken çağrılmaz ve canlı döngüde hızlı fail eder.
-    futuresTickerTimeoutMs: 6000,
-    futuresTickerRetry: 0,
-    // R16: global ticker arızası giriş motorunu öldürmez; kapanmış 1m snapshot yalnız giriş için sınırlı fallback'tir.
-    st2FallbackPriceMaxAgeMs: 120000,
-    st2FallbackPriceLogIntervalMs: 30000,
-    futuresTickerBackoffBaseMs: 10000,
-    futuresTickerBackoffMaxMs: 60000,
     binanceAgRetry: 2,
     binanceAgRetryTabanMs: 900,
     // v6.10.7 - Kapanmış mum yoksa 200 coinlik toplu indirme yapılmaz.
