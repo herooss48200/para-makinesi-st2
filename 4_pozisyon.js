@@ -1444,15 +1444,24 @@ function guvenliStopUygula(pos, oncekiSl, adaySl) {
     return { applied: true, reason: 'APPLIED', value: klipli };
 }
 
+function renkoEntryConfirmationShadowTelegramArkaPlan(mesajlar = []) {
+    const liste = Array.isArray(mesajlar) ? mesajlar.filter(Boolean) : [];
+    if (liste.length === 0) return;
+    setImmediate(() => {
+        for (const mesaj of liste) {
+            Promise.resolve(h.telegramMesajGonder(mesaj))
+                .catch(err => console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TG] ${err.message}`));
+        }
+    });
+}
+
 async function izSurmeyiGuncelle() {
     // v6.12.3-R2: Ana işlem kapanmış olsa bile Renko giriş teyit gölge adayları
     // kendi bağımsız yaşam döngülerini sürdürür. Bu çağrı emir/pozisyon açmaz.
+    // R16 scan-liveness final: SHADOW_ONLY Telegram teslimi koruma/Renko scan yolunu ASLA bekletmez.
     try {
         const shadowTick = renkoEntryConfirmationShadow.tickAll(h.state.canliFiyatlar || {}, Date.now());
-        for (const mesaj of shadowTick.telegramMessages || []) {
-            await h.telegramMesajGonder(mesaj).catch(err =>
-                console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TG] ${err.message}`));
-        }
+        renkoEntryConfirmationShadowTelegramArkaPlan(shadowTick.telegramMessages || []);
     } catch (e) {
         console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TICK] ${e.message}`);
     }
@@ -1480,11 +1489,12 @@ async function izSurmeyiGuncelle() {
         // Yalnız gölge: R→G / G→R sonrası 0.25T–0.75T alternatif girişlerini izler.
         // Canlı stop, emir ve Exit Evolution pozisyonunu değiştirmez.
         const entryConfirmationTick = renkoEntryConfirmationShadow.update(pos, canliFiyat);
+        const entryConfirmationMesajlari = [];
         for (const row of entryConfirmationTick.emitted || []) {
             const mesaj = renkoEntryConfirmationShadow.lifecycleTelegramText(row);
-            if (mesaj) await h.telegramMesajGonder(mesaj).catch(err =>
-                console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TG] ${err.message}`));
+            if (mesaj) entryConfirmationMesajlari.push(mesaj);
         }
+        renkoEntryConfirmationShadowTelegramArkaPlan(entryConfirmationMesajlari);
         renkoExitEvolution.assign(pos);
         const pPrecision = h.state.basamaklar[pos.sym]?.pricePrecision ?? 4;
 

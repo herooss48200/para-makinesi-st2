@@ -1,0 +1,11 @@
+AGROS ST2 v6.13.5-R16 — SHADOW TG NONBLOCKING FINAL
+
+PASS: node test_v6152_shadow_telegram_nonblocking_protection.js
+PASS: npm test
+PASS: npm run test:full
+
+Key proof:
+- 200 never-resolving shadow Telegram sends are handed off asynchronously without blocking the caller.
+- Zero-active-position path reaches its fast return without awaiting shadow Telegram.
+- Active-position Renko Entry Confirmation shadow lifecycle Telegram does not block protection.
+- Existing R16 market-price fallback, DIRECT/CONFIRMED entry authority, Renko scan I/O liveness and full regression suites remain green.
