@@ -269,6 +269,8 @@ function auditBaslat() {
         longPusu: 0, shortPusu: 0, tetikBekleyen: 0,
         pusuDegerlendirilen: 0, fiyatTetigi: 0, fiyatBekleyen: 0, fiyatEksik: 0,
         stOnayi: 0, stReddi: 0, birlikteUygun: 0, pozisyonAcildi: 0, pozisyonReddedildi: 0,
+        entryModeDirect: 0, entryModeConfirmed: 0, confirmedReady: 0, confirmedWaiting: 0,
+        directPriceWaiting: 0, confirmedPriceWaiting: 0, confirmedWaitReasons: {},
         st1GateUygun: 0, st1GateBekleyen: 0, st1GateReddi: 0, tazeKirilim: 0,
         eskiKirilimEngeli: 0, gecGirisReddi: 0, st2ContextIptal: 0,
         red: {
@@ -541,6 +543,10 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     pusu.entryModeDecisionAtSignal = entryModeDecision;
     pusu.entryMode = entryModeDecision.selectedMode;
     pusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
+    if (audit) {
+        if (entryModeDecision.selectedMode === 'CONFIRMED') audit.entryModeConfirmed = Number(audit.entryModeConfirmed || 0) + 1;
+        else audit.entryModeDirect = Number(audit.entryModeDirect || 0) + 1;
+    }
     const selectedEntryBrick = Number(entryModeDecision.selectedMode === 'DIRECT'
         ? (pusu.renkoEntryBrickDistance || adaptiveEntryDecision.brick || entryEvolution.DEFAULT_BRICK())
         : (entryModeDecision.selectedOffsetT || 0.25));
@@ -567,7 +573,12 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         if (entryModeDecision.selectedMode === 'CONFIRMED') {
             pusu.confirmationWaitReason = confirmationGate?.reason || 'CONFIRMATION_NOT_READY';
             pusu.sonCanliFiyat = price;
-            if (audit) audit.fiyatBekleyen++;
+            if (audit) {
+                audit.fiyatBekleyen++;
+                audit.confirmedWaiting = Number(audit.confirmedWaiting || 0) + 1;
+                audit.confirmedWaitReasons ||= {};
+                audit.confirmedWaitReasons[pusu.confirmationWaitReason] = Number(audit.confirmedWaitReasons[pusu.confirmationWaitReason] || 0) + 1;
+            }
             return false;
         }
         store.sonIptalPatternSignature[sym] = pusu.patternSignature;
@@ -599,7 +610,13 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     };
 
     if (audit) {
-        if (fiyatUygun) audit.fiyatTetigi++; else audit.fiyatBekleyen++;
+        if (fiyatUygun) audit.fiyatTetigi++;
+        else {
+            audit.fiyatBekleyen++;
+            if (entryModeDecision.selectedMode === 'CONFIRMED') audit.confirmedPriceWaiting = Number(audit.confirmedPriceWaiting || 0) + 1;
+            else audit.directPriceWaiting = Number(audit.directPriceWaiting || 0) + 1;
+        }
+        if (entryModeDecision.selectedMode === 'CONFIRMED') audit.confirmedReady = Number(audit.confirmedReady || 0) + 1;
         if (stUygun) audit.stOnayi++; else audit.stReddi++;
         if (st1Shadow?.uygun) audit.st1GateUygun++; else audit.st1GateBekleyen++;
         if (fiyatUygun && stUygun) audit.birlikteUygun++;
@@ -708,7 +725,8 @@ function auditLogla(audit) {
     const aktif = Object.values(store.pusular || {});
     console.log(`🧱 [ST2 RENKO AUDIT] Evren ${audit.evrenToplam} | Taranan ${audit.sembol} | Açık atlandı ${audit.acikPozisyonAtlandi} | Veri eksik ${audit.veriEksik} | Süre ${audit.sureMs} ms | Sembol ${audit.sembol} | 15m ATR ${audit.atrHazir} | Renko ${audit.renkoHazir} (min ${audit.renkoMin ?? 0}/max ${audit.renkoMax}) | Pattern aday ${audit.patternAday} | Yeni pattern ${audit.yeniPattern} | BB hazır ${audit.bbHazir} | BB temas L${audit.bbLongTemas}/S${audit.bbShortTemas} | 1m Renko ST ${audit.onay1mRenkoHazir} (UP ${audit.onay1mUp}/DOWN ${audit.onay1mDown}) | Yeni pusu L${audit.longPusu}/S${audit.shortPusu} | Aktif ${aktif.length}`);
     if (Number(audit.bildirimHafizaTemizlenen || 0) > 0) console.log(`🧹 [ST2 PUSU DEDUPE] Eski/fazla bildirim anahtarı temizlendi: ${audit.bildirimHafizaTemizlenen}`);
-    console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → Evolution fiyat uygun ${audit.fiyatTetigi} → 1m Renko ST uygun ${audit.stOnayi} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Bekleyen: Fiyat ${audit.fiyatBekleyen} 1m ST ${audit.stReddi} | ST1 shadow uygun/bekleyen ${audit.st1GateUygun}/${audit.st1GateBekleyen} | Bağlam iptal ${audit.st2ContextIptal} | Pozisyon katmanı ${audit.pozisyonReddedildi}`);
+    const confirmedReasons = Object.entries(audit.confirmedWaitReasons || {}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(',') || 'YOK';
+    console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → Mode D/C ${Number(audit.entryModeDirect||0)}/${Number(audit.entryModeConfirmed||0)} → Evolution fiyat uygun ${audit.fiyatTetigi} → 1m Renko ST uygun ${audit.stOnayi} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Bekleyen: DIRECT fiyat ${Number(audit.directPriceWaiting||0)} | CONFIRMED dönüş ${Number(audit.confirmedWaiting||0)} [${confirmedReasons}] | CONFIRMED fiyat ${Number(audit.confirmedPriceWaiting||0)} | 1m ST ${audit.stReddi} | ST1 shadow uygun/bekleyen ${audit.st1GateUygun}/${audit.st1GateBekleyen} | Bağlam iptal ${audit.st2ContextIptal} | Pozisyon katmanı ${audit.pozisyonReddedildi}`);
     console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu Renko süre ${audit.red.PUSU_SURESI_DOLDU} | ST1 hard red 0 | Geç giriş hard red 0 | ST2 bağlam ${audit.red.ST2_CONTEXT_INVALIDATED} | Legacy pusu ${audit.red.LEGACY_PUSU_INVALIDATED} | 1m Renko ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ} (tuğla ${audit.onay1mTuglaYetersiz} / hesap ${audit.onay1mStHesapYetersiz})`);
     const dagilim = Object.entries(audit.patternDagilimi || {}).sort().map(([k,v]) => `${k}:${v}`).join(' ') || 'YOK';
     console.log(`🧱 [ST2 RENKO PATTERN] ${dagilim}`);
@@ -745,7 +763,7 @@ async function taraVeDegerlendir() {
         audit.renkoHazir++;
         store.seriler[sym] = bricks;
         store.boxSize[sym] = box;
-        williamsCycleShadow.update(sym, bricks); // shadow-only; girişe etkisi yok
+        williamsCycleShadow.update(sym, bricks, { persist: false }); // shadow-only; tarama içinde disk I/O YOK
         if (acikPozisyonVar) continue; // Williams izlenir; yeni pusu/pozisyon üretilmez.
 
         eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit);
@@ -770,12 +788,16 @@ async function taraVeDegerlendir() {
         sonTamamlanma: new Date().toISOString()
     };
     auditLogla(audit);
+    // Williams shadow state ilk 200-sembol taramasını bloke etmesin: RAM'de toplandı, tek flush arka planda.
+    if (typeof williamsCycleShadow.scheduleFlush === 'function') williamsCycleShadow.scheduleFlush();
 
     // Açılışta bulunan bütün mevcut pusular tek mesajda bir kez bildirilir.
     // Sonraki taramalarda yalnız yeni bulunan pusu kendi kanıt mesajıyla gönderilir.
+    // R16 scan-liveness: Telegram teslimi Renko audit/ilk tarama dönüşünü ASLA bloke etmez.
     if (!baslangicPusuOzetiGonderildi && !baslangicPusuOzetiIsleniyor) {
         baslangicPusuOzetiIsleniyor = true;
-        try {
+        setImmediate(async () => {
+            try {
             const benzersiz = [];
             const gorulen = new Set();
             for (const x of baslangicPusuKuyrugu) {
@@ -824,11 +846,12 @@ async function taraVeDegerlendir() {
                     console.log(`${ok ? '✅' : '⚠️'} [ST2 AÇILIŞ PUSU ÖZETİ] ${benzersiz.length} pusu | Telegram ${ok ? 'TEKİL TESLİM OK' : belirsiz ? 'TESLİM BELİRSİZ; AYNI BOOTTA TEKRAR YOK' : 'BAŞARISIZ; SONRAKİ TARAMADA YENİDEN DENEYECEK'}`);
                 }
             }
-        } catch (e) {
-            console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message} | Sonraki taramada yeniden denenecek`);
-        } finally {
-            baslangicPusuOzetiIsleniyor = false;
-        }
+            } catch (e) {
+                console.log(`⚠️ [ST2 AÇILIŞ PUSU ÖZETİ] Telegram gönderimi başarısız: ${e.message} | Sonraki taramada yeniden denenecek`);
+            } finally {
+                baslangicPusuOzetiIsleniyor = false;
+            }
+        });
     }
     return audit;
 }

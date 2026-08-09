@@ -27,6 +27,8 @@ const STATE_FILE = path.join(DATA_DIR, 'st2-williams-cycle-shadow.json');
 const LEDGER_FILE = path.join(DATA_DIR, 'st2-williams-cycle-shadow-ledger.jsonl');
 
 let stateCache = null;
+let stateDirty = false;
+let flushScheduled = false;
 
 function n(value, fallback = 0) {
     const x = Number(value);
@@ -112,6 +114,24 @@ function saveState() {
     const tmp = `${STATE_FILE}.tmp-${process.pid}-${Date.now()}`;
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
     fs.renameSync(tmp, STATE_FILE);
+    stateDirty = false;
+}
+
+function flush() {
+    if (!stateDirty) return false;
+    saveState();
+    return true;
+}
+
+function scheduleFlush() {
+    if (!stateDirty || flushScheduled) return false;
+    flushScheduled = true;
+    setImmediate(() => {
+        try { flush(); }
+        catch (error) { console.error(`⚠️ [W%R SHADOW FLUSH] ${error.message}`); }
+        finally { flushScheduled = false; }
+    });
+    return true;
 }
 
 function appendLedger(row) {
@@ -248,7 +268,7 @@ function advanceState(previous, value, brickKey, at = Date.now(), cfg = settings
     return { state: s, event, changed: significantChange };
 }
 
-function update(sym, bricks) {
+function update(sym, bricks, options = {}) {
     const cfg = settings();
     if (!cfg.active) return null;
     const source = Array.isArray(bricks) ? bricks : [];
@@ -260,7 +280,10 @@ function update(sym, bricks) {
     const state = readState();
     const result = advanceState(state.symbols[sym], value, key, Number(last.closeTime || Date.now()), cfg);
     state.symbols[sym] = result.state;
-    if (result.changed) saveState();
+    if (result.changed) {
+        stateDirty = true;
+        if (options.persist !== false) saveState();
+    }
     if (result.event) {
         console.log(`🧪 [W%R SHADOW EVENT] ${sym} | ${result.event.type} ${result.event.count >= 3 ? '3+' : result.event.count} | W%R ${result.event.value.toFixed(2)} | Emir etkisi YOK`);
     }
@@ -439,6 +462,8 @@ function summary() {
 
 function resetForTest() {
     stateCache = blankState();
+    stateDirty = false;
+    flushScheduled = false;
     return stateCache;
 }
 
@@ -450,6 +475,8 @@ module.exports = {
     advanceState,
     snapshotFromState,
     update,
+    flush,
+    scheduleFlush,
     entrySnapshot,
     close,
     summary,
