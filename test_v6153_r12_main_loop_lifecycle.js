@@ -118,7 +118,22 @@ const Module = require('module');
   try {
     delete require.cache[require.resolve('./bot.js')];
     require('./bot.js');
-    await new Promise(resolve => setTimeout(resolve, 30));
+
+    // Startup warmup is intentionally launched with setImmediate() so production startup
+    // never blocks position protection. A fixed 30 ms sleep is therefore nondeterministic
+    // under npm/CI/loaded hosts. Wait for the actual contract instead of wall-clock luck.
+    const waitUntil = async (predicate, timeoutMs = 2000, pollMs = 5) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (predicate()) return true;
+        await new Promise(resolve => setTimeout(resolve, pollMs));
+      }
+      return Boolean(predicate());
+    };
+    const startupReady = await waitUntil(
+      () => state.startupMarketReady === true && state.semboller.length === 200 && typeof loopCb === 'function'
+    );
+    assert.strictEqual(startupReady, true, 'startup warmup must open entry gate and register main loop within bounded startup deadline');
     assert.strictEqual(state.startupMarketReady, true, 'startup warmup must open entry gate');
     assert.strictEqual(state.semboller.length, 200, 'runtime must retain 200-symbol universe');
     assert.strictEqual(typeof loopCb, 'function', 'main loop interval must be registered');
