@@ -112,6 +112,122 @@ function renkoUret(mumlar, boxSize) {
 }
 
 
+// Canlı 200-sembol taraması için tam Renko durumunu koruyup yalnız son N tuğlayı saklar.
+// Eski algoritmanın fiyat/tuğla matematiğini ve 10.000-iterasyon mum guard'ını birebir korur;
+// yalnız final kararı etkileyemeyecek eski tuğlalar için nesne üretimini atlar.
+function renkoUretSon(mumlar, boxSize, maxBricks = 128) {
+    if (!Array.isArray(mumlar) || !mumlar.length || !(boxSize > 0)) return [];
+    const limit = Math.max(32, Math.floor(Number(maxBricks) || 128));
+    const bricks = [];
+    let close = Number(mumlar[0].close);
+    let trend = null;
+    let totalCount = 0;
+    if (!Number.isFinite(close)) return [];
+
+    function trim() {
+        if (bricks.length > limit) bricks.splice(0, bricks.length - limit);
+    }
+
+    function pushNormal(direction, candle) {
+        const open = close;
+        close = close + direction * boxSize; // eski ekle(close +/- boxSize) ile aynı tekrar-toplama
+        trend = direction > 0 ? 'UP' : 'DOWN';
+        bricks.push({
+            id: ++totalCount,
+            open,
+            high: Math.max(open, close),
+            low: Math.min(open, close),
+            close,
+            color: direction > 0 ? 'GREEN' : 'RED',
+            closeTime: candle.closeTime
+        });
+        trim();
+    }
+
+    function pushReversal(direction, candle) {
+        const previousClose = close;
+        const yeniClose = previousClose + direction * (2 * boxSize);
+        close = yeniClose;
+        trend = direction > 0 ? 'UP' : 'DOWN';
+        const edge = previousClose + direction * boxSize;
+        bricks.push({
+            id: ++totalCount,
+            open: edge,
+            high: Math.max(edge, yeniClose),
+            low: Math.min(edge, yeniClose),
+            close: yeniClose,
+            color: direction > 0 ? 'GREEN' : 'RED',
+            closeTime: candle.closeTime
+        });
+        trim();
+    }
+
+    function condition(price, direction) {
+        return direction > 0 ? price >= close + boxSize : price <= close - boxSize;
+    }
+
+    // Büyük tek-mum hareketinde eski algoritma binlerce brick nesnesi üretiyordu.
+    // Son N'den daha eski olacak kısmı yalnız aynı IEEE-754 toplamasını tekrarlayarak ilerletir.
+    function emitSameDirection(price, direction, candle, guardRef) {
+        const rough = Math.max(0, Math.floor(Math.abs(price - close) / boxSize));
+        const possible = Math.min(rough, Math.max(0, guardRef.left));
+        const skip = Math.max(0, possible - (limit + 2));
+        if (skip > 0) {
+            // Bu kadar yeni brick geldikten sonra eski tail final sonuçta yaşayamaz.
+            bricks.length = 0;
+            for (let i = 0; i < skip; i++) close = close + direction * boxSize;
+            totalCount += skip;
+            guardRef.left -= skip;
+            trend = direction > 0 ? 'UP' : 'DOWN';
+        }
+        while (guardRef.left > 0 && condition(price, direction)) {
+            guardRef.left--;
+            pushNormal(direction, candle);
+        }
+    }
+
+    for (let i = 1; i < mumlar.length; i++) {
+        const candle = mumlar[i];
+        const price = Number(candle.close);
+        if (!Number.isFinite(price)) continue;
+        const guardRef = { left: 10000 };
+
+        if (trend === 'UP') {
+            if (price >= close + boxSize) {
+                emitSameDirection(price, +1, candle, guardRef);
+            } else if (price <= close - (2 * boxSize) && guardRef.left > 0) {
+                guardRef.left--;
+                pushReversal(-1, candle);
+                emitSameDirection(price, -1, candle, guardRef);
+            }
+            continue;
+        }
+
+        if (trend === 'DOWN') {
+            if (price <= close - boxSize) {
+                emitSameDirection(price, -1, candle, guardRef);
+            } else if (price >= close + (2 * boxSize) && guardRef.left > 0) {
+                guardRef.left--;
+                pushReversal(+1, candle);
+                emitSameDirection(price, +1, candle, guardRef);
+            }
+            continue;
+        }
+
+        if (price >= close + boxSize) emitSameDirection(price, +1, candle, guardRef);
+        else if (price <= close - boxSize) emitSameDirection(price, -1, candle, guardRef);
+    }
+
+    Object.defineProperty(bricks, 'totalCount', {
+        value: totalCount,
+        writable: false,
+        enumerable: false,
+        configurable: true
+    });
+    return bricks;
+}
+
+
 function bollingerHazirMi(bb) {
     return Boolean(
         bb && Array.isArray(bb.upper) && Array.isArray(bb.lower) &&
@@ -335,7 +451,7 @@ function pusuOlustur(sym, match, scenario) {
 
 module.exports = {
     atr,
-    renkoUret,
+    renkoUret, renkoUretSon,
     bollingerHazirMi,
     renkKodu,
     longPatternTespit,

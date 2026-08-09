@@ -58,8 +58,29 @@ function migrateSessionNeutralState(raw={}){
   s.schema=3;s.version=VERSION;s.health.sessionNeutralMigrations=n(s.health.sessionNeutralMigrations)+migrated;
   return s;
 }
-function load(){ensure();for(const f of [STATE_FILE,BACKUP_FILE]){try{if(fs.existsSync(f))return migrateSessionNeutralState(JSON.parse(fs.readFileSync(f,'utf8')));}catch(_){}}return blank();}
-function save(s){ensure();if(fs.existsSync(STATE_FILE))fs.copyFileSync(STATE_FILE,BACKUP_FILE);s.version=VERSION;s.updatedAt=new Date().toISOString();io.writeJsonAtomic(STATE_FILE,s);return s;}
+let adaptiveStateCache={file:null,sig:null,value:null};
+function fileSig(file){try{const st=fs.statSync(file);return `${st.mtimeMs}:${st.size}`;}catch(_){return null;}}
+function load(){
+  ensure();
+  for(const f of [STATE_FILE,BACKUP_FILE]){
+    try{
+      if(!fs.existsSync(f))continue;
+      const sig=fileSig(f);
+      if(adaptiveStateCache.file===f&&adaptiveStateCache.sig===sig&&adaptiveStateCache.value)return adaptiveStateCache.value;
+      const value=migrateSessionNeutralState(JSON.parse(fs.readFileSync(f,'utf8')));
+      adaptiveStateCache={file:f,sig,value};
+      return value;
+    }catch(_){}
+  }
+  const value=blank();adaptiveStateCache={file:null,sig:null,value};return value;
+}
+function save(s){
+  ensure();
+  if(fs.existsSync(STATE_FILE))fs.copyFileSync(STATE_FILE,BACKUP_FILE);
+  s.version=VERSION;s.updatedAt=new Date().toISOString();io.writeJsonAtomic(STATE_FILE,s);
+  adaptiveStateCache={file:STATE_FILE,sig:fileSig(STATE_FILE),value:s};
+  return s;
+}
 function norm(v){return String(v??'UNKNOWN').trim().toUpperCase().replace(/\s+/g,'_')||'UNKNOWN';}
 function contextFrom(source={}){
   const ga=source.girisAnalizi||source;
@@ -178,7 +199,10 @@ function historicalProfile(yon,pattern,context=null){
   const p=idx.patterns[`${yon}|${pattern}`];
   return positiveEvidence(p,HISTORICAL_PREMIER_MIN_N())?{...p,exact:false}:null;
 }
+let historicalCompletionCache={sig:null,value:null};
 function historicalCompletion(){
+  const completionSig=fileSig(HISTORICAL_FILE);
+  if(historicalCompletionCache.sig===completionSig&&historicalCompletionCache.value)return historicalCompletionCache.value;
   const canonicalSymbols = Array.isArray(canonicalHistoricalPool.SYMBOLS)
     ? [...new Set(canonicalHistoricalPool.SYMBOLS.map(x=>String(x).toUpperCase()).filter(Boolean))]
     : [];
@@ -191,9 +215,13 @@ function historicalCompletion(){
     const missingSymbols=(canonicalSymbols.length?canonicalSymbols:Object.keys(symbols))
       .filter(sym=>n(symbols?.[sym]?.signals)<=0);
     const ready=readySymbols.length;
-    return {ready,total,complete:total>0&&ready>=total,readySymbols,missingSymbols,source:'GLOBAL_CANONICAL_COIN_POOL'};
+    const value={ready,total,complete:total>0&&ready>=total,readySymbols,missingSymbols,source:'GLOBAL_CANONICAL_COIN_POOL'};
+    historicalCompletionCache={sig:completionSig,value};
+    return value;
   }catch(_){
-    return {ready:0,total,complete:false,readySymbols:[],missingSymbols:canonicalSymbols,source:'GLOBAL_CANONICAL_COIN_POOL'};
+    const value={ready:0,total,complete:false,readySymbols:[],missingSymbols:canonicalSymbols,source:'GLOBAL_CANONICAL_COIN_POOL'};
+    historicalCompletionCache={sig:completionSig,value};
+    return value;
   }
 }
 function latestLiveReview(state,context,brick,window=LAST_N,{completedBlock=true}={}){

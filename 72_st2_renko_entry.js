@@ -755,10 +755,23 @@ async function taraVeDegerlendir() {
         const box = core.atr(candles, Number(ayarlar.renkoAtrPeriod || 14));
         if (!(box > 0)) { audit.red.ATR_YETERSIZ++; continue; }
         audit.atrHazir++;
-        const bricks = core.renkoUret(candles, box);
-        audit.renkoTuglaToplam += bricks.length;
-        audit.renkoMin = audit.renkoMin === null ? bricks.length : Math.min(audit.renkoMin, bricks.length);
-        audit.renkoMax = Math.max(audit.renkoMax, bricks.length);
+        // Canlı karar yalnız son Renko patterni/BB/W%R ve birkaç-tuğla pusu yaşını kullanır.
+        // Binlerce eski tuğlayı nesne olarak üretmek ilk 200-sembol auditini dakikalarca uzatabiliyordu.
+        // renkoUretSon matematiği tam üretimin son N tuğlasıyla bit-bit eşdeğerdir; totalCount yalnız audit içindir.
+        const liveTail = Math.max(
+            64,
+            Number(ayarlar.renkoCanliTaramaMaxTugla || 128),
+            Number(ayarlar.renkoBollingerPeriod || ayarlar.bollingerperiod || 20) + 16,
+            Number(ayarlar.williamsCyclePeriod || 14) + 16,
+            Number(ayarlar.maxPusuBeklemeTugla || 3) + 16
+        );
+        const bricks = typeof core.renkoUretSon === 'function'
+            ? core.renkoUretSon(candles, box, liveTail)
+            : core.renkoUret(candles, box);
+        const toplamTugla = Math.max(bricks.length, Number(bricks.totalCount || bricks.length));
+        audit.renkoTuglaToplam += toplamTugla;
+        audit.renkoMin = audit.renkoMin === null ? toplamTugla : Math.min(audit.renkoMin, toplamTugla);
+        audit.renkoMax = Math.max(audit.renkoMax, toplamTugla);
         if (bricks.length < 4) { audit.red.RENKO_YETERSIZ++; continue; }
         audit.renkoHazir++;
         store.seriler[sym] = bricks;
@@ -775,6 +788,9 @@ async function taraVeDegerlendir() {
         patternPususuGuncelle(sym, bricks, bb, box, candles, audit);
         const onay1m = birDakikaRenkoSuperTrend(sym, audit);
         await pusuDegerlendir(sym, onay1m, audit);
+        if (audit.sembol % 25 === 0 && Date.now() - taramaBaslangici >= 5000) {
+            console.log(`⏱️ [ST2 RENKO SCAN İLERLEME] ${audit.sembol}/${audit.evrenToplam} | ${Date.now() - taramaBaslangici} ms | Son ${sym} | Renko ${audit.renkoHazir} | Pusu ${Object.keys(store.pusular || {}).length}`);
+        }
     }
     audit.tetikBekleyen = Object.keys(store.pusular || {}).length;
     audit.sureMs = Date.now() - taramaBaslangici;
