@@ -14,7 +14,9 @@ assert(rev.includes("return renko1mHazirSayisi();"), 'Entry Gate ham 1m cache sa
 assert(rev.includes('RENKO_1M_TUGLA_YETERSIZ'), 'Renko tuğla yetersizliği ayrı sınıflanmalı');
 assert(rev.includes('START_RENKO_ST_REPAIR_1') && rev.includes('START_RENKO_ST_REPAIR_2'), '80 mum yetmezse 240/480 derin onarım olmalı');
 assert(ent.includes('h.state.renko1mStCache?.[sym]'), 'Entry scan önceden hesaplanmış 1m Renko-ST cache kullanmalı');
-assert(ent.includes("bricks.length < minBricks"), 'SuperTrend için minimum Renko tuğla derinliği açık kontrol edilmeli');
+assert(ent.includes('RENKO_1M_CACHE_YOK') && ent.includes('scanFailClosed: true'), 'Entry scan cache yoksa sembol bazında fail-closed kalmalı');
+assert(!/const bricks = core\.renkoUret\(mumlar, box\)/.test(ent), 'Entry scan içinde pahalı 1m Renko fallback yeniden hesaplanmamalı');
+assert(rev.includes("bricks.length < minBricks"), 'Warmup/refresh SuperTrend için minimum Renko tuğla derinliğini açık kontrol etmeli');
 assert(rep.includes('🚪 Giriş hunisi Değerlendirilen'), 'Canlı panel entry funnel göstermeli');
 assert(rep.includes('1m Renko ST ${veriSagligi.renko1mStHazir}/${veriSagligi.secilen}'), 'Panel ham veri ile gerçek ST readiness ayırmalı');
 

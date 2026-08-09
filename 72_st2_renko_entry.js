@@ -308,33 +308,23 @@ function birDakikaRenkoSuperTrend(sym, audit = auditBaslat()) {
         return { trend: pre.trend, value: Number(pre.value || 0), bricks, cached: true };
     }
 
-    const box = core.atr(mumlar, Number(ayarlar.renkoOnayAtrPeriod || 14));
-    if (!(box > 0)) {
-        audit.onay1mYetersiz++; audit.red.ONAY_1M_RENKO_YETERSIZ++;
-        return { trend: null, value: 0, bricks: [], reason: 'ATR_1M_GECERSIZ' };
-    }
-    audit.onay1mAtrHazir++;
-    const bricks = core.renkoUret(mumlar, box);
-    store.onaySerileri1m[sym] = bricks;
-    store.onayBoxSize1m[sym] = box;
-    const minBricks = Number(ayarlar.renkoOnaySuperTrendPeriod || 10) + 2;
-    if (bricks.length < minBricks) {
-        audit.onay1mYetersiz++; audit.onay1mTuglaYetersiz++; audit.red.ONAY_1M_RENKO_YETERSIZ++;
-        return { trend: null, value: 0, bricks, reason: 'RENKO_1M_TUGLA_YETERSIZ', minBricks };
-    }
-    const st = m.hesaplaSuperTrend(
-        bricks,
-        Number(ayarlar.renkoOnaySuperTrendPeriod || 10),
-        Number(ayarlar.renkoOnaySuperTrendMultiplier || 3)
-    );
-    if (!['UP','DOWN'].includes(String(st?.trend || '').toUpperCase())) {
-        audit.onay1mYetersiz++; audit.onay1mStHesapYetersiz++; audit.red.ONAY_1M_RENKO_YETERSIZ++;
-        return { trend: null, value: 0, bricks, reason: 'RENKO_1M_ST_YOK' };
-    }
-    audit.onay1mRenkoHazir++;
-    if (st.trend === 'UP') audit.onay1mUp++;
-    if (st.trend === 'DOWN') audit.onay1mDown++;
-    return { ...st, bricks };
+    // R12 scan liveness: 1m Renko-ST'nin tek hesaplama otoritesi warmup/refresh katmanıdır.
+    // Startup zaten 80 -> 240 -> 480 kapanmış 1m mum ile derin onarım dener. Buna rağmen
+    // cache READY değilse 200-sembol giriş taraması içinde aynı pahalı Renko'yu tekrar üretmek
+    // bütün taramayı tek bir sembol yüzünden dakikalarca bloke edebilir. Hazır olmayan sembol
+    // fail-closed kalır; diğer READY semboller taranmaya devam eder.
+    audit.onay1mYetersiz++;
+    audit.onay1mStHesapYetersiz++;
+    audit.red.ONAY_1M_RENKO_YETERSIZ++;
+    return {
+        trend: null,
+        value: 0,
+        bricks: [],
+        reason: pre ? 'RENKO_1M_CACHE_STALE' : 'RENKO_1M_CACHE_YOK',
+        sourceCloseTime: sonCloseTime,
+        cachedCloseTime: Number(pre?.sourceCloseTime || 0),
+        scanFailClosed: true
+    };
 }
 
 function bollingerSenaryosu(match, bollinger, boxSize) {
@@ -742,6 +732,8 @@ async function taraVeDegerlendir() {
     audit.bildirimHafizaTemizlenen = pusuBildirimHafizasiniTemizle(store);
     audit.evrenToplam = (h.state.semboller || []).length;
     for (const sym of h.state.semboller || []) {
+        const sembolBaslangicMs = Date.now();
+        let tAtrMs = 0, tRenkoMs = 0, tWilliamsMs = 0, tPatternMs = 0, tOnay1mMs = 0, tPusuMs = 0;
         const acikPozisyonVar = (h.state.alinanlar || []).includes(sym) || (h.state.aktifShortlar || []).includes(sym);
         if (acikPozisyonVar) audit.acikPozisyonAtlandi++;
         audit.sembol++;
@@ -752,7 +744,9 @@ async function taraVeDegerlendir() {
         const candles = h.state.yerelPusuHafizasi?.[sym];
         if (!Array.isArray(candles) || candles.length === 0) audit.veriEksik++;
         audit.kaynakMumToplam += Array.isArray(candles) ? candles.length : 0;
+        const atrBaslangicMs = Date.now();
         const box = core.atr(candles, Number(ayarlar.renkoAtrPeriod || 14));
+        tAtrMs = Date.now() - atrBaslangicMs;
         if (!(box > 0)) { audit.red.ATR_YETERSIZ++; continue; }
         audit.atrHazir++;
         // Canlı karar yalnız son Renko patterni/BB/W%R ve birkaç-tuğla pusu yaşını kullanır.
@@ -765,9 +759,11 @@ async function taraVeDegerlendir() {
             Number(ayarlar.williamsCyclePeriod || 14) + 16,
             Number(ayarlar.maxPusuBeklemeTugla || 3) + 16
         );
+        const renkoBaslangicMs = Date.now();
         const bricks = typeof core.renkoUretSon === 'function'
             ? core.renkoUretSon(candles, box, liveTail)
             : core.renkoUret(candles, box);
+        tRenkoMs = Date.now() - renkoBaslangicMs;
         const toplamTugla = Math.max(bricks.length, Number(bricks.totalCount || bricks.length));
         audit.renkoTuglaToplam += toplamTugla;
         audit.renkoMin = audit.renkoMin === null ? toplamTugla : Math.min(audit.renkoMin, toplamTugla);
@@ -776,7 +772,9 @@ async function taraVeDegerlendir() {
         audit.renkoHazir++;
         store.seriler[sym] = bricks;
         store.boxSize[sym] = box;
+        const williamsBaslangicMs = Date.now();
         williamsCycleShadow.update(sym, bricks, { persist: false }); // shadow-only; tarama içinde disk I/O YOK
+        tWilliamsMs = Date.now() - williamsBaslangicMs;
         if (acikPozisyonVar) continue; // Williams izlenir; yeni pusu/pozisyon üretilmez.
 
         eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit);
@@ -785,9 +783,20 @@ async function taraVeDegerlendir() {
         const bb = m.hesaplaBollinger(bricks.map(x => Number(x.close)));
         if (!core.bollingerHazirMi(bb)) { audit.red.BB_GECERSIZ++; continue; }
         audit.bbHazir++;
+        const patternBaslangicMs = Date.now();
         patternPususuGuncelle(sym, bricks, bb, box, candles, audit);
+        tPatternMs = Date.now() - patternBaslangicMs;
+        const onayBaslangicMs = Date.now();
         const onay1m = birDakikaRenkoSuperTrend(sym, audit);
+        tOnay1mMs = Date.now() - onayBaslangicMs;
+        const pusuBaslangicMs = Date.now();
         await pusuDegerlendir(sym, onay1m, audit);
+        tPusuMs = Date.now() - pusuBaslangicMs;
+        const sembolToplamMs = Date.now() - sembolBaslangicMs;
+        const slowEsikMs = Math.max(250, Number(ayarlar.renkoSlowSymbolLogMs || 1000));
+        if (sembolToplamMs >= slowEsikMs) {
+            console.log(`🐢 [ST2 RENKO SLOW SYMBOL] ${sym} | Toplam ${sembolToplamMs} ms | ATR ${tAtrMs} | Renko15m ${tRenkoMs} | Williams ${tWilliamsMs} | Pattern/DNA ${tPatternMs} | 1mST ${tOnay1mMs} | PusuGate ${tPusuMs}`);
+        }
         if (audit.sembol % 25 === 0 && Date.now() - taramaBaslangici >= 5000) {
             console.log(`⏱️ [ST2 RENKO SCAN İLERLEME] ${audit.sembol}/${audit.evrenToplam} | ${Date.now() - taramaBaslangici} ms | Son ${sym} | Renko ${audit.renkoHazir} | Pusu ${Object.keys(store.pusular || {}).length}`);
         }
