@@ -27,11 +27,25 @@ const DEFAULTS = {
 
 const agent = new https.Agent({
     keepAlive: true,
-    maxSockets: DEFAULTS.concurrency,
-    maxFreeSockets: DEFAULTS.concurrency,
+    // R14: normal bulk concurrency + 1 reserved emergency socket for CRITICAL requests.
+    maxSockets: DEFAULTS.concurrency + 1,
+    maxFreeSockets: DEFAULTS.concurrency + 1,
     scheduling: 'lifo',
     keepAliveMsecs: 1000
 });
+
+// R15: global ticker is control-plane data for the main trading loop.
+// It MUST NOT share sockets/queue with 200-symbol KLINE bulk traffic.
+const criticalTickerAgent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 1,
+    maxFreeSockets: 1,
+    scheduling: 'lifo',
+    keepAliveMsecs: 1000,
+    timeout: 10000
+});
+let tickerDirectInFlight = null;
+let tickerDirectCache = null;
 
 const queue = [];
 const inFlightByKey = new Map();
@@ -65,8 +79,10 @@ function sleep(ms) {
 function configure(options = {}) {
     const wanted = Math.max(1, Math.min(10, Number(options.concurrency) || configuredConcurrency));
     configuredConcurrency = wanted;
-    agent.maxSockets = wanted;
-    agent.maxFreeSockets = wanted;
+    // R14: bulk KLINE tasks remain bounded by configuredConcurrency in pump();
+    // only a queued CRITICAL task may use the single overflow slot.
+    agent.maxSockets = wanted + 1;
+    agent.maxFreeSockets = wanted + 1;
     pump();
     return durumOzeti();
 }
@@ -161,7 +177,10 @@ function pump() {
     if (pumpTimer) return;
     const run = () => {
         pumpTimer = null;
-        while (active < configuredConcurrency && queue.length) {
+        while (queue.length) {
+            const nextTask = queue[0];
+            const criticalOverflow = nextTask?.priority >= priorityValue('CRITICAL') && active < (configuredConcurrency + 1);
+            if (!(active < configuredConcurrency || criticalOverflow)) break;
             const task = queue.shift();
             const spacing = Math.max(0, Number(task.options.requestSpacingMs ?? DEFAULTS.requestSpacingMs));
             const wait = Math.max(0, (lastStartAt + spacing) - Date.now());
@@ -277,15 +296,27 @@ function httpsJson(urlString, options = {}) {
     return new Promise((resolve, reject) => {
         const url = new URL(urlString);
         let settled = false;
+        let req = null;
+        let hardTimer = null;
         const finish = (fn, value) => {
             if (settled) return;
             settled = true;
+            if (hardTimer) clearTimeout(hardTimer);
             fn(value);
         };
-        const req = https.request(url, {
+        // R14: req.setTimeout() alone does not bound time spent waiting for an Agent socket.
+        // This wall-clock timer starts before a socket is assigned and therefore bounds the
+        // complete lifecycle (Agent queue + connect + response).
+        hardTimer = setTimeout(() => {
+            const err = new Error(`${label}:HARD_TIMEOUT:${timeoutMs}ms`);
+            err.code = 'ETIMEDOUT';
+            if (req) req.destroy(err);
+            finish(reject, err);
+        }, timeoutMs);
+        req = https.request(url, {
             method: 'GET',
             family: 4,
-            agent,
+            agent: options.agent || agent,
             headers: {
                 'Accept': 'application/json',
                 'User-Agent': 'AGROS/5.0.3',
@@ -362,17 +393,43 @@ function binanceMumlariCek(symbol, interval, limit = 80, options = {}) {
 
 function binanceFiyatlariCek(options = {}) {
     const cfg = { ...DEFAULTS, ...options, cacheTtlMs: options.cacheTtlMs ?? 700 };
+    const now = Date.now();
+    if (tickerDirectCache && tickerDirectCache.expiresAt > now) {
+        stats.cacheHit++;
+        return Promise.resolve(tickerDirectCache.value);
+    }
+    if (tickerDirectInFlight) {
+        stats.deduped++;
+        return tickerDirectInFlight;
+    }
+
     const url = publicUrlOlustur('/fapi/v1/ticker/price');
-    return kuyrukluIstek('TICKER:ALL', () => httpsJson(url, {
+    stats.started++;
+    let currentPromise;
+    currentPromise = retryIleCalistir(() => httpsJson(url, {
         timeoutMs: cfg.timeoutMs,
-        label: cfg.label || 'TICKER_ALL'
-    }).then(rows => {
-        const out = {};
-        for (const row of rows || []) {
-            if (row?.symbol && row?.price !== undefined) out[row.symbol] = String(row.price);
-        }
-        return out;
-    }), cfg);
+        label: cfg.label || 'TICKER_ALL',
+        agent: criticalTickerAgent
+    }), cfg)
+        .then(rows => {
+            const out = {};
+            for (const row of rows || []) {
+                if (row?.symbol && row?.price !== undefined) out[row.symbol] = String(row.price);
+            }
+            stats.succeeded++;
+            const ttl = Math.max(0, Number(cfg.cacheTtlMs || 0));
+            if (ttl > 0) tickerDirectCache = { value: out, expiresAt: Date.now() + ttl };
+            return out;
+        })
+        .catch(err => {
+            hataKaydet(err);
+            throw err;
+        })
+        .finally(() => {
+            if (tickerDirectInFlight === currentPromise) tickerDirectInFlight = null;
+        });
+    tickerDirectInFlight = currentPromise;
+    return currentPromise;
 }
 
 async function havuzdaCalistir(items, worker, concurrency = DEFAULTS.concurrency) {
@@ -424,6 +481,9 @@ function testReset() {
     lastStartAt = 0;
     if (pumpTimer) clearTimeout(pumpTimer);
     pumpTimer = null;
+    tickerDirectInFlight = null;
+    tickerDirectCache = null;
+    criticalTickerAgent.destroy();
     for (const key of Object.keys(stats)) stats[key] = typeof stats[key] === 'number' ? 0 : '';
 }
 
@@ -440,5 +500,7 @@ module.exports = {
     havuzdaCalistir,
     durumOzeti,
     _publicUrlOlustur: publicUrlOlustur,
+    _httpsJson: httpsJson,
+    _criticalTickerAgent: criticalTickerAgent,
     _testReset: testReset
 };

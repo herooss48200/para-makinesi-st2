@@ -18,6 +18,8 @@ let sonSuperTrendDenemeZamani = 0;
 const overlapLogAt = { pusu: 0, superTrend: 0 };
 let pusuTimerRef = null;
 let stTimerRef = null;
+let st1ShadowTimerRef = null;
+let st1ShadowDelayRef = null;
 function readyRatioThreshold() { return Math.max(0.80, Math.min(1, Number(ayarlar.startupMarketReadyOrani || 0.95))); }
 function aktifEvrenSeti() { return new Set((h.state.semboller || []).map(String)); }
 function cacheHazirSayisi(cache) {
@@ -124,11 +126,43 @@ function periyodikTazelemeyiBaslat() {
         pusuTimerRef.unref?.();
     }
     if (!stTimerRef) {
+        // R14: bu plan yalnız ilk gerçek Golden Renko auditinden SONRA başlatılır.
+        // Böylece startup cache hazır olur olmaz ana ticker + ilk Renko scan temiz ağ hattı bulur.
         stTimerRef = setInterval(() => {
-            superTrendHesapla(false).catch(e => console.error('❌ SuperTrend üst hata:', e.message));
+            superTrendHesapla(false, { skipTrend: true, priority: 'HIGH' })
+                .catch(e => console.error('❌ 1m Renko ST tazeleme üst hata:', e.message));
         }, ayarlar.superTrendTazelemeMs || 15000);
         stTimerRef.unref?.();
     }
+}
+
+function st1ShadowTazelemeyiBaslat() {
+    if (ayarlar.st1ShadowPeriyodikAktif === false) return { started:false, reason:'DISABLED' };
+    if (st1ShadowTimerRef || st1ShadowDelayRef) return { started:false, reason:'ALREADY_SCHEDULED' };
+
+    const ilkGecikme = Math.max(30000, Number(ayarlar.st1ShadowIlkTaramaGecikmeMs || 60000));
+    const periyot = Math.max(60000, Number(ayarlar.st1ShadowTazelemeMs || 180000));
+
+    const calistir = () => {
+        superTrendHesapla(false, {
+            skipSniper: true,
+            priority: 'LOW',
+            backgroundTrend: true,
+            requestTimeoutMs: Math.max(3000, Number(ayarlar.st1ShadowIstekTimeoutMs || 6000)),
+            requestRetries: Math.max(0, Number(ayarlar.st1ShadowIstekRetry ?? 0))
+        }).catch(e => console.error(`⚠️ [ST1 SHADOW REFRESH] ${e.message}`));
+    };
+
+    st1ShadowDelayRef = setTimeout(() => {
+        st1ShadowDelayRef = null;
+        calistir();
+        st1ShadowTimerRef = setInterval(calistir, periyot);
+        st1ShadowTimerRef.unref?.();
+    }, ilkGecikme);
+    st1ShadowDelayRef.unref?.();
+
+    console.log(`🧪 [ST1 SHADOW PLAN] İlk Golden Renko taraması sonrası ${Math.round(ilkGecikme/1000)} sn gecikmeli | Periyot ${Math.round(periyot/1000)} sn | Giriş yetkisine etkisi YOK`);
+    return { started:true, delayMs:ilkGecikme, intervalMs:periyot };
 }
 
 function mumDonustur(x) {
@@ -170,8 +204,8 @@ function agAyar(label, priority = 'LOW') {
         label
     };
 }
-async function mumCek(sym, interval, limit, label, priority = 'LOW') {
-    return ag.binanceMumlariCek(sym, interval, limit, agAyar(label, priority));
+async function mumCek(sym, interval, limit, label, priority = 'LOW', overrides = {}) {
+    return ag.binanceMumlariCek(sym, interval, limit, { ...agAyar(label, priority), ...(overrides || {}) });
 }
 async function sembolHavuzu(worker, options = {}) {
     const concurrency = Math.max(1, Number(options.concurrency || ayarlar.binanceAgEszamanlilik || 3));
@@ -306,19 +340,9 @@ async function derinGecmisiInsaEt(options = {}) {
         };
         console.log(`${gate.currentReady ? '✅' : '⚠️'} [AŞAMALI BAŞLANGIÇ] GOLDEN RENKO ${gate.currentReady ? 'TAMAM' : 'DEGRADED'} | ${pusuTf} Mum ${pusuHazir}/${toplam} | ${sniperTf} Renko ST veri ${sniperHazir}/${toplam} | Eşik %${(threshold * 100).toFixed(0)} | Süre ${now - baslangic} ms.`);
 
-        // ST1 3m yalnız shadow etki etiketi olarak arkada hazırlanır; giriş kapısını bekletmez.
-        setImmediate(() => {
-            superTrendHesapla(true, {
-                concurrency: ayarlar.binanceAgEszamanlilik || 3,
-                workers: ayarlar.binanceAgIsciSayisi || 8,
-                skipSniper: true,
-                priority: 'LOW',
-                backgroundTrend: true
-            }).then(x => {
-                if (x?.skipped) return;
-                console.log(`✅ [ST1 SHADOW ISINMA] ${trendTf} ${Number(x?.trendGuncellenen || 0)}/${toplam} | Hata ${Number(x?.hata || 0)} | Giriş yetkisine etkisi YOK`);
-            }).catch(e => console.error(`⚠️ [ST1 SHADOW ISINMA] ${e.message} | Golden Renko giriş yetkisi etkilenmedi.`));
-        });
+        // R14: startup sonrası hiçbir 200-sembol periyodik refresh ilk gerçek auditten önce başlamaz.
+        console.log('🛡️ [CORE REFRESH DEFERRED] İlk Golden Renko taraması tamamlanana kadar 15m/1m toplu refresh YOK');
+        console.log('🧪 [ST1 SHADOW DEFERRED] İlk Golden Renko taraması tamamlanana kadar ağ isteği YOK | Giriş yetkisine etkisi YOK');
 
         return {
             ready: gate.currentReady, pusuHazir, trendHazir: sniperHazir, sniperHazir, total: toplam,
@@ -327,7 +351,7 @@ async function derinGecmisiInsaEt(options = {}) {
         };
     } finally {
         ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
-        periyodikTazelemeyiBaslat();
+        // R14: periyodikTazelemeyiBaslat() ilk canlı Renko auditinden sonra bot.js tarafından çağrılır.
     }
 }
 
@@ -414,7 +438,10 @@ async function superTrendHesapla(baslangic=false, options={}) {
             }
             if(trendDue){
                 try{
-                    const trendHam=await mumCek(sym, trendTf, 80, `TREND_CANDLE:${sym}`, requestPriority);
+                    const trendHam=await mumCek(sym, trendTf, 80, `TREND_CANDLE:${sym}`, requestPriority, {
+                        timeoutMs: options.requestTimeoutMs ?? (ayarlar.binanceAgTimeoutMs || 15000),
+                        retries: options.requestRetries ?? (ayarlar.binanceAgRetry ?? 2)
+                    });
                     const trend=sadeceKapanmisMumlar(trendHam);
                     if(trend.length >= (ayarlar.superTrendPeriod||10)+2){ h.state.trendMumlar[sym]=trend; const st=m.hesaplaSuperTrend(trend); if(st?.trend){ h.state.trendSuperTrend[sym]=st.trend; h.state.sniperSuperTrend[sym]=st.trend; trendGuncellenen++; } else trendHatali++; } else trendHatali++;
                 }catch(err){trendHatali++;throw err;}
@@ -484,6 +511,8 @@ function resetScheduleForTest(){
     sonSniperBasariliBucket=null;sonTrendBasariliBucket=null;sonSniperDenemeBucket=null;sonTrendDenemeBucket=null;sonSuperTrendDenemeZamani=0; overlapLogAt.pusu=0; overlapLogAt.superTrend=0;
     if (pusuTimerRef) clearInterval(pusuTimerRef);
     if (stTimerRef) clearInterval(stTimerRef);
-    pusuTimerRef=null; stTimerRef=null;
+    if (st1ShadowTimerRef) clearInterval(st1ShadowTimerRef);
+    if (st1ShadowDelayRef) clearTimeout(st1ShadowDelayRef);
+    pusuTimerRef=null; stTimerRef=null; st1ShadowTimerRef=null; st1ShadowDelayRef=null;
 }
-module.exports={ derinGecmisiInsaEt, pusuVerileriniTazele, superTrendHesapla, _startupMarketDurumuGuncelle:startupMarketDurumuGuncelle, _readyRatioThreshold:readyRatioThreshold, _intervalMs:intervalMs, _closedCandleBucket:closedCandleBucket, _refreshDue:refreshDue, _resetScheduleForTest:resetScheduleForTest };
+module.exports={ derinGecmisiInsaEt, pusuVerileriniTazele, superTrendHesapla, periyodikTazelemeyiBaslat, st1ShadowTazelemeyiBaslat, _startupMarketDurumuGuncelle:startupMarketDurumuGuncelle, _readyRatioThreshold:readyRatioThreshold, _intervalMs:intervalMs, _closedCandleBucket:closedCandleBucket, _refreshDue:refreshDue, _resetScheduleForTest:resetScheduleForTest };

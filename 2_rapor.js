@@ -515,8 +515,12 @@ function minimalCanliRaporMetniOlustur() {
     const tgSaglik = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0, transport: {} };
     const tgTransport = tgSaglik.transport || {};
     const warm = h.state.startupMarketWarmup || {};
+    const firstScanPending = ayarlar.entryStrategyMode === 'ST2_RENKO'
+        && h.state.startupMarketReady === true
+        && h.state.st2FirstScanCompleted !== true
+        && Number(veriSagligi.taranan || 0) === 0;
     const startupGate = h.state.startupMarketReady === true
-        ? 'READY'
+        ? (firstScanPending ? 'READY/FIRST_SCAN_PENDING' : 'READY')
         : `${String(warm.durum || 'BEKLIYOR')}/${String(warm.asama || 'YOK')} ${Number(warm.islenen || 0)}/${Number(warm.toplam || veriSagligi.secilen || 0)}`;
     const offsetMetni = `${Number(binanceSaat.offsetMs || 0) >= 0 ? '+' : ''}${Number(binanceSaat.offsetMs || 0)}ms`;
     const lines = [
