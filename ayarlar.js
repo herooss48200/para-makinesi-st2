@@ -225,6 +225,12 @@ const ayarlar = {
     // R22: CONFIRMED gerçek mode seçimi artık ayrı 15m bootstrap + canlı evidence state'inden gelir.
     // Bootstrap tarihsel örnek sayısı sonsuza kadar baskın olmasın; canlı veri geldikçe ağırlık doğal olarak devralır.
     renkoGiris15mBootstrapMaksAgirlik: 30,
+    // R22.1: DIRECT seçiliyken 15m CONFIRMED karşı-olgusal yaşamı canlıda gölge izlenir; emir göndermez.
+    // Gölge kanıt eski rejimi sonsuza dek taşımaması için etkili N ile sınırlandırılır.
+    renkoGiris15mShadowCanliAktif: true,
+    renkoGiris15mShadowMaksAgirlik: 60,
+    renkoGiris15mShadowRoundTripFeePct: 0.08,
+    renkoGiris15mShadowMaxHoldBars: 32,
     // Aynı standardize tarihsel modelde CONFIRMED, DIRECT'ten en az bu kadar WR avantajı göstermeli.
     renkoGirisModuMinWrAvantaj: 2.0,
     // Expectancy de DIRECT'ten kötü olamaz.

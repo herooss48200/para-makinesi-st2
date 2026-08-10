@@ -1,22 +1,23 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.13.5-R22 — 15m CONFIRMED Evidence Store
+ * AGROS ST2 v6.13.5-R22.1 — 15m CONFIRMED Evidence Store + Counterfactual Shadow Live
  *
  * Amaç:
  * - DIRECT ve gerçek 15m-CONFIRMED giriş ailelerini aynı standardize PnL yüzdesiyle saklamak.
  * - Ağır replay/bootstrap işini trade process dışında çalıştırmak.
- * - Trade process yalnız küçük hazır state'i okur ve canlı kapanışları non-blocking kaydeder.
+ * - Trade process yalnız küçük hazır state'i okur; gerçek kapanış + DIRECT seçiliyken counterfactual CONFIRMED shadow yaşamını non-blocking kaydeder.
  *
  * Bootstrap kaynağı ayrı CLI worker tarafından üretilir.
- * LIVE kaydı yalnız bilimsel olarak kabul edilen kapanışlardan gelir.
+ * Gerçek LIVE kaydı yalnız bilimsel olarak kabul edilen kapanışlardan gelir.
+ * liveShadow gerçek emir göndermez; 15m reversal + offset + canlı 1m ST tetik koşulunu ve standardize exit yaşamını ölçer.
  */
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 
-const VERSION = 'v6.13.5-R22-15M-CONFIRMED-EVIDENCE';
+const VERSION = 'v6.13.5-R22.1-15M-CONFIRMED-SHADOW-LIVE-EVIDENCE';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'st2-15m-confirmed-evidence.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
@@ -32,11 +33,12 @@ function blankMetric() {
 }
 function blankState() {
   return {
-    schema: 1,
+    schema: 2,
     version: VERSION,
     updatedAt: null,
     bootstrap: { meta: { status: 'EMPTY', source: '15M_HISTORICAL_REPLAY', exact1mStModeled: false }, profiles: {} },
     live: { profiles: {}, processedCloseIds: {} },
+    liveShadow: { profiles: {}, experiments: {}, processedOutcomeIds: {} },
     health: { loadErrors: 0, saveErrors: 0, duplicateClose: 0 }
   };
 }
@@ -51,6 +53,7 @@ function hydrate(raw = {}) {
     ...base,
     ...(raw || {}),
     version: VERSION,
+    schema: 2,
     bootstrap: {
       ...base.bootstrap,
       ...(raw.bootstrap || {}),
@@ -62,6 +65,13 @@ function hydrate(raw = {}) {
       ...(raw.live || {}),
       profiles: normalizeProfiles(raw.live?.profiles),
       processedCloseIds: { ...(raw.live?.processedCloseIds || {}) }
+    },
+    liveShadow: {
+      ...base.liveShadow,
+      ...(raw.liveShadow || {}),
+      profiles: normalizeProfiles(raw.liveShadow?.profiles),
+      experiments: { ...(raw.liveShadow?.experiments || {}) },
+      processedOutcomeIds: { ...(raw.liveShadow?.processedOutcomeIds || {}) }
     },
     health: { ...base.health, ...(raw.health || {}) }
   };
@@ -173,7 +183,7 @@ function aggregateByOffset(sectionName, mode, direction, pattern = null, maxWeig
   for (const row of rowsFor(sectionName, mode, direction, pattern)) {
     const k = row.offsetT.toFixed(2);
     const list = grouped.get(k) || [];
-    list.push(sectionName === 'bootstrap' ? scaleMetric(row.raw, maxWeight) : metric(row.raw));
+    list.push(Number.isFinite(maxWeight) ? scaleMetric(row.raw, maxWeight) : metric(row.raw));
     grouped.set(k, list);
   }
   return [...grouped.entries()].map(([k, list]) => ({ offsetT: Number(k), ...combineMetrics(list) }));
@@ -187,17 +197,20 @@ function evidence(mode, direction, pattern = 'UNKNOWN', options = {}) {
     const p = scope === 'EXACT_PATTERN' ? exactPattern : null;
     const boot = aggregateByOffset('bootstrap', mode, direction, p, bootstrapCap);
     const live = aggregateByOffset('live', mode, direction, p, Infinity);
-    const offsets = [...new Set([...boot, ...live].map(x => x.offsetT))].sort((a, b) => a - b);
+    const shadowCap = Math.max(0, n(options.shadowCap, n(ayarlar.renkoGiris15mShadowMaksAgirlik, 60)));
+    const shadow = aggregateByOffset('liveShadow', mode, direction, p, shadowCap);
+    const offsets = [...new Set([...boot, ...live, ...shadow].map(x => x.offsetT))].sort((a, b) => a - b);
     return offsets.map(offsetT => {
       const b = boot.find(x => x.offsetT === offsetT);
       const l = live.find(x => x.offsetT === offsetT);
-      const combined = combineMetrics([b, l]);
+      const s = shadow.find(x => x.offsetT === offsetT);
+      const combined = combineMetrics([b, l, s]);
       return {
         mode: String(mode).toUpperCase(), direction: String(direction).toUpperCase(), pattern: p || '*', offsetT,
         evidenceScope: scope,
         evidenceTimeframe: '15M_CLOSED_RENKO_REVERSAL',
         bootstrapExact1mStModeled: load().bootstrap?.meta?.exact1mStModeled === true,
-        bootstrap: b || metric({}), live: l || metric({}),
+        bootstrap: b || metric({}), live: l || metric({}), shadow: s || metric({}),
         ...combined
       };
     });
@@ -215,7 +228,7 @@ function evidence(mode, direction, pattern = 'UNKNOWN', options = {}) {
   return best || {
     mode: String(mode).toUpperCase(), direction: String(direction).toUpperCase(), pattern: exactPattern,
     offsetT: n(ayarlar.renkoGirisTeyitVarsayilanTugla, 0.25), evidenceScope: 'NO_DATA',
-    evidenceTimeframe: '15M_CLOSED_RENKO_REVERSAL', bootstrap: metric({}), live: metric({}), ...metric({})
+    evidenceTimeframe: '15M_CLOSED_RENKO_REVERSAL', bootstrap: metric({}), live: metric({}), shadow: metric({}), ...metric({})
   };
 }
 async function atomicPersist(state) {
@@ -272,6 +285,204 @@ function recordLiveClose(pos, result = {}) {
   schedulePersist();
   return { accepted: true, id, key, metric: metric(state.live.profiles[key]) };
 }
+
+
+const SHADOW_CANDIDATES = Object.freeze([0.25, 0.50, 0.75]);
+function shadowColorOf(brick) {
+  const raw = String(brick?.color || brick?.renk || '').toUpperCase();
+  if (raw === 'GREEN' || raw === 'G') return 'GREEN';
+  if (raw === 'RED' || raw === 'R') return 'RED';
+  return n(brick?.close) >= n(brick?.open) ? 'GREEN' : 'RED';
+}
+function shadowSignalTime(pusu = {}) {
+  return Math.max(0, n(pusu?.sonKapaliTuglaZamani), n(pusu?.kaynakSonKapaliMumZamani), n(pusu?.referansTuglaCloseTime));
+}
+function shadowExperimentId(pusu, offsetT) {
+  const sym = String(pusu?.sym || pusu?.symbol || '').toUpperCase();
+  const direction = String(pusu?.yon || '').toUpperCase();
+  const pattern = String(pusu?.patternKodu || pusu?.patternCode || 'UNKNOWN').toUpperCase();
+  return `${sym}|${direction}|${pattern}|${shadowSignalTime(pusu)}|${Number(offsetT).toFixed(2)}T`;
+}
+function shadowConfig() {
+  return {
+    stopPct: Math.max(0.05, n(ayarlar.sabitStopYuzdesi, 1.5)),
+    tpPct: Math.max(0.05, n(ayarlar.sabitTpYuzdesi, 0.4)),
+    beTriggerPct: Math.max(0, n(ayarlar.breakevenTetikYuzde, 0.4)),
+    beBufferPct: Math.max(0, n(ayarlar.breakevenTamponYuzde, 0.12)),
+    feePct: Math.max(0, n(ayarlar.renkoGiris15mShadowRoundTripFeePct, 0.08)),
+    maxHoldBars: Math.max(1, Math.floor(n(ayarlar.renkoGiris15mShadowMaxHoldBars, 32))),
+    maxPusuBricks: Math.max(1, Math.floor(n(ayarlar.maxPusuBeklemeTugla, 3)))
+  };
+}
+function ensureConfirmedShadowForPusu(pusu = {}) {
+  const decision = pusu?.entryModeDecisionAtSignal || {};
+  if (String(decision.selectedMode || pusu?.entryMode || '').toUpperCase() !== 'DIRECT') return { created:0, reason:'REAL_MODE_NOT_DIRECT' };
+  const sym = String(pusu?.sym || pusu?.symbol || '').toUpperCase();
+  const direction = String(pusu?.yon || '').toUpperCase();
+  const pattern = String(pusu?.patternKodu || pusu?.patternCode || 'UNKNOWN').toUpperCase();
+  const signalAt = shadowSignalTime(pusu);
+  if (!sym || !['LONG','SHORT'].includes(direction) || !(signalAt > 0)) return { created:0, reason:'PUSU_IDENTITY_INVALID' };
+  const state = load();
+  let created = 0;
+  for (const offsetT of SHADOW_CANDIDATES) {
+    const id = shadowExperimentId(pusu, offsetT);
+    if (state.liveShadow.processedOutcomeIds[id] || state.liveShadow.experiments[id]) continue;
+    state.liveShadow.experiments[id] = {
+      id, sym, direction, pattern, signalAt, offsetT,
+      status:'WAIT_REVERSAL', createdAt:Date.now(),
+      reversalCloseTime:0, reversalBase:0, targetPrice:0,
+      entryPrice:0, openedAt:0, lastCandleCloseTime:0, holdBars:0,
+      stopLevelPct:-shadowConfig().stopPct, be:false, peakPct:0, troughPct:0
+    };
+    created++;
+  }
+  if (created) schedulePersist();
+  return { created, active:Object.keys(state.liveShadow.experiments).length };
+}
+function firstShadowReversal(bricks = [], exp, now = Date.now()) {
+  const expectedA = exp.direction === 'LONG' ? 'RED' : 'GREEN';
+  const expectedB = exp.direction === 'LONG' ? 'GREEN' : 'RED';
+  const source = (Array.isArray(bricks) ? bricks : [])
+    .filter(x => n(x?.closeTime) <= now && n(x?.closeTime) >= exp.signalAt)
+    .sort((a,b)=>n(a.closeTime)-n(b.closeTime));
+  for (let i=1;i<source.length;i++) {
+    const prev=source[i-1], cur=source[i];
+    if (shadowColorOf(prev)!==expectedA || shadowColorOf(cur)!==expectedB) continue;
+    if (!(n(cur.closeTime)>exp.signalAt) || n(prev.closeTime)<exp.signalAt) continue;
+    return { found:true, pair:`${expectedA}->${expectedB}`, previous:prev, confirmation:cur };
+  }
+  return { found:false, pair:`${expectedA}->${expectedB}` };
+}
+function shadowAfterSignalCount(bricks = [], exp, now = Date.now()) {
+  return (Array.isArray(bricks) ? bricks : []).filter(x => n(x?.closeTime)>exp.signalAt && n(x?.closeTime)<=now).length;
+}
+function shadowMovePct(direction, entry, price) {
+  if (!(entry>0 && price>0)) return 0;
+  return direction === 'LONG' ? ((price-entry)/entry)*100 : ((entry-price)/entry)*100;
+}
+function shadowIntrabarPath(candle, direction) {
+  return direction === 'LONG'
+    ? [candle.open, candle.low, candle.high, candle.close]
+    : [candle.open, candle.high, candle.low, candle.close];
+}
+function shadowObservePoint(exp, px, cfg) {
+  const p = shadowMovePct(exp.direction, exp.entryPrice, n(px));
+  exp.peakPct = Math.max(n(exp.peakPct), p);
+  exp.troughPct = Math.min(n(exp.troughPct), p);
+  if (!exp.be && p >= cfg.beTriggerPct) {
+    exp.be = true;
+    exp.stopLevelPct = Math.max(n(exp.stopLevelPct, -cfg.stopPct), cfg.beBufferPct);
+  }
+  if (p <= n(exp.stopLevelPct, -cfg.stopPct)) {
+    const netPct = n(exp.stopLevelPct, -cfg.stopPct) - cfg.feePct;
+    return { resolved:true, netPct, outcome: netPct > 0 ? 'TP' : (Math.abs(netPct)<1e-12 ? 'BE':'SL'), reason:'STANDARDIZED_STOP' };
+  }
+  if (p >= cfg.tpPct) {
+    return { resolved:true, netPct:cfg.tpPct-cfg.feePct, outcome:'TP', reason:'STANDARDIZED_TP' };
+  }
+  return { resolved:false };
+}
+function finishShadowExperiment(state, exp, result = {}) {
+  const id = exp.id;
+  if (state.liveShadow.processedOutcomeIds[id]) { delete state.liveShadow.experiments[id]; return { duplicate:true }; }
+  const key = profileKey('CONFIRMED', exp.direction, exp.pattern, exp.offsetT);
+  state.liveShadow.profiles[key] ||= blankMetric();
+  observe(state.liveShadow.profiles[key], {
+    triggered: result.triggered !== false,
+    noEntry: result.noEntry === true,
+    netPct: n(result.netPct),
+    at: result.at || new Date().toISOString()
+  });
+  state.liveShadow.processedOutcomeIds[id] = result.at || new Date().toISOString();
+  delete state.liveShadow.experiments[id];
+  const ids = Object.keys(state.liveShadow.processedOutcomeIds);
+  if (ids.length > 10000) {
+    ids.sort((a,b)=>String(state.liveShadow.processedOutcomeIds[a]).localeCompare(String(state.liveShadow.processedOutcomeIds[b])));
+    for (const old of ids.slice(0, ids.length-10000)) delete state.liveShadow.processedOutcomeIds[old];
+  }
+  return { key, metric:metric(state.liveShadow.profiles[key]), result };
+}
+function advanceConfirmedShadow(options = {}) {
+  const state = load();
+  const cfg = shadowConfig();
+  const now = n(options.now, Date.now());
+  const bricksBySymbol = options.bricksBySymbol || {};
+  const boxBySymbol = options.boxBySymbol || {};
+  const prices = options.prices || {};
+  const stCache = options.stCache || {};
+  const candles15mBySymbol = options.candles15mBySymbol || {};
+  let changed=false, opened=0, closed=0, noEntry=0;
+  const events=[];
+
+  for (const exp of Object.values(state.liveShadow.experiments || {})) {
+    const bricks = bricksBySymbol[exp.sym] || [];
+    const price = n(prices[exp.sym]);
+    const stTrend = String(stCache?.[exp.sym]?.trend || '').toUpperCase();
+    const afterCount = shadowAfterSignalCount(bricks, exp, now);
+
+    if (exp.status !== 'OPEN' && afterCount >= cfg.maxPusuBricks) {
+      const fin = finishShadowExperiment(state, exp, { triggered:false, noEntry:true, reason:'PUSU_RENKO_WINDOW_EXPIRED', at:new Date(now).toISOString() });
+      noEntry++; changed=true; events.push({type:'NO_ENTRY',...fin,exp:{...exp}}); continue;
+    }
+
+    if (exp.status === 'WAIT_REVERSAL') {
+      const reversal = firstShadowReversal(bricks, exp, now);
+      if (reversal.found) {
+        const base=n(reversal.confirmation?.close), box=n(boxBySymbol[exp.sym]);
+        const target = exp.direction==='LONG' ? base+exp.offsetT*box : base-exp.offsetT*box;
+        if (base>0 && box>0 && target>0) {
+          exp.status='WAIT_TRIGGER'; exp.reversalCloseTime=n(reversal.confirmation.closeTime); exp.reversalBase=base; exp.targetPrice=target; exp.reversalPair=reversal.pair; changed=true;
+        }
+      }
+    }
+
+    if (exp.status === 'WAIT_TRIGGER') {
+      const priceOk = exp.direction==='LONG' ? price>=n(exp.targetPrice) : price<=n(exp.targetPrice);
+      const stOk = exp.direction==='LONG' ? stTrend==='UP' : stTrend==='DOWN';
+      if (price>0 && priceOk && stOk) {
+        exp.status='OPEN'; exp.entryPrice=price; exp.openedAt=now; exp.lastCandleCloseTime=0; exp.holdBars=0;
+        exp.stopLevelPct=-cfg.stopPct; exp.be=false; exp.peakPct=0; exp.troughPct=0; changed=true; opened++;
+        events.push({type:'OPEN',exp:{...exp},stTrend});
+      }
+    }
+
+    if (exp.status === 'OPEN') {
+      let resolved = null;
+      const candles = (Array.isArray(candles15mBySymbol[exp.sym]) ? candles15mBySymbol[exp.sym] : [])
+        .filter(c => n(c?.closeTime)>n(exp.lastCandleCloseTime) && n(c?.openTime)>=n(exp.openedAt) && n(c?.closeTime)<=now)
+        .sort((a,b)=>n(a.closeTime)-n(b.closeTime));
+      for (const c of candles) {
+        for (const px of shadowIntrabarPath(c, exp.direction)) {
+          resolved = shadowObservePoint(exp, px, cfg);
+          if (resolved.resolved) break;
+        }
+        exp.lastCandleCloseTime=n(c.closeTime); exp.holdBars=n(exp.holdBars)+1; changed=true;
+        if (resolved?.resolved) break;
+        if (exp.holdBars >= cfg.maxHoldBars) {
+          const netPct=shadowMovePct(exp.direction, exp.entryPrice, n(c.close))-cfg.feePct;
+          resolved={resolved:true,netPct,outcome:netPct>0?'TP':netPct<0?'SL':'BE',reason:'STANDARDIZED_MAX_HOLD'};
+          break;
+        }
+      }
+      if (!resolved?.resolved && price>0) resolved = shadowObservePoint(exp, price, cfg);
+      if (resolved?.resolved) {
+        const fin=finishShadowExperiment(state, exp, {triggered:true,netPct:resolved.netPct,outcome:resolved.outcome,reason:resolved.reason,at:new Date(now).toISOString()});
+        closed++; changed=true; events.push({type:'CLOSE',...fin,exp:{...exp}}); continue;
+      }
+    }
+  }
+
+  if (changed) schedulePersist();
+  const active = Object.values(state.liveShadow.experiments || {});
+  return {
+    opened, closed, noEntry,
+    active:active.length,
+    waiting:active.filter(x=>x.status!=='OPEN').length,
+    open:active.filter(x=>x.status==='OPEN').length,
+    events
+  };
+}
+
 function replaceBootstrap(profiles = {}, meta = {}) {
   const state = load();
   state.bootstrap = {
@@ -291,13 +502,18 @@ function summary() {
     bootstrapProfiles: Object.keys(state.bootstrap.profiles || {}).length,
     liveProfiles: Object.keys(state.live.profiles || {}).length,
     liveCloses: Object.values(state.live.profiles || {}).reduce((a, x) => a + n(x.n), 0),
+    shadowProfiles: Object.keys(state.liveShadow.profiles || {}).length,
+    shadowResolved: Object.values(state.liveShadow.profiles || {}).reduce((a, x) => a + n(x.n), 0),
+    shadowNoEntry: Object.values(state.liveShadow.profiles || {}).reduce((a, x) => a + n(x.noEntry), 0),
+    shadowActive: Object.keys(state.liveShadow.experiments || {}).length,
     health: state.health
   };
 }
 function resetForTest(raw = null) { cache = raw ? hydrate(raw) : blankState(); persistScheduled = false; persistPromise = Promise.resolve(); return cache; }
+async function flushForTest() { await new Promise(resolve => setImmediate(resolve)); await persistPromise; }
 
 module.exports = {
   VERSION, STATE_FILE, BACKUP_FILE, load, snapshot, summary, profileKey, parseKey, metric, observe,
-  evidence, recordLiveClose, replaceBootstrap, saveNow,
-  _blankState: blankState, _blankMetric: blankMetric, _combineMetrics: combineMetrics, _resetForTest: resetForTest
+  evidence, recordLiveClose, ensureConfirmedShadowForPusu, advanceConfirmedShadow, replaceBootstrap, saveNow,
+  _blankState: blankState, _blankMetric: blankMetric, _combineMetrics: combineMetrics, _resetForTest: resetForTest, _flushForTest: flushForTest
 };

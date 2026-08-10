@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.13.5-R22 — Unified Renko Entry Mode Policy
+ * AGROS ST2 v6.13.5-R22.1 — Unified Renko Entry Mode Policy
  *
  * Gerçek giriş aileleri:
  * - DIRECT: Entry Evolution referansından seçilmiş offset.
@@ -9,8 +9,8 @@
  *
  * R22 kanıt sözleşmesi:
  * - Gerçek CONFIRMED seçimini LEGACY 1m shadow N artık yapamaz.
- * - Mode selection, ayrı offline bootstrap worker'ın ürettiği 15m kanıt +
- *   canlı 15m-CONFIRMED kapanışlarından beslenir.
+ * - Mode selection, ayrı offline bootstrap worker'ın ürettiği 15m kanıt + gerçek canlı kapanış +
+ *   DIRECT dönemlerinde counterfactual 15m-CONFIRMED shadow live evidence ile beslenir.
  * - Bootstrap DIRECT ve CONFIRMED aynı standardize tarihsel exit modeliyle
  *   karşılaştırılır; böylece mode kararı elma-elma olur.
  * - 1m Renko ST gerçek girişte yine zorunlu son sniper teyididir.
@@ -21,7 +21,7 @@ const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const confirmationLab = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 const evidence15m = require('./94_st2_15m_confirmed_evidence.js');
 
-const VERSION = 'v6.13.5-R22-15M-CONFIRMED-BOOTSTRAP-LIVE-EVIDENCE';
+const VERSION = 'v6.13.5-R22.1-15M-CONFIRMED-SHADOW-LIVE-LEARNING';
 const MODES = Object.freeze({ DIRECT: 'DIRECT', CONFIRMED: 'CONFIRMED' });
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
@@ -116,21 +116,23 @@ function confirmedEvidence(yon, patternCode = 'UNKNOWN', minSamplesOverride = nu
     const minSamples = Math.max(1, n(minSamplesOverride, n(ayarlar.renkoGirisModuMinTeyitOrnek, 15)));
     const row = evidence15m.evidence(MODES.CONFIRMED, yon, patternCode, {
         minSamples,
-        bootstrapCap: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30)
+        bootstrapCap: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30),
+        shadowCap: n(ayarlar.renkoGiris15mShadowMaksAgirlik, 60)
     });
     return {
         ...row,
         mode: MODES.CONFIRMED,
         profileKey: `${String(yon).toUpperCase()}|${String(patternCode || 'UNKNOWN').toUpperCase()}|${Number(row.offsetT || ayarlar.renkoGirisTeyitVarsayilanTugla || 0.25).toFixed(2)}T`,
         evidenceTimeframe: '15M_CLOSED_RENKO_REVERSAL',
-        evidenceSource: n(row.live?.samples) > 0 ? '15M_BOOTSTRAP_PLUS_LIVE' : (n(row.bootstrap?.samples) > 0 ? '15M_BOOTSTRAP_PRIOR' : 'NO_DATA')
+        evidenceSource: n(row.live?.samples) > 0 && n(row.shadow?.samples) > 0 ? '15M_BOOTSTRAP_PLUS_ACTUAL_PLUS_SHADOW_LIVE' : (n(row.shadow?.samples) > 0 ? '15M_BOOTSTRAP_PLUS_SHADOW_LIVE' : (n(row.live?.samples) > 0 ? '15M_BOOTSTRAP_PLUS_ACTUAL_LIVE' : (n(row.bootstrap?.samples) > 0 ? '15M_BOOTSTRAP_PRIOR' : 'NO_DATA')))
     };
 }
 function comparableDirectEvidence(yon, patternCode = 'UNKNOWN', minSamplesOverride = null) {
     const minSamples = Math.max(1, n(minSamplesOverride, n(ayarlar.renkoGirisModuMinTeyitOrnek, 15)));
     const row = evidence15m.evidence(MODES.DIRECT, yon, patternCode, {
         minSamples,
-        bootstrapCap: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30)
+        bootstrapCap: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30),
+        shadowCap: n(ayarlar.renkoGiris15mShadowMaksAgirlik, 60)
     });
     return { ...row, mode: MODES.DIRECT, evidenceTimeframe: '15M_STANDARDIZED_BOOTSTRAP_AND_LIVE' };
 }
@@ -235,7 +237,8 @@ function summary() {
             minWrAdvantage: n(ayarlar.renkoGirisModuMinWrAvantaj, 2),
             minExpAdvantage: n(ayarlar.renkoGirisModuMinExpAvantaj, 0),
             bootstrapMaxWeight: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30),
-            objective: '15M_COMPARATIVE_BOOTSTRAP_PLUS_LIVE_EVIDENCE',
+            shadowLiveMaxWeight: n(ayarlar.renkoGiris15mShadowMaksAgirlik, 60),
+            objective: '15M_COMPARATIVE_BOOTSTRAP_PLUS_ACTUAL_AND_COUNTERFACTUAL_SHADOW_LIVE_EVIDENCE',
             confirmedTimingAuthority: '15M_CLOSED_RENKO_REVERSAL_PLUS_OFFSET',
             finalSniperAuthority: '1M_RENKO_SUPERTREND',
             legacy1mShadowAuthority: false

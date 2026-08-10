@@ -11,8 +11,8 @@
  *   1) SAME_WINDOW: ana kapanış anındaki karşılaştırma.
  *   2) FULL_LIFECYCLE: aday kendi tetik/stop/Renko koruma yaşamını sürdürür.
  * - Açık deneyler state dosyasına yazılır ve restart sonrası devam eder.
- * - Bu modül emir göndermez; ürettiği Full Lifecycle kanıtı Entry Mode Policy tarafından
- *   DIRECT/CONFIRMED zamanlama seçiminde kullanılabilir. Tek gerçek emir kapısı 72/motor zinciridir.
+ * - Bu modül emir göndermez. R22.1 sonrası LEGACY 1m Full Lifecycle yalnız tanı/hafıza katmanıdır;
+ *   gerçek DIRECT/CONFIRMED seçiminde oy kullanmaz. Tek gerçek emir kapısı 72/motor zinciridir.
  */
 
 const fs = require('fs');
@@ -294,7 +294,7 @@ function entrySnapshot(sym, yon, bricks, boxSize, actualEntryPrice, meta = {}) {
         }
         return candidate;
     });
-    console.log(`🧪 [RENKO ENTRY CONFIRMATION SHADOW] ${sym} ${direction} | ${reversal.pair} | Base ${snapshot.basePrice} | ${snapshot.candidates.map(x => `${x.label}:${x.status}`).join(' ')} | SAME+FULL yaşam | Laboratuvar emir göndermez; kanıt Entry Mode Policy'ye gider`);
+    console.log(`🧪 [RENKO ENTRY CONFIRMATION SHADOW] ${sym} ${direction} | ${reversal.pair} | Base ${snapshot.basePrice} | ${snapshot.candidates.map(x => `${x.label}:${x.status}`).join(' ')} | SAME+FULL yaşam | LEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek Entry Mode seçim yetkisi YOK`);
     return snapshot;
 }
 function positionSnapshot(pos) {
@@ -448,7 +448,7 @@ function openCandidate(exp, candidate, at, price) {
         syntheticPos,
         settings: { floorPct: exp.settings?.floorPct, takeoverPct: exp.settings?.takeoverPct }
     };
-    console.log(`🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] ${exp.sym} ${exp.yon} | ${candidate.label} | ${candidate.targetPrice} | Ana işlemden bağımsız laboratuvar yaşamı | Mode Policy kanıtı`);
+    console.log(`🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] ${exp.sym} ${exp.yon} | ${candidate.label} | ${candidate.targetPrice} | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK`);
     if (price > 0) updateOpenCandidate(exp, candidate, price, at, []);
     markDirty();
     return true;
@@ -554,7 +554,7 @@ function closeLifecycleCandidate(exp, candidate, exitPrice, reason, at = Date.no
     };
     appendLedger(row);
     emitted.push(row);
-    console.log(`📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] ${exp.sym} ${exp.yon} | ${candidate.label} ${result.outcome} | Net ${result.net >= 0 ? '+' : ''}${result.net.toFixed(4)} | ${reason} | Mode Policy kanıtı`);
+    console.log(`📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] ${exp.sym} ${exp.yon} | ${candidate.label} ${result.outcome} | Net ${result.net >= 0 ? '+' : ''}${result.net.toFixed(4)} | ${reason} | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK`);
     markDirty();
     return row;
 }
@@ -582,7 +582,7 @@ function noEntryLifecycle(exp, candidate, reason, at = Date.now(), emitted = [])
     };
     appendLedger(row);
     emitted.push(row);
-    console.log(`📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] ${exp.sym} ${exp.yon} | ${candidate.label} | ${reason} | Mode Policy kanıtı`);
+    console.log(`📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] ${exp.sym} ${exp.yon} | ${candidate.label} | ${reason} | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK`);
     markDirty();
     return row;
 }
@@ -866,7 +866,7 @@ function telegramText(closeResult) {
     const lines = [
         '',
         '🧪 <b>1m RENKO GİRİŞ TEYİT GÖLGESİ</b>',
-        `Mevcut işlem Net ${signed(closeResult.actualNet)} | Laboratuvar emir göndermez; mode kanıtı üretir`,
+        `Mevcut işlem Net ${signed(closeResult.actualNet)} | LEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek mode seçim yetkisi YOK`,
         '<b>Aynı kapanış penceresi:</b>'
     ];
     for (const x of closeResult.candidates) {
@@ -898,9 +898,9 @@ function lifecycleTelegramText(row) {
         const effect = parentNet < 0
             ? `Ana zararın ${signed(Math.abs(parentNet))} kadarı bu varyantta açılmayarak önlenirdi.`
             : `Ana kazanç ${signed(parentNet)} bu varyantta kaçabilirdi.`;
-        return `🧪 <b>RENKO TEYİT TAM YAŞAM TAMAMLANDI</b>\n${r.sym} ${r.yon} | ${prefix}${r.label}\nNO ENTRY | ${r.reason}\n${effect}\nLaboratuvar emir göndermez; sonuç Entry Mode Policy kanıtıdır.`;
+        return `🧪 <b>RENKO TEYİT TAM YAŞAM TAMAMLANDI</b>\n${r.sym} ${r.yon} | ${prefix}${r.label}\nNO ENTRY | ${r.reason}\n${effect}\nLEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek Entry Mode seçim yetkisi YOK.`;
     }
-    return `🧪 <b>RENKO TEYİT TAM YAŞAM KAPANDI</b>\n${r.sym} ${r.yon} | ${prefix}${r.label}\n${r.outcome} | Net ${signed(r.net)} | MFE %${n(r.mfePct).toFixed(3)} | MAE %${n(r.maePct).toFixed(3)}\nNeden ${r.reason} | Ana işlemden bağımsız yaşam\nLaboratuvar emir göndermez; sonuç Entry Mode Policy kanıtıdır.`;
+    return `🧪 <b>RENKO TEYİT TAM YAŞAM KAPANDI</b>\n${r.sym} ${r.yon} | ${prefix}${r.label}\n${r.outcome} | Net ${signed(r.net)} | MFE %${n(r.mfePct).toFixed(3)} | MAE %${n(r.maePct).toFixed(3)}\nNeden ${r.reason} | Ana işlemden bağımsız yaşam\nLEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek Entry Mode seçim yetkisi YOK.`;
 }
 function resetForTest(options = {}) {
     stateCache = null;

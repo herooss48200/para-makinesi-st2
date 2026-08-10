@@ -15,6 +15,7 @@ const st1EntryGate = require('./87_st2_st1_entry_gate.js'); // yalnız shadow et
 const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
 const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 const renkoEntryModePolicy = require('./90_st2_renko_entry_mode_policy.js');
+const renko15mConfirmedEvidence = require('./94_st2_15m_confirmed_evidence.js');
 // v6.12.3 compatibility marker: entryTimingAuthority: 'RENKO_EVOLUTION_1M_RENKO_ST'
 
 let baslangicPusuOzetiGonderildi = false;
@@ -282,6 +283,7 @@ function auditBaslat() {
         stOnayi: 0, stReddi: 0, birlikteUygun: 0, pozisyonAcildi: 0, pozisyonReddedildi: 0,
         entryModeDirect: 0, entryModeConfirmed: 0, confirmedReady: 0, confirmedWaiting: 0,
         directPriceWaiting: 0, confirmedPriceWaiting: 0, confirmedWaitReasons: {},
+        confirmedShadowActive: 0, confirmedShadowWaiting: 0, confirmedShadowOpen: 0, confirmedShadowClosed: 0, confirmedShadowNoEntry: 0,
         st1GateUygun: 0, st1GateBekleyen: 0, st1GateReddi: 0, tazeKirilim: 0,
         eskiKirilimEngeli: 0, gecGirisReddi: 0, st2ContextIptal: 0,
         red: {
@@ -436,6 +438,10 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
         yeniPusu.entryModeDecisionAtSignal = entryModeDecision;
         yeniPusu.entryMode = entryModeDecision.selectedMode;
         yeniPusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
+        if (ayarlar.renkoGiris15mShadowCanliAktif !== false) {
+            try { renko15mConfirmedEvidence.ensureConfirmedShadowForPusu(yeniPusu); }
+            catch (e) { console.log(`⚠️ [15M CONFIRMED SHADOW LIVE] ${sym} | başlangıç ${e.message}`); }
+        }
         yeniPusu.entryTimingAuthority = entryModeDecision.selectedMode === 'CONFIRMED'
             ? 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET_1M_ST'
             : 'RENKO_EVOLUTION_1M_RENKO_ST';
@@ -558,6 +564,10 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     pusu.entryModeDecisionAtSignal = entryModeDecision;
     pusu.entryMode = entryModeDecision.selectedMode;
     pusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
+    if (ayarlar.renkoGiris15mShadowCanliAktif !== false) {
+        try { renko15mConfirmedEvidence.ensureConfirmedShadowForPusu(pusu); }
+        catch (e) { console.log(`⚠️ [15M CONFIRMED SHADOW LIVE] ${sym} | ensure ${e.message}`); }
+    }
     if (audit) {
         if (entryModeDecision.selectedMode === 'CONFIRMED') audit.entryModeConfirmed = Number(audit.entryModeConfirmed || 0) + 1;
         else audit.entryModeDirect = Number(audit.entryModeDirect || 0) + 1;
@@ -855,6 +865,31 @@ async function taraVeDegerlendir() {
             console.log(`⏱️ [ST2 RENKO SCAN İLERLEME] ${audit.sembol}/${audit.evrenToplam} | ${Date.now() - taramaBaslangici} ms | Son ${sym} | Renko ${audit.renkoHazir} | Pusu ${Object.keys(store.pusular || {}).length}`);
         }
     }
+    if (ayarlar.renkoGiris15mShadowCanliAktif !== false) {
+        try {
+            const shadow15m = renko15mConfirmedEvidence.advanceConfirmedShadow({
+                bricksBySymbol: store.seriler || {},
+                boxBySymbol: store.boxSize || {},
+                prices: h.state.canliFiyatlar || {},
+                stCache: h.state.renko1mStCache || {},
+                candles15mBySymbol: h.state.yerelPusuHafizasi || {},
+                now: Date.now()
+            });
+            audit.confirmedShadowActive = Number(shadow15m.active || 0);
+            audit.confirmedShadowWaiting = Number(shadow15m.waiting || 0);
+            audit.confirmedShadowOpen = Number(shadow15m.open || 0);
+            audit.confirmedShadowClosed = Number(shadow15m.closed || 0);
+            audit.confirmedShadowNoEntry = Number(shadow15m.noEntry || 0);
+            for (const ev of shadow15m.events || []) {
+                if (ev.type === 'OPEN') {
+                    console.log(`🧪 [15M CONFIRMED SHADOW OPEN] ${ev.exp.sym} ${ev.exp.direction} | ${ev.exp.pattern} ${Number(ev.exp.offsetT).toFixed(2)}T | ${ev.exp.reversalPair || 'REV'} | Tetik ${fiyatFormatla(ev.exp.targetPrice)} | Fill ${fiyatFormatla(ev.exp.entryPrice)} | 1m ST ${ev.stTrend || 'YOK'} | GERÇEK EMİR YOK`);
+                } else if (ev.type === 'CLOSE') {
+                    console.log(`📚 [15M CONFIRMED SHADOW CLOSE] ${ev.exp.sym} ${ev.exp.direction} | ${ev.exp.pattern} ${Number(ev.exp.offsetT).toFixed(2)}T | ${ev.result?.outcome || 'YOK'} ${Number(ev.result?.netPct || 0) >= 0 ? '+' : ''}${Number(ev.result?.netPct || 0).toFixed(4)}% | N${Number(ev.metric?.samples || 0).toFixed(0)} WR %${Number(ev.metric?.wr || 0).toFixed(1)} PF ${Number(ev.metric?.pf || 0).toFixed(2)} Exp ${Number(ev.metric?.expectancy || 0) >= 0 ? '+' : ''}${Number(ev.metric?.expectancy || 0).toFixed(4)} | GERÇEK EMİR YOK`);
+                }
+            }
+            if (shadow15m.noEntry > 0) console.log(`📚 [15M CONFIRMED SHADOW NO_ENTRY] Bu tur ${shadow15m.noEntry} aday pusu 15m Renko penceresinde tetiklenmedi | GERÇEK EMİR YOK`);
+        } catch (e) { console.log(`⚠️ [15M CONFIRMED SHADOW LIVE] advance ${e.message}`); }
+    }
     audit.tetikBekleyen = Object.keys(store.pusular || {}).length;
     audit.sureMs = Date.now() - taramaBaslangici;
     h.state.st2TaramaSagligi = {
@@ -864,6 +899,12 @@ async function taraVeDegerlendir() {
         onay1mMumHazir: audit.onay1mMumHazir, onay1mAtrHazir: audit.onay1mAtrHazir,
         onay1mRenkoHazir: audit.onay1mRenkoHazir, onay1mUp: audit.onay1mUp, onay1mDown: audit.onay1mDown,
         onay1mYetersiz: audit.onay1mYetersiz, onay1mTuglaYetersiz: audit.onay1mTuglaYetersiz, onay1mStHesapYetersiz: audit.onay1mStHesapYetersiz, sureMs: audit.sureMs,
+        pusuDegerlendirilen: audit.pusuDegerlendirilen, fiyatTetigi: audit.fiyatTetigi, fiyatBekleyen: audit.fiyatBekleyen, fiyatEksik: audit.fiyatEksik,
+        stOnayi: audit.stOnayi, stReddi: audit.stReddi, birlikteUygun: audit.birlikteUygun, pozisyonAcildi: audit.pozisyonAcildi, pozisyonReddedildi: audit.pozisyonReddedildi,
+        entryModeDirect: audit.entryModeDirect, entryModeConfirmed: audit.entryModeConfirmed, confirmedReady: audit.confirmedReady, confirmedWaiting: audit.confirmedWaiting,
+        directPriceWaiting: audit.directPriceWaiting, confirmedPriceWaiting: audit.confirmedPriceWaiting, confirmedWaitReasons: { ...(audit.confirmedWaitReasons || {}) },
+        confirmedShadowActive: audit.confirmedShadowActive, confirmedShadowWaiting: audit.confirmedShadowWaiting, confirmedShadowOpen: audit.confirmedShadowOpen,
+        confirmedShadowClosed: audit.confirmedShadowClosed, confirmedShadowNoEntry: audit.confirmedShadowNoEntry,
         sonTamamlanma: new Date().toISOString()
     };
     auditLogla(audit);

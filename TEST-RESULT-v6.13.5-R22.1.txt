@@ -1,0 +1,20 @@
+AGROS ST2 v6.13.5-R22.1 TEST RESULT
+Date: 2026-08-10
+
+PASS: npm test / test:fast complete
+PASS: R17 startup panel cadence/readiness compatibility
+PASS: R18/R19 control-plane and CPU liveness compatibility
+PASS: R21 closed 15m CONFIRMED timeframe authority
+PASS: R22 bootstrap + actual live evidence authority; legacy 1m diagnostic only
+PASS: R22.1 DIRECT-selected pusu creates 0.25/0.50/0.75T counterfactual CONFIRMED shadow experiments
+PASS: R22.1 post-signal CLOSED 15m reversal + 1m ST required before shadow open
+PASS: R22.1 standardized shadow TP produces evidence and enters policy evidence pool
+PASS: R22.1 three-brick pusu window expiry records NO_ENTRY
+PASS: R22.1 real CONFIRMED mode does not create duplicate shadow experiment
+PASS: R22 schema=1 evidence state hydrates to schema=2 without losing old data
+PASS: panel funnel RAM truth wiring present
+PASS: legacy 1m Telegram wording says real mode authority is absent
+
+Dedicated test:
+node test_v6163_r221_confirmed_shadow_live_learning.js
+=> ✅ v6.13.5-R22.1 confirmed shadow live learning passed | DIRECT seçiliyken 15m CONFIRMED counterfactual öğrenir | panel funnel truth | legacy 1m real authority YOK

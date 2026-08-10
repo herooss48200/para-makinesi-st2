@@ -441,7 +441,10 @@ function st2VeriSagligiOzeti() {
         stTazelemeCalisiyor: veri.superTrendTazelemeCalisiyor === true,
         pusuDegerlendirilen: Number(tarama.pusuDegerlendirilen || 0), fiyatTetigi: Number(tarama.fiyatTetigi || 0),
         stOnayi: Number(tarama.stOnayi || 0), birlikteUygun: Number(tarama.birlikteUygun || 0),
-        pozisyonAcildi: Number(tarama.pozisyonAcildi || 0), fiyatBekleyen: Number(tarama.fiyatBekleyen || 0), stReddi: Number(tarama.stReddi || 0)
+        pozisyonAcildi: Number(tarama.pozisyonAcildi || 0), fiyatBekleyen: Number(tarama.fiyatBekleyen || 0), stReddi: Number(tarama.stReddi || 0),
+        entryModeDirect: Number(tarama.entryModeDirect || 0), entryModeConfirmed: Number(tarama.entryModeConfirmed || 0),
+        confirmedShadowActive: Number(tarama.confirmedShadowActive || 0), confirmedShadowWaiting: Number(tarama.confirmedShadowWaiting || 0),
+        confirmedShadowOpen: Number(tarama.confirmedShadowOpen || 0), confirmedShadowClosed: Number(tarama.confirmedShadowClosed || 0), confirmedShadowNoEntry: Number(tarama.confirmedShadowNoEntry || 0)
     };
 }
 
@@ -535,7 +538,8 @@ function st2HafifCanliRaporMetniOlustur() {
         `🧵 Renko tarama ${scanInProgress ? `ÇALIŞIYOR ${Math.round(scanAgeMs / 1000)}sn` : 'BEKLIYOR'} | Panel CPU=RAM-ONLY | 30sn DIRECT | Son teslim ${panelDeliveryText}`,
         `💰 Bot sonuç sayacı ✅${kTp} ❌${kSl} ⚖️${kBe} | Net ${kNet >= 0 ? '+' : ''}${kNet.toFixed(4)} | Bilimsel Premier/Shadow ağır ledger özeti 30sn panelden AYRILDI`,
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
-        `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
+        `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Mode D/C ${veriSagligi.entryModeDirect}/${veriSagligi.entryModeConfirmed} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
+        `🧪 15m CONFIRMED canlı gölge Aktif ${veriSagligi.confirmedShadowActive} | Bekleyen ${veriSagligi.confirmedShadowWaiting} | Açık ${veriSagligi.confirmedShadowOpen} | Bu tur Kapanan ${veriSagligi.confirmedShadowClosed} / NoEntry ${veriSagligi.confirmedShadowNoEntry} | GERÇEK EMİR YOK`,
         `🎯 Giriş Yetkisi Golden ST2 Renko | Entry Evolution CANLI | 1m Renko ST | ST1 yalnız GÖLGE`
     ];
     if (sirali.length) {
@@ -621,10 +625,11 @@ function minimalCanliRaporMetniOlustur() {
         `👻 Shadow N${Number(shadow.n || 0)} | ✅${Number(shadow.tp || 0)} ❌${Number(shadow.sl || 0)} ⚖️${Number(shadow.be || 0)} | Net ${sign(shadow.net)} | PF ${pfMetni(shadow.pf)}`,
         ...yonSatirlari('Shadow', shadow),
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
-        `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
+        `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Mode D/C ${veriSagligi.entryModeDirect}/${veriSagligi.entryModeConfirmed} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
+        `🧪 15m CONFIRMED canlı gölge Aktif ${veriSagligi.confirmedShadowActive} | Bekleyen ${veriSagligi.confirmedShadowWaiting} | Açık ${veriSagligi.confirmedShadowOpen} | Bu tur Kapanan ${veriSagligi.confirmedShadowClosed} / NoEntry ${veriSagligi.confirmedShadowNoEntry} | GERÇEK EMİR YOK`,
         `🎯 Giriş Yetkisi Golden ST2 Renko | Entry Evolution CANLI | 1m Renko ST | ST1 yalnız GÖLGE`,
         `🔬 W%R Dönüş Gölgesi N${Number(wrShadow.totals?.n || 0)} | Profil ${Number(wrShadow.profiles?.length || 0)} | 1m Renko uçtan nötre dönüş | Emir etkisi YOK`,
-        `🧪 1m Renko Giriş Teyit Gölgesi Aynı pencere aday N${Number(entryConfirmShadow.sameWindow?.totals?.n || 0)} | Tam yaşam aday N${Number(entryConfirmShadow.lifecycle?.totals?.n || 0)} | Deney ${Number(entryConfirmShadow.activeExperiments || 0)} (Bekleyen ${Number(entryConfirmShadow.activeWaiting || 0)} / Açık ${Number(entryConfirmShadow.activeOpen || 0)}) | Emir etkisi YOK`,
+        `🧪 LEGACY 1m Renko Teyit Gölgesi Aynı pencere N${Number(entryConfirmShadow.sameWindow?.totals?.n || 0)} | Tam yaşam N${Number(entryConfirmShadow.lifecycle?.totals?.n || 0)} | Deney ${Number(entryConfirmShadow.activeExperiments || 0)} (Bekleyen ${Number(entryConfirmShadow.activeWaiting || 0)} / Açık ${Number(entryConfirmShadow.activeOpen || 0)}) | Gerçek Entry Mode seçim yetkisi YOK`,
         `🧪 DNA Exit Replay (GÖLGE) Kanıtlı ${replayKatman.exitReady} | Kanıt yetersiz ${replayKatman.exitEvidenceMissing} | Atama kanıtı N${replayKatman.exitSamples}`,
         `🧱 CANLI RENKO KÂR TAKİBİ Atanmış ${replayKatman.takeoverAssigned} | Devrede ${replayKatman.takeoverActivated} | Bekleyen ${replayKatman.takeoverWaiting} | Öğrenilmiş ${replayKatman.takeoverLearnedActive} | Kalıcı ${replayKatman.takeoverPersistedActive} | Varsayılan ${replayKatman.takeoverDefaultActive} | Hata ${replayKatman.takeoverAssignmentErrors}`,
     ];
