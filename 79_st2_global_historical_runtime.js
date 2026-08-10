@@ -1,6 +1,6 @@
 'use strict';
 /**
- * AGROS ST2 v6.11.0 — Guarded Non-blocking Global Historical Runtime
+ * AGROS ST2 v6.13.5-R22 — Trade-Process Isolated Global Historical Runtime
  * Shadow-only runtime coordinator. Trade Engine ve gerçek emir kararına yazmaz.
  * Ağır ledger/replay mutabakatı startup kritik yolunda çalıştırılmaz.
  */
@@ -9,7 +9,7 @@ const path = require('path');
 const trainer = require('./75_st2_historical_renko_training.js');
 const reconciliation = require('./78_st2_global_historical_reconciliation.js');
 
-const VERSION = 'v6.11.0-GLOBAL-HISTORICAL-GUARDED-RUNTIME';
+const VERSION = 'v6.13.5-R22-GLOBAL-HISTORICAL-TRADE-PROCESS-ISOLATED';
 const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DATA_DIR) : path.join(__dirname, 'data');
 const RUNTIME_FILE = path.join(DATA_DIR, 'st2-global-historical-runtime.json');
 let running = false;
@@ -24,7 +24,7 @@ function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x:d;}
 function ensure(){fs.mkdirSync(DATA_DIR,{recursive:true});}
 function atomicWrite(value){ensure();const tmp=`${RUNTIME_FILE}.${process.pid}.${Date.now()}.tmp`;fs.writeFileSync(tmp,JSON.stringify(value,null,2));fs.renameSync(tmp,RUNTIME_FILE);}
 function read(){try{return fs.existsSync(RUNTIME_FILE)?JSON.parse(fs.readFileSync(RUNTIME_FILE,'utf8')):{};}catch(_){return{};}}
-function enabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_RUNTIME||'true').toLowerCase()!=='false';}
+function enabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_RUNTIME||'false').toLowerCase()==='true';}
 function autoTrainEnabled(){return String(process.env.AGROS_ST2_GLOBAL_HISTORICAL_AUTO_TRAIN||'true').toLowerCase()!=='false';}
 function warmupMs(){return Math.max(30_000,n(process.env.AGROS_ST2_GLOBAL_HISTORICAL_WARMUP_MS,120_000));}
 function configuredRange(){
@@ -109,12 +109,14 @@ async function trainMissing(){
     atomicWrite({...runtime,failedAt:new Date().toISOString(),lastError:e.message||String(e)});
     console.error(`❌ [GLOBAL HISTORICAL RUNTIME FATAL] ${e.message||e}`);
   }finally{running=false;}
-  try{return refreshStatus();}catch(e){console.error(`⚠️ [GLOBAL HISTORICAL SUMMARY] ${e.message||e}`);return lightweightStatus();}
+  console.log('🌍 [GLOBAL HISTORICAL TRADE-PROCESS ISOLATION] Ağır reconciliation özeti ana bot process içinde çalıştırılmadı.');
+  return lightweightStatus();
 }
+
 async function deferredWork(){
   try{
     if(autoTrainEnabled()) await trainMissing();
-    else refreshStatus();
+    else console.log('🌍 [GLOBAL HISTORICAL TRADE-PROCESS ISOLATION] READ_ONLY ağır refresh ana bot process içinde atlandı.');
   }catch(e){
     const prev=read();
     atomicWrite({...prev,version:VERSION,lastError:e.message||String(e),lastErrorAt:new Date().toISOString()});

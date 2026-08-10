@@ -222,6 +222,13 @@ const ayarlar = {
     renkoGirisModuMinBasariYuzde: 75,
     // Geriye dönük uyumluluk: artık seçim kapısı değildir; başarı-öncelikli policy kullanılır.
     renkoGirisModuMinSkorFarki: 0,
+    // R22: CONFIRMED gerçek mode seçimi artık ayrı 15m bootstrap + canlı evidence state'inden gelir.
+    // Bootstrap tarihsel örnek sayısı sonsuza kadar baskın olmasın; canlı veri geldikçe ağırlık doğal olarak devralır.
+    renkoGiris15mBootstrapMaksAgirlik: 30,
+    // Aynı standardize tarihsel modelde CONFIRMED, DIRECT'ten en az bu kadar WR avantajı göstermeli.
+    renkoGirisModuMinWrAvantaj: 2.0,
+    // Expectancy de DIRECT'ten kötü olamaz.
+    renkoGirisModuMinExpAvantaj: 0.0,
     renkoGirisTeyitVarsayilanTugla: 0.25,
 
 

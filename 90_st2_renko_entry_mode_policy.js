@@ -1,27 +1,27 @@
 'use strict';
 
 /**
- * AGROS ST2 v6.13.5-R21 — Unified Renko Entry Mode Policy
+ * AGROS ST2 v6.13.5-R22 — Unified Renko Entry Mode Policy
  *
- * Tek gerçek giriş kapısı için iki ayrı zamanlama ailesini karşılaştırır:
- * - DIRECT: son ters renkli Golden Renko referansından öğrenilmiş offset.
- * - CONFIRMED: pusu oluştuktan SONRA kapanmış 15m Renko dönüş çifti + 15m offset.
+ * Gerçek giriş aileleri:
+ * - DIRECT: Entry Evolution referansından seçilmiş offset.
+ * - CONFIRMED: pusu SONRASI kapanmış 15m Renko dönüşü + 15m offset.
  *
- * Kritik timeframe sözleşmesi:
- * - 15m Renko = CONFIRMED dönüş ve offset fiyat otoritesi.
- * - 1m Renko SuperTrend = yalnız son sniper/yön teyidi.
- * - 1m Renko Entry Confirmation Full-Lifecycle Lab = gölge kanıt katmanı; gerçek
- *   CONFIRMED hedef fiyatını ASLA üretmez.
- *
- * Geçmiş DIRECT state ve 1m CONFIRMED Full Lifecycle state silinmez.
- * Mevcut mode-selection istatistiği geriye dönük uyumluluk için okunur; ancak
- * gerçek CONFIRMED fiyat/zaman otoritesi yalnız kapanmış 15m Renko'dur.
+ * R22 kanıt sözleşmesi:
+ * - Gerçek CONFIRMED seçimini LEGACY 1m shadow N artık yapamaz.
+ * - Mode selection, ayrı offline bootstrap worker'ın ürettiği 15m kanıt +
+ *   canlı 15m-CONFIRMED kapanışlarından beslenir.
+ * - Bootstrap DIRECT ve CONFIRMED aynı standardize tarihsel exit modeliyle
+ *   karşılaştırılır; böylece mode kararı elma-elma olur.
+ * - 1m Renko ST gerçek girişte yine zorunlu son sniper teyididir.
+ * - Legacy 1m lifecycle yalnız teşhis/hafıza olarak raporlanır.
  */
 const ayarlar = require('./ayarlar.js');
 const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const confirmationLab = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
+const evidence15m = require('./94_st2_15m_confirmed_evidence.js');
 
-const VERSION = 'v6.13.5-R21-15M-CONFIRMED-TIMEFRAME-AUTHORITY';
+const VERSION = 'v6.13.5-R22-15M-CONFIRMED-BOOTSTRAP-LIVE-EVIDENCE';
 const MODES = Object.freeze({ DIRECT: 'DIRECT', CONFIRMED: 'CONFIRMED' });
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
@@ -62,8 +62,6 @@ function findLatest15mReversalAfterSignal(bricks, yon, pusu = {}, at = Date.now(
         if (colorOf(previous) !== expectedA || colorOf(confirmation) !== expectedB) continue;
         const previousAt = n(previous?.closeTime, 0);
         const confirmationAt = n(confirmation?.closeTime, 0);
-        // Pusu kaynak tuğlası eşleşmenin ilk ayağı olabilir; confirmation ise mutlaka
-        // pusu kaynak 15m olayından sonra kapanmış olmalıdır.
         if (signalAt > 0) {
             if (!(confirmationAt > signalAt)) continue;
             if (previousAt > 0 && previousAt < signalAt) continue;
@@ -102,7 +100,6 @@ function metricScore(m = {}) {
     const exp = n(m.expectancy);
     const net = n(m.net);
     const wr = Math.max(0, Math.min(100, n(m.wr)));
-    // Mutlak para büyüklüğünden çok kalite ve örnek güveni kullanılır.
     const confidence = Math.min(1, samples / Math.max(1, n(ayarlar.renkoGirisModuMinOrnek, 20)));
     const quality = (pf * 20) + (Math.tanh(exp * 10) * 25) + (Math.tanh(net / Math.max(1, samples)) * 15) + (wr * 0.20);
     return { score: quality * confidence, samples, confidence, pf, expectancy: exp, net, wr };
@@ -113,12 +110,31 @@ function directEvidence(yon, patternCode) {
     const profile = (summary.profiles || []).find(x => x.key === key);
     const brick = n(profile?.activeBrick, entryEvolution.DEFAULT_BRICK());
     const candidate = (profile?.candidates || []).find(x => Math.abs(n(x.brick) - brick) < 1e-9) || {};
-    return { mode: MODES.DIRECT, offsetT: brick, profileKey: key, raw: candidate, ...metricScore(candidate) };
+    return { mode: MODES.DIRECT, offsetT: brick, profileKey: key, evidenceTimeframe: 'LIVE_ENTRY_EVOLUTION', raw: candidate, ...metricScore(candidate) };
 }
 function confirmedEvidence(yon, patternCode = 'UNKNOWN', minSamplesOverride = null) {
-    // R21 NOTU: Bu istatistik v6.13.0-R20 döneminden kalan 1m Full-Lifecycle
-    // mode-selection kanıtıdır. Gerçek CONFIRMED hedef fiyatı için kullanılmaz;
-    // confirmationTarget yalnız kapanmış 15m Renko serisini kabul eder.
+    const minSamples = Math.max(1, n(minSamplesOverride, n(ayarlar.renkoGirisModuMinTeyitOrnek, 15)));
+    const row = evidence15m.evidence(MODES.CONFIRMED, yon, patternCode, {
+        minSamples,
+        bootstrapCap: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30)
+    });
+    return {
+        ...row,
+        mode: MODES.CONFIRMED,
+        profileKey: `${String(yon).toUpperCase()}|${String(patternCode || 'UNKNOWN').toUpperCase()}|${Number(row.offsetT || ayarlar.renkoGirisTeyitVarsayilanTugla || 0.25).toFixed(2)}T`,
+        evidenceTimeframe: '15M_CLOSED_RENKO_REVERSAL',
+        evidenceSource: n(row.live?.samples) > 0 ? '15M_BOOTSTRAP_PLUS_LIVE' : (n(row.bootstrap?.samples) > 0 ? '15M_BOOTSTRAP_PRIOR' : 'NO_DATA')
+    };
+}
+function comparableDirectEvidence(yon, patternCode = 'UNKNOWN', minSamplesOverride = null) {
+    const minSamples = Math.max(1, n(minSamplesOverride, n(ayarlar.renkoGirisModuMinTeyitOrnek, 15)));
+    const row = evidence15m.evidence(MODES.DIRECT, yon, patternCode, {
+        minSamples,
+        bootstrapCap: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30)
+    });
+    return { ...row, mode: MODES.DIRECT, evidenceTimeframe: '15M_STANDARDIZED_BOOTSTRAP_AND_LIVE' };
+}
+function legacyConfirmedHint(yon, patternCode = 'UNKNOWN', minSamplesOverride = null) {
     const summary = confirmationLab.summary();
     const direction = String(yon).toUpperCase();
     const pattern = String(patternCode || 'UNKNOWN').toUpperCase();
@@ -133,21 +149,12 @@ function confirmedEvidence(yon, patternCode = 'UNKNOWN', minSamplesOverride = nu
     const legacyRows = scoreRows(all.filter(x => x.parts.length === 2), 'DIRECTION_FALLBACK');
     const matureExact = exactRows.filter(x => x.scored.samples >= minSamples);
     const matureLegacy = legacyRows.filter(x => x.scored.samples >= minSamples);
-    const sourceRows = matureExact.length ? matureExact
-        : matureLegacy.length ? matureLegacy
-        : exactRows.length ? exactRows
-        : legacyRows;
-    const rows = sourceRows.sort((a, b) =>
-        b.scored.wr - a.scored.wr ||
-        b.scored.samples - a.scored.samples ||
-        b.scored.pf - a.scored.pf ||
-        b.scored.expectancy - a.scored.expectancy ||
-        b.scored.net - a.scored.net ||
-        a.offsetT - b.offsetT);
+    const sourceRows = matureExact.length ? matureExact : matureLegacy.length ? matureLegacy : exactRows.length ? exactRows : legacyRows;
+    const rows = sourceRows.sort((a, b) => b.scored.wr - a.scored.wr || b.scored.samples - a.scored.samples || b.scored.pf - a.scored.pf || a.offsetT - b.offsetT);
     const best = rows[0] || null;
     return best
         ? { mode: MODES.CONFIRMED, offsetT: best.offsetT, profileKey: best.key, evidenceScope: best.evidenceScope, evidenceTimeframe: 'LEGACY_1M_SHADOW', raw: best, ...best.scored }
-        : { mode: MODES.CONFIRMED, offsetT: n(ayarlar.renkoGirisTeyitVarsayilanTugla, 0.25), profileKey: `${yon}|NO_DATA`, evidenceTimeframe: 'NO_DATA', ...metricScore({}) };
+        : { mode: MODES.CONFIRMED, offsetT: n(ayarlar.renkoGirisTeyitVarsayilanTugla, 0.25), profileKey: `${yon}|NO_DATA`, evidenceTimeframe: 'LEGACY_1M_SHADOW', ...metricScore({}) };
 }
 function select(pusu = {}) {
     const yon = String(pusu.yon || '').toUpperCase();
@@ -156,25 +163,43 @@ function select(pusu = {}) {
     const armed = ayarlar.renkoGirisModuOtomatikAktif === true;
     const minConfirmed = Math.max(1, n(ayarlar.renkoGirisModuMinTeyitOrnek, 15));
     const minSuccess = Math.max(0, Math.min(100, n(ayarlar.renkoGirisModuMinBasariYuzde, 75)));
+    const minWrAdvantage = n(ayarlar.renkoGirisModuMinWrAvantaj, 2);
+    const minExpAdvantage = n(ayarlar.renkoGirisModuMinExpAvantaj, 0);
     const confirmed = confirmedEvidence(yon, patternCode, minConfirmed);
+    const directComparable = comparableDirectEvidence(yon, patternCode, minConfirmed);
+    const legacy1mShadowHint = legacyConfirmedHint(yon, patternCode, minConfirmed);
+
     const confirmedHealthy = confirmed.samples >= minConfirmed && confirmed.wr >= minSuccess && confirmed.pf > 1 && confirmed.expectancy > 0 && confirmed.net > 0;
-    const successDelta = confirmed.wr - direct.wr;
-    const useConfirmed = armed && confirmedHealthy;
+    const comparableMature = directComparable.samples >= minConfirmed;
+    const wrAdvantage = confirmed.wr - directComparable.wr;
+    const expAdvantage = confirmed.expectancy - directComparable.expectancy;
+    const comparativeHealthy = !comparableMature || (wrAdvantage >= minWrAdvantage && expAdvantage >= minExpAdvantage);
+    const useConfirmed = armed && confirmedHealthy && comparativeHealthy;
     const selected = useConfirmed ? confirmed : direct;
+
+    let fallbackReason = null;
+    if (!armed) fallbackReason = 'CONFIRMED_REAL_NOT_ARMED';
+    else if (!(confirmed.samples >= minConfirmed)) fallbackReason = `15M_CONFIRMED_N_YETERSIZ:${confirmed.samples.toFixed ? confirmed.samples.toFixed(1) : confirmed.samples}<${minConfirmed}`;
+    else if (!(confirmed.wr >= minSuccess && confirmed.pf > 1 && confirmed.expectancy > 0 && confirmed.net > 0)) fallbackReason = `15M_CONFIRMED_EKONOMI_YETERSIZ:WR${confirmed.wr.toFixed(1)}|PF${confirmed.pf.toFixed(2)}|EXP${confirmed.expectancy.toFixed(4)}`;
+    else if (!comparativeHealthy) fallbackReason = `15M_CONFIRMED_DIRECT_AVANTAJ_YOK:WR_DELTA${wrAdvantage.toFixed(1)}|EXP_DELTA${expAdvantage.toFixed(4)}`;
+
     return {
         version: VERSION,
         selectedMode: selected.mode,
         selectedOffsetT: selected.offsetT,
-        decisionSource: useConfirmed ? 'SUCCESS_FIRST_CONFIRMATION_LIFECYCLE_LEGACY_1M_MODE_HINT' : (armed ? 'DIRECT_SUCCESS_GUARD' : 'DIRECT_SAFE_DEFAULT'),
+        decisionSource: useConfirmed ? '15M_CONFIRMED_BOOTSTRAP_LIVE_EVIDENCE' : (armed ? 'DIRECT_15M_COMPARATIVE_GUARD' : 'DIRECT_SAFE_DEFAULT'),
         timingAuthority: useConfirmed ? 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET' : 'DIRECT_RENKO_EVOLUTION',
         reason: useConfirmed
-            ? `CONFIRMED mode tercihi: WR %${confirmed.wr.toFixed(1)} / min %${minSuccess.toFixed(1)} | N${confirmed.samples} | gerçek timing 15m CLOSED reversal`
-            : (!armed ? 'CONFIRMED_REAL_NOT_ARMED' : `CONFIRMED_SUCCESS_NOT_MATURE:N${confirmed.samples}|WR${confirmed.wr.toFixed(1)}|MIN${minSuccess.toFixed(1)}`),
+            ? `CONFIRMED: 15m kanıt N${confirmed.samples.toFixed(1)} WR %${confirmed.wr.toFixed(1)} PF ${confirmed.pf.toFixed(2)} Exp ${confirmed.expectancy >= 0 ? '+' : ''}${confirmed.expectancy.toFixed(4)} | DIRECT karşılaştırma WR Δ${wrAdvantage.toFixed(1)} Exp Δ${expAdvantage.toFixed(4)} | 1m ST gerçek girişte zorunlu`
+            : fallbackReason,
         armed,
         frozenAt: new Date().toISOString(),
-        successDelta,
+        wrAdvantage,
+        expAdvantage,
         direct,
-        confirmed
+        directComparable,
+        confirmed,
+        legacy1mShadowHint
     };
 }
 function confirmationTarget(pusu, bricks15m, boxSize15m, at = Date.now()) {
@@ -200,20 +225,26 @@ function confirmationTarget(pusu, bricks15m, boxSize15m, at = Date.now()) {
     };
 }
 function summary() {
+    const ev = evidence15m.summary();
     return {
         version: VERSION,
         armed: ayarlar.renkoGirisModuOtomatikAktif === true,
         policy: {
             minConfirmedSamples: n(ayarlar.renkoGirisModuMinTeyitOrnek, 15),
             minSuccessRate: n(ayarlar.renkoGirisModuMinBasariYuzde, 75),
-            objective: 'SUCCESS_FIRST_WITH_POSITIVE_ECONOMY_GUARD',
+            minWrAdvantage: n(ayarlar.renkoGirisModuMinWrAvantaj, 2),
+            minExpAdvantage: n(ayarlar.renkoGirisModuMinExpAvantaj, 0),
+            bootstrapMaxWeight: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30),
+            objective: '15M_COMPARATIVE_BOOTSTRAP_PLUS_LIVE_EVIDENCE',
             confirmedTimingAuthority: '15M_CLOSED_RENKO_REVERSAL_PLUS_OFFSET',
-            finalSniperAuthority: '1M_RENKO_SUPERTREND'
-        }
+            finalSniperAuthority: '1M_RENKO_SUPERTREND',
+            legacy1mShadowAuthority: false
+        },
+        evidence: ev
     };
 }
 module.exports = {
-    VERSION, MODES, select, directEvidence, confirmedEvidence, confirmationTarget, summary,
+    VERSION, MODES, select, directEvidence, confirmedEvidence, comparableDirectEvidence, legacyConfirmedHint, confirmationTarget, summary,
     findLatest15mReversalAfterSignal,
     _metricScore: metricScore,
     _signalCloseTime: signalCloseTime

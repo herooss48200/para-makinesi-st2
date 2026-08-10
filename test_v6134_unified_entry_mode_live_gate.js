@@ -26,6 +26,12 @@ Module._load = function(req, parent, isMain) {
     ]}}),
     findLatestReversal: () => ({found:true, confirmation:{close:100,closeTime:200}})
   };
+  if (req === './94_st2_15m_confirmed_evidence.js') return {
+    evidence: (mode) => mode === 'CONFIRMED'
+      ? {mode:'CONFIRMED',offsetT:0.50,evidenceScope:'EXACT_PATTERN',samples:40,wr:82,pf:2.4,expectancy:0.12,net:4.8,bootstrap:{samples:40},live:{samples:0}}
+      : {mode:'DIRECT',offsetT:0.25,evidenceScope:'EXACT_PATTERN',samples:40,wr:70,pf:1.4,expectancy:0.04,net:1.6,bootstrap:{samples:40},live:{samples:0}},
+    summary:()=>({bootstrap:{status:'READY'}})
+  };
   return originalLoad.call(this,req,parent,isMain);
 };
 

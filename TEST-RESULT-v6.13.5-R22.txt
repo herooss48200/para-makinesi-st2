@@ -1,0 +1,22 @@
+AGROS ST2 v6.13.5-R22 — TEST RESULT (CORRECTED PACKAGE v2)
+Date: 2026-08-10
+
+PASS: npm test
+PASS: test_v6162_r22_15m_confirmed_bootstrap_evidence.js
+PASS: node --check 94_st2_15m_confirmed_evidence.js
+PASS: node --check scripts_st2_15m_confirmed_bootstrap.js
+PASS: node --check 79_st2_global_historical_runtime.js
+PASS: node --check 90_st2_renko_entry_mode_policy.js
+PASS: node --check 4_pozisyon.js
+PASS: legacy regression test version contracts updated from R21 to R22
+PASS: test_v6134 unified mode mock extended with 94_st2_15m_confirmed_evidence.js
+
+R22 acceptance covered:
+- Legacy 1m shadow N cannot authorize real CONFIRMED mode.
+- Mature positive 15m CONFIRMED bootstrap/live evidence can authorize CONFIRMED.
+- Mature standardized DIRECT comparison can keep mode DIRECT when CONFIRMED has no required edge.
+- Real 15m timing authority remains R21 contract.
+- Live evidence rejects pre-R21/1m-only CONFIRMED timing authority.
+- Global Historical runtime defaults OFF in trade process.
+- Heavy reconciliation refresh is not automatically executed after runtime training.
+- Full npm regression suite passes with R22 version contract.

@@ -5,6 +5,7 @@ const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const renkoEntryEvolution = require('./73_st2_renko_entry_evolution.js');
 const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
 const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
+const renko15mConfirmedEvidence = require('./94_st2_15m_confirmed_evidence.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const rapor = require('./2_rapor.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
@@ -1083,6 +1084,19 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
             closedAt: Date.now()
         });
     } catch (e) { console.log(`⚠️ [RENKO ENTRY CONFIRMATION SHADOW] ${e.message}`); }
+    if (!manuelDisKapanis && !restartGap.isQuarantined(pos)) try {
+        const ev15m = renko15mConfirmedEvidence.recordLiveClose(pos, {
+            netPct: netPozisyonYuzdesi,
+            net: netKarZarar,
+            outcome: kaliteSonuc,
+            reason: duzeltilmisSebep,
+            exitPrice: kapanisFiyati,
+            at: new Date().toISOString(),
+            closedAt: Date.now()
+        });
+        if (ev15m?.accepted) console.log(`📚 [15M ENTRY EVIDENCE LIVE] ${pos.sym} ${pos.yon} | ${pos?.girisAnalizi?.entryMode || 'YOK'} | ${ev15m.key} | N${Number(ev15m.metric?.samples || 0).toFixed(0)} WR %${Number(ev15m.metric?.wr || 0).toFixed(1)} Exp ${Number(ev15m.metric?.expectancy || 0) >= 0 ? '+' : ''}${Number(ev15m.metric?.expectancy || 0).toFixed(4)}`);
+    } catch (e) { console.log(`⚠️ [15M ENTRY EVIDENCE LIVE] ${e.message}`); }
+
     if (!manuelDisKapanis) try { renkoExitEvolution.close(pos, {
         net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc,
         reason: duzeltilmisSebep, exitPrice: kapanisFiyati, fiyatKarYuzdesi,
