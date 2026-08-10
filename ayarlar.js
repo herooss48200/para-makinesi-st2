@@ -529,6 +529,10 @@ const ayarlar = {
     st1ShadowIstekRetry: 0,
     st2MainLoopWatchdogMs: 20000,
     st2MainLoopWatchdogLogAralikMs: 30000,
+    // R18: signed Binance positionRisk mutabakatı Renko/pusu ana döngüsünü bekletmez.
+    // Gerçek emir yalnız son başarılı mutabakat tazeyse fail-closed açılabilir.
+    st2ExchangeReconcileIntervalMs: 5000,
+    st2ExchangeReconcileFreshMs: 15000,
     durumLogAraligiMs: 5000,
 
     trendBehaviorAktif: true,

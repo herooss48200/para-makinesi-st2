@@ -1,0 +1,26 @@
+AGROS ST2 v6.13.5-R18 — TEST RESULT
+Date: 2026-08-10
+Base: R17 a5e2cc3
+
+PASS: npm test
+PASS: syntax checks for bot/Telegram/report/Renko runtime
+PASS: existing real-order execution safety
+PASS: active-exit reconciliation
+PASS: golden live chain
+PASS: Renko confirmation SAME_WINDOW + FULL lifecycle shadow
+PASS: market-data transport contract
+PASS: main-loop lifecycle
+PASS: Renko scan CPU liveness
+PASS: missing 1m ST scan fail-closed behavior
+PASS: market-price fallback live chain
+PASS: DIRECT + CONFIRMED shared real-entry authority
+PASS: R17 ghost-position reconciliation
+PASS: NEW test_v6158_nonblocking_control_plane_liveness
+  - hung exchange reconciliation cannot block Renko/pusu scans
+  - first scan completes while signed reconciliation remains unresolved
+  - real entry remains fail-closed through control-plane safety state
+  - position protection requires verified network price + fresh reconciliation
+  - Telegram Native transport contains independent wall-clock hard deadline
+  - panel exposes control-plane reconciliation and real-entry readiness
+
+NOTE: npm run test:full in the isolated artifact sandbox reaches legacy v673 and stops because that sandbox intentionally has no node_modules/dotenv. This is an artifact-environment dependency absence, not an R18 test failure. `npm test` (the deployment gate used on the R17 AWS rollout) passes completely.

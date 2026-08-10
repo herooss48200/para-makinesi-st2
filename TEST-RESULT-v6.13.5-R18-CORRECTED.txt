@@ -1,0 +1,15 @@
+AGROS ST2 v6.13.5-R18 NONBLOCKING CONTROL PLANE — CORRECTED FINAL
+
+RESULT: PASS
+
+Command:
+  npm test
+
+Key final evidence:
+  ✅ v6.13.5-R18 unified live recovery compatibility passed | ghost exchange close + price fallback + Telegram probe + nonblocking reconciliation
+  ✅ v6.13.5-R18 nonblocking control-plane liveness passed | hung reconciliation cannot stop Renko/pusu + real entry remains fail-closed + panel observability + Telegram hard deadline
+
+Correction validated:
+  - test_v6142_startup_panel_guard.js no longer expects exact R17 runtime version.
+  - all exact R17 version assertions executed by npm test were updated to the R18 runtime version.
+  - test_v6157 no longer requires the removed blocking EXCHANGE_RECONCILIATION main-loop stage.

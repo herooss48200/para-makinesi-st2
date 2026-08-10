@@ -351,6 +351,15 @@ function telegramNativeIstegiAt(apiPath, veri, options = {}) {
         const postData = JSON.stringify(veri);
         const timeoutMs = Math.max(2500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
         const freshConnection = options.freshConnection === true;
+        let settled = false;
+        let req = null;
+        let hardTimer = null;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            if (hardTimer) clearTimeout(hardTimer);
+            resolve(value);
+        };
         const requestOptions = {
             hostname: 'api.telegram.org', port: 443,
             path: `/bot${TELEGRAM_TOKEN}/${apiPath}`,
@@ -360,16 +369,24 @@ function telegramNativeIstegiAt(apiPath, veri, options = {}) {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(postData),
                 'Connection': freshConnection ? 'close' : 'keep-alive',
-                'User-Agent': 'AGROS-ST2/6.11.1'
+                'User-Agent': 'AGROS-ST2/6.13.5-R18'
             }
         };
-        const req = https.request(requestOptions, (res) => {
+        // R18: req.setTimeout socket atamasından önce geçen DNS/connect/Agent beklemesini garanti etmez.
+        // Canlı panel worker'ı 15 dakika sessiz kalamasın diye istek yaratılmadan önce wall-clock deadline başlar.
+        hardTimer = setTimeout(() => {
+            const err = new Error(`TELEGRAM_HARD_TIMEOUT:${timeoutMs}ms`);
+            err.code = 'ETIMEDOUT';
+            if (req) req.destroy(err);
+            finish({ ok: false, description: err.message, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: true });
+        }, timeoutMs);
+        req = https.request(requestOptions, (res) => {
             let body = '';
             res.setEncoding('utf8');
             res.on('data', chunk => body += chunk);
             res.on('end', () => {
                 if (!body.trim()) {
-                    resolve({ ok: false, description: 'NATIVE_EMPTY_RESPONSE', statusCode: res.statusCode, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300 });
+                    finish({ ok: false, description: 'NATIVE_EMPTY_RESPONSE', statusCode: res.statusCode, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300 });
                     return;
                 }
                 try {
@@ -377,14 +394,14 @@ function telegramNativeIstegiAt(apiPath, veri, options = {}) {
                     parsed.statusCode = res.statusCode;
                     parsed.transport = 'NATIVE_IPV4';
                     if (!parsed.ok && res.statusCode >= 500) parsed.transient = true;
-                    resolve(parsed);
+                    finish(parsed);
                 } catch (_) {
-                    resolve({ ok: false, description: 'NATIVE_INVALID_JSON_RESPONSE', raw: body.slice(0, 500), statusCode: res.statusCode, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300 });
+                    finish({ ok: false, description: 'NATIVE_INVALID_JSON_RESPONSE', raw: body.slice(0, 500), statusCode: res.statusCode, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: res.statusCode >= 200 && res.statusCode < 300 });
                 }
             });
         });
         req.setTimeout(timeoutMs, () => req.destroy(new Error(`TELEGRAM_TIMEOUT:${timeoutMs}ms`)));
-        req.on('error', err => resolve({ ok: false, description: err.message, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: /TIMEOUT|ECONNRESET|EPIPE/i.test(String(err.message || err)) }));
+        req.on('error', err => finish({ ok: false, description: err.message, transient: true, transport: 'NATIVE_IPV4', ambiguousDelivery: /TIMEOUT|ECONNRESET|EPIPE/i.test(String(err.message || err)) }));
         req.write(postData);
         req.end();
     });

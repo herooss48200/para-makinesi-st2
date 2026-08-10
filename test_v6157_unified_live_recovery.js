@@ -66,9 +66,10 @@ function testTelegramCircuitProbe() {
   testTelegramCircuitProbe();
   const fs=require('fs');
   const bot=fs.readFileSync('./bot.js','utf8');
-  assert(bot.includes("donguAsama = 'EXCHANGE_RECONCILIATION'"));
+  assert(!bot.includes("donguAsama = 'EXCHANGE_RECONCILIATION'"), 'exchange reconciliation must not block main loop in R18');
+  assert(bot.includes('st2ExchangeReconcileBackground'), 'R18 background reconciliation worker missing');
   assert(bot.includes('marketPriceRuntime.refreshForMainLoop'));
   const rev=fs.readFileSync('./revizyon.js','utf8');
   assert(rev.includes("seedClosed1m(h.state, sym, sniper, 'STARTUP_CLOSED_1M')"));
-  console.log('✅ v6.13.5-R17 unified live recovery passed | ghost exchange close without price + price fallback wiring + Telegram circuit recovery probe');
+  console.log('✅ v6.13.5-R18 unified live recovery compatibility passed | ghost exchange close + price fallback + Telegram probe + nonblocking reconciliation');
 })().catch(e=>{ console.error(e.stack||e); process.exit(1); });

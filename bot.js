@@ -25,6 +25,76 @@ let startupEarlyDeliveryPromise = null;
 let donguBaslangic = 0;
 let donguAsama = 'IDLE';
 let sonDonguWatchdogLog = 0;
+let exchangeReconcileTask = null;
+
+function st2ExchangeReconcileState() {
+    h.state.st2ExchangeReconciliation ||= {
+        status: ayarlar.sanalEmirModu ? 'VIRTUAL' : 'STARTUP',
+        ok: ayarlar.sanalEmirModu === true,
+        lastOkAt: ayarlar.sanalEmirModu ? Date.now() : 0,
+        lastAttemptAt: 0,
+        lastFinishAt: 0,
+        lastDurationMs: 0,
+        error: null
+    };
+    return h.state.st2ExchangeReconciliation;
+}
+
+function st2RealEntrySafetyUpdate(priceNetworkOk = null) {
+    const rec = st2ExchangeReconcileState();
+    const now = Date.now();
+    const freshMs = Math.max(5000, Number(ayarlar.st2ExchangeReconcileFreshMs || 15000));
+    const reconciliationFresh = ayarlar.sanalEmirModu === true || (rec.ok === true && Number(rec.lastOkAt || 0) > 0 && now - Number(rec.lastOkAt || 0) <= freshMs);
+    const previous = h.state.st2RealEntrySafety || {};
+    const networkOk = priceNetworkOk == null ? previous.priceNetworkOk === true : priceNetworkOk === true;
+    const realEntrySafe = ayarlar.sanalEmirModu === true || (reconciliationFresh && networkOk);
+    h.state.st2RealEntrySafety = {
+        ready: realEntrySafe,
+        reconciliationFresh,
+        priceNetworkOk: networkOk,
+        updatedAt: now,
+        reason: realEntrySafe ? 'READY' : (!reconciliationFresh ? 'EXCHANGE_RECONCILIATION_STALE' : 'NETWORK_PRICE_NOT_VERIFIED')
+    };
+    return h.state.st2RealEntrySafety;
+}
+
+async function st2ExchangeReconcileBackground(reason = 'INTERVAL') {
+    if (ayarlar.sanalEmirModu || ayarlar.entryStrategyMode !== 'ST2_RENKO') {
+        const rec = st2ExchangeReconcileState();
+        rec.status = 'VIRTUAL'; rec.ok = true; rec.lastOkAt = Date.now(); rec.error = null;
+        st2RealEntrySafetyUpdate();
+        return rec;
+    }
+    if (exchangeReconcileTask) return exchangeReconcileTask;
+    const rec = st2ExchangeReconcileState();
+    const startedAt = Date.now();
+    rec.status = 'RUNNING'; rec.lastAttemptAt = startedAt; rec.reason = reason;
+    exchangeReconcileTask = (async () => {
+        try {
+            const result = await p.izSurmeyiGuncelle({ reconcileOnly: true });
+            rec.lastFinishAt = Date.now();
+            rec.lastDurationMs = rec.lastFinishAt - startedAt;
+            rec.ok = result?.exchangeOk !== false;
+            rec.status = rec.ok ? 'READY' : 'DEGRADED';
+            rec.error = rec.ok ? null : String(result?.error || 'EXCHANGE_RECONCILIATION_FAILED');
+            if (rec.ok) rec.lastOkAt = rec.lastFinishAt;
+            st2RealEntrySafetyUpdate();
+            return result;
+        } catch (err) {
+            rec.lastFinishAt = Date.now();
+            rec.lastDurationMs = rec.lastFinishAt - startedAt;
+            rec.ok = false;
+            rec.status = 'DEGRADED';
+            rec.error = String(err?.message || err);
+            st2RealEntrySafetyUpdate();
+            console.error(`⚠️ [ST2 EXCHANGE RECONCILE BG] ${rec.error}`);
+            return { exchangeOk: false, error: rec.error };
+        } finally {
+            exchangeReconcileTask = null;
+        }
+    })();
+    return exchangeReconcileTask;
+}
 
 async function baslat() {
     console.log('=== [PARA MAKİNESİ AUTOMATION SYSTEM] STARTING ===');
@@ -45,6 +115,17 @@ async function baslat() {
         h.binanceTimeStartPeriodic();
         console.log(`⏱️ [BINANCE TIME AUTHORITY] ${timeHealth?.healthy ? 'HEALTHY' : 'DEGRADED'} | Offset ${Number(timeHealth?.offsetMs || 0)} ms | RTT ${Number(timeHealth?.lastRttMs || 0)} ms`);
         await piyasa.acikPozisyonlariBorsadanDevral();
+        {
+            const rec = st2ExchangeReconcileState();
+            rec.status = ayarlar.sanalEmirModu ? 'VIRTUAL' : 'READY';
+            rec.ok = true;
+            rec.lastOkAt = Date.now();
+            rec.lastAttemptAt = rec.lastOkAt;
+            rec.lastFinishAt = rec.lastOkAt;
+            rec.lastDurationMs = 0;
+            rec.error = null;
+            st2RealEntrySafetyUpdate(false);
+        }
         accountingContinuity.initializeMigration();
         kaliciHafiza.kaydet('accounting-continuity-migration');
 
@@ -218,6 +299,19 @@ async function baslat() {
             });
             st2LivePanelScheduler.start();
             console.log(`📊 [ST2 LIVE PANEL SCHEDULER] Gate READY sonrası bağımsız cadence ${Math.round(Number(ayarlar.canliRaporGuncellemeMs || 30000) / 1000)} sn`);
+
+            // R18: Binance gerçek pozisyon mutabakatı ana Renko döngüsünü ASLA bekletmez.
+            // Mutabakat ayrı control-plane worker'ında akar; tazeliği gerçek emir kapısında fail-closed kullanılır.
+            if (!ayarlar.sanalEmirModu) {
+                const reconcileIntervalMs = Math.max(2000, Number(ayarlar.st2ExchangeReconcileIntervalMs || 5000));
+                setInterval(() => {
+                    st2ExchangeReconcileBackground('INTERVAL').catch(err =>
+                        console.error(`⚠️ [ST2 EXCHANGE RECONCILE SCHEDULER] ${err?.message || err}`));
+                }, reconcileIntervalMs).unref?.();
+                setImmediate(() => st2ExchangeReconcileBackground('STARTUP').catch(err =>
+                    console.error(`⚠️ [ST2 EXCHANGE RECONCILE STARTUP] ${err?.message || err}`)));
+                console.log(`🔁 [ST2 EXCHANGE RECONCILE BG] Ana döngüden ayrıldı | Periyot ${reconcileIntervalMs} ms | Gerçek emir fail-closed tazelik ${Math.max(5000, Number(ayarlar.st2ExchangeReconcileFreshMs || 15000))} ms`);
+            }
         }
 
         // R13: ana işlem döngüsü görünür liveness kanıtı.
@@ -247,29 +341,21 @@ async function baslat() {
                 const st2StartupBos = ayarlar.entryStrategyMode === 'ST2_RENKO' && h.state.startupMarketReady !== true && h.state.aktifPozisyonlar.length === 0;
                 if (st2StartupBos) return;
 
-                // FINAL LIVE RECOVERY: Binance gerçek pozisyon gerçeği fiyat ticker'ından bağımsızdır.
-                // Önce borsada kapanmış pozisyonları state/ledger'dan düşür; ticker arızası hayalet slot bırakamaz.
-                let exchangeReconcileOk = true;
-                if (!ayarlar.sanalEmirModu && h.state.aktifPozisyonlar.some(pos => pos?.sanal === false)) {
-                    donguAsama = 'EXCHANGE_RECONCILIATION';
-                    const reconcile = await p.izSurmeyiGuncelle({ reconcileOnly: true });
-                    exchangeReconcileOk = reconcile?.exchangeOk !== false;
-                    if (!exchangeReconcileOk) {
-                        console.warn(`🛡️ [GERÇEK POZİSYON FAIL-CLOSED] Binance positionRisk doğrulanamadı; yeni giriş ve stop ilerletme bu tur kapalı | ${reconcile?.error || 'UNKNOWN'}`);
-                        return;
-                    }
-                }
-
+                // R18 CONTROL PLANE: exchange reconciliation artık ana Renko döngüsünün dışında akar.
+                // Ana döngü pusu/scan üretmeye devam eder; gerçek emir ve stop ilerletme yalnız taze
+                // reconciliation + doğrulanmış network fiyatı varken açılır.
                 donguAsama = 'FUTURES_PRICES';
+                let st2NetworkPriceOk = true;
                 if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
                     const firstSt2AuditPending = h.state.startupMarketReady === true && !ilkSt2TaramaTamamlandi;
-                    const realOpen = h.state.aktifPozisyonlar.some(pos => pos?.sanal === false);
                     const priceState = await marketPriceRuntime.refreshForMainLoop({
                         state: h.state,
                         symbols: h.state.semboller || [],
-                        activePositions: h.state.aktifPozisyonlar || [],
+                        // ENTRY taraması gerçek pozisyon korumasından ayrıdır: fallback pusu/scan'i yaşatır.
+                        // Gerçek pozisyon stop ilerletme aşağıda yalnız networkOk olduğunda çalışır.
+                        activePositions: [],
                         settings: ayarlar,
-                        forceFallbackOnly: firstSt2AuditPending && !realOpen,
+                        forceFallbackOnly: firstSt2AuditPending,
                         fetchAll: () => binanceAg.binanceFiyatlariCek({
                             timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000,
                             retries: ayarlar.futuresTickerRetry ?? 0,
@@ -279,23 +365,41 @@ async function baslat() {
                         }),
                         log: console
                     });
+                    st2NetworkPriceOk = priceState.networkOk === true;
                     h.state.st2PriceRuntime = {
-                        source: priceState.source, networkOk: priceState.networkOk === true, usable: priceState.usable === true,
+                        source: priceState.source, networkOk: st2NetworkPriceOk, usable: priceState.usable === true,
                         coverage: priceState.coverage || null, updatedAt: Date.now(),
                         error: priceState.error ? String(priceState.error.message || priceState.error) : null
                     };
+                    const safety = st2RealEntrySafetyUpdate(st2NetworkPriceOk);
                     if (!priceState.usable) {
-                        console.warn(`🛡️ [ST2 PRICE FAIL-CLOSED] ${priceState.source} | coverage ${Number(priceState.coverage?.fresh || 0)}/${Number(priceState.coverage?.total || 0)} | Yeni giriş/stop ilerletme bu tur kapalı`);
+                        console.warn(`🛡️ [ST2 PRICE FAIL-CLOSED] ${priceState.source} | coverage ${Number(priceState.coverage?.fresh || 0)}/${Number(priceState.coverage?.total || 0)} | Renko scan bu tur veri yetersiz`);
                         return;
+                    }
+                    if (!safety.ready && !ayarlar.sanalEmirModu) {
+                        const now = Date.now();
+                        const lastLog = Number(h.state.st2RealEntrySafetyLastLogAt || 0);
+                        if (now - lastLog >= 30000) {
+                            h.state.st2RealEntrySafetyLastLogAt = now;
+                            console.warn(`🛡️ [ST2 GERÇEK ENTRY FAIL-CLOSED] ${safety.reason} | Renko/pusu taraması DEVAM | Gerçek yeni emir YOK`);
+                        }
                     }
                 } else {
                     const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000, retries: ayarlar.futuresTickerRetry ?? 0, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
                     for (const [sym, price] of Object.entries(fiyatlar)) h.state.canliFiyatlar[sym] = parseFloat(price);
                 }
 
-                // Koruma artık fiyat geldikten sonra çalışır; gerçek pozisyon var/yok mutabakatı yukarıda kesinleşmiştir.
                 donguAsama = 'POSITION_PROTECTION';
-                await p.izSurmeyiGuncelle({ skipExchangeReconcile: !ayarlar.sanalEmirModu && exchangeReconcileOk });
+                const protectionSafety = ayarlar.entryStrategyMode === 'ST2_RENKO' ? (h.state.st2RealEntrySafety || {}) : { ready: true, reconciliationFresh: true };
+                if (ayarlar.entryStrategyMode !== 'ST2_RENKO' || ayarlar.sanalEmirModu || (st2NetworkPriceOk && protectionSafety.reconciliationFresh === true)) {
+                    // Exchange mutabakatı background worker'da; burada tekrar signed positionRisk çağrısı YOK.
+                    // Stop/trail yalnız network fiyatı + taze signed mutabakat birlikte doğrulanmışsa ilerler.
+                    await p.izSurmeyiGuncelle({ skipExchangeReconcile: !ayarlar.sanalEmirModu });
+                } else {
+                    // Mevcut Binance SL/TP korunur; stale mutabakat veya doğrulanmamış fiyatla stop/trail ileri taşınmaz.
+                    h.state.st2ProtectionDeferredAt = Date.now();
+                    h.state.st2ProtectionDeferredReason = !st2NetworkPriceOk ? 'NETWORK_PRICE_NOT_VERIFIED' : 'EXCHANGE_RECONCILIATION_STALE';
+                }
                 if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
                     if (h.state.startupMarketReady === true) {
                         donguAsama = 'RENKO_SCAN';

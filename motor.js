@@ -702,6 +702,19 @@ const m = {
                 });
             }
 
+            // R18 CONTROL PLANE FAIL-CLOSED: Renko/pusu taraması ağ veya signed mutabakat
+            // gecikse bile devam eder; ancak gerçek Binance emri yalnız taze control-plane kanıtıyla açılır.
+            if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
+                const safety = h.state.st2RealEntrySafety || {};
+                if (safety.ready !== true) {
+                    return canliShadowOgrenmeAc({
+                        symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
+                        girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
+                        reason: `ST2_CONTROL_PLANE_FAIL_CLOSED:${safety.reason || 'NOT_READY'}`
+                    });
+                }
+            }
+
             const realDailyGate = kaliciHafiza.emirAcilabilirMi(symbol, islemYonu, {
                 maxPozisyonSayisi: canliToplamPozisyonKapasitesi(),
                 ignoreDailyLimit: false

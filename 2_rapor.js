@@ -516,6 +516,9 @@ function minimalCanliRaporMetniOlustur() {
     const tgTransport = tgSaglik.transport || {};
     const priceRuntime = h.state.st2PriceRuntime || {};
     const priceCoverage = priceRuntime.coverage || {};
+    const exchangeRec = h.state.st2ExchangeReconciliation || {};
+    const entrySafety = h.state.st2RealEntrySafety || {};
+    const exchangeAgeMs = Number(exchangeRec.lastOkAt || 0) > 0 ? Math.max(0, Date.now() - Number(exchangeRec.lastOkAt || 0)) : null;
     const warm = h.state.startupMarketWarmup || {};
     const firstScanPending = ayarlar.entryStrategyMode === 'ST2_RENKO'
         && h.state.startupMarketReady === true
@@ -535,6 +538,7 @@ function minimalCanliRaporMetniOlustur() {
             ? [`🔄 Veri tazeleme sürüyor | Son tur Mum ${veriSagligi.mumSonTur} | ST ${veriSagligi.stSonTur} | Hazır cache korunuyor`]
             : []),
         `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | Fiyat ${String(priceRuntime.source || 'BEKLIYOR')} ${Number(priceCoverage.fresh || 0)}/${Number(priceCoverage.total || 0)} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
+        `🔁 Control Plane Mutabakat ${String(exchangeRec.status || (ayarlar.sanalEmirModu ? 'VIRTUAL' : 'BEKLIYOR'))}${exchangeAgeMs == null ? '' : ` ${Math.round(exchangeAgeMs / 1000)}sn`} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (entrySafety.ready === true ? 'READY' : `FAIL-CLOSED/${String(entrySafety.reason || 'NOT_READY')}`)} | Renko/Pusu bağımsız`,
         `💰 Bilimsel Premier N${Number(premierScientific.n || 0)} | ✅${Number(premierScientific.tp || 0)} ❌${Number(premierScientific.sl || 0)} ⚖️${Number(premierScientific.be || 0)} | Net ${sign(premierScientific.net)} | PF ${pfMetni(premierScientific.pf)}`,
         ...yonSatirlari('Bilimsel', premierScientific),
         `💳 Gerçek Premier N${Number(realPremier.n || 0)} | ✅${Number(realPremier.tp || 0)} ❌${Number(realPremier.sl || 0)} ⚖️${Number(realPremier.be || 0)} | Net ${sign(realPremier.net)} | PF ${pfMetni(realPremier.pf)}`,
