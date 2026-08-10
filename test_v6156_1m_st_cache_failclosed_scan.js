@@ -9,4 +9,4 @@ assert(ent.includes('scanFailClosed: true'), 'cache yoksa yalnız sembol fail-cl
 assert(!/const bricks = core\.renkoUret\(mumlar, box\)/.test(ent), '200-sembol scan içinde 1m Renko yeniden hesaplanmamalı');
 assert(rev.includes('START_RENKO_ST_REPAIR_1') && rev.includes('START_RENKO_ST_REPAIR_2'), '1m Renko-ST ağır hesaplama warmup/refresh otoritesinde 80->240->480 kalmalı');
 assert(ent.includes('[ST2 RENKO SLOW SYMBOL]'), 'kalan yavaş sembol/stage görünür olmalı');
-console.log('✅ v6.13.5-R12 1m ST scan cache fail-closed passed | scan recompute YOK + slow-stage observability');
+console.log('✅ v6.13.5-R17 1m ST scan cache fail-closed passed | scan recompute YOK + slow-stage observability');

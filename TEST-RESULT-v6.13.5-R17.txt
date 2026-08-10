@@ -1,0 +1,28 @@
+AGROS ST2 v6.13.5-R17 — UNIFIED LIVE RECOVERY FINAL
+===================================================
+
+PASS: npm test
+PASS: syntax / Telegram panel delivery / 30s cadence
+PASS: real-order execution safety
+PASS: active-exit reconciliation
+PASS: final entry/exit chain reconciliation
+PASS: Golden live chain
+PASS: direct profit floor / Renko trail
+PASS: Williams shadow + Renko confirmation lifecycle
+PASS: market transport stability / known-good rollback contract
+PASS: first-audit closed-1m price fallback
+PASS: DIRECT + CONFIRMED shared pozisyonAc authority
+PASS: Renko scan CPU liveness
+PASS: missing 1m ST cache fail-closed scan
+PASS: NEW v6157 unified live recovery
+  - Binance position exists in local state but exchange amount=0
+  - live price cache intentionally empty
+  - reconciliation still closes/removes ghost real position
+  - slot becomes free
+  - price fallback wiring present
+  - Telegram dual-circuit panel recovery probe present
+
+NOTE: `npm run test:full` was also started in the artifact sandbox. The full chain stopped at
+legacy test_v673 because the user source archive intentionally contains no installed runtime
+dependencies (`dotenv`/node_modules). This is an environment/dependency absence, not an R17 test
+failure. The complete critical `npm test` suite passes from the package source.

@@ -8,7 +8,7 @@ const settings=require('./ayarlar.js');
 const ag=require('./64_binance_network_resilience.js');
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R12-RENKO-1M-ST-READINESS-ENTRY-FUNNEL');
+  assert.strictEqual(version.botSurumu,'6.13.5-R17-UNIFIED-LIVE-RECOVERY-FINAL');
   const bot=fs.readFileSync('./bot.js','utf8');
   const rev=fs.readFileSync('./revizyon.js','utf8');
   const report=fs.readFileSync('./2_rapor.js','utf8');
@@ -66,5 +66,5 @@ const ag=require('./64_binance_network_resilience.js');
   assert.strictEqual(seenAgent,ag._criticalTickerAgent);
   releaseLow('DONE'); await low; ag._testReset();
 
-  console.log('✅ v6.13.5-R12 live liveness recovery passed | first audit isolated + dedicated ticker + batched Williams + nonblocking shadow TG');
+  console.log('✅ v6.13.5-R17 live liveness recovery passed | first audit isolated + dedicated ticker + batched Williams + nonblocking shadow TG');
 })().catch(err=>{console.error(err.stack||err);process.exit(1);});

@@ -38,6 +38,7 @@ const state = {
     startupMarketWarmup: { durum: 'BEKLIYOR', baslangic: null, tamamlanma: null, pusuHazir: 0, trendHazir: 0, oran: 0, hata: 0 },
     basamaklar: {},
     canliFiyatlar: {},
+    canliFiyatMeta: {},
     yerelPusuHafizasi: {},
     pusuListesi: {},
     st2Renko: { seriler: {}, onaySerileri1m: {}, pusular: {}, sonIslenenTugla: {}, boxSize: {}, onayBoxSize1m: {}, audit: null },
@@ -179,6 +180,17 @@ function telegramBulkCircuitOpen() {
     const now = Date.now();
     return telegramTransport.nativeCircuitUntil > now && telegramTransport.curlCircuitUntil > now;
 }
+function telegramPanelCircuitProbeUygun(priority, now = Date.now()) {
+    return priority === 'panel'
+        && telegramTransport.nativeCircuitUntil > now
+        && telegramTransport.curlCircuitUntil > now
+        && now - Number(telegramTransport.lastNativeProbeAt || 0) >= TELEGRAM_CRITICAL_PROBE_INTERVAL_MS;
+}
+function telegramNativeProbeIzinli(priority, options = {}, now = Date.now()) {
+    const nativeOpen = telegramTransport.nativeCircuitUntil > now;
+    return !nativeOpen || ((priority === 'critical' || options.allowCircuitProbe === true)
+        && now - Number(telegramTransport.lastNativeProbeAt || 0) >= TELEGRAM_CRITICAL_PROBE_INTERVAL_MS);
+}
 function telegramKuyrugaEkle(job) {
     const priority = telegramOncelik(job.options);
     const queue = telegramIsKuyruklari[priority];
@@ -192,10 +204,16 @@ function telegramKuyrugaEkle(job) {
         }
     }
     if (priority !== 'critical' && telegramBulkCircuitOpen()) {
-        telegramStats.dropped[priority]++;
-        telegramStats.circuitFastFail++;
-        job.resolve({ ok: false, dropped: true, circuitOpen: true, description: 'TELEGRAM_TRANSPORT_CIRCUIT_OPEN' });
-        return;
+        // Canlı panel tamamen sessiz kalmasın: iki transport circuit'i açıkken panel hattı
+        // kontrollü aralıkla taze Native IPv4 probe yapabilir. Detail işleri yine hızlı düşer.
+        const panelProbeDue = telegramPanelCircuitProbeUygun(priority);
+        if (!panelProbeDue) {
+            telegramStats.dropped[priority]++;
+            telegramStats.circuitFastFail++;
+            job.resolve({ ok: false, dropped: true, circuitOpen: true, description: 'TELEGRAM_TRANSPORT_CIRCUIT_OPEN' });
+            return;
+        }
+        job.options = { ...(job.options || {}), allowCircuitProbe: true };
     }
     const limit = telegramKuyrukLimitleri[priority];
     if (queue.length >= limit) {
@@ -438,7 +456,7 @@ async function telegramTekDeneme(apiPath, veri, options = {}) {
         return { ...one, singleDelivery: true };
     }
 
-    const nativeProbeAllowed = !nativeOpen || (priority === 'critical' && now - telegramTransport.lastNativeProbeAt >= TELEGRAM_CRITICAL_PROBE_INTERVAL_MS);
+    const nativeProbeAllowed = telegramNativeProbeIzinli(priority, options, now);
     if (nativeProbeAllowed) {
         telegramTransport.lastNativeProbeAt = now;
         // Telegram bildirim hacmi düşüktür; stale keep-alive soketi yerine her teslimde taze
@@ -789,6 +807,8 @@ module.exports = {
         telegramStats,
         telegramErrorLog,
         telegramEditYeniMesajGerektirir,
-        telegramCanliPanelDurum: () => ({ workerCalisiyor: telegramCanliPanelWorkerCalisiyor, bekleyen: Boolean(telegramCanliPanelBekleyen) })
+        telegramCanliPanelDurum: () => ({ workerCalisiyor: telegramCanliPanelWorkerCalisiyor, bekleyen: Boolean(telegramCanliPanelBekleyen) }),
+        telegramPanelCircuitProbeUygun,
+        telegramNativeProbeIzinli
     }
 };

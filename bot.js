@@ -11,6 +11,7 @@ const binanceAg = require('./64_binance_network_resilience.js');
 const accountingContinuity = require('./65_accounting_continuity.js');
 const globalHistoricalRuntime = require('./79_st2_global_historical_runtime.js');
 const { createSt2LivePanelScheduler } = require('./92_st2_live_panel_scheduler.js');
+const marketPriceRuntime = require('./93_st2_market_price_runtime.js');
 binanceAg.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
 
 let donguCalisiyor = false;
@@ -246,15 +247,55 @@ async function baslat() {
                 const st2StartupBos = ayarlar.entryStrategyMode === 'ST2_RENKO' && h.state.startupMarketReady !== true && h.state.aktifPozisyonlar.length === 0;
                 if (st2StartupBos) return;
 
-                donguAsama = 'FUTURES_PRICES';
-                const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000, retries: ayarlar.futuresTickerRetry ?? 0, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
-                for (const [sym, price] of Object.entries(fiyatlar)) {
-                    h.state.canliFiyatlar[sym] = parseFloat(price);
+                // FINAL LIVE RECOVERY: Binance gerçek pozisyon gerçeği fiyat ticker'ından bağımsızdır.
+                // Önce borsada kapanmış pozisyonları state/ledger'dan düşür; ticker arızası hayalet slot bırakamaz.
+                let exchangeReconcileOk = true;
+                if (!ayarlar.sanalEmirModu && h.state.aktifPozisyonlar.some(pos => pos?.sanal === false)) {
+                    donguAsama = 'EXCHANGE_RECONCILIATION';
+                    const reconcile = await p.izSurmeyiGuncelle({ reconcileOnly: true });
+                    exchangeReconcileOk = reconcile?.exchangeOk !== false;
+                    if (!exchangeReconcileOk) {
+                        console.warn(`🛡️ [GERÇEK POZİSYON FAIL-CLOSED] Binance positionRisk doğrulanamadı; yeni giriş ve stop ilerletme bu tur kapalı | ${reconcile?.error || 'UNKNOWN'}`);
+                        return;
+                    }
                 }
 
-                // Koruma ve manuel/harici kapanış mutabakatı her zaman yeni giriş taramasından önce gelir.
+                donguAsama = 'FUTURES_PRICES';
+                if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
+                    const firstSt2AuditPending = h.state.startupMarketReady === true && !ilkSt2TaramaTamamlandi;
+                    const realOpen = h.state.aktifPozisyonlar.some(pos => pos?.sanal === false);
+                    const priceState = await marketPriceRuntime.refreshForMainLoop({
+                        state: h.state,
+                        symbols: h.state.semboller || [],
+                        activePositions: h.state.aktifPozisyonlar || [],
+                        settings: ayarlar,
+                        forceFallbackOnly: firstSt2AuditPending && !realOpen,
+                        fetchAll: () => binanceAg.binanceFiyatlariCek({
+                            timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000,
+                            retries: ayarlar.futuresTickerRetry ?? 0,
+                            baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900,
+                            priority: 'CRITICAL',
+                            label: 'FUTURES_PRICES'
+                        }),
+                        log: console
+                    });
+                    h.state.st2PriceRuntime = {
+                        source: priceState.source, networkOk: priceState.networkOk === true, usable: priceState.usable === true,
+                        coverage: priceState.coverage || null, updatedAt: Date.now(),
+                        error: priceState.error ? String(priceState.error.message || priceState.error) : null
+                    };
+                    if (!priceState.usable) {
+                        console.warn(`🛡️ [ST2 PRICE FAIL-CLOSED] ${priceState.source} | coverage ${Number(priceState.coverage?.fresh || 0)}/${Number(priceState.coverage?.total || 0)} | Yeni giriş/stop ilerletme bu tur kapalı`);
+                        return;
+                    }
+                } else {
+                    const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000, retries: ayarlar.futuresTickerRetry ?? 0, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
+                    for (const [sym, price] of Object.entries(fiyatlar)) h.state.canliFiyatlar[sym] = parseFloat(price);
+                }
+
+                // Koruma artık fiyat geldikten sonra çalışır; gerçek pozisyon var/yok mutabakatı yukarıda kesinleşmiştir.
                 donguAsama = 'POSITION_PROTECTION';
-                await p.izSurmeyiGuncelle();
+                await p.izSurmeyiGuncelle({ skipExchangeReconcile: !ayarlar.sanalEmirModu && exchangeReconcileOk });
                 if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
                     if (h.state.startupMarketReady === true) {
                         donguAsama = 'RENKO_SCAN';

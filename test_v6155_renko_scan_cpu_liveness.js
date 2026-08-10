@@ -41,4 +41,4 @@ assert(entry.includes('core.renkoUretSon(candles, box, liveTail)'),'live scan mu
 assert(adaptive.includes('adaptiveStateCache'),'adaptive DNA state must be cached between unchanged reads');
 assert(adaptive.includes('historicalCompletionCache'),'historical completion must be cached between unchanged reads');
 assert(evolution.includes('summaryCache'),'entry evolution summary must be cached between unchanged reads');
-console.log('✅ v6.13.5-R12 Renko scan CPU liveness passed | exact tail + bounded million-brick path + unchanged-state caches');
+console.log('✅ v6.13.5-R17 Renko scan CPU liveness passed | exact tail + bounded million-brick path + unchanged-state caches');

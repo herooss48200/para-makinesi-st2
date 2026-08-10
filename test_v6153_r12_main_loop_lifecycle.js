@@ -12,7 +12,7 @@ const Module = require('module');
   const symbols = Array.from({ length: 200 }, (_, i) => `T${String(i).padStart(3, '0')}USDT`);
   const state = {
     semboller: [], aktifPozisyonlar: [], startupMarketReady: false, startupMarketWarmup: {},
-    sembolVeriSagligi: { durum: 'BEKLIYOR' }, canliFiyatlar: {}, cooldownBitis: 0,
+    sembolVeriSagligi: { durum: 'BEKLIYOR' }, canliFiyatlar: {}, canliFiyatMeta: {}, cooldownBitis: 0,
     st2Renko: { pusular: {} }, pusuListesi: {}, sonTrendGuncellemeZamani: 0, sonSniperGuncellemeZamani: 0
   };
 
@@ -41,6 +41,7 @@ const Module = require('module');
   };
   const revizyon = {
     async derinGecmisiInsaEt() {
+      const now=Date.now(); for (const sym of symbols) { state.canliFiyatlar[sym]=100; state.canliFiyatMeta[sym]={source:'STARTUP_CLOSED_1M',marketTime:now-10000,observedAt:now}; }
       state.startupMarketReady = true;
       state.startupMarketWarmup = { durum: 'READY', asama: 'GOLDEN_RENKO_CORE_COMPLETE', islenen: 200, toplam: 200, pusuHazir: 200, trendHazir: 200 };
       return { ready: true, pusuHazir: 200, trendHazir: 200, total: 200 };
@@ -53,7 +54,7 @@ const Module = require('module');
     renkoKaynakPeriyodu: '15m', pusuPeriyodu: '15m', pingInterval: 1000, startupMarketGuardLogAralikMs: 60000
   };
   const rapor = { raporTalepEt() { reportCalls++; } };
-  const versiyon = { botSurumu: '6.13.5-R12-RENKO-1M-ST-READINESS-ENTRY-FUNNEL', kisaOzet() { return this.botSurumu; }, telegramOzet() { return this.botSurumu; } };
+  const versiyon = { botSurumu: '6.13.5-R17-UNIFIED-LIVE-RECOVERY-FINAL', kisaOzet() { return this.botSurumu; }, telegramOzet() { return this.botSurumu; } };
   const kalici = { yukle() {}, kaydet() {} };
   const network = {
     configure() {},
@@ -140,7 +141,7 @@ const Module = require('module');
 
     for (let i = 0; i < 3; i++) await loopCb();
 
-    assert.strictEqual(priceCalls, 3, 'each loop must refresh market price once');
+    assert.strictEqual(priceCalls, 2, 'first Golden Renko audit uses fresh closed-1m fallback; following loops refresh network ticker');
     assert.strictEqual(protectionCalls, 3, 'each loop must run position protection before entry scan');
     assert.strictEqual(scanCalls, 3, 'READY runtime must complete three consecutive Renko scans');
     assert(logs.filter(x => x.includes('[ST2 İLK TARAMA TAMAMLANDI]')).length === 1, 'first-scan completion marker must emit exactly once');
@@ -153,5 +154,5 @@ const Module = require('module');
     delete require.cache[require.resolve('./bot.js')];
   }
 
-  console.log('✅ v6.13.5-R12 main-loop lifecycle passed | 200 symbols READY + 3x PRICE → PROTECTION → RENKO SCAN + zero loop errors');
+  console.log('✅ v6.13.5-R17 main-loop lifecycle passed | 200 symbols READY + FIRST-AUDIT FALLBACK → 2x TICKER → PROTECTION → RENKO SCAN + zero loop errors');
 })().catch(err => { console.error(err.stack || err); process.exit(1); });

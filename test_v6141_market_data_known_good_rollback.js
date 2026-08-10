@@ -4,7 +4,7 @@ const fs=require('fs');
 const version=require('./versiyon.js');
 const settings=require('./ayarlar.js');
 
-assert.strictEqual(version.botSurumu,'6.13.5-R12-RENKO-1M-ST-READINESS-ENTRY-FUNNEL');
+assert.strictEqual(version.botSurumu,'6.13.5-R17-UNIFIED-LIVE-RECOVERY-FINAL');
 const rev=fs.readFileSync('./revizyon.js','utf8');
 const net=fs.readFileSync('./64_binance_network_resilience.js','utf8');
 assert(!rev.includes('startupAgOverrides'),'R5 startup transport override must remain absent');
@@ -32,4 +32,4 @@ assert.strictEqual(Number(settings.binanceAgRetry),2);
 assert.strictEqual(Number(settings.binanceTopluVeriRetryMs),90000);
 assert.strictEqual(Number(settings.futuresTickerRetry),0);
 assert(Number(settings.futuresTickerTimeoutMs)<=6000);
-console.log('✅ v6.13.5-R12 market-data contract passed | R8 bulk semantics preserved + dedicated fail-fast ticker isolation');
+console.log('✅ v6.13.5-R17 market-data contract passed | R8 bulk semantics preserved + dedicated fail-fast ticker isolation');

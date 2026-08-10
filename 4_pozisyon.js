@@ -1455,35 +1455,106 @@ function renkoEntryConfirmationShadowTelegramArkaPlan(mesajlar = []) {
     });
 }
 
-async function izSurmeyiGuncelle() {
+function gercekOkumaDeadline(promise, timeoutMs, label = 'SIGNED_READ_TIMEOUT') {
+    const ms = Math.max(2000, Number(timeoutMs || 8000));
+    let timer = null;
+    return Promise.race([
+        Promise.resolve(promise),
+        new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                const err = new Error(`${label}:${ms}ms`);
+                err.code = 'ETIMEDOUT';
+                reject(err);
+            }, ms);
+            timer.unref?.();
+        })
+    ]).finally(() => { if (timer) clearTimeout(timer); });
+}
+
+async function izSurmeyiGuncelle(options = {}) {
+    const reconcileOnly = options.reconcileOnly === true;
+    const skipExchangeReconcile = options.skipExchangeReconcile === true;
     // v6.12.3-R2: Ana işlem kapanmış olsa bile Renko giriş teyit gölge adayları
-    // kendi bağımsız yaşam döngülerini sürdürür. Bu çağrı emir/pozisyon açmaz.
-    // R16 scan-liveness final: SHADOW_ONLY Telegram teslimi koruma/Renko scan yolunu ASLA bekletmez.
-    try {
-        const shadowTick = renkoEntryConfirmationShadow.tickAll(h.state.canliFiyatlar || {}, Date.now());
-        renkoEntryConfirmationShadowTelegramArkaPlan(shadowTick.telegramMessages || []);
-    } catch (e) {
-        console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TICK] ${e.message}`);
-    }
-
-    if (h.state.aktifPozisyonlar.length === 0) return;
-
-    let borsaPozisyonlar = [];
-    if (!ayarlar.sanalEmirModu) {
+    // kendi bağımsız yaşam döngülerini sürdürür. Reconcile-only turunda bilimsel gölge işi çalıştırılmaz.
+    if (!reconcileOnly) {
         try {
-            borsaPozisyonlar = await h.client.futuresPositionRisk();
+            const shadowTick = renkoEntryConfirmationShadow.tickAll(h.state.canliFiyatlar || {}, Date.now());
+            renkoEntryConfirmationShadowTelegramArkaPlan(shadowTick.telegramMessages || []);
         } catch (e) {
-            console.error('❌ Pozisyon risk durumu çekilemedi:', e.message);
-            return;
+            console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TICK] ${e.message}`);
         }
     }
 
+    if (h.state.aktifPozisyonlar.length === 0) return { exchangeOk: true, reconciled: 0, closed: 0 };
+
+    let borsaPozisyonlar = [];
+    if (!ayarlar.sanalEmirModu && !skipExchangeReconcile) {
+        try {
+            borsaPozisyonlar = await gercekOkumaDeadline(
+                h.client.futuresPositionRisk(),
+                ayarlar.gercekPozisyonMutabakatTimeoutMs || 8000,
+                'FUTURES_POSITION_RISK_TIMEOUT'
+            );
+        } catch (e) {
+            console.error('❌ Pozisyon risk durumu çekilemedi:', e.message);
+            return { exchangeOk: false, error: e.message, reconciled: 0, closed: 0 };
+        }
+    }
+    let reconciledCount = 0;
+    let closedCount = 0;
+    let reconcileFailures = 0;
+
     for (let i = h.state.aktifPozisyonlar.length - 1; i >= 0; i--) {
         const pos = h.state.aktifPozisyonlar[i];
+        const sanalPozisyon = ayarlar.sanalEmirModu || pos.sanal;
+
+        // Binance pozisyon gerçeği canlı fiyat akışından ÖNCE işlenir. Global ticker bozuk olsa bile
+        // borsada kapanmış gerçek pozisyon state'te hayalet slot olarak kalamaz.
+        if (!sanalPozisyon && !skipExchangeReconcile) {
+            const borsaPoz = borsaPozisyonlar.find(p => p.symbol === pos.sym);
+            const borsaMiktar = borsaPoz ? Math.abs(parseFloat(borsaPoz.positionAmt)) : 0;
+            reconciledCount++;
+            if (borsaMiktar === 0) {
+                if (pos.kapanisIsleniyor) continue;
+                pos.kapanisIsleniyor = true;
+                let kritikKapanisCommitEdildi = false;
+                try {
+                    const fallbackPrice = Number(h.state.canliFiyatlar[pos.sym] || pos.girisFiyati || 0);
+                    const mutabakat = await realExecution.finalizeExchangeClose(pos, fallbackPrice, h.client);
+                    const commit = closeLifecycle.commitRealClose({
+                        state: h.state,
+                        pos,
+                        indexHint: i,
+                        reconciliation: mutabakat,
+                        livePrice: Number(mutabakat.exitPrice || fallbackPrice || pos.girisFiyati || 0),
+                        manualLockMs: Number(ayarlar.manuelKapanisYenidenGirisKilidiMs || 3600000),
+                        removeAuxiliary: pozisyonListelerindenSil,
+                        persist: kaliciHafiza.kaydet
+                    });
+                    kritikKapanisCommitEdildi = commit.ok === true;
+                    if (kritikKapanisCommitEdildi) closedCount++;
+                    console.log(`🔎 [GERÇEK KAPANIŞ MUTABAKATI] ${pos.sym} ${pos.yon} | ${commit.reason} | Fill ${commit.closePrice || fallbackPrice} | Net ${Number(mutabakat.netPnl || 0).toFixed(6)} | Slot SERBEST`);
+                    closeLifecycle.scheduleCloseReport({
+                        pos,
+                        closePrice: commit.closePrice || fallbackPrice,
+                        reason: commit.reason,
+                        reportClose: kapanisRaporla,
+                        sendPanel: rapor.raporGonder,
+                        persist: kaliciHafiza.kaydet
+                    });
+                } catch (err) {
+                    if (!kritikKapanisCommitEdildi) pos.kapanisIsleniyor = false;
+                    reconcileFailures++;
+                    console.error(`❌ [GERÇEK KAPANIŞ UZLAŞTIRMA] ${pos.sym} ${pos.yon} | ${err.message}`);
+                }
+                continue;
+            }
+        }
+
+        if (reconcileOnly) continue;
         const canliFiyat = h.state.canliFiyatlar[pos.sym];
         if (!canliFiyat) continue;
 
-        const sanalPozisyon = ayarlar.sanalEmirModu || pos.sanal;
         analizMerkezi.journeyGuncelle(pos, canliFiyat);
         exitOptimizer.tickGuncelle(pos, canliFiyat);
         // Yalnız gölge: R→G / G→R sonrası 0.25T–0.75T alternatif girişlerini izler.
@@ -1567,42 +1638,6 @@ async function izSurmeyiGuncelle() {
 
                 kaliciHafiza.kaydet('sanal-pozisyon-kapandi');
                 await rapor.raporGonder(true);
-            }
-            continue;
-        }
-
-        const borsaPoz = borsaPozisyonlar.find(p => p.symbol === pos.sym);
-        const borsaMiktar = borsaPoz ? Math.abs(parseFloat(borsaPoz.positionAmt)) : 0;
-
-        if (borsaMiktar === 0) {
-            if (pos.kapanisIsleniyor) continue;
-            pos.kapanisIsleniyor = true;
-            let kritikKapanisCommitEdildi = false;
-            try {
-                const mutabakat = await realExecution.finalizeExchangeClose(pos, canliFiyat, h.client);
-                const commit = closeLifecycle.commitRealClose({
-                    state: h.state,
-                    pos,
-                    indexHint: i,
-                    reconciliation: mutabakat,
-                    livePrice: canliFiyat,
-                    manualLockMs: Number(ayarlar.manuelKapanisYenidenGirisKilidiMs || 3600000),
-                    removeAuxiliary: pozisyonListelerindenSil,
-                    persist: kaliciHafiza.kaydet
-                });
-                kritikKapanisCommitEdildi = commit.ok === true;
-                console.log(`🔎 [GERÇEK KAPANIŞ MUTABAKATI] ${pos.sym} ${pos.yon} | ${commit.reason} | Fill ${commit.closePrice || canliFiyat} | Net ${Number(mutabakat.netPnl || 0).toFixed(6)} | Slot SERBEST`);
-                closeLifecycle.scheduleCloseReport({
-                    pos,
-                    closePrice: commit.closePrice || canliFiyat,
-                    reason: commit.reason,
-                    reportClose: kapanisRaporla,
-                    sendPanel: rapor.raporGonder,
-                    persist: kaliciHafiza.kaydet
-                });
-            } catch (err) {
-                if (!kritikKapanisCommitEdildi) pos.kapanisIsleniyor = false;
-                console.error(`❌ [GERÇEK KAPANIŞ UZLAŞTIRMA] ${pos.sym} ${pos.yon} | ${err.message}`);
             }
             continue;
         }
@@ -1737,6 +1772,7 @@ async function izSurmeyiGuncelle() {
             realExecution.persistPosition(pos, 'REAL_POSITION_HEARTBEAT');
         }
     }
+    return { exchangeOk: reconcileFailures === 0, reconciled: reconciledCount, closed: closedCount, failures: reconcileFailures, error: reconcileFailures ? 'EXCHANGE_CLOSE_RECONCILIATION_FAILED' : null };
 }
 
 async function pusuRaporuGonder() {

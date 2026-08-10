@@ -514,6 +514,8 @@ function minimalCanliRaporMetniOlustur() {
     const binanceSaat = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy: false, offsetMs: 0 };
     const tgSaglik = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0, transport: {} };
     const tgTransport = tgSaglik.transport || {};
+    const priceRuntime = h.state.st2PriceRuntime || {};
+    const priceCoverage = priceRuntime.coverage || {};
     const warm = h.state.startupMarketWarmup || {};
     const firstScanPending = ayarlar.entryStrategyMode === 'ST2_RENKO'
         && h.state.startupMarketReady === true
@@ -532,7 +534,7 @@ function minimalCanliRaporMetniOlustur() {
         ...((veriSagligi.pusuTazelemeCalisiyor || veriSagligi.stTazelemeCalisiyor)
             ? [`🔄 Veri tazeleme sürüyor | Son tur Mum ${veriSagligi.mumSonTur} | ST ${veriSagligi.stSonTur} | Hazır cache korunuyor`]
             : []),
-        `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
+        `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | Fiyat ${String(priceRuntime.source || 'BEKLIYOR')} ${Number(priceCoverage.fresh || 0)}/${Number(priceCoverage.total || 0)} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
         `💰 Bilimsel Premier N${Number(premierScientific.n || 0)} | ✅${Number(premierScientific.tp || 0)} ❌${Number(premierScientific.sl || 0)} ⚖️${Number(premierScientific.be || 0)} | Net ${sign(premierScientific.net)} | PF ${pfMetni(premierScientific.pf)}`,
         ...yonSatirlari('Bilimsel', premierScientific),
         `💳 Gerçek Premier N${Number(realPremier.n || 0)} | ✅${Number(realPremier.tp || 0)} ❌${Number(realPremier.sl || 0)} ⚖️${Number(realPremier.be || 0)} | Net ${sign(realPremier.net)} | PF ${pfMetni(realPremier.pf)}`,

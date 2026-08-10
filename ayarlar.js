@@ -726,6 +726,13 @@ const ayarlar = {
     // R15: global ticker dedicated agent kullanır; startup boşken çağrılmaz ve canlı döngüde hızlı fail eder.
     futuresTickerTimeoutMs: 6000,
     futuresTickerRetry: 0,
+    // Unified live recovery: giriş taraması global ticker geçici bozulduğunda yalnız taze kapanmış 1m snapshot ile devam edebilir.
+    // Gerçek açık pozisyon varsa network fiyatı zorunlu kalır; yalnız borsa pozisyon mutabakatı ticker'dan bağımsızdır.
+    st2FallbackPriceMaxAgeMs: 120000,
+    st2FallbackPriceLogIntervalMs: 30000,
+    futuresTickerBackoffBaseMs: 10000,
+    futuresTickerBackoffMaxMs: 60000,
+    gercekPozisyonMutabakatTimeoutMs: 8000,
     binanceAgRetry: 2,
     binanceAgRetryTabanMs: 900,
     // v6.10.7 - Kapanmış mum yoksa 200 coinlik toplu indirme yapılmaz.
