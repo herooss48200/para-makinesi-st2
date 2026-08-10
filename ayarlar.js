@@ -209,9 +209,11 @@ const ayarlar = {
     renkoGirisTeyitShadowStateKayitAraligiMs: 15000,
     renkoGirisTeyitShadowTamamlananSakla: 500,
 
-    // v6.13.0 — Tek gerçek giriş kapısı: DIRECT champion / CONFIRMED challenger.
-    // true olduğunda olgun ve anlamlı üstün CONFIRMED kanıtı, aynı tek gerçek
-    // giriş kapısında DIRECT zamanlamasının yerine geçebilir. İkinci emir zinciri oluşturmaz.
+    // v6.13.5-R21 — Tek gerçek giriş kapısı: DIRECT champion / CONFIRMED challenger.
+    // CONFIRMED seçilirse gerçek zaman/fiyat otoritesi pusu SONRASI kapanmış 15m Renko
+    // R→G / G→R dönüşü + seçilen 0.25/0.50/0.75T offset'tir. 1m Renko ST yalnız son
+    // sniper teyididir; 1m confirmation lifecycle laboratuvarı ayrı gölge kanıtı üretir.
+    // İkinci gerçek emir zinciri oluşturulmaz.
     renkoGirisModuOtomatikAktif: true,
     renkoGirisModuMinTeyitOrnek: 15,
     renkoGirisModuMinOrnek: 20,

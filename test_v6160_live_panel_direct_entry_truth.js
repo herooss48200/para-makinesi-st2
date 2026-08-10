@@ -7,7 +7,7 @@ const r = read('2_rapor.js');
 const e = read('72_st2_renko_entry.js');
 const a = read('ayarlar.js');
 const v = require('./versiyon.js');
-assert.strictEqual(v.botSurumu, '6.13.5-R20-LIVE-PANEL-DIRECT-ENTRY-TRUTH-FINAL');
+assert.strictEqual(v.botSurumu, '6.13.5-R21-15M-CONFIRMED-TIMEFRAME-AUTHORITY-FINAL');
 assert(h.includes('function telegramPanelDirectIstegiAt('), 'panel direct transport helper missing');
 assert(h.includes("priority === 'panel' ? 'panel' : 'bulk'"), 'panel must have independent request cadence lane');
 assert(h.includes("directPanel: true"), 'live panel edit/send must use direct lane');
@@ -16,7 +16,7 @@ assert(h.includes('livePanel: { requested: 0, delivered: 0, failed: 0'), 'live p
 assert(r.includes('Panel CPU=RAM-ONLY | 30sn DIRECT | Son teslim ${panelDeliveryText}'), 'panel delivery freshness must be visible');
 assert(/canliRaporGuncellemeMs:\s*30000/.test(a), '30s edit cadence changed');
 assert(/canliRaporYenidenGondermeMs:\s*180000/.test(a), '3m new-bubble cadence changed');
-assert(e.includes("if (mode === 'CONFIRMED') return `${offset.toFixed(2)}T → 1m dönüş sonrası hesaplanacak`;"), 'CONFIRMED pusu must not print fake zero target');
+assert(e.includes("if (mode === 'CONFIRMED') return `${offset.toFixed(2)}T → 15m kapanmış dönüş sonrası hesaplanacak`;"), 'CONFIRMED pusu must not print fake zero target');
 assert(e.includes("const olusumTarget = String(pusu?.entryMode || '').toUpperCase() === 'CONFIRMED' ? null : tetikFiyati(pusu);"), 'CONFIRMED proof must defer absolute target until reversal');
 assert(!e.includes('Entry Evolution ${Number(yeniPusu.renkoEntryBrickDistance || entryEvolution.DEFAULT_BRICK()).toFixed(2)}T → ${fiyatFormatla(yeniPusu.canliTetikFiyati)}'), 'legacy zero-target notification still present');
-console.log('✅ v6.13.5-R20 live panel direct + entry truth passed | 30s direct panel lane + delivery freshness + CONFIRMED target no fake zero');
+console.log('✅ v6.13.5-R21 live panel direct + entry truth passed | R20 30s direct panel preserved + CONFIRMED target no fake zero');

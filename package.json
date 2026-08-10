@@ -1,7 +1,7 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.13.5-r20-live-panel-direct-entry-truth-final",
-  "description": "AGROS ST2 v6.13.5-R20: direct 30s live-panel transport isolation, delivery telemetry, and truthful CONFIRMED Entry Evolution messaging.",
+  "version": "6.13.5-r21-15m-confirmed-timeframe-authority-final",
+  "description": "AGROS ST2 v6.13.5-R21: restore CONFIRMED real-entry authority to closed 15m Renko reversal + offset; 1m Renko ST remains final sniper confirmation; R20 direct live panel preserved.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -56,7 +56,7 @@
     "test:v6144": "node test_v6144_live_panel_runtime_cadence.js && node test_v6145_1m_renko_st_readiness.js",
     "test:v6145": "node test_v6145_1m_renko_st_readiness.js",
     "test:telegram": "node --check bot.js && node --check 1_hafiza.js && node --check 2_rapor.js && node --check 72_st2_renko_entry.js && node --check 92_st2_live_panel_scheduler.js && node --check revizyon.js && node test_v6142_startup_panel_guard.js && node test_v6143_telegram_live_panel_delivery_truth.js && node test_v6144_live_panel_runtime_cadence.js && node test_v6145_1m_renko_st_readiness.js",
-    "test:fast": "npm run test:telegram && node test_v672_single_delivery_safe_exit.js && node test_v610_real_order_execution_safety.js && node test_v6105_active_exit_report_reconciliation.js && node test_v6109_final_chain_reconciliation.js && node test_v6110_golden_live_chain.js && node test_v6112_direct_profit_floor_two_slot.js && node test_v6122_golden_renko_williams_shadow.js && node test_v6123_renko_entry_confirmation_shadow.js && node test_v6140_market_data_transport_stability.js && node test_v6141_market_data_known_good_rollback.js && node test_v6153_r12_main_loop_lifecycle.js && node test_v6154_r12_live_liveness_recovery.js && node test_v6155_renko_scan_cpu_liveness.js && node test_v6156_1m_st_cache_failclosed_scan.js && node test_v6149_market_price_fallback_live_chain.js && node test_v6150_entry_authority_end_to_end.js && node test_v6157_unified_live_recovery.js && node test_v6158_nonblocking_control_plane_liveness.js && node test_v6159_live_cpu_isolation.js && node test_v6160_live_panel_direct_entry_truth.js",
+    "test:fast": "npm run test:telegram && node test_v672_single_delivery_safe_exit.js && node test_v610_real_order_execution_safety.js && node test_v6105_active_exit_report_reconciliation.js && node test_v6109_final_chain_reconciliation.js && node test_v6110_golden_live_chain.js && node test_v6112_direct_profit_floor_two_slot.js && node test_v6122_golden_renko_williams_shadow.js && node test_v6123_renko_entry_confirmation_shadow.js && node test_v6140_market_data_transport_stability.js && node test_v6141_market_data_known_good_rollback.js && node test_v6153_r12_main_loop_lifecycle.js && node test_v6154_r12_live_liveness_recovery.js && node test_v6155_renko_scan_cpu_liveness.js && node test_v6156_1m_st_cache_failclosed_scan.js && node test_v6149_market_price_fallback_live_chain.js && node test_v6150_entry_authority_end_to_end.js && node test_v6157_unified_live_recovery.js && node test_v6158_nonblocking_control_plane_liveness.js && node test_v6159_live_cpu_isolation.js && node test_v6160_live_panel_direct_entry_truth.js && node test_v6161_15m_confirmed_timeframe_authority.js",
     "test:full": "npm run check",
     "test:v6153": "node test_v6153_r12_main_loop_lifecycle.js",
     "test:v6154": "node test_v6154_r12_live_liveness_recovery.js",
@@ -65,7 +65,8 @@
     "test:v6157": "node test_v6157_unified_live_recovery.js",
     "test:v6158": "node test_v6158_nonblocking_control_plane_liveness.js",
     "test:v6159": "node test_v6159_live_cpu_isolation.js",
-    "test:v6160": "node test_v6160_live_panel_direct_entry_truth.js"
+    "test:v6160": "node test_v6160_live_panel_direct_entry_truth.js",
+    "test:v6161": "node test_v6161_15m_confirmed_timeframe_authority.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

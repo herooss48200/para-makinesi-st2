@@ -37,7 +37,7 @@ try {
   assert.strictEqual(decision.selectedMode,'CONFIRMED','olgun exact-pattern CONFIRMED kanıtı gerçek zamanlamayı devralmalı');
   assert.strictEqual(decision.selectedOffsetT,0.50,'CONFIRMED offset exact pattern profilinden seçilmeli');
   assert.strictEqual(decision.confirmed.evidenceScope,'EXACT_PATTERN');
-  const target = policy.confirmationTarget({yon:'LONG',olusumZamani:100,entryModeDecisionAtSignal:decision},[],2,300);
+  const target = policy.confirmationTarget({yon:'LONG',sonKapaliTuglaZamani:100,entryModeDecisionAtSignal:decision},[{color:'RED',close:98,closeTime:100},{color:'GREEN',close:100,closeTime:200}],2,300);
   assert.strictEqual(target.ready,true);
   assert.strictEqual(target.targetPrice,101);
 

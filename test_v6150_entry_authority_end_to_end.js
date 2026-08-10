@@ -5,7 +5,7 @@ const Module = require('module');
 const calls=[];
 const state={
   canliFiyatlar:{},
-  st2Renko:{pusular:{},seriler:{},onaySerileri1m:{},sonPatternSignature:{},pusuTelegramBildirimleri:{},sonIptalPatternSignature:{},boxSize:{},onayBoxSize1m:{TESTUSDT:1}}
+  st2Renko:{pusular:{},seriler:{TESTUSDT:[{color:'RED',close:100,closeTime:200}]},onaySerileri1m:{},sonPatternSignature:{},pusuTelegramBildirimleri:{},sonIptalPatternSignature:{},boxSize:{TESTUSDT:1},onayBoxSize1m:{TESTUSDT:99}}
 };
 const h={state};
 const ayarlar={renkoKaynakPeriyodu:'15m',renkoOnayPeriyodu:'1m',renkoBbTemasToleransTugla:0.25,renkoProofConsoleAktif:false};
@@ -89,7 +89,7 @@ function basePusu(mode){
   assert.strictEqual(confirmedOk,true);
   assert.strictEqual(calls.length,2,'CONFIRMED valid trigger must reach the SAME pozisyonAc layer exactly once');
   assert.strictEqual(calls[1].girisAnalizi.entryMode,'CONFIRMED');
-  assert.strictEqual(calls[1].girisAnalizi.entryTimingAuthority,'CLOSED_RENKO_REVERSAL_CONFIRMATION');
+  assert.strictEqual(calls[1].girisAnalizi.entryTimingAuthority,'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET_1M_ST');
   assert.strictEqual(confirmedAudit.birlikteUygun,1);
   assert.strictEqual(confirmedAudit.pozisyonAcildi,1);
   assert.strictEqual(confirmedAudit.entryModeConfirmed,1);
