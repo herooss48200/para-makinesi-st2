@@ -1,0 +1,19 @@
+AGROS ST2 v6.13.5-R20 — TEST RESULT
+
+Artifact workspace:
+- npm test: PASS
+- test_v674_full_source_syntax.js: PASS (169 JavaScript files)
+- v6.13.5-R20 live panel direct + entry truth: PASS
+
+Critical preserved proofs from npm test:
+- R18 unified live recovery compatibility: PASS
+- R19 nonblocking control-plane liveness: PASS
+- R19 live CPU isolation: PASS
+- DIRECT + CONFIRMED entry authority end-to-end: PASS
+
+R20 scope:
+- 30s operation panel edit transport bypasses generic bulk/detail queue via direct panel lane.
+- Panel delivery freshness is visible in RAM-only operation panel.
+- 3-minute new-bubble cadence is preserved; 30-second cadence is in-place edit.
+- CONFIRMED pusu no longer renders unknown future absolute target as 0.000000000.
+- Trade/entry/exit/stop/Premier math unchanged.

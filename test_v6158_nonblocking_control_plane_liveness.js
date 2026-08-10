@@ -61,7 +61,7 @@ const Module = require('module');
     st2ExchangeReconcileIntervalMs:5000, st2ExchangeReconcileFreshMs:15000, futuresTickerTimeoutMs:6000, futuresTickerRetry:0
   };
   const rapor={raporTalepEt(){}};
-  const versiyon={botSurumu:'6.13.5-R19-LIVE-CPU-ISOLATION-FINAL',kisaOzet(){return this.botSurumu;},telegramOzet(){return this.botSurumu;}};
+  const versiyon={botSurumu:'6.13.5-R20-LIVE-PANEL-DIRECT-ENTRY-TRUTH-FINAL',kisaOzet(){return this.botSurumu;},telegramOzet(){return this.botSurumu;}};
   const kalici={yukle(){},kaydet(){}};
   const network={
     configure(){},

@@ -493,6 +493,10 @@ function st2HafifCanliRaporMetniOlustur() {
     const binanceSaat = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy: false, offsetMs: 0 };
     const tgSaglik = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0, transport: {} };
     const tgTransport = tgSaglik.transport || {};
+    const tgPanel = tgSaglik.livePanel || {};
+    const panelDeliveryTs = Date.parse(tgPanel.lastDeliveredAt || '') || 0;
+    const panelDeliveryAgeMs = panelDeliveryTs > 0 ? Math.max(0, Date.now() - panelDeliveryTs) : null;
+    const panelDeliveryText = panelDeliveryAgeMs == null ? 'YOK' : `${Math.round(panelDeliveryAgeMs / 1000)}sn/${String(tgPanel.lastMode || 'YOK')}`;
     const priceRuntime = h.state.st2PriceRuntime || {};
     const priceCoverage = priceRuntime.coverage || {};
     const exchangeRec = h.state.st2ExchangeReconciliation || {};
@@ -528,7 +532,7 @@ function st2HafifCanliRaporMetniOlustur() {
         `📡 Hazır cache Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | 1m Veri ${veriSagligi.renko1mVeriHazir}/${veriSagligi.secilen} | 1m Renko ST ${veriSagligi.renko1mStHazir}/${veriSagligi.secilen} | Yetersiz ${veriSagligi.renko1mStYetersiz} | Derin onarım ${veriSagligi.renko1mStDerinOnarim} | Hata ${veriSagligi.hata} | Son Renko tarama ${veriSagligi.taranan}/${veriSagligi.taramaEvreni} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
         `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | Fiyat ${String(priceRuntime.source || 'BEKLIYOR')} ${Number(priceCoverage.fresh || 0)}/${Number(priceCoverage.total || 0)} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
         `🔁 Control Plane Mutabakat ${String(exchangeRec.status || (ayarlar.sanalEmirModu ? 'VIRTUAL' : 'BEKLIYOR'))}${exchangeAgeMs == null ? '' : ` ${Math.round(exchangeAgeMs / 1000)}sn`} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (entrySafety.ready === true ? 'READY' : `FAIL-CLOSED/${String(entrySafety.reason || 'NOT_READY')}`)} | Renko/Pusu bağımsız`,
-        `🧵 Renko tarama ${scanInProgress ? `ÇALIŞIYOR ${Math.round(scanAgeMs / 1000)}sn` : 'BEKLIYOR'} | Panel CPU=RAM-ONLY`,
+        `🧵 Renko tarama ${scanInProgress ? `ÇALIŞIYOR ${Math.round(scanAgeMs / 1000)}sn` : 'BEKLIYOR'} | Panel CPU=RAM-ONLY | 30sn DIRECT | Son teslim ${panelDeliveryText}`,
         `💰 Bot sonuç sayacı ✅${kTp} ❌${kSl} ⚖️${kBe} | Net ${kNet >= 0 ? '+' : ''}${kNet.toFixed(4)} | Bilimsel Premier/Shadow ağır ledger özeti 30sn panelden AYRILDI`,
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
         `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
@@ -581,6 +585,10 @@ function minimalCanliRaporMetniOlustur() {
     const binanceSaat = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy: false, offsetMs: 0 };
     const tgSaglik = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0, transport: {} };
     const tgTransport = tgSaglik.transport || {};
+    const tgPanel = tgSaglik.livePanel || {};
+    const panelDeliveryTs = Date.parse(tgPanel.lastDeliveredAt || '') || 0;
+    const panelDeliveryAgeMs = panelDeliveryTs > 0 ? Math.max(0, Date.now() - panelDeliveryTs) : null;
+    const panelDeliveryText = panelDeliveryAgeMs == null ? 'YOK' : `${Math.round(panelDeliveryAgeMs / 1000)}sn/${String(tgPanel.lastMode || 'YOK')}`;
     const priceRuntime = h.state.st2PriceRuntime || {};
     const priceCoverage = priceRuntime.coverage || {};
     const exchangeRec = h.state.st2ExchangeReconciliation || {};

@@ -62,6 +62,7 @@ const state = {
     cooldownBitis: 0,
     canliRaporMesajlari: {},
     canliRaporSonGonderimZamani: {},
+    canliRaporSonTeslimZamani: {},
     sonCanliRaporMetni: '',
     // v6.13.5-R10: Canlı panel metni yalnız gerçekten teslim edilen chat için ilerletilir.
     canliRaporSonMetinleri: {},
@@ -112,7 +113,7 @@ const telegramIsKuyruklari = { critical: [], panel: [], detail: [] };
 const telegramKuyrukLimitleri = { critical: 40, panel: 2, detail: 4 };
 let telegramKritikWorkerCalisiyor = false;
 let telegramBulkWorkerCalisiyor = false;
-const telegramSonIstekZamani = { critical: 0, bulk: 0 };
+const telegramSonIstekZamani = { critical: 0, panel: 0, bulk: 0 };
 let telegramCanliPanelWorkerCalisiyor = false;
 let telegramCanliPanelBekleyen = null;
 const telegramTransport = {
@@ -139,7 +140,8 @@ const telegramStats = {
     ambiguousDelivery: 0,
     errorLogsSuppressed: 0,
     lastDeliveryAt: null,
-    lastError: null
+    lastError: null,
+    livePanel: { requested: 0, delivered: 0, failed: 0, lastRequestedAt: null, lastDeliveredAt: null, lastMode: null }
 };
 
 function bekle(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -369,7 +371,7 @@ function telegramNativeIstegiAt(apiPath, veri, options = {}) {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(postData),
                 'Connection': freshConnection ? 'close' : 'keep-alive',
-                'User-Agent': 'AGROS-ST2/6.13.5-R18'
+                'User-Agent': 'AGROS-ST2/6.13.5-R20'
             }
         };
         // R18: req.setTimeout socket atamasından önce geçen DNS/connect/Agent beklemesini garanti etmez.
@@ -518,7 +520,7 @@ async function telegramDayanikliIstegiAt(apiPath, veri, options = {}) {
     const defaultRetry = priority === 'critical' ? TELEGRAM_RETRY_COUNT : 0;
     const retryCount = Math.max(0, Math.min(2, Number.isFinite(Number(options.retryCount)) ? Number(options.retryCount) : defaultRetry));
     for (let deneme = 0; deneme <= retryCount; deneme++) {
-        const lane = priority === 'critical' ? 'critical' : 'bulk';
+        const lane = priority === 'critical' ? 'critical' : (priority === 'panel' ? 'panel' : 'bulk');
         const gecen = Date.now() - telegramSonIstekZamani[lane];
         if (gecen < TELEGRAM_MIN_INTERVAL_MS) await bekle(TELEGRAM_MIN_INTERVAL_MS - gecen);
         telegramSonIstekZamani[lane] = Date.now();
@@ -533,6 +535,12 @@ async function telegramDayanikliIstegiAt(apiPath, veri, options = {}) {
     }
     if (!son?.ok && !son?.coalesced && !son?.dropped) telegramHataLogla(son, priority);
     return son || { ok: false, description: 'Telegram yanıtı alınamadı' };
+}
+
+function telegramPanelDirectIstegiAt(apiPath, veri, options = {}) {
+    // R20: Canlı panel zaten kendi latest-only worker'ında serialize edilir.
+    // Generic bulk/detail kuyruğuna tekrar sokmak paneli bilimsel/detail trafik arkasında bırakıyordu.
+    return telegramDayanikliIstegiAt(apiPath, veri, { ...options, priority: 'panel', retryCount: 0, directPanel: true });
 }
 
 function yerelTelegramIstegiAt(apiPath, veri, options = {}) {
@@ -663,8 +671,10 @@ async function telegramMesajDuzenle(chat_id, message_id, mesaj, options = {}) {
         const hazir = telegramGonderimHazirla(mesaj);
         const payload = { chat_id, message_id, text: hazir.text, disable_web_page_preview: true };
         if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
-        return await yerelTelegramIstegiAt('editMessageText', payload,
-            { ...options, priority: options.priority || 'panel', retryCount: Number.isFinite(Number(options.retryCount)) ? Number(options.retryCount) : 1, idempotent: true, coalesceKey: options.coalesceKey || `panel-edit:${chat_id}` });
+        const editOptions = { ...options, priority: options.priority || 'panel', retryCount: Number.isFinite(Number(options.retryCount)) ? Number(options.retryCount) : 1, idempotent: true, coalesceKey: options.coalesceKey || `panel-edit:${chat_id}` };
+        return options.directPanel === true
+            ? await telegramPanelDirectIstegiAt('editMessageText', payload, editOptions)
+            : await yerelTelegramIstegiAt('editMessageText', payload, editOptions);
     } catch (err) {
         return { ok: false, description: err.message };
     }
@@ -699,10 +709,16 @@ async function telegramCanliRaporTeslimEt(mesaj, oneCikar = false) {
 
         if (!yeniMesajGonder && kayitliMesajId) {
             if (sonBasariliMetin === guvenliMesaj) continue;
-            sonEditSonucu = await telegramMesajDuzenle(chat_id, kayitliMesajId, guvenliMesaj, { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel:${chat_id}` });
+            sonEditSonucu = await telegramMesajDuzenle(chat_id, kayitliMesajId, guvenliMesaj, { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel:${chat_id}`, directPanel: true });
             if (sonEditSonucu?.ok) {
                 state.canliRaporSonMetinleri[chat_id] = guvenliMesaj;
+                state.canliRaporSonTeslimZamani[chat_id] = Date.now();
                 state.sonCanliRaporMetni = guvenliMesaj;
+                telegramStats.livePanel.delivered++;
+                telegramStats.delivered.panel++;
+                telegramStats.lastDeliveryAt = new Date().toISOString();
+                telegramStats.livePanel.lastDeliveredAt = new Date().toISOString();
+                telegramStats.livePanel.lastMode = 'EDIT_DIRECT';
                 continue;
             }
             // Coalesced iş teslim kanıtı değildir. Yeni iş gerçekten teslim edilmeden hafıza ilerletilmez.
@@ -710,6 +726,8 @@ async function telegramCanliRaporTeslimEt(mesaj, oneCikar = false) {
             // Timeout/transport/ambiguous edit hatasında yeni sendMessage üretme: bu hem gecikmeyi
             // büyütür hem çift panel riski yaratır. Sonraki 30 sn tick aynı message_id'yi yeniden dener.
             if (!telegramEditYeniMesajGerektirir(sonEditSonucu)) {
+                telegramStats.livePanel.failed++;
+                telegramStats.failed.panel++;
                 telegramHataLogla({
                     ...sonEditSonucu,
                     description: `CANLI_PANEL_EDIT_RETRY_NEXT_TICK:${sonEditSonucu?.description || sonEditSonucu?.raw || 'bilinmeyen hata'}`
@@ -720,19 +738,25 @@ async function telegramCanliRaporTeslimEt(mesaj, oneCikar = false) {
 
         const payload = { chat_id, text: guvenliMesaj, disable_web_page_preview: true };
         if (hazir.parseMode) payload.parse_mode = hazir.parseMode;
-        let gonderim = await yerelTelegramIstegiAt('sendMessage', payload,
-            { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel:${chat_id}` });
+        let gonderim = await telegramPanelDirectIstegiAt('sendMessage', payload,
+            { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel:${chat_id}`, directPanel: true });
         if (!telegramMinimalModuAktif() && telegramDuzMetinFallbackUygun(gonderim)) {
-            gonderim = await yerelTelegramIstegiAt('sendMessage', {
+            gonderim = await telegramPanelDirectIstegiAt('sendMessage', {
                 chat_id, text: telegramHtmlTemizle(guvenliMesaj), disable_web_page_preview: true
-            }, { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel-plain:${chat_id}` });
+            }, { priority: 'panel', retryCount: 0, timeoutMs: panelTimeoutMs, coalesceKey: `live-panel-plain:${chat_id}`, directPanel: true });
         }
         if (gonderim?.ok && gonderim.result?.message_id) {
             const yeniMesajId = gonderim.result.message_id;
             state.canliRaporMesajlari[chat_id] = yeniMesajId;
             state.canliRaporSonGonderimZamani[chat_id] = now;
+            state.canliRaporSonTeslimZamani[chat_id] = Date.now();
             state.canliRaporSonMetinleri[chat_id] = guvenliMesaj;
             state.sonCanliRaporMetni = guvenliMesaj;
+            telegramStats.livePanel.delivered++;
+            telegramStats.delivered.panel++;
+            telegramStats.lastDeliveryAt = new Date().toISOString();
+            telegramStats.livePanel.lastDeliveredAt = new Date().toISOString();
+            telegramStats.livePanel.lastMode = 'SEND_DIRECT';
             if (kayitliMesajId && kayitliMesajId !== yeniMesajId && ayarlar.canliRaporEskiMesajiSil) {
                 // Eski panel temizliği yeni panel teslimini/worker'ı bekletmez; panel işleri detail temizliğinden önceliklidir.
                 Promise.resolve(telegramMesajSil(chat_id, kayitliMesajId, {
@@ -744,6 +768,8 @@ async function telegramCanliRaporTeslimEt(mesaj, oneCikar = false) {
 
         const teslimHatasi = gonderim || sonEditSonucu || { description: 'CANLI_RAPOR_TESLIM_SONUCU_YOK' };
         if (!teslimHatasi?.coalesced) {
+            telegramStats.livePanel.failed++;
+            telegramStats.failed.panel++;
             telegramHataLogla({
                 ...teslimHatasi,
                 description: `CANLI_RAPOR_TESLIM_EDILEMEDI:${teslimHatasi?.description || teslimHatasi?.raw || 'bilinmeyen hata'}`
@@ -777,6 +803,8 @@ async function telegramCanliPanelWorkerCalistir() {
 
 function telegramCanliRaporGuncelle(mesaj, oneCikar = false) {
     if (!TELEGRAM_TOKEN || TELEGRAM_CHAT_IDS.length === 0) return { queued: false, reason: 'TELEGRAM_NOT_CONFIGURED' };
+    telegramStats.livePanel.requested++;
+    telegramStats.livePanel.lastRequestedAt = new Date().toISOString();
     const once = oneCikar === true || telegramCanliPanelBekleyen?.oneCikar === true;
     const replaced = Boolean(telegramCanliPanelBekleyen);
     telegramCanliPanelBekleyen = { mesaj: String(mesaj || ''), oneCikar: once, queuedAt: Date.now() };
@@ -826,6 +854,7 @@ module.exports = {
         telegramEditYeniMesajGerektirir,
         telegramCanliPanelDurum: () => ({ workerCalisiyor: telegramCanliPanelWorkerCalisiyor, bekleyen: Boolean(telegramCanliPanelBekleyen) }),
         telegramPanelCircuitProbeUygun,
-        telegramNativeProbeIzinli
+        telegramNativeProbeIzinli,
+        telegramPanelDirectIstegiAt
     }
 };

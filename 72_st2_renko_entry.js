@@ -187,6 +187,16 @@ function fiyatFormatla(v) {
     return Math.abs(n) >= 1 ? n.toFixed(8) : n.toPrecision(10);
 }
 
+function pusuTetikSunumu(pusu) {
+    const mode = String(pusu?.entryMode || pusu?.entryModeDecisionAtSignal?.selectedMode || 'DIRECT').toUpperCase();
+    const rawOffset = Number(pusu?.entryModeOffsetT || pusu?.renkoEntryBrickDistance || entryEvolution.DEFAULT_BRICK());
+    const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : Number(entryEvolution.DEFAULT_BRICK());
+    if (mode === 'CONFIRMED') return `${offset.toFixed(2)}T → 1m dönüş sonrası hesaplanacak`;
+    const target = Number(pusu?.canliTetikFiyati);
+    const resolved = target > 0 ? target : canliTetikFiyati(pusu);
+    return `${offset.toFixed(2)}T → ${resolved > 0 ? fiyatFormatla(resolved) : 'GEÇERSİZ'}`;
+}
+
 function zamanFormatla(ts) {
     const n = Number(ts);
     if (!Number.isFinite(n) || n <= 0) return 'YOK';
@@ -215,7 +225,7 @@ function renkoKanitiMetni(sym, pusu, target, price, st) {
         `⏱️ Kaynak ${ayarlar.renkoKaynakPeriyodu || '15m'} kapanmış mum | ATR(${Number(ayarlar.renkoAtrPeriod || 14)}) | Box ${fiyatFormatla(pusu?.renkoBoxSize)}`,
         `📊 BB: Alt ${fiyatFormatla(bb.altBand)} | Orta ${fiyatFormatla(bb.ortaBand)} | Üst ${fiyatFormatla(bb.ustBand)}`,
         `📐 Band farkı: ${fiyatFormatla(bb.bandFarkFiyat)} fiyat / ${Number(bb.bandFarkTugla || 0).toFixed(4)} tuğla | Tolerans ${Number(bb.toleransTugla || 0).toFixed(2)} tuğla (${fiyatFormatla(bb.toleransFiyat)}) | Temas ${bb.temas ? 'TRUE ✅' : 'FALSE ❌'}`,
-        `🎯 Referans ${fiyatFormatla(pusu?.referansSeviye)} | Entry Evolution tetik ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${st?.trend || 'YOK'}`,
+        `🎯 Referans ${fiyatFormatla(pusu?.referansSeviye)} | Entry Evolution tetik ${Number(target) > 0 ? fiyatFormatla(target) : (String(pusu?.entryMode || '').toUpperCase() === 'CONFIRMED' ? `${Number(pusu?.entryModeOffsetT || pusu?.renkoEntryBrickDistance || 0.25).toFixed(2)}T / 1m dönüş sonrası` : 'YOK')} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${st?.trend || 'YOK'}`,
         `🧬 Son ${bricks.length} tuğla: ${dizi || 'YOK'}`,
         ...satirlar
     ].join('\n');
@@ -254,7 +264,8 @@ function yakinRedAdayiEkle(audit, sym, match, scenario, bricks, boxSize) {
 }
 
 function pusuOlusumKanitiMetni(sym, pusu) {
-    return renkoKanitiMetni(sym, pusu, tetikFiyati(pusu), Number(h.state.canliFiyatlar?.[sym] || 0), { trend: 'BEKLENIYOR' })
+    const olusumTarget = String(pusu?.entryMode || '').toUpperCase() === 'CONFIRMED' ? null : tetikFiyati(pusu);
+    return renkoKanitiMetni(sym, pusu, olusumTarget, Number(h.state.canliFiyatlar?.[sym] || 0), { trend: 'BEKLENIYOR' })
         .replace('🧱 ST2 RENKO/BINANCE KARŞILAŞTIRMA KANITI', '🪤 ST2 RENKO PUSU/BINANCE PROOF');
 }
 
@@ -455,7 +466,7 @@ ${sym} ${match.yon} | ${patternEtiketi}
 🧬 DNA ${gateOzeti.dnaId} | ${modEtiketi}${skorMetni}
 🧾 ${gateOzeti.reason}
 ${skorAciklama ? `${skorAciklama}
-` : ''}BB temas ✅ | Referans ${fiyatFormatla(yeniPusu.referansSeviye)} | Entry Evolution ${Number(yeniPusu.renkoEntryBrickDistance || entryEvolution.DEFAULT_BRICK()).toFixed(2)}T → ${fiyatFormatla(yeniPusu.canliTetikFiyati)}
+` : ''}BB temas ✅ | Referans ${fiyatFormatla(yeniPusu.referansSeviye)} | Entry Evolution ${pusuTetikSunumu(yeniPusu)}
 ⏳ Giriş: canlı fiyat Entry Evolution seviyesinde + 1m Renko SuperTrend aynı yön. ST1 yalnız gölge etiketi.`;
                     h.telegramMesajGonderTekil(kisaMesaj, { coalesceKey: `st2-yeni-pusu:${bildirimAnahtari}` })
                         .then(sonuclar => {
@@ -899,6 +910,7 @@ module.exports = {
     tetikFiyati,
     canliTetikFiyati,
     entryEvolutionShadowTetikFiyati,
+    pusuTetikSunumu,
     dnaKisaId,
     pusuGateOzeti,
     pusuBildirimHafizasiniTemizle,

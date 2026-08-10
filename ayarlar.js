@@ -495,12 +495,12 @@ const ayarlar = {
     // v6.8.3: Telegram yalnız operasyon ekranıdır. Bilimsel ayrıntılar state/ledger/loglarda kalır.
     telegramMinimalOperasyonModu: true,
     telegramMesajMaxKarakter: 3400,
-    telegramCanliPanelTimeoutMs: 6000, // panel freshness > uzun retry; Native->curl tek deneme, sonraki 30 sn doğal retry
+    telegramCanliPanelTimeoutMs: 6000, // R20: panel DIRECT lane; Native->curl bounded, generic bulk/detail kuyruğunu beklemez
     telegramDetayRaporlariAktif: false,
     telegramCanliRaporMaxPozisyon: 5,
     telegramAcilisPusuMaxSatir: 6,
     canliRaporAktif: true,
-    canliRaporGuncellemeMs: 30000, // aynı canlı panel içeriği/zamanı 30 sn cadence ile güncellenir
+    canliRaporGuncellemeMs: 30000, // her 30 sn mevcut panel edit edilir; yeni Telegram balonu değildir
     // v6.4.1: Büyük Entry/DNA/Renko replay raporları en fazla 5 dakikada bir kontrol edilir.
     st2DetayRaporMinAralikMs: 900000,
     st2DetayRaporStartupGecikmeMs: 180000,
@@ -508,7 +508,7 @@ const ayarlar = {
     st2GlobalHistoricalCacheMs: 300000,
     st2DetayRaporHeapLimitMb: 190,
     // Telegram editMessageText eski mesajı aşağı taşımaz. Bu süre dolunca eski ana tablo silinir ve yeni tablo en alta gönderilir.
-    canliRaporYenidenGondermeMs: 180000, // yeni Telegram balonu: 3 dk; 30 sn güncelleme editMessageText'tir
+    canliRaporYenidenGondermeMs: 180000, // her 3 dk panel yeni balon olarak alta taşınır; aradaki 30 sn güncellemeler edit'tir
     canliRaporEskiMesajiSil: true,
     telegramStopGuncellemeMesaji: false,
 
