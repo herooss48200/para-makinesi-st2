@@ -732,15 +732,24 @@ async function taraVeDegerlendir() {
     audit.bildirimHafizaTemizlenen = pusuBildirimHafizasiniTemizle(store);
     audit.evrenToplam = (h.state.semboller || []).length;
     for (const sym of h.state.semboller || []) {
-        const sembolBaslangicMs = Date.now();
-        let tAtrMs = 0, tRenkoMs = 0, tWilliamsMs = 0, tPatternMs = 0, tOnay1mMs = 0, tPusuMs = 0;
+        let sembolBaslangicMs = Date.now();
+        let tAtrMs = 0, tRenkoMs = 0, tWilliamsMs = 0, tExpireMs = 0, tBbMs = 0, tPatternMs = 0, tOnay1mMs = 0, tPusuMs = 0;
         const acikPozisyonVar = (h.state.alinanlar || []).includes(sym) || (h.state.aktifShortlar || []).includes(sym);
         if (acikPozisyonVar) audit.acikPozisyonAtlandi++;
         audit.sembol++;
         // R11: uzun 200-sembol taramada timer/Telegram/ağ callback'lerine düzenli fırsat ver.
         // Sembol sırası, hesaplama ve karar matematiği aynıdır; yalnız event-loop fairness sağlanır.
         const yieldEvery = Math.max(1, Number(ayarlar.renkoRuntimeYieldEverySembol || 8));
-        if (audit.sembol % yieldEvery === 0) await new Promise(resolve => setImmediate(resolve));
+        if (audit.sembol % yieldEvery === 0) {
+            const yieldBaslangic = Date.now();
+            await new Promise(resolve => setImmediate(resolve));
+            const yieldGecikmeMs = Date.now() - yieldBaslangic;
+            if (yieldGecikmeMs >= Math.max(250, Number(ayarlar.renkoEventLoopStarvationLogMs || 1000))) {
+                console.warn(`⚠️ [ST2 EVENT LOOP STARVATION] ${yieldGecikmeMs} ms | Sıradaki ${sym} | Renko tarama ${audit.sembol}/${audit.evrenToplam}`);
+            }
+            // Sembol performans ölçümü scheduler/event-loop beklemesini sembol hesabına yazmaz.
+            sembolBaslangicMs = Date.now();
+        }
         const candles = h.state.yerelPusuHafizasi?.[sym];
         if (!Array.isArray(candles) || candles.length === 0) audit.veriEksik++;
         audit.kaynakMumToplam += Array.isArray(candles) ? candles.length : 0;
@@ -777,10 +786,14 @@ async function taraVeDegerlendir() {
         tWilliamsMs = Date.now() - williamsBaslangicMs;
         if (acikPozisyonVar) continue; // Williams izlenir; yeni pusu/pozisyon üretilmez.
 
+        const expireBaslangicMs = Date.now();
         eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit);
+        tExpireMs = Date.now() - expireBaslangicMs;
         const bbPeriod = Number(ayarlar.renkoBollingerPeriod || ayarlar.bollingerperiod || 20);
         if (bricks.length < bbPeriod) { audit.red.BB_YETERSIZ++; continue; }
+        const bbBaslangicMs = Date.now();
         const bb = m.hesaplaBollinger(bricks.map(x => Number(x.close)));
+        tBbMs = Date.now() - bbBaslangicMs;
         if (!core.bollingerHazirMi(bb)) { audit.red.BB_GECERSIZ++; continue; }
         audit.bbHazir++;
         const patternBaslangicMs = Date.now();
@@ -795,7 +808,7 @@ async function taraVeDegerlendir() {
         const sembolToplamMs = Date.now() - sembolBaslangicMs;
         const slowEsikMs = Math.max(250, Number(ayarlar.renkoSlowSymbolLogMs || 1000));
         if (sembolToplamMs >= slowEsikMs) {
-            console.log(`🐢 [ST2 RENKO SLOW SYMBOL] ${sym} | Toplam ${sembolToplamMs} ms | ATR ${tAtrMs} | Renko15m ${tRenkoMs} | Williams ${tWilliamsMs} | Pattern/DNA ${tPatternMs} | 1mST ${tOnay1mMs} | PusuGate ${tPusuMs}`);
+            console.log(`🐢 [ST2 RENKO SLOW SYMBOL] ${sym} | Toplam ${sembolToplamMs} ms | ATR ${tAtrMs} | Renko15m ${tRenkoMs} | Williams ${tWilliamsMs} | Expire ${tExpireMs} | BB ${tBbMs} | Pattern/DNA ${tPatternMs} | 1mST ${tOnay1mMs} | PusuGate ${tPusuMs}`);
         }
         if (audit.sembol % 25 === 0 && Date.now() - taramaBaslangici >= 5000) {
             console.log(`⏱️ [ST2 RENKO SCAN İLERLEME] ${audit.sembol}/${audit.evrenToplam} | ${Date.now() - taramaBaslangici} ms | Son ${sym} | Renko ${audit.renkoHazir} | Pusu ${Object.keys(store.pusular || {}).length}`);

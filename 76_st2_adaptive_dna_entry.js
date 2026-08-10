@@ -23,6 +23,9 @@ const STATE_FILE = path.join(DATA_DIR, 'st2-adaptive-pattern-dna-entry.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
 const HISTORICAL_FILE = path.join(DATA_DIR, 'st2-historical-training.json');
 const HISTORICAL_LEDGER_FILE = path.join(DATA_DIR, 'st2-historical-training-ledger.jsonl');
+const ENTRY_EVOLUTION_STATE_FILE = path.join(DATA_DIR, 'st2-renko-entry-evolution.json');
+const TAKEOVER_STATE_FILE = path.join(DATA_DIR, 'st2-renko-exit-evolution.json');
+const PREMIER_CALIBRATION_FILE = path.join(DATA_DIR, 'st2-premier-score-calibration.json');
 const LAST_N = 3;
 const MIN_NET_EDGE = () => Math.max(0, Number(ayarlar.renkoDnaSon3MinNetFarki ?? 0.10));
 const MIN_RELATIVE_EDGE = () => Math.max(0, Number(ayarlar.renkoDnaSon3MinOransalFark ?? 0.15));
@@ -238,12 +241,29 @@ function latestLiveReview(state,context,brick,window=LAST_N,{completedBlock=true
   return {...review,brick:Number(key),window:size,blockNumber:completedBlock?end/size:null};
 }
 function latestCompletedLiveReview(state,context,brick){return latestLiveReview(state,context,brick,LAST_N,{completedBlock:true});}
+let premierCohortCache={signature:null,value:null};
 function premierCohortScores(){
   const idx=buildHistoricalIndex();
-  return Object.values(idx.dnas||{})
+  const policy=premierQuality.activePolicy();
+  // R19: cohort aynı tarihsel havuz + Entry/Takeover state + kalibrasyon değişmedikçe
+  // bit-bit aynıdır. Her yeni pusu için yüzlerce DNA skorunu yeniden hesaplamak yerine
+  // dosya imzasıyla cache kullanılır; karar matematiği değişmez.
+  const signature=[
+    historicalCache.signature||'-',
+    fileSig(ENTRY_EVOLUTION_STATE_FILE)||'-',
+    fileSig(TAKEOVER_STATE_FILE)||'-',
+    fileSig(PREMIER_CALIBRATION_FILE)||'-',
+    policy.source||'DEFAULT',
+    n(policy.minSample,3),
+    n(ayarlar.renkoPremierScoreMinOrnek,3)
+  ].join('|');
+  if(premierCohortCache.signature===signature&&Array.isArray(premierCohortCache.value))return premierCohortCache.value;
+  const value=Object.values(idx.dnas||{})
     .filter(x=>x?.best&&contextComplete(x.context)&&n(x.best.n)>=Math.max(1,n(ayarlar.renkoPremierScoreMinOrnek,3)))
-    .map(x=>premierQuality.scoreEvidence({context:x.context,historical:x.best}).score)
+    .map(x=>premierQuality.scoreEvidence({context:x.context,historical:x.best,policy}).score)
     .filter(Number.isFinite);
+  premierCohortCache={signature,value};
+  return value;
 }
 function gateDecision(source,fallbackBrick=0.75){
   const c=contextFrom(source);

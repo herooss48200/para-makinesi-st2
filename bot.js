@@ -403,7 +403,15 @@ async function baslat() {
                 if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
                     if (h.state.startupMarketReady === true) {
                         donguAsama = 'RENKO_SCAN';
-                        const st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
+                        h.state.st2RenkoScanInProgress = true;
+                        h.state.st2RenkoScanStartedAt = Date.now();
+                        let st2Audit;
+                        try {
+                            st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
+                        } finally {
+                            h.state.st2RenkoScanInProgress = false;
+                            h.state.st2RenkoScanFinishedAt = Date.now();
+                        }
                         donguAsama = 'POST_RENKO';
                         if (!ilkSt2TaramaTamamlandi) {
                             ilkSt2TaramaTamamlandi = true;

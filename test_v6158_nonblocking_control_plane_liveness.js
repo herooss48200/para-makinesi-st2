@@ -61,7 +61,7 @@ const Module = require('module');
     st2ExchangeReconcileIntervalMs:5000, st2ExchangeReconcileFreshMs:15000, futuresTickerTimeoutMs:6000, futuresTickerRetry:0
   };
   const rapor={raporTalepEt(){}};
-  const versiyon={botSurumu:'6.13.5-R18-NONBLOCKING-CONTROL-PLANE-FINAL',kisaOzet(){return this.botSurumu;},telegramOzet(){return this.botSurumu;}};
+  const versiyon={botSurumu:'6.13.5-R19-LIVE-CPU-ISOLATION-FINAL',kisaOzet(){return this.botSurumu;},telegramOzet(){return this.botSurumu;}};
   const kalici={yukle(){},kaydet(){}};
   const network={
     configure(){},
@@ -131,5 +131,5 @@ const Module = require('module');
   assert(motor.includes('ST2_CONTROL_PLANE_FAIL_CLOSED'),'real-order control-plane gate missing');
   assert(report.includes('Control Plane Mutabakat'),'panel control-plane observability missing');
   assert(hafiza.includes('TELEGRAM_HARD_TIMEOUT'),'Telegram native wall-clock deadline missing');
-  console.log('✅ v6.13.5-R18 nonblocking control-plane liveness passed | hung reconciliation cannot stop Renko/pusu + real entry remains fail-closed + panel observability + Telegram hard deadline');
+  console.log('✅ v6.13.5-R19 nonblocking control-plane liveness passed | hung reconciliation cannot stop Renko/pusu + real entry remains fail-closed + panel observability + Telegram hard deadline');
 })().catch(err=>{console.error(err.stack||err);process.exit(1);});

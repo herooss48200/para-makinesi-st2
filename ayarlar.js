@@ -147,7 +147,8 @@ const ayarlar = {
     renkoYakinRedKanitSayisi: 3,
     renkoPusuKanitTelegram: true, // yalnız kısa açılış özeti + kısa yeni pusu
     renkoProofConsoleAktif: false, // ayrıntılı 10-tuğla proof normal runtime konsolunu boğmasın; gerektiğinde true
-    renkoRuntimeYieldEverySembol: 8, // 200-coin taramada timer/Telegram/event-loop adaleti; karar matematiğini değiştirmez
+    renkoRuntimeYieldEverySembol: 2, // R19: 200-coin taramada Telegram/timer adaleti; karar matematiğini değiştirmez
+    renkoEventLoopStarvationLogMs: 1000, // setImmediate dönüşü gecikirse canlı CPU starvation kanıtı
     // v6.3.7: canlı pusu bildirim hafızası sınırlı ve süreli tutulur.
     renkoPusuBildirimHafizaSaat: 168,
     renkoPusuBildirimHafizaMax: 5000,

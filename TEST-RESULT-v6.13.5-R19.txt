@@ -1,0 +1,27 @@
+AGROS ST2 v6.13.5-R19 — TEST RESULT
+
+PASS: npm test
+- Telegram syntax + startup/panel cadence/readiness
+- real order safety
+- active exit reconciliation
+- final entry/exit chain
+- golden live chain
+- profit floor / trail
+- Williams + Renko confirmation lifecycle
+- market data contract / rollback / fallback
+- DIRECT + CONFIRMED shared real-entry authority
+- R17/R18 live recovery compatibility
+- hung exchange reconciliation cannot block Renko/pusu
+- NEW R19 live CPU isolation
+
+PASS: test_v6159_live_cpu_isolation.js
+- ST2 30sn panel heavy science functions içermez
+- Premier cohort cache + invalidation signature mevcut
+- Renko scan 2-symbol fairness mevcut
+- event-loop starvation kanıtı mevcut
+- Expire/BB/Pattern/DNA slow-stage observability mevcut
+- scan in-progress RAM state mevcut
+
+PASS: full-source syntax — 168 JavaScript files.
+
+NOTE: npm run test:full artifact sandboxında test:v673 aşamasında `dotenv` kurulu olmadığı için durdu. npm ci de sandbox internal registry'sinde `ws@7.5.11` bulunamadığından bağımlılık kuramadı. Bu nedenle full-suite AWS/iş bilgisayarında kurulu node_modules ile çalıştırılmalıdır. Kritik npm test paketi tamamı PASS.

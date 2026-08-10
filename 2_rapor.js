@@ -476,7 +476,74 @@ function st2ReplayKatmanOzeti(positions = []) {
     };
 }
 
+
+function st2HafifCanliRaporMetniOlustur() {
+    // R19 LIVE CPU ISOLATION:
+    // 30 sn operasyon paneli canlı trade event-loop'unda hiçbir ağır ledger/DNA/replay
+    // özeti çalıştırmaz. Yalnız RAM state ve aktif pozisyon görüntüsü kullanılır.
+    // Ağır bilimsel tablolar detay/log/state katmanında kalır.
+    const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
+    const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
+    const premierAktifler = aktifDagilim.premierPositions.filter(anaPremierPozisyonuMu);
+    const pusuKaynagi = ayarlar.entryStrategyMode === 'ST2_RENKO' ? h.state.st2Renko?.pusular : h.state.pusuListesi;
+    const pusular = Object.values(pusuKaynagi || {});
+    const pusuLong = pusular.filter(x => String(x.yon || '').toUpperCase() === 'LONG').length;
+    const pusuShort = pusular.filter(x => String(x.yon || '').toUpperCase() === 'SHORT').length;
+    const veriSagligi = st2VeriSagligiOzeti();
+    const binanceSaat = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy: false, offsetMs: 0 };
+    const tgSaglik = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0, transport: {} };
+    const tgTransport = tgSaglik.transport || {};
+    const priceRuntime = h.state.st2PriceRuntime || {};
+    const priceCoverage = priceRuntime.coverage || {};
+    const exchangeRec = h.state.st2ExchangeReconciliation || {};
+    const entrySafety = h.state.st2RealEntrySafety || {};
+    const exchangeAgeMs = Number(exchangeRec.lastOkAt || 0) > 0 ? Math.max(0, Date.now() - Number(exchangeRec.lastOkAt || 0)) : null;
+    const warm = h.state.startupMarketWarmup || {};
+    const firstScanPending = ayarlar.entryStrategyMode === 'ST2_RENKO'
+        && h.state.startupMarketReady === true
+        && h.state.st2FirstScanCompleted !== true
+        && Number(veriSagligi.taranan || 0) === 0;
+    const startupGate = h.state.startupMarketReady === true
+        ? (firstScanPending ? 'READY/FIRST_SCAN_PENDING' : 'READY')
+        : `${String(warm.durum || 'BEKLIYOR')}/${String(warm.asama || 'YOK')} ${Number(warm.islenen || 0)}/${Number(warm.toplam || veriSagligi.secilen || 0)}`;
+    const offsetMetni = `${Number(binanceSaat.offsetMs || 0) >= 0 ? '+' : ''}${Number(binanceSaat.offsetMs || 0)}ms`;
+    const scanInProgress = h.state.st2RenkoScanInProgress === true;
+    const scanAgeMs = scanInProgress && Number(h.state.st2RenkoScanStartedAt || 0) > 0
+        ? Math.max(0, Date.now() - Number(h.state.st2RenkoScanStartedAt || 0)) : 0;
+    const startupProof = h.state.st2SafeStartupSnapshot || {};
+    const stateN = Number.isFinite(Number(startupProof.stateCount)) ? Number(startupProof.stateCount) : null;
+    const ledgerN = Number.isFinite(Number(startupProof.ledgerCount)) ? Number(startupProof.ledgerCount) : null;
+    const stateLedgerText = stateN == null || ledgerN == null ? 'startup doğrulaması YOK' : `${stateN}/${ledgerN} ${stateN === ledgerN ? '✅' : '⚠️'} (startup)`;
+    const kasa = h.state.basariOzeti || {};
+    const kTp = Number(kasa.tp || 0), kSl = Number(kasa.sl || 0), kBe = Number(kasa.be || 0);
+    const kNet = Number(kasa.netKarZarar || 0);
+    const maxPozisyon = Math.max(1, Number(ayarlar.telegramCanliRaporMaxPozisyon || 5));
+    const sirali = [...premierAktifler].sort((a, b) => pozisyonKarYuzde(b) - pozisyonKarYuzde(a)).slice(0, maxPozisyon);
+    const saat = new Date().toLocaleTimeString('tr-TR', { hour12: false });
+    const lines = [
+        `📊 AGROS ST2 OPERASYON — ${require('./versiyon.js').botSurumu}`,
+        `🕒 ${saat} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
+        `🛡️ State/Ledger ${stateLedgerText} | Aktif ${aktifDagilim.total} | Gerçek ${aktifDagilim.real} | Score-Premier ${premierAktifler.length} | Shadow Öğrenme ${aktifDagilim.shadow} | GAP ${aktifDagilim.restartGap}`,
+        `🌐 Evren ${veriSagligi.secilen}/${veriSagligi.istenen} | Yükleme ${(veriSagligi.evrenMs / 1000).toFixed(1)} sn | Veri ${veriSagligi.durum}`,
+        `📡 Hazır cache Mum ${veriSagligi.mumHazir}/${veriSagligi.secilen} | 1m Veri ${veriSagligi.renko1mVeriHazir}/${veriSagligi.secilen} | 1m Renko ST ${veriSagligi.renko1mStHazir}/${veriSagligi.secilen} | Yetersiz ${veriSagligi.renko1mStYetersiz} | Derin onarım ${veriSagligi.renko1mStDerinOnarim} | Hata ${veriSagligi.hata} | Son Renko tarama ${veriSagligi.taranan}/${veriSagligi.taramaEvreni} ${(veriSagligi.taramaMs / 1000).toFixed(1)} sn | Eksik ${veriSagligi.veriEksik}`,
+        `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | Fiyat ${String(priceRuntime.source || 'BEKLIYOR')} ${Number(priceCoverage.fresh || 0)}/${Number(priceCoverage.total || 0)} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
+        `🔁 Control Plane Mutabakat ${String(exchangeRec.status || (ayarlar.sanalEmirModu ? 'VIRTUAL' : 'BEKLIYOR'))}${exchangeAgeMs == null ? '' : ` ${Math.round(exchangeAgeMs / 1000)}sn`} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (entrySafety.ready === true ? 'READY' : `FAIL-CLOSED/${String(entrySafety.reason || 'NOT_READY')}`)} | Renko/Pusu bağımsız`,
+        `🧵 Renko tarama ${scanInProgress ? `ÇALIŞIYOR ${Math.round(scanAgeMs / 1000)}sn` : 'BEKLIYOR'} | Panel CPU=RAM-ONLY`,
+        `💰 Bot sonuç sayacı ✅${kTp} ❌${kSl} ⚖️${kBe} | Net ${kNet >= 0 ? '+' : ''}${kNet.toFixed(4)} | Bilimsel Premier/Shadow ağır ledger özeti 30sn panelden AYRILDI`,
+        `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
+        `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
+        `🎯 Giriş Yetkisi Golden ST2 Renko | Entry Evolution CANLI | 1m Renko ST | ST1 yalnız GÖLGE`
+    ];
+    if (sirali.length) {
+        lines.push('', `📦 AKTİF SCORE-PREMIER (${sirali.length}/${premierAktifler.length})`);
+        lines.push(...sirali.map(pozisyonSatiri));
+    }
+    lines.push('', 'ℹ️ Canlı panel RAM-only çalışır; ağır bilimsel replay/DNA/ledger hesapları trade loop dışında tutulur.');
+    return telegramGuvenliMetin(lines.join('\n'));
+}
+
 function minimalCanliRaporMetniOlustur() {
+    if (ayarlar.entryStrategyMode === 'ST2_RENKO') return st2HafifCanliRaporMetniOlustur();
     const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
     const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
     const premierAktifler = aktifDagilim.premierPositions.filter(anaPremierPozisyonuMu);

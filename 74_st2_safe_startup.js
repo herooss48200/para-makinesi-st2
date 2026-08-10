@@ -14,6 +14,7 @@ function verifyOrThrow(){
   if(!Array.isArray(h.state.aktifPozisyonlar)) throw new Error('ST2_SAFE_STARTUP: aktifPozisyonlar dizisi yok.');
   const dataDir=process.env.AGROS_DATA_DIR?path.resolve(process.env.AGROS_DATA_DIR):path.join(__dirname,'data');
   if(!fs.existsSync(dataDir)) fs.mkdirSync(dataDir,{recursive:true});
+  h.state.st2SafeStartupSnapshot={stateCount,ledgerCount,verifiedAt:Date.now(),stateStatus:summary.health?.stateStatus||'UNKNOWN',ledgerStatus:summary.health?.ledgerStatus||'UNKNOWN'};
   console.log(`🛡️ [ST2 SAFE STARTUP] State/Ledger ${stateCount}/${ledgerCount} | Aktif ${h.state.aktifPozisyonlar.length} | FAIL-CLOSED OK`);
   return {ok:true,stateCount,ledgerCount,active:h.state.aktifPozisyonlar.length};
 }
