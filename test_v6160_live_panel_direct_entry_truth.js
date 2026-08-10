@@ -7,7 +7,7 @@ const r = read('2_rapor.js');
 const e = read('72_st2_renko_entry.js');
 const a = read('ayarlar.js');
 const v = require('./versiyon.js');
-assert.strictEqual(v.botSurumu, '6.13.5-R22.1-15M-CONFIRMED-SHADOW-LIVE-LEARNING-OBSERVABILITY-FINAL');
+assert.strictEqual(v.botSurumu, '6.13.5-R22.2-KASA-RECOVERY-DIRECT-FILTER-40USDT-POSTCLOSE-24H-FINAL');
 assert(h.includes('function telegramPanelDirectIstegiAt('), 'panel direct transport helper missing');
 assert(h.includes("priority === 'panel' ? 'panel' : 'bulk'"), 'panel must have independent request cadence lane');
 assert(h.includes("directPanel: true"), 'live panel edit/send must use direct lane');

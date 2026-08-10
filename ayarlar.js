@@ -14,9 +14,9 @@ const ayarlar = {
     // ========================================
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
-    // v6.10.3 LIVE SAFE: 2 USDT marjin x 5x = 10 USDT notional; gerçek 1/1, Shadow öğrenme ayrı.
-    // Sanal hesaplama ve raporlamada da aynı marjin tabanı kullanılır.
-    calisilmakIstenenUsdtMiktar: 2,
+    // v6.13.5-R22.2: toplam gerçek pozisyon büyüklüğü 40 USDT notional.
+    // 8 USDT marjin x 5x = 40 USDT notional; Shadow öğrenme aynı risk tabanını kullanır ama Binance emri göndermez.
+    calisilmakIstenenUsdtMiktar: 8,
     mevcutKaldirac: 5,
     maxPozisyonSayisi: 100,
 
@@ -174,6 +174,10 @@ const ayarlar = {
     // v6.12.2: Golden Renko geri dönüşü. Öğrenilmiş Entry Evolution 0.25T–1.50T kararı
     // canlı/sanal girişin fiyat yetkisidir; ST1 yalnız shadow etki etiketi olarak tutulur.
     renkoGirisCanliYetkiAktif: true,
+    // R22.2 kasa-kurtarma filtresi: yalnız DIRECT 0.50T ve 1.00T gerçek Binance emri alabilir.
+    // Diğer DIRECT tuğlaları canlı SHADOW öğrenmeye yönlendirilir. CONFIRMED bu filtreden muaftır.
+    gercekDirectTuglaFiltreAktif: true,
+    gercekDirectIzinliTuglalar: [0.50, 1.00],
     st2St1GirisKapisiAktif: false,
     st2St1KarsiYonPusuIptal: false,
     st2St1KarsiTrendPusuIptal: false,
@@ -691,7 +695,7 @@ const ayarlar = {
     // Tutar, kaldıraç, marjin ve aktif pozisyon limiti aşağıdaki ayarlardan yönetilir.
     gercekEmirOnayKodu: 'LIVE_TRADING_CONFIRMED',
     // Gerçek işlem riski yalnız bu AYARLAR SAYFASI üzerinden yönetilir.
-    // Marjin: calisilmakIstenenUsdtMiktar (2), kaldıraç: mevcutKaldirac (5); notional 10 USDT türetilir.
+    // Marjin: calisilmakIstenenUsdtMiktar (8), kaldıraç: mevcutKaldirac (5); notional 40 USDT türetilir.
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
@@ -702,6 +706,13 @@ const ayarlar = {
     canliShadowOgrenmeAktif: true,
     canliShadowMaksAktifGozlem: 200,
     canliShadowTelegramAcilisMesaji: false,
+    // R22.2: gerçek pozisyon kapandıktan sonra orijinal giriş fiyatına göre 24 saat bilimsel fiyat-yolu takibi.
+    // Canlı emir/stop/TP üzerinde hiçbir yetkisi yoktur; mevcut canliFiyatlar cache'ini okur, yeni ağ isteği üretmez.
+    postClose24hTakipAktif: true,
+    postCloseTakipSaat: 24,
+    postCloseTakipOrneklemeMs: 60000,
+    postCloseTakipStateKayitAraligiMs: 60000,
+    postCloseTakipTamamlananSakla: 1000,
     gercekEmirKorumaEmirleriZorunlu: true,
     gercekEmirMaksNotionalSapmaYuzde: 2,
     gercekEmirAnaAgZorunlu: true,

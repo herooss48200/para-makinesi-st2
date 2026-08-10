@@ -25,6 +25,7 @@ const accountingContinuity = require('./65_accounting_continuity.js');
 const operationTransparency = require('./82_st2_operation_transparency.js');
 const realExecution = require('./85_st2_real_order_execution.js');
 const closeLifecycle = require('./86_st2_close_lifecycle.js');
+const postClosePricePath = require('./95_st2_post_close_price_path.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -1149,6 +1150,24 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         virtualAccountIncluded: !leagueShadowOnly
     };
 
+    if (pos?.sanal === false) {
+        try {
+            const postClose = postClosePricePath.start(pos, {
+                entryPrice: gercekMuhasebe ? Number(hamGercekMuhasebe.entryPrice || pos.girisFiyati) : Number(pos.girisFiyati),
+                exitPrice: Number(kapanisFiyati),
+                closedAt: kapanisZamani,
+                reason: duzeltilmisSebep,
+                net: netKarZarar,
+                commission: toplamKomisyon
+            });
+            if (postClose?.accepted) {
+                console.log(`🔬 [POST-CLOSE 24H TAKİP BAŞLADI] ${pos.sym} ${pos.yon} | Giriş ${Number(pos.girisFiyati).toPrecision(8)} | Kapanış ${Number(kapanisFiyati).toPrecision(8)} | 24h boyunca emir etkisi YOK`);
+            }
+        } catch (e) {
+            console.log(`⚠️ [POST-CLOSE 24H TAKİP] ${pos.sym} ${pos.yon} | start ${e.message}`);
+        }
+    }
+
     let exitReplayRecord = null;
     if (!restartGapIslemi && !manuelDisKapanis) {
         pos.blackboxKapanis = await blackbox.snapshotAl(pos.sym, pos.yon, 'KAPANIS').catch(err => {
@@ -1497,6 +1516,22 @@ async function izSurmeyiGuncelle(options = {}) {
         } catch (e) {
             console.log(`⚠️ [RENKO ENTRY CONFIRMATION FULL TICK] ${e.message}`);
         }
+    }
+
+    try {
+        const postCloseTick = postClosePricePath.advance(h.state.canliFiyatlar || {}, Date.now());
+        for (const ev of postCloseTick.events || []) {
+            if (ev.type === 'CHECKPOINT') {
+                const cp = ev.snapshot || {};
+                console.log(`🔬 [POST-CLOSE ${ev.label}] ${ev.sym} ${ev.direction} | Anlık ${Number(cp.pct || 0) >= 0 ? '+' : ''}${Number(cp.pct || 0).toFixed(3)}% | Best ${Number(cp.bestPct || 0) >= 0 ? '+' : ''}${Number(cp.bestPct || 0).toFixed(3)}% | Worst ${Number(cp.worstPct || 0).toFixed(3)}% | Emir etkisi YOK`);
+                continue;
+            }
+            if (ev.type !== 'COMPLETE') continue;
+            const row = ev.row || {};
+            console.log(`📚 [POST-CLOSE 24H TAMAMLANDI] ${row.sym} ${row.direction} | Kapanış sonrası Best ${Number(row.bestPct || 0) >= 0 ? '+' : ''}${Number(row.bestPct || 0).toFixed(3)}% | Worst ${Number(row.worstPct || 0).toFixed(3)}% | Son ${Number(row.lastPct || 0) >= 0 ? '+' : ''}${Number(row.lastPct || 0).toFixed(3)}% | Emir etkisi YOK`);
+        }
+    } catch (e) {
+        console.log(`⚠️ [POST-CLOSE 24H TAKİP] advance ${e.message}`);
     }
 
     if (h.state.aktifPozisyonlar.length === 0) return { exchangeOk: true, reconciled: 0, closed: 0 };

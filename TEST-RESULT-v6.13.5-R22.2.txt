@@ -1,0 +1,26 @@
+AGROS ST2 v6.13.5-R22.2 TEST RESULT
+
+PASS - JavaScript syntax: ayarlar.js, motor.js, 72_st2_renko_entry.js, 4_pozisyon.js, 95_st2_post_close_price_path.js, 96_st2_filtered_direct_shadow.js, versiyon.js
+PASS - test_v6164_r222_kasa_recovery_40usdt_postclose.js
+  * 8 USDT margin x 5 = 40 USDT notional
+  * DIRECT real allowed list = [0.50T, 1.00T]
+  * CONFIRMED exempt from DIRECT filter
+  * invalid/missing ST2 entry mode fail-closed
+  * filtered DIRECT signals use separate non-blocking shadow lifecycle; no Binance order
+  * post-close 24h tracker catches -2%, +1%, +3%, checkpoints and completion ledger
+PASS - test_v6102_live_protection_recovery.js
+PASS - test_v6163_r221_confirmed_shadow_live_learning.js
+PASS - test_v6162_r22_15m_confirmed_bootstrap_evidence.js
+PASS - test_v6160_live_panel_direct_entry_truth.js
+PASS - test_v6112_direct_profit_floor_two_slot.js
+PASS - test_v6109_final_chain_reconciliation.js
+PASS - test_v6105_active_exit_report_reconciliation.js
+PASS - test_v6110_golden_live_chain.js
+PASS - test_v6122_golden_renko_williams_shadow.js
+PASS - test_v6140_market_data_transport_stability.js
+PASS - test_v6141_market_data_known_good_rollback.js
+PASS - test_v6142_startup_panel_guard.js
+PASS - test_v6143_telegram_live_panel_delivery_truth.js
+PASS - test_v6154_r12_live_liveness_recovery.js
+
+NOTE - Full npm dependency suite was not executed in the packaging container because project node_modules are not bundled. AWS npm test remains required before PM2 restart.

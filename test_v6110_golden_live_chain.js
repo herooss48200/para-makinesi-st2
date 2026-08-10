@@ -180,7 +180,7 @@ Module._load = function patched(request, parent, isMain) {
     assert.strictEqual(cooldownResult.reason, 'STOP_REPLACE_COOLDOWN');
     assert.strictEqual(cooldownResult.localFastFail, true);
     assert.strictEqual(cooldownNetworkCalls, 0, 'cooldown performed an unnecessary Binance call');
-    assert.strictEqual(version.botSurumu, '6.13.5-R22.1-15M-CONFIRMED-SHADOW-LIVE-LEARNING-OBSERVABILITY-FINAL');
+    assert.strictEqual(version.botSurumu, '6.13.5-R22.2-KASA-RECOVERY-DIRECT-FILTER-40USDT-POSTCLOSE-24H-FINAL');
     assert.strictEqual(op.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(real.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');

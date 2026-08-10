@@ -230,6 +230,34 @@ function hedefNotionalUsdt() {
         : Number(canliRiskProfili().notionalUsdt);
 }
 
+function gercekDirectTuglaKapisi(girisAnalizi = {}) {
+    const strategy = String(girisAnalizi?.entryStrategy || '').toUpperCase();
+    const mode = String(girisAnalizi?.entryMode || '').toUpperCase();
+    const brick = Number(girisAnalizi?.renkoEntryBrickDistance ?? girisAnalizi?.entryModeOffsetT);
+    if (ayarlar.gercekDirectTuglaFiltreAktif !== true) {
+        return { allowed: true, reason: 'FILTER_DISABLED', mode, brick };
+    }
+    if (strategy !== 'ST2_RENKO') {
+        return { allowed: true, reason: 'NON_ST2_EXEMPT', mode, brick };
+    }
+    if (mode === 'CONFIRMED') {
+        return { allowed: true, reason: 'CONFIRMED_EXEMPT', mode, brick };
+    }
+    if (mode !== 'DIRECT') {
+        return { allowed: false, reason: `ST2_ENTRY_MODE_INVALID_SHADOW_ONLY:${mode || 'MISSING'}`, mode, brick, allowedBricks: [] };
+    }
+    const allowedBricks = (Array.isArray(ayarlar.gercekDirectIzinliTuglalar) ? ayarlar.gercekDirectIzinliTuglalar : [])
+        .map(Number).filter(Number.isFinite);
+    const allowed = Number.isFinite(brick) && allowedBricks.some(x => Math.abs(x - brick) <= 1e-9);
+    return {
+        allowed,
+        reason: allowed ? 'DIRECT_T_ALLOWED' : `DIRECT_T_SHADOW_ONLY:${Number.isFinite(brick) ? brick.toFixed(2) : 'INVALID'}T`,
+        mode,
+        brick,
+        allowedBricks
+    };
+}
+
 function aktifGercekPozisyonSayisi() {
     return (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false).length;
 }
@@ -694,6 +722,15 @@ const m = {
                 });
             }
 
+            const directTuglaKapisi = gercekDirectTuglaKapisi(hazirKimlik.girisAnalizi || etkinGirisAnalizi);
+            if (!directTuglaKapisi.allowed) {
+                const izinli = (directTuglaKapisi.allowedBricks || []).map(x => Number(x).toFixed(2) + 'T').join(',');
+                const reason = `${directTuglaKapisi.reason}|ALLOWED:${izinli || 'NONE'}`;
+                console.log(`🛡️ [DIRECT T MOTOR FAIL-CLOSED] ${symbol} ${islemYonu} | ${Number(directTuglaKapisi.brick || 0).toFixed(2)}T gerçek emir YOK | İzinli ${izinli || 'YOK'} | Primary shadow lifecycle 72_st2_renko_entry otoritesidir`);
+                try { premierObservation.blocked(ortakKarar.key, reason, { symbol, side: islemYonu }); } catch (_) {}
+                return false;
+            }
+
             if (manualRealLock) {
                 return canliShadowOgrenmeAc({
                     symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
@@ -1054,7 +1091,8 @@ const m = {
 
     miktarKlip,
     gercekMiktarHedefeEnYakinKlip,
-    fiyatKlip
+    fiyatKlip,
+    gercekDirectTuglaKapisi
 };
 
 module.exports = m;

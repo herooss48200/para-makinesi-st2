@@ -64,11 +64,11 @@ Module._load=function(req,parent,isMain){
 (async()=>{
   try {
     const ayarlar=require('./ayarlar.js');
-    assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar,2);
+    assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar,8);
     assert.strictEqual(ayarlar.mevcutKaldirac,5);
     assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon,10);
     const bridge=require('./50_real_order_readiness_bridge.js');
-    assert.deepStrictEqual(bridge.liveRiskProfile(),{marginUsdt:2,notionalUsdt:10,leverage:5,marginType:'ISOLATED',maxActivePositions:10,protectionRequired:true});
+    assert.deepStrictEqual(bridge.liveRiskProfile(),{marginUsdt:8,notionalUsdt:40,leverage:5,marginType:'ISOLATED',maxActivePositions:10,protectionRequired:true});
     const executionSource=fs.readFileSync(path.join(__dirname,'85_st2_real_order_execution.js'),'utf8');
     const motorSource=fs.readFileSync(path.join(__dirname,'motor.js'),'utf8');
     assert(!executionSource.includes('record.maxActivePositions'),'kalıcı kayıt pozisyon limiti için ikinci kaynak olmamalı');

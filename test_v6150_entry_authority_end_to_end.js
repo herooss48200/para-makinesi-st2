@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 const assert = require('assert');
 const Module = require('module');
 
@@ -9,7 +9,41 @@ const state={
 };
 const h={state};
 const ayarlar={renkoKaynakPeriyodu:'15m',renkoOnayPeriyodu:'1m',renkoBbTemasToleransTugla:0.25,renkoProofConsoleAktif:false};
-const motor={pozisyonAc:async(sym,yon,price,girisAnalizi)=>{calls.push({sym,yon,price,girisAnalizi});return true;}};
+const motor={
+  gercekDirectTuglaKapisi:(girisAnalizi={})=>{
+    const mode=String(girisAnalizi.entryMode||'').toUpperCase();
+    const brick=Number(girisAnalizi.renkoEntryBrickDistance ?? girisAnalizi.entryModeOffsetT);
+    const allowedBricks=[0.5,1.0];
+
+    if(mode==='CONFIRMED'){
+      return {
+        allowed:true,
+        reason:'CONFIRMED_EXEMPT',
+        mode,
+        brick,
+        allowedBricks
+      };
+    }
+
+    const allowed=
+      mode==='DIRECT' &&
+      Number.isFinite(brick) &&
+      allowedBricks.some(x=>Math.abs(x-brick)<=1e-9);
+
+    return {
+      allowed,
+      reason:allowed ? 'DIRECT_T_ALLOWED' : 'DIRECT_T_SHADOW_ONLY',
+      mode,
+      brick,
+      allowedBricks
+    };
+  },
+
+  pozisyonAc:async(sym,yon,price,girisAnalizi)=>{
+    calls.push({sym,yon,price,girisAnalizi});
+    return true;
+  }
+};
 const core={};
 const entryEvolution={
   DEFAULT_BRICK:()=>0.5,
@@ -96,18 +130,19 @@ function basePusu(mode){
   assert.strictEqual(confirmedAudit.confirmedReady,1);
 
 
-  // CONFIRMED seçildi ama kapanmış dönüş henüz yoksa motor sessizce ölmez; neden audit'e açık yazılır.
+  // CONFIRMED seÃ§ildi ama kapanmÄ±ÅŸ dÃ¶nÃ¼ÅŸ henÃ¼z yoksa motor sessizce Ã¶lmez; neden audit'e aÃ§Ä±k yazÄ±lÄ±r.
   policy.confirmationTarget=(pusu,bricks,box)=>({ready:false,targetPrice:0,reason:'CLOSED_REVERSAL_NOT_FOUND'});
   state.st2Renko.pusular.TESTUSDT=basePusu('CONFIRMED');
   state.canliFiyatlar.TESTUSDT=100.3;
   const waitingAudit={pusuDegerlendirilen:0,fiyatEksik:0,fiyatBekleyen:0,fiyatTetigi:0,stOnayi:0,stReddi:0,st1GateUygun:0,st1GateBekleyen:0,birlikteUygun:0,pozisyonAcildi:0,pozisyonReddedildi:0};
   const waitingOk=await entry.pusuDegerlendir('TESTUSDT',{trend:'UP',bricks:[]},waitingAudit);
   assert.strictEqual(waitingOk,false);
-  assert.strictEqual(calls.length,2,'CONFIRMED dönüş beklerken pozisyonAc çağrılmamalı');
+  assert.strictEqual(calls.length,2,'CONFIRMED dÃ¶nÃ¼ÅŸ beklerken pozisyonAc Ã§aÄŸrÄ±lmamalÄ±');
   assert.strictEqual(waitingAudit.entryModeConfirmed,1);
   assert.strictEqual(waitingAudit.confirmedWaiting,1);
   assert.strictEqual(waitingAudit.confirmedWaitReasons.CLOSED_REVERSAL_NOT_FOUND,1);
   assert.strictEqual(waitingAudit.fiyatBekleyen,1);
 
-  console.log('✅ v6.13.5-R16 entry authority end-to-end passed | DIRECT + CONFIRMED valid triggers reach shared pozisyonAc authority');
+  console.log('âœ… v6.13.5-R16 entry authority end-to-end passed | DIRECT + CONFIRMED valid triggers reach shared pozisyonAc authority');
 })().catch(e=>{console.error(e.stack||e);process.exit(1);});
+
