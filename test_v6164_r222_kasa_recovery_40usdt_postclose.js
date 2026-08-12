@@ -81,7 +81,7 @@ try {
   assert(fs.existsSync(tracker.LEDGER_FILE),'24h sonuç ledger yazılmalı');
 
   const version = require('./versiyon.js');
-  assert(String(version.botSurumu).includes('R22.2'));
+  assert(String(version.botSurumu).includes('R23'));
 
   console.log('✅ v6.13.5-R22.2 kasa recovery passed | 10 USDT notional | DIRECT real 0.50T/1.00T only | CONFIRMED exempt | post-close 24h no-order tracker');
 } finally {
