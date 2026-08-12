@@ -88,10 +88,22 @@ function premierScoreEvidence(pos) {
 }
 function plan(pos) {
   const a = pos?.renkoExitAssignment || {};
+  const managementMode = String(a.managementMode || '').toUpperCase();
+  const confirmedLongLife = managementMode === 'CONFIRMED_LONG_LIFE_R23';
   return {
     stopPct: n(ayarlar.sabitStopYuzdesi, 1.5), beTriggerPct: n(pos?.labBeTetikYuzde, n(ayarlar.breakevenTetikYuzde, 0.25)),
     beBufferPct: n(pos?.labBeTamponYuzde, n(ayarlar.breakevenTamponYuzde, 0.05)),
+    entryMode: String(a.entryModeAtOpen || pos?.girisAnalizi?.entryMode || '').toUpperCase() || 'DIRECT',
+    entryTimingAuthority: pos?.girisAnalizi?.entryTimingAuthority || '',
+    managementMode: a.managementMode || 'LEGACY_DIRECT_SAFE_FLOOR',
+    confirmedLongLife,
+    earlyEconomyBypassed: confirmedLongLife || a.earlyEconomyBypassed === true,
+    target1Pct: n(a.confirmedLongLifeTarget1Pct, n(ayarlar.renkoConfirmedLongLifeTarget1Yuzde, 1.50)),
+    target1Hit: pos?.renkoConfirmedLongLifeTarget1Hit === true,
+    target1HitPct: n(pos?.renkoConfirmedLongLifeTarget1HitPct, NaN),
     takeoverPct: n(a.assignedTakeoverPct, NaN), safeFloorPct: n(a.assignedSafeFloorPct, NaN),
+    earlyFloorArmProfitPct: n(a.assignedEarlyFloorArmProfitPct, NaN),
+    earlySafeFloorPct: n(a.assignedEarlySafeFloorPct, NaN),
     minimumNetProfitPct: n(a.assignedMinimumNetProfitPct, Math.max(0, n(a.assignedSafeFloorPct) - 0.10)),
     floorArmProfitPct: n(a.assignedFloorArmProfitPct, NaN),
     activationProfitPct: n(a.assignedActivationProfitPct, NaN), stopUpdateStepBricks: n(a.assignedStopUpdateStepBricks, NaN),
@@ -104,7 +116,11 @@ function openingText(pos, options = {}) {
   const digits = Number.isInteger(options.pricePrecision) ? options.pricePrecision : 6;
   const ga = pos?.girisAnalizi || {}; const p = plan(pos); const ctx = contextLines(pos);
   const entry = entryEvidence(pos); const exit = exitEvidence(pos); const takeover = takeoverReplayEvidence(pos); const quality = premierScoreEvidence(pos);
-  const brick = n(pos?.renkoPremierDecision?.activeBrick, n(ga.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)));
+  // CONFIRMED girişte rapor gerçek zamanlama offset'ini göstermeli; Premier/Entry Evolution
+  // tuğlası yalnız yeterlilik/kalite kanıtıdır ve gerçek tetik mesafesi değildir.
+  const brick = p.entryMode === 'CONFIRMED'
+    ? n(ga.renkoEntryBrickDistance, n(ga.entryModeOffsetT, n(ayarlar.renkoGirisTeyitVarsayilanTugla, 0.25)))
+    : n(pos?.renkoPremierDecision?.activeBrick, n(ga.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)));
   const sourceText = entrySource(pos);
   const learned = entry.samples > 0 && !/VARSAYILAN|GÜVENLİ|SAFE_DEFAULT|KANITI_YOK|N0/i.test(`${sourceText}|${entry.reason}`);
   const scorePremier = pos?.renkoPremierDecision?.premier === true || String(pos?.premierTrackAtOpen || pos?.labPremierDecision?.premierTrack || '').toUpperCase() === 'PREMIER_SCORE_RANKED';
@@ -138,6 +154,7 @@ function openingText(pos, options = {}) {
     `🧾 ${html(quality.explanation)}\n` +
     `📐 ${html(quality.components)}\n\n` +
     `🚪 <b>GİRİŞ KARARI / ENTRY REPLAY</b>\n` +
+    `Giriş modu: <b>${html(p.entryMode)}</b>${p.entryTimingAuthority ? ` | Otorite ${html(p.entryTimingAuthority)}` : ''}\n` +
     `Giriş seviyesi: <b>${brick.toFixed(2)} tuğla</b> | ${learned ? 'Entry Evolution öğrenilmiş atama' : 'Varsayılan/güvenli giriş'}\n` +
     `Seçim kaynağı: ${html(entrySource(pos))}\n` +
     `Giriş kanıtı: N${entry.samples} | PF ${Number.isFinite(entry.pf) ? entry.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entry.expectancy)} | Net ${compactEvidenceValue(entry.net)}\n` +
@@ -151,7 +168,9 @@ function openingText(pos, options = {}) {
     `Takeover: ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | ATR ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE %${Number.isFinite(p.captureRatio) ? (p.captureRatio * 100).toFixed(0) : 'YOK'}\n\n` +
     `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\n` +
     (String(p.liveMode).toUpperCase() === 'SAFE_COMMISSION_BRICK_TRAIL'
-      ? `Başlangıç SL ${price(pos?.sl, digits)} (-%${p.stopPct.toFixed(2)}) | Taban tetik +%${Number.isFinite(p.floorArmProfitPct) ? p.floorArmProfitPct.toFixed(2) : 'YOK'} | Brüt taban +%${Number.isFinite(p.safeFloorPct) ? p.safeFloorPct.toFixed(2) : 'YOK'} | Min net +%${p.minimumNetProfitPct.toFixed(2)} | Renko aktivasyon +%${Number.isFinite(p.activationProfitPct) ? p.activationProfitPct.toFixed(2) : 'YOK'} | Trail ${Number.isFinite(p.trailBricks) ? p.trailBricks.toFixed(2) : 'YOK'}T\n`
+      ? (p.confirmedLongLife
+        ? `Başlangıç SL ${price(pos?.sl, digits)} (-%${p.stopPct.toFixed(2)}) | <b>CONFIRMED LONG-LIFE</b> | Erken +%${Number.isFinite(p.earlyFloorArmProfitPct) ? p.earlyFloorArmProfitPct.toFixed(2) : '0.25'}→+%${Number.isFinite(p.earlySafeFloorPct) ? p.earlySafeFloorPct.toFixed(2) : '0.20'} kilidi KAPALI | K1 +%${Number.isFinite(p.floorArmProfitPct) ? p.floorArmProfitPct.toFixed(2) : 'YOK'}→+%${Number.isFinite(p.safeFloorPct) ? p.safeFloorPct.toFixed(2) : 'YOK'} | K2 Renko +%${Number.isFinite(p.activationProfitPct) ? p.activationProfitPct.toFixed(2) : 'YOK'} | Hedef-1 +%${p.target1Pct.toFixed(2)} (ölçüm, sabit TP değil) | Trail ${Number.isFinite(p.trailBricks) ? p.trailBricks.toFixed(2) : 'YOK'}T\n`
+        : `Başlangıç SL ${price(pos?.sl, digits)} (-%${p.stopPct.toFixed(2)}) | Taban tetik +%${Number.isFinite(p.floorArmProfitPct) ? p.floorArmProfitPct.toFixed(2) : 'YOK'} | Brüt taban +%${Number.isFinite(p.safeFloorPct) ? p.safeFloorPct.toFixed(2) : 'YOK'} | Min net +%${p.minimumNetProfitPct.toFixed(2)} | Renko aktivasyon +%${Number.isFinite(p.activationProfitPct) ? p.activationProfitPct.toFixed(2) : 'YOK'} | Trail ${Number.isFinite(p.trailBricks) ? p.trailBricks.toFixed(2) : 'YOK'}T\n`)
       : `Başlangıç SL ${price(pos?.sl, digits)} (-%${p.stopPct.toFixed(2)}) | Güvenlik TP ${price(pos?.tp, digits)} | K0 → BE +%${p.beTriggerPct.toFixed(2)}\n`) +
     `🔒 <b>SABİTLENENLER</b>: Giriş, başlangıç risk profili ve atanan replay profilleri kapanana kadar değişmez.\n` +
     `🔄 <b>DİNAMİK ÇALIŞACAKLAR</b>: Renko zirvesi, öğrenilmiş tuğla takip mesafesi ve gerçekleşen kapanış fiyatı; ATR/MFE yalnız bilimsel gölge replay.` +
@@ -161,15 +180,17 @@ function timelineSummary(pos, digits = 6) {
   const events = Array.isArray(pos?.renkoProtectionTimeline) ? pos.renkoProtectionTimeline : [];
   const takeover = events.find(e => ['TAKEOVER_ACTIVE','BRICK_TRAIL_ACTIVE'].includes(e?.type));
   const floorLock = events.find(e => e?.type === 'PROFIT_FLOOR_LOCKED');
+  const target1 = events.find(e => e?.type === 'CONFIRMED_LONG_LIFE_TARGET1_HIT');
   const peaks = events.filter(e => e?.type === 'NEW_PEAK'); const stops = events.filter(e => e?.type === 'STOP_MOVED');
   const lines = [`${timeText(pos?.acilisZamani)} — K0 başlangıç koruması`];
   if (floorLock) lines.push(`${timeText(floorLock.at)} — K1 Kâr tabanı kilitlendi | ${price(floorLock.stop, digits)} | ${pct(floorLock.grossSafeFloorPct, 2)}`);
   else if (pos?.breakevenAktif === true) lines.push(`${timeText(pos?.breakevenAktifAt || pos?.breakevenZamani)} — K1 BE/BE+`);
   if (takeover) lines.push(`${timeText(takeover.at)} — K2 Takeover | ${price(takeover.price, digits)} | ${pct(takeover.profitPct, 2)}`);
+  if (target1) lines.push(`${timeText(target1.at)} — CONFIRMED Hedef-1 görüldü | ${pct(target1.profitPct, 2)} | ${price(target1.price, digits)}`);
   if (peaks.length) { const x = peaks.at(-1); lines.push(`${timeText(x.at)} — MFE zirvesi ${pct(x.peakProfitPct, 3)}`); }
   if (stops.length) { const x = stops.at(-1); lines.push(`${timeText(x.at)} — Son dinamik stop ${price(x.stop, digits)} | Güncelleme ${stops.length}`); }
   if (!takeover) lines.push('Takeover eşiğine ulaşılmadı; K0/K1 yönetiminde kapandı.');
-  return { lines, takeover, floorLock, peaks, stops };
+  return { lines, takeover, floorLock, target1, peaks, stops };
 }
 function closingText(pos, ctx = {}) {
   const digits = Number.isInteger(ctx.pricePrecision) ? ctx.pricePrecision : 6;
@@ -188,10 +209,12 @@ function closingText(pos, ctx = {}) {
     `⭐ Açılış Premier Score ${quality.score.toFixed(1)}/${quality.threshold.toFixed(1)} | Sıra #${quality.rank}/${quality.cohortSize}\n` +
     `⏱️ ${html(ctx.openedAtText || 'YOK')} → ${html(ctx.closedAtText || 'YOK')} | ${html(ctx.durationText || 'YOK')}\n` +
     `Giriş ${price(pos?.girisFiyati, digits)} → Çıkış ${price(ctx.exitPrice, digits)}\n\n` +
-    `🚪 <b>GİRİŞ KARARI / ENTRY REPLAY</b>\nGiriş ${n(pos?.girisAnalizi?.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)).toFixed(2)} tuğla | N${entry.samples} | PF ${Number.isFinite(entry.pf) ? entry.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entry.expectancy)}\n\n` +
+    `🚪 <b>GİRİŞ KARARI / ENTRY REPLAY</b>\nMod ${html(p.entryMode)} | Giriş ${n(pos?.girisAnalizi?.renkoEntryBrickDistance, n(ayarlar.renkoGirisVarsayilanTugla, 0.75)).toFixed(2)} tuğla | N${entry.samples} | PF ${Number.isFinite(entry.pf) ? entry.pf.toFixed(2) : 'YOK'} | Exp ${compactEvidenceValue(entry.expectancy)}\n\n` +
     `🛡️ <b>AÇILIŞ YÖNETİM PLANI</b>\n` +
     (String(p.liveMode).toUpperCase() === 'SAFE_COMMISSION_BRICK_TRAIL'
-      ? `SL -%${p.stopPct.toFixed(2)} | Taban tetik +%${Number.isFinite(p.floorArmProfitPct) ? p.floorArmProfitPct.toFixed(2) : 'YOK'} | Brüt taban +%${Number.isFinite(p.safeFloorPct) ? p.safeFloorPct.toFixed(2) : 'YOK'} | Min net +%${p.minimumNetProfitPct.toFixed(2)} | Renko aktivasyon +%${Number.isFinite(p.activationProfitPct) ? p.activationProfitPct.toFixed(2) : 'YOK'} | Trail ${Number.isFinite(p.trailBricks) ? p.trailBricks.toFixed(2) : 'YOK'}T\nATR/MFE gölge: Takeover ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | ATR ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE %${Number.isFinite(p.captureRatio) ? (p.captureRatio * 100).toFixed(0) : 'YOK'}\n\n`
+      ? (p.confirmedLongLife
+        ? `SL -%${p.stopPct.toFixed(2)} | CONFIRMED LONG-LIFE | Erken ekonomi kilidi KAPALI | K1 +%${Number.isFinite(p.floorArmProfitPct) ? p.floorArmProfitPct.toFixed(2) : 'YOK'}→+%${Number.isFinite(p.safeFloorPct) ? p.safeFloorPct.toFixed(2) : 'YOK'} | K2 +%${Number.isFinite(p.activationProfitPct) ? p.activationProfitPct.toFixed(2) : 'YOK'} | Hedef-1 +%${p.target1Pct.toFixed(2)} ${p.target1Hit ? 'GÖRÜLDÜ ✅' : 'GÖRÜLMEDİ'} | Trail ${Number.isFinite(p.trailBricks) ? p.trailBricks.toFixed(2) : 'YOK'}T\nATR/MFE gölge: Takeover ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | ATR ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE %${Number.isFinite(p.captureRatio) ? (p.captureRatio * 100).toFixed(0) : 'YOK'}\n\n`
+        : `SL -%${p.stopPct.toFixed(2)} | Taban tetik +%${Number.isFinite(p.floorArmProfitPct) ? p.floorArmProfitPct.toFixed(2) : 'YOK'} | Brüt taban +%${Number.isFinite(p.safeFloorPct) ? p.safeFloorPct.toFixed(2) : 'YOK'} | Min net +%${p.minimumNetProfitPct.toFixed(2)} | Renko aktivasyon +%${Number.isFinite(p.activationProfitPct) ? p.activationProfitPct.toFixed(2) : 'YOK'} | Trail ${Number.isFinite(p.trailBricks) ? p.trailBricks.toFixed(2) : 'YOK'}T\nATR/MFE gölge: Takeover ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | ATR ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE %${Number.isFinite(p.captureRatio) ? (p.captureRatio * 100).toFixed(0) : 'YOK'}\n\n`)
       : `SL -%${p.stopPct.toFixed(2)} | Takeover ${Number.isFinite(p.takeoverPct) ? `+%${p.takeoverPct.toFixed(2)}` : 'YOK'} | ATR ${Number.isFinite(p.atrMultiplier) ? `${p.atrMultiplier.toFixed(2)}×` : 'YOK'} | MFE hedef ${Number.isFinite(p.captureRatio) ? `%${(p.captureRatio * 100).toFixed(0)}` : 'YOK'}\n\n`) +
     `🧪 <b>EXIT REPLAY</b>\nExit ${exit.status} N${exit.samples} | ${html(exit.label)} | ${html(exit.reason)}\n\n` +
     `🧬 <b>TAKEOVER REPLAY</b>\n${html(takeoverProof.status)} | N${takeoverProof.samples} | ${html(takeoverProof.reason)}\n\n` +

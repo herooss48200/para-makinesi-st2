@@ -37,7 +37,7 @@ Module._load = function(req, parent, isMain) {
 
 try {
   const ayarlar = require('./ayarlar.js');
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon,10,'gerçek aktif pozisyon kapasitesi 10 olmalı');
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon,5,'gerçek aktif pozisyon kapasitesi güncel R23.1 sözleşmesinde 5 olmalı');
   const policy = require('./90_st2_renko_entry_mode_policy.js');
   const decision = policy.select({yon:'LONG',patternKodu:'RRRR'});
   assert.strictEqual(decision.selectedMode,'CONFIRMED','olgun exact-pattern CONFIRMED kanıtı gerçek zamanlamayı devralmalı');

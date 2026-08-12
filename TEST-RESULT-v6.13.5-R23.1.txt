@@ -1,0 +1,29 @@
+AGROS ST2 v6.13.5-R23.1 TEST RESULT
+Date: 12.08.2026
+Version: 6.13.5-R23.1-CONFIRMED-FROZEN-LONG-LIFE-10USDT-POSTCLOSE-24H-FINAL
+
+FINAL CLEAN PACKAGE TESTS
+- npm test / test:fast: PASS (RC=0) after removing node_modules.
+- Full source syntax: PASS, 178 JavaScript files.
+- New R23.1 regression test: PASS.
+
+FULL REGRESSION
+- npm run check: PASS (RC=0), 59 pass markers in the completed run.
+- The execution environment had no npm-registry DNS access, so only the two import-time modules needed by old isolated LAB tests (dotenv and binance-api-node) were supplied as temporary offline test adapters.
+- Those adapters were removed before the final clean-package test and are NOT present in the release ZIP.
+- No production source code was changed to accommodate the adapters.
+
+R23.1 REGRESSION CONTRACTS VERIFIED
+1. New real entry authority is forced CONFIRMED.
+2. CONFIRMED decision/offset is frozen per pusu.
+3. Existing legacy DIRECT pusu migrates once under force-confirmed.
+4. Closed 15m Renko reversal + offset remains timing authority.
+5. 1m Renko ST remains final sniper confirmation.
+6. CONFIRMED long-life bypasses the early +0.25% economy floor.
+7. K1 +0.50% -> approximately +0.40% floor remains active.
+8. K2 +0.60% Renko management activation remains active.
+9. Target-1 +1.50% is measured and logged, not forced as a fixed TP.
+10. DIRECT legacy behavior remains compatible if force-confirmed is deliberately disabled.
+11. Current live risk contract: 5 USDT margin x 2 = 10 USDT notional, max 5 real slots.
+12. Telegram/reporting shows the real CONFIRMED offset and correct long-life state.
+13. Restart recovery, market-data fail-closed, Telegram cadence and 24h post-close tracker remain green in regression.

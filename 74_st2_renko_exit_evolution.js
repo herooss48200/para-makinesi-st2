@@ -6,7 +6,8 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v6.13.5-R23-CONFIRMED-LONG-LIFE';
+const VERSION = 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT';
+const RUNTIME_VERSION = 'v6.13.5-R23.1-CONFIRMED-FROZEN-LONG-LIFE';
 const DATA_DIR = process.env.AGROS_DATA_DIR
   ? path.resolve(process.env.AGROS_DATA_DIR)
   : path.join(__dirname, 'data');
@@ -355,8 +356,17 @@ function assign(pos) {
     current.takeoverSource = current.takeoverSource || profile.source;
     current.trailSource = current.trailSource || profile.trailSource;
     current.liveExitMode = LIVE_MODE();
+    current.runtimePolicyVersion = RUNTIME_VERSION;
     current.atrMfeExecution = BRICK_LIVE_MODE() ? 'SHADOW_REPLAY_ONLY' : 'LIVE_COMPATIBILITY_MODE';
-    current.status = pos.renkoExitActivated ? 'ACTIVE' : (BRICK_LIVE_MODE() ? 'WAITING_COMMISSION_SAFE_PROTECTION' : 'WAITING_TAKEOVER');
+    if (current.managementMode === 'CONFIRMED_LONG_LIFE_R23') {
+      current.earlyEconomyBypassed = true;
+      current.confirmedLongLifeTarget1Pct = Math.max(0.01, n(current.confirmedLongLifeTarget1Pct, Number(ayarlar.renkoConfirmedLongLifeTarget1Yuzde ?? 1.50)));
+    }
+    current.status = pos.renkoExitActivated
+      ? 'ACTIVE'
+      : (BRICK_LIVE_MODE()
+        ? (current.managementMode === 'CONFIRMED_LONG_LIFE_R23' ? 'WAITING_CONFIRMED_K1_FLOOR' : 'WAITING_COMMISSION_SAFE_PROTECTION')
+        : 'WAITING_TAKEOVER');
     return current;
   }
   const trail = CANDIDATES().includes(n(profile.trail)) ? n(profile.trail) : DEFAULT_TRAIL();
@@ -369,6 +379,8 @@ function assign(pos) {
     profileKeyAtOpen: patternKey,
     entryModeAtOpen,
     managementMode: confirmedLongLifeAtOpen ? 'CONFIRMED_LONG_LIFE_R23' : 'LEGACY_DIRECT_SAFE_FLOOR',
+    runtimePolicyVersion: RUNTIME_VERSION,
+    earlyEconomyBypassed: confirmedLongLifeAtOpen,
     confirmedLongLifeTarget1Pct: confirmedLongLifeAtOpen ? confirmedLongLifeTarget1Pct : null,
     assignedTrailBricks: trail,
     assignedActivationProfitPct: activationPct,
@@ -393,8 +405,12 @@ function assign(pos) {
     liveExitMode: LIVE_MODE(),
     atrMfeExecution: BRICK_LIVE_MODE() ? 'SHADOW_REPLAY_ONLY' : 'LIVE_COMPATIBILITY_MODE',
     assignedAt: new Date().toISOString(),
-    activationMode: BRICK_LIVE_MODE() ? 'DIRECT_FLOOR_THEN_DIRECT_TRAIL_ACTIVATION' : 'SAFE_PROFIT_THEN_ATR_AND_MFE_CAPTURE',
-    status: BRICK_LIVE_MODE() ? 'WAITING_COMMISSION_SAFE_PROTECTION' : 'WAITING_TAKEOVER',
+    activationMode: BRICK_LIVE_MODE()
+      ? (confirmedLongLifeAtOpen ? 'CONFIRMED_LONG_LIFE_K1_FLOOR_THEN_RENKO_TRAIL' : 'DIRECT_FLOOR_THEN_DIRECT_TRAIL_ACTIVATION')
+      : 'SAFE_PROFIT_THEN_ATR_AND_MFE_CAPTURE',
+    status: BRICK_LIVE_MODE()
+      ? (confirmedLongLifeAtOpen ? 'WAITING_CONFIRMED_K1_FLOOR' : 'WAITING_COMMISSION_SAFE_PROTECTION')
+      : 'WAITING_TAKEOVER',
     takeoverLearningMode: 'SCIENTIFIC_CLOSE_REPLAY_NEW_POSITIONS_ONLY',
     positionSpecific: true,
     assignmentSchema: 'V6111_POSITION_FROZEN',
@@ -940,14 +956,22 @@ function update(pos, price) {
 function takeoverText(pos) {
   const a = pos.renkoExitAssignment || assign(pos);
   if (BRICK_LIVE_MODE()) {
+    const confirmedLongLife = a.managementMode === 'CONFIRMED_LONG_LIFE_R23';
+    const earlyLine = confirmedLongLife
+      ? `🟢 CONFIRMED Long-Life: +%${n(a.assignedEarlyFloorArmProfitPct, EARLY_FLOOR_ARM_PROFIT_PCT()).toFixed(2)} erken ekonomi kilidi BYPASS; başlangıç SL K1'e kadar korunur\n`
+      : `🟡 Erken ekonomi: +%${n(a.assignedEarlyFloorArmProfitPct, EARLY_FLOOR_ARM_PROFIT_PCT()).toFixed(2)} → stop +%${n(a.assignedEarlySafeFloorPct, EARLY_SAFE_FLOOR_MIN()).toFixed(2)}\n`;
+    const targetLine = confirmedLongLife
+      ? `🎯 Hedef-1: +%${n(a.confirmedLongLifeTarget1Pct, Number(ayarlar.renkoConfirmedLongLifeTarget1Yuzde ?? 1.50)).toFixed(2)} yalnız ölçüm; sabit TP değildir\n`
+      : '';
     return `🏁 <b>KOMİSYON GÜVENLİ RENKO KÂR TAKİBİ DEVREDE</b>\n\n` +
       `🔀 ${pos.sym} (${pos.yon})\n` +
       `🧩 Pattern: ${pos.girisAnalizi?.patternKodu || 'YOK'}\n` +
-      `🟡 Erken ekonomi: +%${n(a.assignedEarlyFloorArmProfitPct, EARLY_FLOOR_ARM_PROFIT_PCT()).toFixed(2)} → stop +%${n(a.assignedEarlySafeFloorPct, EARLY_SAFE_FLOOR_MIN()).toFixed(2)}\n` +
+      earlyLine +
       `🛡️ Güçlü taban kilitleme eşiği: %${n(a.assignedFloorArmProfitPct, FLOOR_ARM_PROFIT_PCT()).toFixed(2)}\n` +
       `🔒 Brüt güçlü kâr tabanı: %${Math.max(SAFE_FLOOR_MIN(), n(a.assignedSafeFloorPct)).toFixed(2)}\n` +
       `👑 Hedef minimum net: %${Math.max(0, n(a.assignedMinimumNetProfitPct, MIN_NET_PROFIT_PCT())).toFixed(2)}\n` +
       `🚀 Doğrudan Renko aktivasyonu: %${n(a.assignedActivationProfitPct, LIVE_ACTIVATION_PROFIT_PCT()).toFixed(2)}\n` +
+      targetLine +
       `🧱 Taban sonrası zirveden takip: ${n(a.assignedTrailBricks).toFixed(2)} tuğla\n` +
       `🔁 Stop güncelleme adımı: ${n(a.assignedStopUpdateStepBricks, STOP_UPDATE_STEP_BRICKS()).toFixed(2)} tamamlanmış tuğla\n` +
       `🧠 Kaynak: ${a.trailSource || 'SAFE_DEFAULT_BRICK_TRAIL'} | N${n(a.profileSamples)}\n` +
@@ -1342,7 +1366,7 @@ function telegram(activePositions = []) {
 }
 
 module.exports = {
-  VERSION, STATE_FILE, BACKUP_FILE, LEDGER_FILE,
+  VERSION, RUNTIME_VERSION, STATE_FILE, BACKUP_FILE, LEDGER_FILE,
   CANDIDATES, TAKEOVER_CANDIDATES, ATR_CANDIDATES, CAPTURE_CANDIDATES,
   DEFAULT_TRAIL, DEFAULT_ATR, DEFAULT_CAPTURE, DEFAULT_TAKEOVER, DEFAULT_SAFE_FLOOR,
   MIN_TAKEOVER, MIN_ATR, MIN_CAPTURE, MAX_CAPTURE, LIVE_MODE, BRICK_LIVE_MODE,

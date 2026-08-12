@@ -6,7 +6,7 @@ const version = require('./versiyon.js');
 const bot = fs.readFileSync('./bot.js', 'utf8');
 const network = fs.readFileSync('./64_binance_network_resilience.js', 'utf8');
 
-assert.strictEqual(version.botSurumu, '6.13.5-R22.2-KASA-RECOVERY-DIRECT-FILTER-40USDT-POSTCLOSE-24H-FINAL');
+assert.strictEqual(version.botSurumu, '6.13.5-R23.1-CONFIRMED-FROZEN-LONG-LIFE-10USDT-POSTCLOSE-24H-FINAL');
 assert(bot.includes("createSt2LivePanelScheduler"), 'ST2 live panel bağımsız scheduler kullanmalı');
 assert(bot.includes("ready: () => h.state.startupMarketReady === true"), 'panel Entry Gate READY olmadan başlamamalı');
 assert(!bot.includes("h.state.startupMarketReady === true && ilkSt2TaramaTamamlandi === true"), 'panel ilk tam Renko taramasına bağlanmamalı');

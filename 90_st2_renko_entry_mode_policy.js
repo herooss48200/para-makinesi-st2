@@ -21,7 +21,7 @@ const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const confirmationLab = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 const evidence15m = require('./94_st2_15m_confirmed_evidence.js');
 
-const VERSION = 'v6.13.5-R22.1-15M-CONFIRMED-SHADOW-LIVE-LEARNING';
+const VERSION = 'v6.13.5-R23.1-FORCED-CONFIRMED-FROZEN-15M-AUTHORITY';
 const MODES = Object.freeze({ DIRECT: 'DIRECT', CONFIRMED: 'CONFIRMED' });
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
@@ -207,6 +207,43 @@ function select(pusu = {}) {
         legacy1mShadowHint
     };
 }
+function selectFrozen(pusu = {}) {
+    const frozen = pusu?.entryModeDecisionAtSignal || null;
+    const forceConfirmed = ayarlar.renkoGirisModuZorlaConfirmed === true;
+    const frozenMode = String(frozen?.selectedMode || '').toUpperCase();
+
+    // Pusu anındaki gerçek giriş kararı sabittir. R23'ten önce oluşmuş DIRECT bir pusu,
+    // force-confirmed açıldığında yalnız bir kez CONFIRMED'e migrate edilir. Aynı pusu
+    // sonraki taramalarda yeni kanıt gelse bile mode/offset değiştiremez.
+    if (frozen && (!forceConfirmed || frozenMode === MODES.CONFIRMED)) return frozen;
+
+    const selected = select(pusu);
+    if (forceConfirmed && String(selected?.selectedMode || '').toUpperCase() !== MODES.CONFIRMED) {
+        const fallbackOffset = Math.max(0.01, n(ayarlar.renkoGirisTeyitVarsayilanTugla, 0.25));
+        return {
+            ...(selected || {}),
+            selectedMode: MODES.CONFIRMED,
+            selectedOffsetT: fallbackOffset,
+            decisionSource: 'FORCED_CONFIRMED_FAIL_CLOSED_FALLBACK',
+            timingAuthority: 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET',
+            reason: `CONFIRMED fail-closed fallback | Offset ${fallbackOffset.toFixed(2)}T`,
+            migratedFromMode: frozenMode || null,
+            forcedMigrationAt: new Date().toISOString(),
+            migrationReason: frozen ? 'R23_1_FORCE_CONFIRMED_EXISTING_PUSU' : null,
+            frozenAt: selected?.frozenAt || new Date().toISOString()
+        };
+    }
+
+    return forceConfirmed && frozen
+        ? {
+            ...selected,
+            migratedFromMode: frozenMode || null,
+            forcedMigrationAt: new Date().toISOString(),
+            migrationReason: 'R23_1_FORCE_CONFIRMED_EXISTING_PUSU'
+        }
+        : selected;
+}
+
 function confirmationTarget(pusu, bricks15m, boxSize15m, at = Date.now()) {
     const decision = pusu?.entryModeDecisionAtSignal || select(pusu);
     if (decision.selectedMode !== MODES.CONFIRMED) return { ready: false, reason: 'MODE_NOT_CONFIRMED', decision, timeframe: '15m' };
@@ -250,7 +287,7 @@ function summary() {
     };
 }
 module.exports = {
-    VERSION, MODES, select, directEvidence, confirmedEvidence, comparableDirectEvidence, legacyConfirmedHint, confirmationTarget, summary,
+    VERSION, MODES, select, selectFrozen, directEvidence, confirmedEvidence, comparableDirectEvidence, legacyConfirmedHint, confirmationTarget, summary,
     findLatest15mReversalAfterSignal,
     _metricScore: metricScore,
     _signalCloseTime: signalCloseTime

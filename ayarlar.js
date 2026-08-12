@@ -174,8 +174,8 @@ const ayarlar = {
     // v6.12.2: Golden Renko geri dönüşü. Öğrenilmiş Entry Evolution 0.25T–1.50T kararı
     // canlı/sanal girişin fiyat yetkisidir; ST1 yalnız shadow etki etiketi olarak tutulur.
     renkoGirisCanliYetkiAktif: true,
-    // R22.2 kasa-kurtarma filtresi: yalnız DIRECT 0.50T ve 1.00T gerçek Binance emri alabilir.
-    // Diğer DIRECT tuğlaları canlı SHADOW öğrenmeye yönlendirilir. CONFIRMED bu filtreden muaftır.
+    // Legacy DIRECT güvenlik filtresi: force-CONFIRMED kapatılırsa yalnız DIRECT 0.50T ve 1.00T gerçek Binance emri alabilir.
+    // R23.1'de yeni gerçek giriş otoritesi CONFIRMED olduğundan bu filtre geriye dönük güvenlik/compatibility katmanıdır.
     gercekDirectTuglaFiltreAktif: true,
     gercekDirectIzinliTuglalar: [0.50, 1.00],
     st2St1GirisKapisiAktif: false,
@@ -700,14 +700,14 @@ const ayarlar = {
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
-    // Canlı gerçek pozisyon kapasitesi 10'dur.
+    // R23.1 kontrollü canlı gerçek pozisyon kapasitesi 5'tir.
     gercekEmirMaxAktifPozisyon: 5,
     // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
     // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
     canliShadowOgrenmeAktif: true,
     canliShadowMaksAktifGozlem: 200,
     canliShadowTelegramAcilisMesaji: false,
-    // R22.2: gerçek pozisyon kapandıktan sonra orijinal giriş fiyatına göre 24 saat bilimsel fiyat-yolu takibi.
+    // R23.1: R22.2'de eklenen post-close worker korunur; gerçek kapanıştan sonra 24 saat bilimsel fiyat-yolu takibi.
     // Canlı emir/stop/TP üzerinde hiçbir yetkisi yoktur; mevcut canliFiyatlar cache'ini okur, yeni ağ isteği üretmez.
     postClose24hTakipAktif: true,
     postCloseTakipSaat: 24,

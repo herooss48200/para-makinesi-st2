@@ -547,6 +547,30 @@ function eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit = null) {
 }
 
 
+function entryModeDecisionForPusu(pusu = {}) {
+    if (typeof renkoEntryModePolicy.selectFrozen === 'function') {
+        return renkoEntryModePolicy.selectFrozen(pusu);
+    }
+
+    // Geriye dönük test/runtime adapter'ları yalnız select() expose ediyorsa aynı
+    // frozen sözleşmesini burada koru. Production policy selectFrozen() kullanır.
+    const frozen = pusu?.entryModeDecisionAtSignal || null;
+    const forceConfirmed = ayarlar.renkoGirisModuZorlaConfirmed === true;
+    const frozenMode = String(frozen?.selectedMode || '').toUpperCase();
+    if (frozen && (!forceConfirmed || frozenMode === 'CONFIRMED')) return frozen;
+
+    const selected = renkoEntryModePolicy.select(pusu);
+    if (forceConfirmed && frozen && String(selected?.selectedMode || '').toUpperCase() === 'CONFIRMED') {
+        return {
+            ...selected,
+            migratedFromMode: frozenMode || null,
+            forcedMigrationAt: new Date().toISOString(),
+            migrationReason: 'R23_1_FORCE_CONFIRMED_EXISTING_PUSU'
+        };
+    }
+    return selected;
+}
+
 async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     const store = storeHazirla();
     const pusu = store.pusular[sym];
@@ -559,13 +583,10 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         return false;
     }
 
-    // Golden Renko: Entry Evolution kararı pusu oluşumunda dondurulur ve
-    // gerçek/sanal girişin doğrudan fiyat yetkisidir.
+    // Golden Renko: Adaptive/Entry Evolution kararı kalite-yeterlilik kanıtı olarak dondurulur.
+    // Gerçek zamanlama otoritesi R23.1'de ayrı ve frozen CONFIRMED policy kararıdır.
     const adaptiveEntryDecision = pusu.adaptiveEntryDecisionAtSignal || aktifTuglaKarari(pusu);
-    const forceConfirmed = ayarlar.renkoGirisModuZorlaConfirmed === true;
-    const entryModeDecision = forceConfirmed
-        ? renkoEntryModePolicy.select(pusu)
-        : (pusu.entryModeDecisionAtSignal || renkoEntryModePolicy.select(pusu));
+    const entryModeDecision = entryModeDecisionForPusu(pusu);
     pusu.entryModeDecisionAtSignal = entryModeDecision;
     pusu.entryMode = entryModeDecision.selectedMode;
     pusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
@@ -579,7 +600,16 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     }
     const selectedEntryBrick = Number(entryModeDecision.selectedMode === 'DIRECT'
         ? (pusu.renkoEntryBrickDistance || adaptiveEntryDecision.brick || entryEvolution.DEFAULT_BRICK())
-        : (entryModeDecision.selectedOffsetT || 0.25));
+        : (entryModeDecision.selectedOffsetT || ayarlar.renkoGirisTeyitVarsayilanTugla || 0.25));
+
+    // Migration sonrası pusu üzerindeki görünür/frozen alanları da tek otoriteyle eşitle.
+    // Böylece rapor, confirmationTarget ve gerçek emir aynı mode/offset'i görür.
+    pusu.entryTimingAuthority = entryModeDecision.selectedMode === 'CONFIRMED'
+        ? 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET_1M_ST'
+        : 'RENKO_EVOLUTION_1M_RENKO_ST';
+    pusu.renkoEntryBrickDistance = selectedEntryBrick;
+    if (entryModeDecision.selectedMode === 'CONFIRMED') pusu.canliTetikFiyati = null;
+
     const renkoBricks15mForMode = store.seriler?.[sym] || [];
     const confirmationGate = entryModeDecision.selectedMode === 'CONFIRMED'
         ? renkoEntryModePolicy.confirmationTarget(pusu, renkoBricks15mForMode, Number(store.boxSize?.[sym] || pusu.renkoBoxSize || 0))
@@ -672,10 +702,10 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     // Fiyat seçilmiş seviyenin doğru tarafında ve 1m Renko ST aynı yöndeyse giriş yapılır.
     if (!fiyatUygun || !stUygun) return false;
 
-    // R22.2 kasa-kurtarma kapısı:
-    // DIRECT 0.50T/1.00T dışındaysa gerçek/sanal aktif pozisyon zincirine girmez.
-    // Ayrı, sembolü bloke etmeyen FILTERED DIRECT SHADOW lifecycle açılır.
-    // CONFIRMED bu filtreden muaftır ve R22.1 policy otoritesi aynen korunur.
+    // Legacy DIRECT güvenlik kapısı:
+    // Force-CONFIRMED kapalıysa DIRECT 0.50T/1.00T dışı aday aktif pozisyon zincirine girmez;
+    // ayrı, sembolü bloke etmeyen FILTERED DIRECT SHADOW lifecycle'a gider.
+    // R23.1 CONFIRMED gerçek girişleri bu filtreden muaftır.
     const directRealGate = m.gercekDirectTuglaKapisi({
         entryStrategy: 'ST2_RENKO',
         entryMode: entryModeDecision.selectedMode,
@@ -1041,6 +1071,7 @@ module.exports = {
     bollingerSenaryosu,
     eskiPusuyuSuresiDolduysaSil,
     patternPususuGuncelle,
+    entryModeDecisionForPusu,
     pusuDegerlendir,
     taraVeDegerlendir
 };
