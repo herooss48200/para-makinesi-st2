@@ -177,6 +177,8 @@ function storeHazirla() {
     store.sonPatternSignature ||= {};
     store.pusuTelegramBildirimleri ||= {};
     store.sonIptalPatternSignature ||= {};
+    store.sonIptalPusuEventZamani ||= {};
+    store.sonPusuEventZamani ||= {};
     store.boxSize ||= {};
     store.onayBoxSize1m ||= {};
     return store;
@@ -357,7 +359,7 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
 
     // R21: CONFIRMED pusu oluştuğu 15m bağlamıyla dondurulur. Beklenen renk dönüşü
     // doğal olarak son patterni değiştireceği için, dönüş geldi diye pusu yenilenmez/iptal edilmez.
-    // Pusu ömrü yine eskiPusuyuSuresiDolduysaSil() ile maxPusuBeklemeTugla sınırına tabidir.
+    // R23.2: CONFIRMED yaşamını legacy 3-tuğla expiry değil, ilk reversal + fresh fractional pencere yönetir.
     if (mevcutBaslangic && String(mevcutBaslangic.entryMode || '').toUpperCase() === 'CONFIRMED') {
         mevcutBaslangic.sonSt2DogrulamaMumZamani = Number(candles?.at(-1)?.closeTime || mevcutBaslangic.sonSt2DogrulamaMumZamani || 0);
         mevcutBaslangic.st2ContextValid = true;
@@ -413,6 +415,15 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
         // Süresi dolmuş, karşıtlaşmış veya kullanılmış aynı mantıksal Renko olayı yeniden açılamaz.
         if (store.sonIptalPatternSignature[sym] === signature) continue;
 
+        // R23.2: ATR yeniden hesaplandığında signature değişse bile aynı/eskimiş Renko olayı
+        // yeni pusu gibi dirilemez. Yeni pusu için daha yeni kapanmış Renko olayı zorunludur.
+        const adayEventZamani = Number(match?.bricks?.at(-1)?.closeTime || 0);
+        const blokEventZamani = Math.max(
+            Number(store.sonIptalPusuEventZamani?.[sym] || 0),
+            Number(store.sonPusuEventZamani?.[sym] || 0)
+        );
+        if (adayEventZamani > 0 && blokEventZamani > 0 && adayEventZamani <= blokEventZamani) continue;
+
         const yeniPusu = core.pusuOlustur(sym, match, scenario);
         const kaynakSonMum = Array.isArray(candles) ? candles.at(-1) : null;
         yeniPusu.kaynakSonKapaliMumZamani = Number(kaynakSonMum?.closeTime || 0);
@@ -424,6 +435,7 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
         const ilkCanliFiyat = Number(h.state.canliFiyatlar?.[sym] || 0);
         yeniPusu.sonCanliFiyat = ilkCanliFiyat > 0 ? ilkCanliFiyat : null;
         store.pusular[sym] = yeniPusu;
+        if (adayEventZamani > 0) store.sonPusuEventZamani[sym] = adayEventZamani;
 
         const exactContext = exactContextHesapla(candles, match, bricks, bollinger, boxSize);
         yeniPusu.rbb = exactContext.rbb;
@@ -528,20 +540,43 @@ function eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit = null) {
     const sourceTime = Number(pusu.sonKapaliTuglaZamani || pusu.referansTuglaCloseTime || 0);
     if (!(sourceTime > 0)) {
         store.sonIptalPatternSignature[sym] = pusu.patternSignature;
+        store.sonIptalPusuEventZamani[sym] = Math.max(
+            Number(store.sonIptalPusuEventZamani[sym] || 0),
+            Number(bricks.at(-1)?.closeTime || 0)
+        );
         delete store.pusular[sym];
-        if (audit) audit.red.LEGACY_PUSU_INVALIDATED++;
-        console.log(`🧯 [ST2 LEGACY PUSU İPTAL] ${sym} ${pusu.yon} | Renko oluşum tuğlası zamanı yok.`);
+        if (audit?.red) audit.red.LEGACY_PUSU_INVALIDATED = Number(audit.red.LEGACY_PUSU_INVALIDATED || 0) + 1;
+        console.log(`🧯 [ST2 PUSU İPTAL] ${sym} ${pusu.yon} | Renko oluşum tuğlası zamanı yok.`);
         return true;
     }
 
-    const sonra = bricks.filter(b => Number(b.closeTime || 0) > sourceTime).length;
-    const limit = Math.max(1, Number(ayarlar.maxPusuBeklemeTugla || 3));
+    const sonra = bricks.filter(b => Number(b?.closeTime || 0) > sourceTime).length;
     pusu.gecenRenkoTuglaSayisi = sonra;
+
+    const frozenMode = String(
+        pusu?.entryModeDecisionAtSignal?.selectedMode ||
+        pusu?.entryMode ||
+        ''
+    ).toUpperCase();
+
+    // R23.2 CONFIRMED_LEGACY_EXPIRY_BYPASS:
+    // CONFIRMED pusu zaten ilk kapanmış 15m reversal + 0.25/0.50/0.75T bekler.
+    // Legacy 3-tuğla sayaç bu lifecycle'ı reversal değerlendirilmeden öldüremez.
+    if (ayarlar.renkoGirisModuZorlaConfirmed === true || frozenMode === 'CONFIRMED') {
+        pusu.legacyExpiryBypassedForConfirmed = true;
+        return false;
+    }
+
+    const limit = Math.max(1, Number(ayarlar.maxPusuBeklemeTugla || 3));
     if (sonra < limit) return false;
 
     store.sonIptalPatternSignature[sym] = pusu.patternSignature;
+    store.sonIptalPusuEventZamani[sym] = Math.max(
+        Number(store.sonIptalPusuEventZamani[sym] || 0),
+        Number(bricks.at(-1)?.closeTime || 0)
+    );
     delete store.pusular[sym];
-    if (audit) audit.red.PUSU_SURESI_DOLDU++;
+    if (audit?.red) audit.red.PUSU_SURESI_DOLDU = Number(audit.red.PUSU_SURESI_DOLDU || 0) + 1;
     console.log(`⏰ [ST2 PUSU İPTAL] ${sym} ${pusu.yon} | ${sonra}/${limit} yeni Renko tuğlası geçti; pusu süresi doldu.`);
     return true;
 }
@@ -625,8 +660,9 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
             boxSize: Number(confirmationGate?.boxSize || 0),
             offsetT: Number(confirmationGate?.offsetT || selectedEntryBrick),
             targetPrice: Number(target || 0),
+            confirmationBrickId: confirmationGate?.reversal?.confirmation?.id ?? null,
             confirmationCloseTime: Number(confirmationGate?.reversal?.confirmation?.closeTime || 0),
-            authority: 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET'
+            authority: 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET_FIRST_REVERSAL_FROZEN'
         };
         if (pusu.son15mConfirmationLogKey !== confirmationKey) {
             pusu.son15mConfirmationLogKey = confirmationKey;
@@ -647,7 +683,30 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
 
     if (!(target > 0)) {
         if (entryModeDecision.selectedMode === 'CONFIRMED') {
-            pusu.confirmationWaitReason = confirmationGate?.reason || 'CONFIRMATION_NOT_READY';
+            const confirmedReason = confirmationGate?.reason || 'CONFIRMATION_NOT_READY';
+            const terminalConfirmedReasons = new Set([
+                'CONFIRMED_WINDOW_EXPIRED_AFTER_NEXT_15M_RENKO',
+                'CONFIRMATION_15M_FROZEN_BRICK_NOT_FOUND',
+                'CONFIRMATION_15M_REFERENCE_NOT_IN_SERIES'
+            ]);
+
+            if (terminalConfirmedReasons.has(confirmedReason)) {
+                store.sonIptalPatternSignature[sym] = pusu.patternSignature;
+                store.sonIptalPusuEventZamani[sym] = Math.max(
+                    Number(store.sonIptalPusuEventZamani[sym] || 0),
+                    Number(renkoBricks15mForMode.at(-1)?.closeTime || 0),
+                    Number(pusu.sonKapaliTuglaZamani || 0)
+                );
+                delete store.pusular[sym];
+                if (audit) {
+                    audit.st2ContextIptal = Number(audit.st2ContextIptal || 0) + 1;
+                    if (audit.red) audit.red.ST2_CONTEXT_INVALIDATED = Number(audit.red.ST2_CONTEXT_INVALIDATED || 0) + 1;
+                }
+                console.log(`🧯 [CONFIRMED PUSU GEÇ GİRİŞ İPTAL] ${sym} ${pusu.yon} | ${confirmedReason} | Eski hareket kovalanmayacak.`);
+                return false;
+            }
+
+            pusu.confirmationWaitReason = confirmedReason;
             pusu.sonCanliFiyat = price;
             if (audit) {
                 audit.fiyatBekleyen++;
@@ -866,7 +925,20 @@ async function taraVeDegerlendir() {
         if (!Array.isArray(candles) || candles.length === 0) audit.veriEksik++;
         audit.kaynakMumToplam += Array.isArray(candles) ? candles.length : 0;
         const atrBaslangicMs = Date.now();
-        const box = core.atr(candles, Number(ayarlar.renkoAtrPeriod || 14));
+        const liveAtrBox = core.atr(candles, Number(ayarlar.renkoAtrPeriod || 14));
+        const aktifPusuForBox = store.pusular?.[sym] || null;
+        const aktifPusuMode = String(
+            aktifPusuForBox?.entryModeDecisionAtSignal?.selectedMode ||
+            aktifPusuForBox?.entryMode ||
+            ''
+        ).toUpperCase();
+        const frozenConfirmedBox = aktifPusuForBox && (
+            ayarlar.renkoGirisModuZorlaConfirmed === true || aktifPusuMode === 'CONFIRMED'
+        ) ? Number(aktifPusuForBox.renkoBoxSize || 0) : 0;
+
+        // R23.2 CONFIRMED_RENKO_BOX_FROZEN:
+        // Pusu kurulduktan sonra ATR değişimi 15m Renko geometrisini/base'i yeniden yazamaz.
+        const box = frozenConfirmedBox > 0 ? frozenConfirmedBox : liveAtrBox;
         tAtrMs = Date.now() - atrBaslangicMs;
         if (!(box > 0)) { audit.red.ATR_YETERSIZ++; continue; }
         audit.atrHazir++;

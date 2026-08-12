@@ -6,7 +6,7 @@ const version=require('./versiyon.js');
 const ag=require('./64_binance_network_resilience.js');
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R23.1-CONFIRMED-FROZEN-LONG-LIFE-10USDT-POSTCLOSE-24H-FINAL');
+  assert.strictEqual(version.botSurumu,'6.13.5-R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW-10USDT-POSTCLOSE-24H-FINAL');
   assert.strictEqual(Number(ayarlar.binanceStartupAgEszamanlilik),8);
   assert.strictEqual(Number(ayarlar.binanceStartupAgIsciSayisi),16);
   assert.strictEqual(Number(ayarlar.binanceAgTimeoutMs),15000);

@@ -1,0 +1,41 @@
+AGROS ST2 v6.13.5-R23.2 TEST RESULT
+Date: 2026-08-12
+
+BASE
+- User full ST2 archive: ST2(20260812-114341).zip
+- Current R23.1 source overlaid
+- R23.2 fixes applied on top
+
+R23.2 CONTRACT
+- Real entry authority remains FORCE CONFIRMED
+- First closed 15m Renko reversal after signal is authoritative
+- Signal time authority = closed Renko event time
+- Active CONFIRMED pusu Renko box is frozen
+- Legacy 3-brick expiry does not kill CONFIRMED before reversal
+- After first reversal, once another full 15m Renko brick closes, late entry is fail-closed
+- 0.25/0.50/0.75T offset remains selected CONFIRMED offset
+- 1m Renko SuperTrend remains final direction confirmation
+- Same/older canceled logical event cannot immediately rearm in the same runtime
+- CONFIRMED long-life exit behavior preserved
+- 10 USDT notional / max 5 real positions preserved
+- 24h post-close tracker preserved
+
+TESTS PASSED
+- node --check 72_st2_renko_entry.js
+- node --check 90_st2_renko_entry_mode_policy.js
+- node --check test_v6166_r232_confirmed_first_reversal_fresh_window.js
+- test_v6166_r232_confirmed_first_reversal_fresh_window.js
+- test_v6165_r231_confirmed_frozen_long_life.js
+- test_v6161_15m_confirmed_timeframe_authority.js
+- test_v6150_entry_authority_end_to_end.js
+- npm run test:fast  => PASSED (clean extracted package, 2026-08-12)
+
+FULL CHECK NOTE
+- `npm run check` was started in the isolated ChatGPT container.
+- Full-source syntax and early checks passed, then test:v673 stopped only because source packages intentionally exclude node_modules and the isolated container does not have the project dependency `dotenv`.
+- No R23.2 assertion/code failure occurred before the dependency stop.
+- Run `npm run check` in the user's existing local ST2 environment (where node_modules is already installed) before GitHub commit.
+
+AWS
+- No AWS source patch performed.
+- Deploy only from GitHub after local full test + commit.

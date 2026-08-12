@@ -53,7 +53,7 @@ assert.strictEqual(gate.timeframe,'15m');
 assert.strictEqual(gate.reversal.pair,'RED->GREEN');
 assert.strictEqual(gate.basePrice,102);
 assert.strictEqual(gate.targetPrice,102.5);
-assert.strictEqual(gate.reason,'READY_15M_CLOSED_REVERSAL');
+assert(['READY_15M_CLOSED_FIRST_REVERSAL','READY_15M_CLOSED_REVERSAL_FROZEN'].includes(gate.reason));
 
 // SHORT: kapanmış GREEN -> kapanmış RED; offset 15m box üzerinden aşağı ölçülür.
 gate = policy.confirmationTarget(
@@ -85,7 +85,7 @@ assert.strictEqual(gate.reason,'CLOSED_15M_REVERSAL_NOT_FOUND');
 
 const entrySrc = fs.readFileSync(path.join(__dirname,'72_st2_renko_entry.js'),'utf8');
 const policySrc = fs.readFileSync(policyPath,'utf8');
-assert(entrySrc.includes("renkoEntryModePolicy.confirmationTarget(pusu, renkoBricks15mForMode, Number(store.boxSize?.[sym] || pusu.renkoBoxSize || 0))"), 'CONFIRMED gerçek target 15m Renko+15m box kullanmalı');
+assert(entrySrc.includes("renkoEntryModePolicy.confirmationTarget(pusu, renkoBricks15mForMode, Number(store.boxSize?.[sym] || pusu.renkoBoxSize || 0))"), 'CONFIRMED gerçek target frozen 15m Renko+15m box kullanmalı');
 assert(!entrySrc.includes('confirmationTarget(pusu, onayBricksForMode'), '1m Renko bricks gerçek CONFIRMED target otoritesi olmamalı');
 assert(entrySrc.includes("15m kapanmış dönüş sonrası hesaplanacak"), 'Telegram pusu metni 15m dönüş gerçeğini göstermeli');
 assert(entrySrc.includes("confirmed15mContextFrozen = true"), 'CONFIRMED pusu beklenen 15m dönüş patterni değiştirince iptal edilmemeli');

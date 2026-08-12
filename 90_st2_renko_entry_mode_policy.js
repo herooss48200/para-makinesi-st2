@@ -21,7 +21,7 @@ const entryEvolution = require('./73_st2_renko_entry_evolution.js');
 const confirmationLab = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 const evidence15m = require('./94_st2_15m_confirmed_evidence.js');
 
-const VERSION = 'v6.13.5-R23.1-FORCED-CONFIRMED-FROZEN-15M-AUTHORITY';
+const VERSION = 'v6.13.5-R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW';
 const MODES = Object.freeze({ DIRECT: 'DIRECT', CONFIRMED: 'CONFIRMED' });
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
@@ -42,12 +42,17 @@ function closedBricks(bricks, at = Date.now()) {
     });
 }
 function signalCloseTime(pusu = {}) {
-    return Math.max(
+    // R23.2: CONFIRMED zaman otoritesi pusuya neden olan kapanmış Renko olayıdır.
+    // Daha yeni kaynak 15m mum zamanı, Renko sinyalini yapay olarak ileri taşıyamaz.
+    const renkoSignalAt = Math.max(
         0,
         n(pusu?.sonKapaliTuglaZamani, 0),
-        n(pusu?.kaynakSonKapaliMumZamani, 0),
         n(pusu?.referansTuglaCloseTime, 0)
     );
+    if (renkoSignalAt > 0) return renkoSignalAt;
+
+    // Yalnız eski kayıt uyumluluğu: Renko olay zamanı yoksa son kaynak mum zamanı kullanılır.
+    return Math.max(0, n(pusu?.kaynakSonKapaliMumZamani, 0));
 }
 function findLatest15mReversalAfterSignal(bricks, yon, pusu = {}, at = Date.now()) {
     const direction = String(yon || '').toUpperCase();
@@ -56,7 +61,9 @@ function findLatest15mReversalAfterSignal(bricks, yon, pusu = {}, at = Date.now(
     const signalAt = signalCloseTime(pusu);
     const source = closedBricks(bricks, at);
 
-    for (let i = source.length - 1; i >= 1; i--) {
+    // R23.2: pusu sonrasındaki İLK kapanmış renk dönüşü giriş otoritesidir.
+    // Daha sonraki dönüşler base/target'ı ileri taşıyamaz.
+    for (let i = 1; i < source.length; i++) {
         const previous = source[i - 1];
         const confirmation = source[i];
         if (colorOf(previous) !== expectedA || colorOf(confirmation) !== expectedB) continue;
@@ -246,17 +253,133 @@ function selectFrozen(pusu = {}) {
 
 function confirmationTarget(pusu, bricks15m, boxSize15m, at = Date.now()) {
     const decision = pusu?.entryModeDecisionAtSignal || select(pusu);
-    if (decision.selectedMode !== MODES.CONFIRMED) return { ready: false, reason: 'MODE_NOT_CONFIRMED', decision, timeframe: '15m' };
-    const reversal = findLatest15mReversalAfterSignal(bricks15m, pusu?.yon, pusu, at);
-    if (!reversal?.found) return { ready: false, reason: 'CLOSED_15M_REVERSAL_NOT_FOUND', decision, reversal, timeframe: '15m' };
+    if (decision.selectedMode !== MODES.CONFIRMED) {
+        return { ready: false, reason: 'MODE_NOT_CONFIRMED', decision, timeframe: '15m' };
+    }
+
+    const source = closedBricks(bricks15m, at);
+    const direction = String(pusu?.yon || '').toUpperCase();
+    const pair = direction === 'LONG' ? 'RED->GREEN' : 'GREEN->RED';
+
+    function confirmationIndex(confirmation = {}, basePrice = NaN) {
+        const id = confirmation?.id;
+        if (id !== undefined && id !== null) {
+            const byId = source.findIndex(x => String(x?.id) === String(id));
+            if (byId >= 0) return byId;
+        }
+
+        const closeTime = n(confirmation?.closeTime, 0);
+        const base = Number(basePrice);
+        if (closeTime > 0) {
+            const byTimePrice = source.findIndex(x => {
+                if (n(x?.closeTime, 0) !== closeTime) return false;
+                if (!Number.isFinite(base)) return true;
+                return Math.abs(n(x?.close, NaN) - base) <= 1e-12;
+            });
+            if (byTimePrice >= 0) return byTimePrice;
+        }
+        return -1;
+    }
+
+    // İlk hazır reversal/base/box/target pusu üzerinde dondurulur.
+    const frozen = pusu?.confirmation15m || null;
+    if (
+        frozen &&
+        n(frozen.confirmationCloseTime, 0) > 0 &&
+        n(frozen.basePrice, 0) > 0 &&
+        n(frozen.boxSize, 0) > 0 &&
+        n(frozen.targetPrice, 0) > 0
+    ) {
+        const idx = confirmationIndex({
+            id: frozen.confirmationBrickId,
+            closeTime: frozen.confirmationCloseTime
+        }, frozen.basePrice);
+
+        if (idx < 0) {
+            return {
+                ready: false,
+                reason: 'CONFIRMATION_15M_FROZEN_BRICK_NOT_FOUND',
+                decision,
+                timeframe: '15m',
+                frozen: true
+            };
+        }
+
+        // İlk reversal'dan sonra bir başka TAM 15m Renko tuğlası kapanmışsa,
+        // fractional 0.25/0.50/0.75T giriş penceresi kaçmıştır; hareket kovalanmaz.
+        if (idx < source.length - 1) {
+            return {
+                ready: false,
+                reason: 'CONFIRMED_WINDOW_EXPIRED_AFTER_NEXT_15M_RENKO',
+                decision,
+                timeframe: '15m',
+                frozen: true,
+                reversal: {
+                    found: true,
+                    timeframe: '15m',
+                    direction,
+                    pair,
+                    confirmation: source[idx]
+                }
+            };
+        }
+
+        return {
+            ready: true,
+            reason: 'READY_15M_CLOSED_REVERSAL_FROZEN',
+            decision,
+            timeframe: '15m',
+            frozen: true,
+            reversal: {
+                found: true,
+                timeframe: '15m',
+                direction,
+                pair,
+                confirmation: source[idx]
+            },
+            basePrice: n(frozen.basePrice),
+            boxSize: n(frozen.boxSize),
+            offsetT: n(frozen.offsetT, n(decision.selectedOffsetT, 0.25)),
+            targetPrice: n(frozen.targetPrice)
+        };
+    }
+
+    const reversal = findLatest15mReversalAfterSignal(source, pusu?.yon, pusu, at);
+    if (!reversal?.found) {
+        return { ready: false, reason: 'CLOSED_15M_REVERSAL_NOT_FOUND', decision, reversal, timeframe: '15m' };
+    }
+
     const base = n(reversal?.confirmation?.close);
     const box = n(boxSize15m);
-    if (!(base > 0 && box > 0)) return { ready: false, reason: 'CONFIRMATION_15M_REFERENCE_INVALID', decision, reversal, timeframe: '15m' };
+    if (!(base > 0 && box > 0)) {
+        return { ready: false, reason: 'CONFIRMATION_15M_REFERENCE_INVALID', decision, reversal, timeframe: '15m' };
+    }
+
+    const idx = confirmationIndex(reversal.confirmation, base);
+    if (idx < 0) {
+        return { ready: false, reason: 'CONFIRMATION_15M_REFERENCE_NOT_IN_SERIES', decision, reversal, timeframe: '15m' };
+    }
+
+    // ETH tipi geç giriş koruması: ilk reversal sonrası ikinci tam Renko kapanmışsa
+    // fiyat çoktan 1T veya daha fazla ilerlemiştir; yeni gerçek giriş açılmaz.
+    if (idx < source.length - 1) {
+        return {
+            ready: false,
+            reason: 'CONFIRMED_WINDOW_EXPIRED_AFTER_NEXT_15M_RENKO',
+            decision,
+            reversal,
+            timeframe: '15m'
+        };
+    }
+
     const offsetT = n(decision.selectedOffsetT, 0.25);
-    const targetPrice = String(pusu?.yon).toUpperCase() === 'SHORT' ? base - offsetT * box : base + offsetT * box;
+    const targetPrice = direction === 'SHORT'
+        ? base - offsetT * box
+        : base + offsetT * box;
+
     return {
         ready: targetPrice > 0,
-        reason: targetPrice > 0 ? 'READY_15M_CLOSED_REVERSAL' : 'TARGET_INVALID',
+        reason: targetPrice > 0 ? 'READY_15M_CLOSED_FIRST_REVERSAL' : 'TARGET_INVALID',
         decision,
         reversal,
         timeframe: '15m',
@@ -279,7 +402,7 @@ function summary() {
             bootstrapMaxWeight: n(ayarlar.renkoGiris15mBootstrapMaksAgirlik, 30),
             shadowLiveMaxWeight: n(ayarlar.renkoGiris15mShadowMaksAgirlik, 60),
             objective: '15M_COMPARATIVE_BOOTSTRAP_PLUS_ACTUAL_AND_COUNTERFACTUAL_SHADOW_LIVE_EVIDENCE',
-            confirmedTimingAuthority: '15M_CLOSED_RENKO_REVERSAL_PLUS_OFFSET',
+            confirmedTimingAuthority: '15M_FIRST_CLOSED_RENKO_REVERSAL_PLUS_OFFSET_FRESH_WINDOW',
             finalSniperAuthority: '1M_RENKO_SUPERTREND',
             legacy1mShadowAuthority: false
         },

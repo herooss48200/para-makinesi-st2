@@ -15,7 +15,7 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const transparency = require('./82_st2_operation_transparency.js');
 
-  const CURRENT = '6.13.5-R23.1-CONFIRMED-FROZEN-LONG-LIFE-10USDT-POSTCLOSE-24H-FINAL';
+  const CURRENT = '6.13.5-R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW-10USDT-POSTCLOSE-24H-FINAL';
   assert.strictEqual(version.botSurumu, CURRENT);
   assert.strictEqual(ayarlar.renkoGirisModuZorlaConfirmed, true, 'yeni gerçek giriş authority CONFIRMED olmalı');
   assert.strictEqual(ayarlar.renkoConfirmedLongLifeAktif, true, 'CONFIRMED long-life aktif olmalı');
