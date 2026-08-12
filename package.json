@@ -1,6 +1,6 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.13.5-r22.2-kasa-recovery-direct-filter-40usdt-postclose-24h-final",
+  "version": "6.13.5-r23-confirmed-long-life-10usdt-postclose-24h-final",
   "description": "AGROS ST2 v6.13.5-R22.2: R22.1 15m CONFIRMED authority preserved; DIRECT real orders only 0.50T/1.00T, other DIRECT signals shadow-only; 40 USDT total notional; real closes tracked 24h with no order authority.",
   "main": "bot.js",
   "scripts": {

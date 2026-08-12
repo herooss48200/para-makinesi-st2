@@ -14,10 +14,10 @@ const ayarlar = {
     // ========================================
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
-    // v6.13.5-R22.2: toplam gerçek pozisyon büyüklüğü 40 USDT notional.
-    // 8 USDT marjin x 5x = 40 USDT notional; Shadow öğrenme aynı risk tabanını kullanır ama Binance emri göndermez.
-    calisilmakIstenenUsdtMiktar: 8,
-    mevcutKaldirac: 5,
+    // Kontrollü CONFIRMED canlı test: pozisyon başına 10 USDT notional.
+    // 5 USDT marjin x 2x = 10 USDT notional; Shadow öğrenme Binance emri göndermez.
+    calisilmakIstenenUsdtMiktar: 5,
+    mevcutKaldirac: 2,
     maxPozisyonSayisi: 100,
 
     // ========================================
@@ -219,6 +219,7 @@ const ayarlar = {
     // sniper teyididir; 1m confirmation lifecycle laboratuvarı ayrı gölge kanıtı üretir.
     // İkinci gerçek emir zinciri oluşturulmaz.
     renkoGirisModuOtomatikAktif: true,
+    renkoGirisModuZorlaConfirmed: true, // Tüm gerçek girişler CONFIRMED
     renkoGirisModuMinTeyitOrnek: 15,
     renkoGirisModuMinOrnek: 20,
     // CONFIRMED'ın görevi daha yüksek tekil kâr değil, yanlış girişleri elemek ve başarı olasılığını yükseltmektir.
@@ -695,12 +696,12 @@ const ayarlar = {
     // Tutar, kaldıraç, marjin ve aktif pozisyon limiti aşağıdaki ayarlardan yönetilir.
     gercekEmirOnayKodu: 'LIVE_TRADING_CONFIRMED',
     // Gerçek işlem riski yalnız bu AYARLAR SAYFASI üzerinden yönetilir.
-    // Marjin: calisilmakIstenenUsdtMiktar (8), kaldıraç: mevcutKaldirac (5); notional 40 USDT türetilir.
+    // Marjin: calisilmakIstenenUsdtMiktar (5), kaldıraç: mevcutKaldirac (2); notional 10 USDT türetilir.
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
     // Canlı gerçek pozisyon kapasitesi 10'dur.
-    gercekEmirMaxAktifPozisyon: 10,
+    gercekEmirMaxAktifPozisyon: 5,
     // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
     // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
     canliShadowOgrenmeAktif: true,
@@ -889,6 +890,15 @@ const ayarlar = {
     renkoCikisErkenEkonomiTetikYuzde: 0.25,
     renkoCikisErkenEkonomiTabanYuzde: 0.20,
     renkoCikisErkenEkonomiMinimumNetKarYuzde: 0.10,
+
+    // v6.13.5-R23 — CONFIRMED LONG LIFE (yalnız yeni pozisyon atamasında dondurulur).
+    // LONG/SHORT yönünden bağımsızdır; "LONG LIFE" pozisyon ömrü anlamındadır.
+    // CONFIRMED K0.5 +%0.25 -> +%0.20 erken ekonomi kilidini kullanmaz.
+    // K1 +%0.50 -> +%0.40 ve K2 +%0.60 Renko takeover aynen korunur.
+    // +%1.50 sabit TP değildir; ölçüm hedefidir. Renko güçlüyse runner devam eder.
+    renkoConfirmedLongLifeAktif: true,
+    renkoConfirmedLongLifeTarget1Yuzde: 1.50,
+
     renkoCikisKarTabaniAktivasyonYuzde: 0.50,
     renkoCikisCanliAktivasyonYuzde: 0.60,
     renkoCikisGuvenliKarTabaniYuzde: 0.40,

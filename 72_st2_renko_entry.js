@@ -562,7 +562,10 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     // Golden Renko: Entry Evolution kararı pusu oluşumunda dondurulur ve
     // gerçek/sanal girişin doğrudan fiyat yetkisidir.
     const adaptiveEntryDecision = pusu.adaptiveEntryDecisionAtSignal || aktifTuglaKarari(pusu);
-    const entryModeDecision = pusu.entryModeDecisionAtSignal || renkoEntryModePolicy.select(pusu);
+    const forceConfirmed = ayarlar.renkoGirisModuZorlaConfirmed === true;
+    const entryModeDecision = forceConfirmed
+        ? renkoEntryModePolicy.select(pusu)
+        : (pusu.entryModeDecisionAtSignal || renkoEntryModePolicy.select(pusu));
     pusu.entryModeDecisionAtSignal = entryModeDecision;
     pusu.entryMode = entryModeDecision.selectedMode;
     pusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);

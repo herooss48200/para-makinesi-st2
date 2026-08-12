@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const io = require('./53_memory_safe_io.js');
 
-const VERSION = 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT';
+const VERSION = 'v6.13.5-R23-CONFIRMED-LONG-LIFE';
 const DATA_DIR = process.env.AGROS_DATA_DIR
   ? path.resolve(process.env.AGROS_DATA_DIR)
   : path.join(__dirname, 'data');
@@ -360,9 +360,16 @@ function assign(pos) {
     return current;
   }
   const trail = CANDIDATES().includes(n(profile.trail)) ? n(profile.trail) : DEFAULT_TRAIL();
+  const entryModeAtOpen = String(ga.entryMode || pos?.entryMode || '').toUpperCase();
+  const confirmedLongLifeAtOpen = ayarlar.renkoConfirmedLongLifeAktif === true && entryModeAtOpen === 'CONFIRMED';
+  const confirmedLongLifeTarget1Pct = Math.max(0.01, Number(ayarlar.renkoConfirmedLongLifeTarget1Yuzde ?? 1.50));
+
   pos.renkoExitAssignment = {
     patternKey,
     profileKeyAtOpen: patternKey,
+    entryModeAtOpen,
+    managementMode: confirmedLongLifeAtOpen ? 'CONFIRMED_LONG_LIFE_R23' : 'LEGACY_DIRECT_SAFE_FLOOR',
+    confirmedLongLifeTarget1Pct: confirmedLongLifeAtOpen ? confirmedLongLifeTarget1Pct : null,
     assignedTrailBricks: trail,
     assignedActivationProfitPct: activationPct,
     assignedFloorArmProfitPct: FLOOR_ARM_PROFIT_PCT(),
@@ -401,7 +408,9 @@ function assign(pos) {
     activationPct, takeoverPct: profile.takeoverPct, trail,
     atrMultiplier: profile.atrMultiplier, captureRatio: profile.captureRatio,
     confidence: profile.confidence, source: BRICK_LIVE_MODE() ? profile.trailSource : profile.source,
-    liveMode: LIVE_MODE()
+    liveMode: LIVE_MODE(), entryModeAtOpen,
+    managementMode: pos.renkoExitAssignment.managementMode,
+    target1Pct: pos.renkoExitAssignment.confirmedLongLifeTarget1Pct
   });
   return pos.renkoExitAssignment;
 }
@@ -644,6 +653,32 @@ function updateBrick(pos, price) {
   const entry = n(pos?.girisFiyati);
   const currentPrice = n(price);
   const pnl = profitPct(pos?.yon, entry, currentPrice);
+  // R23 sözleşmesi pozisyon açılırken renkoExitAssignment içine dondurulur.
+  // Mevcut/eski açık pozisyonlara restart sonrası geriye dönük uygulanmaz.
+  const confirmedLongLife = a.managementMode === 'CONFIRMED_LONG_LIFE_R23';
+  const confirmedTarget1Pct = Math.max(0.01, n(a.confirmedLongLifeTarget1Pct, Number(ayarlar.renkoConfirmedLongLifeTarget1Yuzde ?? 1.50)));
+
+  if (confirmedLongLife && pos.renkoConfirmedLongLifeArmed !== true) {
+    pos.renkoConfirmedLongLifeArmed = true;
+    pos.renkoConfirmedLongLifeArmedAt = new Date().toISOString();
+    pos.renkoConfirmedLongLifeTarget1Pct = confirmedTarget1Pct;
+    addTimeline(pos, 'CONFIRMED_LONG_LIFE_ARMED', {
+      stage: pos.renkoProtectionStage || 'K0', target1Pct: confirmedTarget1Pct,
+      entryMode: a.entryModeAtOpen, managementMode: a.managementMode
+    });
+  }
+
+  if (confirmedLongLife && pos.renkoConfirmedLongLifeTarget1Hit !== true && pnl + 1e-9 >= confirmedTarget1Pct) {
+    pos.renkoConfirmedLongLifeTarget1Hit = true;
+    pos.renkoConfirmedLongLifeTarget1HitAt = new Date().toISOString();
+    pos.renkoConfirmedLongLifeTarget1HitPrice = currentPrice;
+    pos.renkoConfirmedLongLifeTarget1HitPct = pnl;
+    addTimeline(pos, 'CONFIRMED_LONG_LIFE_TARGET1_HIT', {
+      stage: pos.renkoProtectionStage || 'K2', price: currentPrice,
+      profitPct: pnl, target1Pct: confirmedTarget1Pct
+    });
+  }
+
   const readiness = commissionSafeReady(pos, currentPrice);
   const old = n(pos.sl);
   const safeStop = priceFromProfitPct(pos.yon, entry, readiness.floorPct);
@@ -659,7 +694,7 @@ function updateBrick(pos, price) {
   const earlyStop = priceFromProfitPct(pos.yon, entry, earlyFloorPct);
   let earlyChanged = false;
   let justEarlyFloorLocked = false;
-  if (pos.renkoExitActivated !== true && pos.renkoEarlyEconomyFloorLocked !== true && pnl + 1e-9 >= earlyArmPct) {
+  if (!confirmedLongLife && pos.renkoExitActivated !== true && pos.renkoEarlyEconomyFloorLocked !== true && pnl + 1e-9 >= earlyArmPct) {
     justEarlyFloorLocked = true;
     pos.renkoEarlyEconomyFloorLocked = true;
     pos.renkoEarlyEconomyFloorLockedAt = new Date().toISOString();
@@ -677,6 +712,20 @@ function updateBrick(pos, price) {
 
   // K0: Doğrudan ayarlanan kâr tabanı arm eşiğine kadar başlangıç stopu korunur.
   if (!readiness.floorReady) {
+    if (confirmedLongLife) {
+      pos.renkoProtectionStage = 'K0';
+      pos.renkoProtectionState = 'CONFIRMED_LONG_LIFE_K1_BEKLENIYOR';
+      a.status = 'CONFIRMED_LONG_LIFE_EARLY_FLOOR_BYPASS';
+      return {
+        active: true, justActivated: false, changed: false,
+        reason: 'CONFIRMED_LONG_LIFE_EARLY_FLOOR_BYPASS',
+        currentProfitPct: pnl, target1Pct: confirmedTarget1Pct,
+        safeFloorPct: readiness.floorPct, floorArmPct: readiness.floorArmPct,
+        activationPct: readiness.activationPct, effective: n(pos.sl),
+        source: 'CONFIRMED_LONG_LIFE', trail: n(a.assignedTrailBricks)
+      };
+    }
+
     const earlyLocked = pos.renkoEarlyEconomyFloorLocked === true;
     if (earlyLocked) {
       const effectiveEarlyStop = priceFromProfitPct(pos.yon, entry, earlyFloorPct);

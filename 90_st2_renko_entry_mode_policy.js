@@ -176,7 +176,8 @@ function select(pusu = {}) {
     const wrAdvantage = confirmed.wr - directComparable.wr;
     const expAdvantage = confirmed.expectancy - directComparable.expectancy;
     const comparativeHealthy = !comparableMature || (wrAdvantage >= minWrAdvantage && expAdvantage >= minExpAdvantage);
-    const useConfirmed = armed && confirmedHealthy && comparativeHealthy;
+    const forceConfirmed = ayarlar.renkoGirisModuZorlaConfirmed === true;
+    const useConfirmed = forceConfirmed || (armed && confirmedHealthy && comparativeHealthy);
     const selected = useConfirmed ? confirmed : direct;
 
     let fallbackReason = null;
@@ -189,7 +190,9 @@ function select(pusu = {}) {
         version: VERSION,
         selectedMode: selected.mode,
         selectedOffsetT: selected.offsetT,
-        decisionSource: useConfirmed ? '15M_CONFIRMED_BOOTSTRAP_LIVE_EVIDENCE' : (armed ? 'DIRECT_15M_COMPARATIVE_GUARD' : 'DIRECT_SAFE_DEFAULT'),
+        decisionSource: forceConfirmed
+            ? 'FORCED_CONFIRMED_ALL_PATTERNS'
+            : (useConfirmed ? '15M_CONFIRMED_BOOTSTRAP_LIVE_EVIDENCE' : (armed ? 'DIRECT_15M_COMPARATIVE_GUARD' : 'DIRECT_SAFE_DEFAULT')),
         timingAuthority: useConfirmed ? 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET' : 'DIRECT_RENKO_EVOLUTION',
         reason: useConfirmed
             ? `CONFIRMED: 15m kanıt N${confirmed.samples.toFixed(1)} WR %${confirmed.wr.toFixed(1)} PF ${confirmed.pf.toFixed(2)} Exp ${confirmed.expectancy >= 0 ? '+' : ''}${confirmed.expectancy.toFixed(4)} | DIRECT karşılaştırma WR Δ${wrAdvantage.toFixed(1)} Exp Δ${expAdvantage.toFixed(4)} | 1m ST gerçek girişte zorunlu`
