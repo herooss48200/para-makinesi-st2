@@ -1,0 +1,27 @@
+AGROS ST2 v6.13.5-R24 — CORRECTED TEST RESULT
+
+PASS: npm run test:fast
+PASS: R24 confirmed percent economy contract
+PASS: R23.2 CONFIRMED first-reversal/fresh-window preservation
+PASS: live CPU isolation — 30s ST2 panel remains RAM-only
+PASS: real-order execution safety chain in test:fast
+PASS: JS syntax for R24 modified files
+
+R24 CONTRACT
+- CONFIRMED-first entry authority preserved.
+- Real capacity: 10 simultaneous positions.
+- Margin: 10 USDT at 2x = 20 USDT notional per real position.
+- Initial SL: -2.50%.
+- No early K1/K2/Renko profit lock before +2.50%.
+- +2.50% => stop +1.50%.
+- Then +0.50 percentage-point price steps raise stop by +0.50, maintaining ~1.00 point distance.
+- Live panel: PREMIER / REAL PREMIER / SHADOW cohort WR, Net, PF + active Premier/Shadow positions.
+- Cohort economy panel source is 96_st2_live_cohort_economy.js RAM cache. Scientific ledger is read once at startup, then counters update at scientific close; 30s panel does not scan ledger.
+
+CORRECTIONS AFTER FIRST R24 PACKAGE
+- Updated legacy fixed-version assertions from R23.2 to R24.
+- Updated legacy risk assertions to 10 slots / 20 USDT notional.
+- Replaced heavy scientificLedgerPartitions() call from 30s panel with persistent RAM cohort cache.
+- Added alias test_v6167_r24_confirmed_economy_10slot_20usdt.js.
+
+NOTE: Full npm run check in the isolated packaging container stopped at test:v673 because node_modules/dotenv is not installed in that extracted test-only workspace. This was an environment dependency absence, not an assertion failure. Run npm run check in the real ST2 workspace where dependencies are installed.

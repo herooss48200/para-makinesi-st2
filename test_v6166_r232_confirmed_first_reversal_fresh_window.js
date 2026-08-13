@@ -12,7 +12,7 @@ try {
   const version = require('./versiyon.js');
   const policy = require('./90_st2_renko_entry_mode_policy.js');
 
-  assert.strictEqual(version.botSurumu, '6.13.5-R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW-10USDT-POSTCLOSE-24H-FINAL');
+  assert.strictEqual(version.botSurumu, '6.13.5-R24-CONFIRMED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS-POSTCLOSE-24H');
   assert.strictEqual(ayarlar.renkoGirisModuZorlaConfirmed, true);
 
   const decision = { selectedMode:'CONFIRMED', selectedOffsetT:0.25 };
@@ -71,11 +71,11 @@ try {
   assert(entry.includes('confirmationBrickId'));
 
   // Risk ve long-life kontratı değişmedi.
-  assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac,10);
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon,5);
+  assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac,20);
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon,10);
   assert.strictEqual(ayarlar.renkoConfirmedLongLifeAktif,true);
 
-  console.log('✅ v6.13.5-R23.2 first reversal + fresh fractional window + frozen box + stale rearm guard passed');
+  console.log('✅ R24 preserves R23.2 first reversal + fresh fractional window + frozen box + stale rearm guard | 10 slot x 20USDT');
 } finally {
   fs.rmSync(temp,{recursive:true,force:true});
 }

@@ -19,6 +19,7 @@ const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const realOrderPreparation = require('./67_real_order_preparation_intelligence.js');
 const labLifecycle = require('./68_lab_lifecycle_evolution.js');
 const operationIntelligence = require('./69_operation_intelligence_dashboard.js');
+const liveCohortEconomy = require('./96_st2_live_cohort_economy.js');
 const st1Certification = require('./71_st1_final_certification.js');
 const winningIntelligence = require('./75_st2_winning_intelligence.js');
 const adaptiveDnaIntelligence = require('./77_st2_pattern_dna_intelligence.js');
@@ -233,6 +234,16 @@ function pozisyonSatiri(p) {
     satir += ` | ${stage} ${stateLabel}`;
     const premierScore = p?.renkoPremierDecision?.premierScore || p?.labPremierDecision?.premierScore || {};
     if (Number.isFinite(Number(premierScore.score))) satir += ` | Skor ${Number(premierScore.score).toFixed(1)}/${Number(premierScore.threshold || 0).toFixed(1)} #${Number(premierScore.rank || 0)}/${Number(premierScore.cohortSize || 0)}`;
+    if (ayarlar.confirmedYuzdeselEkonomiAktif === true) {
+        const protectedPct = Number(p.yuzdeselEkonomiKorunanKarYuzde);
+        const phase = Number.isFinite(protectedPct)
+            ? `KİLİT +%${protectedPct.toFixed(2)}`
+            : `BEKLE +%${Number(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde||2.5).toFixed(2)}`;
+        satir += ` | %EKONOMİ ${phase} | Adım ${Number(ayarlar.confirmedYuzdeselEkonomiAdimYuzde||0.5).toFixed(2)} | Geriden %${Number(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde||1).toFixed(2)}`;
+        const sonOlay = Array.isArray(p.renkoProtectionTimeline) ? p.renkoProtectionTimeline.at(-1) : null;
+        if (sonOlay?.type) satir += ` | Son olay ${sonOlay.type}`;
+        return satir;
+    }
     const brickLive = String(atama.liveExitMode || '').toUpperCase() === 'SAFE_COMMISSION_BRICK_TRAIL';
     if (brickLive) {
         if (Number.isFinite(trail) && trail > 0) satir += ` | Canlı Trail ${trail.toFixed(2)}T`;
@@ -481,10 +492,8 @@ function st2ReplayKatmanOzeti(positions = []) {
 
 
 function st2HafifCanliRaporMetniOlustur() {
-    // R19 LIVE CPU ISOLATION:
-    // 30 sn operasyon paneli canlı trade event-loop'unda hiçbir ağır ledger/DNA/replay
-    // özeti çalıştırmaz. Yalnız RAM state ve aktif pozisyon görüntüsü kullanılır.
-    // Ağır bilimsel tablolar detay/log/state katmanında kalır.
+    // R24 LIVE PANEL: aktif pozisyonlar RAM state'den; Premier/Real/Shadow bilimsel kasa
+    // özeti 30 sn cache ile okunur. DNA/replay ağır hesapları trade loop dışında kalır.
     const tumAktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
     const aktifDagilim = accountingContinuity.activeBreakdown(tumAktifler);
     const premierAktifler = aktifDagilim.premierPositions.filter(anaPremierPozisyonuMu);
@@ -524,8 +533,18 @@ function st2HafifCanliRaporMetniOlustur() {
     const kasa = h.state.basariOzeti || {};
     const kTp = Number(kasa.tp || 0), kSl = Number(kasa.sl || 0), kBe = Number(kasa.be || 0);
     const kNet = Number(kasa.netKarZarar || 0);
-    const maxPozisyon = Math.max(1, Number(ayarlar.telegramCanliRaporMaxPozisyon || 5));
+    const partitions = liveCohortEconomy.summary();
+    const premierKasa = partitions.premier || {};
+    const realKasa = partitions.realPremier || {};
+    const shadowKasa = partitions.shadow || {};
+    const pfLite = v => Number(v) >= 999 ? '∞' : Number(v || 0).toFixed(2);
+    const kasaSatiri = (etiket, ikon, x) => `${ikon} ${etiket} N${Number(x.n||0)} | ✅${Number(x.tp||0)} ❌${Number(x.sl||0)} ⚖️${Number(x.be||0)} | WR %${Number(x.wr||0).toFixed(1)} | Net ${Number(x.net||0)>=0?'+':''}${Number(x.net||0).toFixed(4)} | PF ${pfLite(x.pf)}`;
+    const maxPozisyon = Math.max(1, Number(ayarlar.telegramCanliRaporMaxPozisyon || 10));
     const sirali = [...premierAktifler].sort((a, b) => pozisyonKarYuzde(b) - pozisyonKarYuzde(a)).slice(0, maxPozisyon);
+    const shadowAktifler = [...(aktifDagilim.shadowPositions || [])]
+        .filter(p => !p?.restartGap && !p?.restartRecovered)
+        .sort((a, b) => pozisyonKarYuzde(b) - pozisyonKarYuzde(a));
+    const shadowSirali = shadowAktifler.slice(0, maxPozisyon);
     const saat = new Date().toLocaleTimeString('tr-TR', { hour12: false });
     const lines = [
         `📊 AGROS ST2 OPERASYON — ${require('./versiyon.js').botSurumu}`,
@@ -536,7 +555,11 @@ function st2HafifCanliRaporMetniOlustur() {
         `⚙️ Canlı Zincir Saat ${binanceSaat.healthy ? 'HEALTHY' : 'DEGRADED'} ${offsetMetni} | Entry Gate ${startupGate} | Fiyat ${String(priceRuntime.source || 'BEKLIYOR')} ${Number(priceCoverage.fresh || 0)}/${Number(priceCoverage.total || 0)} | TG Native ${tgTransport.nativeCircuitOpen ? 'CIRCUIT' : 'OK'} Curl ${tgTransport.curlCircuitOpen ? 'CIRCUIT' : 'OK'} | Kuyruk ${Number(tgSaglik.critical || 0)}/${Number(tgSaglik.panel || 0)}/${Number(tgSaglik.detail || 0)}`,
         `🔁 Control Plane Mutabakat ${String(exchangeRec.status || (ayarlar.sanalEmirModu ? 'VIRTUAL' : 'BEKLIYOR'))}${exchangeAgeMs == null ? '' : ` ${Math.round(exchangeAgeMs / 1000)}sn`} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (entrySafety.ready === true ? 'READY' : `FAIL-CLOSED/${String(entrySafety.reason || 'NOT_READY')}`)} | Renko/Pusu bağımsız`,
         `🧵 Renko tarama ${scanInProgress ? `ÇALIŞIYOR ${Math.round(scanAgeMs / 1000)}sn` : 'BEKLIYOR'} | Panel CPU=RAM-ONLY | 30sn DIRECT | Son teslim ${panelDeliveryText}`,
-        `💰 Bot sonuç sayacı ✅${kTp} ❌${kSl} ⚖️${kBe} | Net ${kNet >= 0 ? '+' : ''}${kNet.toFixed(4)} | Bilimsel Premier/Shadow ağır ledger özeti 30sn panelden AYRILDI`,
+        `💰 Bot sonuç sayacı ✅${kTp} ❌${kSl} ⚖️${kBe} | Net ${kNet >= 0 ? '+' : ''}${kNet.toFixed(4)}`,
+        kasaSatiri('PREMIER', '🏆', premierKasa),
+        kasaSatiri('GERÇEK PREMIER', '💳', realKasa),
+        kasaSatiri('SHADOW', '👻', shadowKasa),
+        `🛡️ Yeni ekonomi SL -%${Number(ayarlar.sabitStopYuzdesi||0).toFixed(2)} | +%${Number(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde||0).toFixed(2)} → SL +%${Number(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde||0).toFixed(2)} | Sonra %${Number(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde||0).toFixed(2)} geriden / ${Number(ayarlar.confirmedYuzdeselEkonomiAdimYuzde||0).toFixed(2)} puan adım | Slot ${Number(ayarlar.gercekEmirMaxAktifPozisyon||0)} × Notional ${Number(ayarlar.calisilmakIstenenUsdtMiktar||0)*Number(ayarlar.mevcutKaldirac||1)} USDT`,
         `🎯 Pusu ${pusular.length} | LONG ${pusuLong} | SHORT ${pusuShort}`,
         `🚪 Giriş hunisi Değerlendirilen ${veriSagligi.pusuDegerlendirilen} | Mode D/C ${veriSagligi.entryModeDirect}/${veriSagligi.entryModeConfirmed} | Fiyat uygun ${veriSagligi.fiyatTetigi} | 1m ST uygun ${veriSagligi.stOnayi} | Birlikte ${veriSagligi.birlikteUygun} | Emir ${veriSagligi.pozisyonAcildi} | Bekleyen Fiyat ${veriSagligi.fiyatBekleyen} / ST ${veriSagligi.stReddi}`,
         `🧪 15m CONFIRMED canlı gölge Aktif ${veriSagligi.confirmedShadowActive} | Bekleyen ${veriSagligi.confirmedShadowWaiting} | Açık ${veriSagligi.confirmedShadowOpen} | Bu tur Kapanan ${veriSagligi.confirmedShadowClosed} / NoEntry ${veriSagligi.confirmedShadowNoEntry} | GERÇEK EMİR YOK`,
@@ -546,7 +569,11 @@ function st2HafifCanliRaporMetniOlustur() {
         lines.push('', `📦 AKTİF SCORE-PREMIER (${sirali.length}/${premierAktifler.length})`);
         lines.push(...sirali.map(pozisyonSatiri));
     }
-    lines.push('', 'ℹ️ Canlı panel RAM-only çalışır; ağır bilimsel replay/DNA/ledger hesapları trade loop dışında tutulur.');
+    if (shadowSirali.length) {
+        lines.push('', `👻 AKTİF SHADOW (${shadowSirali.length}/${shadowAktifler.length})`);
+        lines.push(...shadowSirali.map(pozisyonSatiri));
+    }
+    lines.push('', 'ℹ️ Premier/Real/Shadow ekonomi özeti 30sn cache; aktif pozisyonlar RAM state üzerinden gösterilir.');
     return telegramGuvenliMetin(lines.join('\n'));
 }
 

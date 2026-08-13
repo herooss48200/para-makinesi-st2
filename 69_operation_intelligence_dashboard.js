@@ -73,7 +73,11 @@ function summarizeScientificRows(rows=[]){
   out.directionalReconciled=out.n===out.byDirection.LONG.n+out.byDirection.SHORT.n+out.byDirection.UNKNOWN.n;
   return out;
 }
+let scientificPartitionCache={at:0,value:null};
 function scientificLedgerPartitions(rows=null){
+  if(!Array.isArray(rows) && scientificPartitionCache.value && Date.now()-scientificPartitionCache.at < 30000){
+    return scientificPartitionCache.value;
+  }
   const scientificRows=Array.isArray(rows)
     ? rows
     : globalReconciliation.readJsonl(globalReconciliation.LIVE_LEDGER,'SCIENTIFIC_CLOSE');
@@ -85,13 +89,15 @@ function scientificLedgerPartitions(rows=null){
       if(isReal) realPremierRows.push(row); else virtualPremierRows.push(row);
     } else shadowRows.push(row);
   }
-  return {
+  const result={
     total:summarizeScientificRows(scientificRows),
     premier:summarizeScientificRows(premierRows),
     realPremier:summarizeScientificRows(realPremierRows),
     virtualPremier:summarizeScientificRows(virtualPremierRows),
     shadow:summarizeScientificRows(shadowRows)
   };
+  if(!Array.isArray(rows)) scientificPartitionCache={at:Date.now(),value:result};
+  return result;
 }
 function componentScore(candidate, lifeRow){
   const h=candidate?.historical||{}; const live=candidate?.liveMetrics||{};

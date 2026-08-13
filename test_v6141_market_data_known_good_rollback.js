@@ -4,7 +4,7 @@ const fs=require('fs');
 const version=require('./versiyon.js');
 const settings=require('./ayarlar.js');
 
-assert.strictEqual(version.botSurumu,'6.13.5-R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW-10USDT-POSTCLOSE-24H-FINAL');
+assert.strictEqual(version.botSurumu,'6.13.5-R24-CONFIRMED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS-POSTCLOSE-24H');
 const rev=fs.readFileSync('./revizyon.js','utf8');
 const net=fs.readFileSync('./64_binance_network_resilience.js','utf8');
 assert(!rev.includes('startupAgOverrides'),'R5 startup transport override must remain absent');

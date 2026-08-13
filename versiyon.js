@@ -1,16 +1,16 @@
 'use strict';
 // Compatibility marker: CALIBRATION-READY; gerçek emir için aktif kalibrasyon ayrıca zorunludur.
-// v6.13.5-R23.2: CONFIRMED giriş ilk kapanmış 15m reversal + fresh fractional pencere kullanır; legacy 3-tuğla expiry bypass; pusu Renko box dondurulur; geç hareket kovalanmaz. Long-life/10USDT/24h post-close korunur.
+// v6.13.5-R24: R23.2 CONFIRMED giriş korunur; 10 gerçek slot x 20USDT; başlangıç SL -%2.50; +%2.50'de +%1.50 kilit ve sonra %1 geriden yüzdesel takip; Premier/Real/Shadow kasa canlı panelde ayrı görünür.
 // R4'e kadar canlıda kanıtlanan market-data motoru geri yüklendi; doğru telemetri raporu korunur.
 
 // v6.8.4 compatibility marker: 6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW-LONG-LIFE-FINAL',
-    kod: 'AGROS ST2 v6.13.5-R23.2 — CONFIRMED FIRST REVERSAL + FRESH WINDOW + LONG LIFE + 10USDT FINAL',
-    botSurumu: '6.13.5-R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW-10USDT-POSTCLOSE-24H-FINAL',
-    stratejiSurumu: '1.0.45',
-    yayinTarihi: '12.08.2026',
+    kodAdi: 'R24-CONFIRMED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS',
+    kod: 'AGROS ST2 v6.13.5-R24 — CONFIRMED PERCENT ECONOMY + 10 SLOT + 20USDT + LIVE COHORTS',
+    botSurumu: '6.13.5-R24-CONFIRMED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS-POSTCLOSE-24H',
+    stratejiSurumu: '1.0.46',
+    yayinTarihi: '13.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
 });
 

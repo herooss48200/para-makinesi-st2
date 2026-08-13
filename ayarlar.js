@@ -14,9 +14,9 @@ const ayarlar = {
     // ========================================
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
-    // Kontrollü CONFIRMED canlı test: pozisyon başına 10 USDT notional.
-    // 5 USDT marjin x 2x = 10 USDT notional; Shadow öğrenme Binance emri göndermez.
-    calisilmakIstenenUsdtMiktar: 5,
+    // R24 kontrollü CONFIRMED canlı ekonomi: pozisyon başına 20 USDT notional.
+    // 10 USDT marjin x 2x = 20 USDT notional; Shadow öğrenme Binance emri göndermez.
+    calisilmakIstenenUsdtMiktar: 10,
     mevcutKaldirac: 2,
     maxPozisyonSayisi: 100,
 
@@ -87,13 +87,13 @@ const ayarlar = {
     // KAR KADEMELERİ
     // ========================================
     tpAdimYuzdesi: 0.4,
-    maxTpYuzdesi: 10.0,
+    maxTpYuzdesi: 50.0,
     tpKademeSayisi: 25,
 
     // ========================================
     // SABİT STOP LOSS VE TAKE PROFIT
     // ========================================
-    sabitStopYuzdesi: 1.5,
+    sabitStopYuzdesi: 2.5,
     // KADEME modunda borsaya/sanala gönderilen TP, erken kapatmasın diye maxTpYuzdesi olur.
     // TRAILING modunda sabitTpYuzdesi kullanılır.
     sabitTpYuzdesi: 0.4,
@@ -517,7 +517,7 @@ const ayarlar = {
     telegramMesajMaxKarakter: 3400,
     telegramCanliPanelTimeoutMs: 6000, // R20: panel DIRECT lane; Native->curl bounded, generic bulk/detail kuyruğunu beklemez
     telegramDetayRaporlariAktif: false,
-    telegramCanliRaporMaxPozisyon: 5,
+    telegramCanliRaporMaxPozisyon: 10,
     telegramAcilisPusuMaxSatir: 6,
     canliRaporAktif: true,
     canliRaporGuncellemeMs: 30000, // her 30 sn mevcut panel edit edilir; yeni Telegram balonu değildir
@@ -696,12 +696,12 @@ const ayarlar = {
     // Tutar, kaldıraç, marjin ve aktif pozisyon limiti aşağıdaki ayarlardan yönetilir.
     gercekEmirOnayKodu: 'LIVE_TRADING_CONFIRMED',
     // Gerçek işlem riski yalnız bu AYARLAR SAYFASI üzerinden yönetilir.
-    // Marjin: calisilmakIstenenUsdtMiktar (5), kaldıraç: mevcutKaldirac (2); notional 10 USDT türetilir.
+    // Marjin: calisilmakIstenenUsdtMiktar (10), kaldıraç: mevcutKaldirac (2); notional 20 USDT türetilir.
     gercekEmirMarjinTipi: 'ISOLATED',
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
-    // R23.1 kontrollü canlı gerçek pozisyon kapasitesi 5'tir.
-    gercekEmirMaxAktifPozisyon: 5,
+    // R24 kontrollü canlı gerçek pozisyon kapasitesi 10'dur.
+    gercekEmirMaxAktifPozisyon: 10,
     // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
     // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
     canliShadowOgrenmeAktif: true,
@@ -898,6 +898,16 @@ const ayarlar = {
     // +%1.50 sabit TP değildir; ölçüm hedefidir. Renko güçlüyse runner devam eder.
     renkoConfirmedLongLifeAktif: true,
     renkoConfirmedLongLifeTarget1Yuzde: 1.50,
+
+    // R24 — CONFIRMED ekonomi yönetimi: erken K1/K2/Renko/Dynamic Exit yok.
+    // Başlangıç SL sabitStopYuzdesi (-%2.50). +%2.50 görülünce +%1.50 kilit;
+    // sonra her +%0.50 yeni kâr kademesinde stop +%0.50 ilerler (zirvenin yaklaşık %1.00 gerisi).
+    // Gerçek Premier ve sanal/shadow yaşamlar aynı metodla yönetilir.
+    confirmedYuzdeselEkonomiAktif: true,
+    confirmedYuzdeselEkonomiAktivasyonYuzde: 2.50,
+    confirmedYuzdeselEkonomiIlkKilitYuzde: 1.50,
+    confirmedYuzdeselEkonomiTakipMesafeYuzde: 1.00,
+    confirmedYuzdeselEkonomiAdimYuzde: 0.50,
 
     renkoCikisKarTabaniAktivasyonYuzde: 0.50,
     renkoCikisCanliAktivasyonYuzde: 0.60,

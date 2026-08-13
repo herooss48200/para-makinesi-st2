@@ -26,6 +26,7 @@ const operationTransparency = require('./82_st2_operation_transparency.js');
 const realExecution = require('./85_st2_real_order_execution.js');
 const closeLifecycle = require('./86_st2_close_lifecycle.js');
 const postClosePricePath = require('./95_st2_post_close_price_path.js');
+const liveCohortEconomy = require('./96_st2_live_cohort_economy.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -1182,6 +1183,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         blackbox.kayitYaz(pos, 'KAPANIS', kapanisAnalizPaketi);
         labChampion.close(pos, kapanisAnalizPaketi, exitReplayRecord);
         labPremier.close(pos, { net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc, reason: duzeltilmisSebep });
+        liveCohortEconomy.record(pos, { net: netKarZarar, commission: toplamKomisyon, outcome: kaliteSonuc, reason: duzeltilmisSebep }, { closedAt: kapanisZamani });
     } else if (restartGapIslemi) {
         restartGap.closeRecord(pos, kapanisAnalizPaketi);
         console.log(`🛡️ [RESTART GAP KAPANIŞ] ${pos.sym} ${pos.yon} | Muhasebe dahil, öğrenme hariç | Net: ${netKarZarar.toFixed(4)}`);
@@ -1410,7 +1412,49 @@ function klasikTrailingHesapla(pos, canliFiyat) {
     return guncellemeGerekli;
 }
 
+function yuzdeselEkonomiHesapla(pos, canliFiyat) {
+    if (ayarlar.confirmedYuzdeselEkonomiAktif !== true) return false;
+    const giris = Number(pos?.girisFiyati || 0);
+    const fiyat = Number(canliFiyat || 0);
+    if (!(giris > 0) || !(fiyat > 0)) return false;
+
+    const karYuzde = pos.yon === 'LONG'
+        ? ((fiyat - giris) / giris) * 100
+        : ((giris - fiyat) / giris) * 100;
+    const aktivasyon = Number(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde || 2.50);
+    if (karYuzde + 1e-9 < aktivasyon) return false;
+
+    const ilkKilit = Number(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde || 1.50);
+    const adim = Math.max(0.05, Number(ayarlar.confirmedYuzdeselEkonomiAdimYuzde || 0.50));
+    const kademe = Math.max(0, Math.floor((karYuzde - aktivasyon + 1e-9) / adim));
+    const korunanKar = ilkKilit + kademe * adim;
+    const adaySl = pos.yon === 'LONG'
+        ? giris * (1 + korunanKar / 100)
+        : giris * (1 - korunanKar / 100);
+    const mevcutSl = Number(pos.sl || 0);
+    const dahaIyi = pos.yon === 'LONG' ? adaySl > mevcutSl : adaySl < mevcutSl;
+    if (!dahaIyi) return false;
+
+    pos.sl = adaySl;
+    pos.breakevenAktif = true;
+    pos.breakevenYeniAktif = true;
+    pos.yuzdeselEkonomiAktif = true;
+    pos.yuzdeselEkonomiSonKarYuzde = karYuzde;
+    pos.yuzdeselEkonomiKorunanKarYuzde = korunanKar;
+    pos.renkoExitLastStopSourceLabel = 'Yüzdesel ekonomi takip stopu';
+    if (!Array.isArray(pos.renkoProtectionTimeline)) pos.renkoProtectionTimeline = [];
+    pos.renkoProtectionTimeline.push({
+        at: Date.now(), type: kademe === 0 ? 'PERCENT_ECONOMY_ARMED' : 'PERCENT_ECONOMY_STOP_MOVED',
+        price: fiyat, profitPct: karYuzde, stop: adaySl, protectedProfitPct: korunanKar
+    });
+    if (pos.renkoProtectionTimeline.length > 120) pos.renkoProtectionTimeline = pos.renkoProtectionTimeline.slice(-120);
+    return true;
+}
+
 function trailingHesapla(pos, canliFiyat) {
+    if (ayarlar.confirmedYuzdeselEkonomiAktif === true) {
+        return yuzdeselEkonomiHesapla(pos, canliFiyat);
+    }
     if (ayarlar.stopTakipModu === 'KADEME') {
         return kademeliStopHesapla(pos, canliFiyat);
     }
@@ -1621,8 +1665,9 @@ async function izSurmeyiGuncelle(options = {}) {
         if (sanalPozisyon) {
             // v4.2.1: Kanıtlı DNA exit planı sanal testte aktif uygulanır.
             // Plan yoksa/desteklenmiyorsa mevcut kademe sistemi güvenli fallback olarak devam eder.
-            const dynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
-            const renkoKarar = ayarlar.renkoCikisEvolutionAktif === true ? renkoExitEvolution.update(pos, canliFiyat) : { active:false };
+            const yeniEkonomi = ayarlar.confirmedYuzdeselEkonomiAktif === true;
+            const dynamicKarar = yeniEkonomi ? { active:false, close:false } : sanalDynamicExit.evaluate(pos, canliFiyat);
+            const renkoKarar = (!yeniEkonomi && ayarlar.renkoCikisEvolutionAktif === true) ? renkoExitEvolution.update(pos, canliFiyat) : { active:false, changed:false };
             if (renkoKarar.justActivated && ayarlar.telegramRenkoDevralmaMesaji === true && !pos.renkoExitTakeoverNotified) {
                 await h.telegramMesajGonder(renkoExitEvolution.takeoverText(pos));
                 pos.renkoExitTakeoverNotified = true;
@@ -1728,8 +1773,9 @@ async function izSurmeyiGuncelle(options = {}) {
         // Gerçek stop algoritması aday stopu pozisyon nesnesinde değiştirir. Borsa güncellemesi
         // başarısız olursa yerel stopun eski korumadan kopmaması için önceki değeri baştan dondur.
         const realOncekiSl = Number(pos.sl);
-        const realDynamicKarar = sanalDynamicExit.evaluate(pos, canliFiyat);
-        const realRenkoKarar = ayarlar.renkoCikisEvolutionAktif === true
+        const yeniEkonomi = ayarlar.confirmedYuzdeselEkonomiAktif === true;
+        const realDynamicKarar = yeniEkonomi ? { active:false, close:false } : sanalDynamicExit.evaluate(pos, canliFiyat);
+        const realRenkoKarar = (!yeniEkonomi && ayarlar.renkoCikisEvolutionAktif === true)
             ? renkoExitEvolution.update(pos, canliFiyat)
             : { active: false, changed: false };
 

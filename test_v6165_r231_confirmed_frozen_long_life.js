@@ -15,12 +15,12 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const transparency = require('./82_st2_operation_transparency.js');
 
-  const CURRENT = '6.13.5-R23.2-CONFIRMED-FIRST-REVERSAL-FRESH-WINDOW-10USDT-POSTCLOSE-24H-FINAL';
+  const CURRENT = '6.13.5-R24-CONFIRMED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS-POSTCLOSE-24H';
   assert.strictEqual(version.botSurumu, CURRENT);
   assert.strictEqual(ayarlar.renkoGirisModuZorlaConfirmed, true, 'yeni gerçek giriş authority CONFIRMED olmalı');
   assert.strictEqual(ayarlar.renkoConfirmedLongLifeAktif, true, 'CONFIRMED long-life aktif olmalı');
-  assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac, 10, 'kontrollü notional 10 USDT olmalı');
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 5, 'gerçek slot limiti 5 olmalı');
+  assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac, 20, 'R24 kontrollü notional 20 USDT olmalı');
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 10, 'R24 gerçek slot limiti 10 olmalı');
   assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT', 'legacy VERSION contract bozulmamalı');
   assert.strictEqual(exit.RUNTIME_VERSION, 'v6.13.5-R23.1-CONFIRMED-FROZEN-LONG-LIFE');
 
@@ -97,8 +97,9 @@ try {
 
   const opening = transparency.openingText(confirmedPos, { real: false, pricePrecision: 4 });
   assert(opening.includes('Giriş modu: <b>CONFIRMED</b>'));
-  assert(opening.includes('CONFIRMED LONG-LIFE'));
-  assert(opening.includes('Hedef-1 +%1.50'));
+  assert(opening.includes('YÜZDESEL EKONOMİ'));
+  assert(opening.includes('+%2.50 görülene kadar erken kâr kilidi YOK'));
+  assert(opening.includes('İlk kilit +%1.50'));
 
   const closing = transparency.closingText(confirmedPos, {
     pricePrecision: 4, exitPrice: 101.2, openedAtText: '12.08.2026 10:00', closedAtText: '12.08.2026 11:00',
@@ -106,9 +107,9 @@ try {
     mfePct: 1.5, maePct: -0.2, fiyatKarYuzdesi: 1.2
   });
   assert(closing.includes('Mod CONFIRMED'));
-  assert(closing.includes('Erken ekonomi kilidi KAPALI'));
-  assert(closing.includes('Hedef-1 +%1.50 GÖRÜLDÜ'));
-  assert(closing.includes('CONFIRMED Hedef-1 görüldü'));
+  assert(closing.includes('YÜZDESEL EKONOMİ'));
+  assert(closing.includes('+%2.50 → ilk stop +%1.50'));
+  assert(closing.includes('yaklaşık %1.00 geriden takip'));
 
   // DIRECT davranışı geriye dönük bozulmamalı: +0.25 erken ekonomi tabanı hâlâ aktif.
   const directPos = {
@@ -122,7 +123,7 @@ try {
   assert.strictEqual(directEarly.changed, true);
   assert(directPos.sl >= 100.19 && directPos.sl <= 100.21);
 
-  console.log('✅ v6.13.5-R23.1 CONFIRMED frozen authority + long-life + target-1 + reporting + legacy compatibility passed');
+  console.log('✅ R24 preserves CONFIRMED frozen authority while reporting percent-economy override; legacy exit module compatibility passed');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
