@@ -680,7 +680,8 @@ const m = {
             }
             const yasamProfili = labLifecycle.apply(hazirKimlik);
 
-            // R24.2: LAB lifecycle bilimsel profildir; execution SL otoritesi değildir.
+            // R24.2: LAB lifecycle bilimsel profildir; ana execution SL otoritesi değildir.
+            // Gerçek Premier ve ana Shadow/Development aynı yüzdesel ekonomi riskini kullanır.
             const etkinStopYuzdesi = Number(ayarlar.sabitStopYuzdesi || 2.5);
             const etkinStopOrani = etkinStopYuzdesi / 100;
             sl = fiyatKlip(symbol, String(hazirKimlik.yon || yon).toUpperCase() === 'LONG'
@@ -789,16 +790,30 @@ const m = {
                 });
             }
             let hedefGercekNotional = risk.notionalUsdt * ligBoyutCarpani;
+            // R24.2 LOT_SIZE hotfix:
+            // Önce mevcut nearest-step hesaplanır; hedef notionalı aşarsa güvenli floor'a dönülür.
+            // Böylece 20 USDT hedef hiçbir zaman yukarı aşılmaz.
             let gercekMiktar = gercekMiktarHedefeEnYakinKlip(symbol, hedefGercekNotional / canliFiyat);
             let gercekNotional = gercekMiktar * canliFiyat;
-            const onEmirSapmaYuzde = hedefGercekNotional > 0 ? Math.abs((gercekNotional - hedefGercekNotional) / hedefGercekNotional) * 100 : 999;
+            const hedefUstuEpsilon = Math.max(1e-12, hedefGercekNotional * 1e-12);
+            if (hedefGercekNotional > 0 && gercekNotional > hedefGercekNotional + hedefUstuEpsilon) {
+                gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
+                gercekNotional = gercekMiktar * canliFiyat;
+            }
             const maksNotionalSapmaYuzde = Number(ayarlar.gercekEmirMaksNotionalSapmaYuzde);
+            const maksLotSizeAsagiSapmaYuzde = Number(ayarlar.gercekEmirLotSizeAsagiSapmaYuzde);
+            const lotSizeAsagiSapmaYuzde = hedefGercekNotional > 0
+                ? Math.max(0, ((hedefGercekNotional - gercekNotional) / hedefGercekNotional) * 100)
+                : 999;
+            const hedefUstu = hedefGercekNotional > 0 && gercekNotional > hedefGercekNotional + hedefUstuEpsilon;
             if (!Number.isFinite(maksNotionalSapmaYuzde) || maksNotionalSapmaYuzde < 0 ||
-                !gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional || onEmirSapmaYuzde > maksNotionalSapmaYuzde) {
+                !Number.isFinite(maksLotSizeAsagiSapmaYuzde) || maksLotSizeAsagiSapmaYuzde < 0 ||
+                !gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional ||
+                hedefUstu || lotSizeAsagiSapmaYuzde > maksLotSizeAsagiSapmaYuzde) {
                 return canliShadowOgrenmeAc({
                     symbol, yon: islemYonu, canliFiyat, guvenliMiktar, sl, tp, pPrecision,
                     girisAnalizi: hazirKimlik.girisAnalizi || etkinGirisAnalizi, hazirKimlik,
-                    reason: `GERCEK_BOYUT_FAIL_CLOSED:${onEmirSapmaYuzde.toFixed(3)}`
+                    reason: `GERCEK_BOYUT_FAIL_CLOSED:LOT_UNDER=${lotSizeAsagiSapmaYuzde.toFixed(3)}|TARGET_OVER=${hedefUstu ? 1 : 0}`
                 });
             }
 
@@ -837,11 +852,13 @@ const m = {
                     hedefGercekNotional = risk.marginUsdt * kaldirac * ligBoyutCarpani;
                     gercekMiktar = miktarKlip(symbol, hedefGercekNotional / canliFiyat);
                     gercekNotional = gercekMiktar * canliFiyat;
-                    const fallbackSapma = hedefGercekNotional > 0
-                        ? Math.abs((gercekNotional - hedefGercekNotional) / hedefGercekNotional) * 100
+                    const fallbackLotSizeAsagiSapma = hedefGercekNotional > 0
+                        ? Math.max(0, ((hedefGercekNotional - gercekNotional) / hedefGercekNotional) * 100)
                         : 999;
-                    if (!gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional || fallbackSapma > maksNotionalSapmaYuzde) {
-                        throw new Error(`KALDIRAC_FALLBACK_BOYUT_FAIL_CLOSED:${kaldirac}x:${fallbackSapma.toFixed(3)}`);
+                    const fallbackHedefUstu = hedefGercekNotional > 0 && gercekNotional > hedefGercekNotional + Math.max(1e-12, hedefGercekNotional * 1e-12);
+                    if (!gercekMiktar || gercekMiktar < minQty || gercekNotional < minNotional ||
+                        fallbackHedefUstu || fallbackLotSizeAsagiSapma > maksLotSizeAsagiSapmaYuzde) {
+                        throw new Error(`KALDIRAC_FALLBACK_BOYUT_FAIL_CLOSED:${kaldirac}x:LOT_UNDER=${fallbackLotSizeAsagiSapma.toFixed(3)}|TARGET_OVER=${fallbackHedefUstu ? 1 : 0}`);
                     }
                     console.warn(`⚠️ [SEMBOL KALDIRAÇ UYUMU] ${symbol} | İstenen ${risk.leverage}x reddedildi | Etkin ${kaldirac}x | Marjin ${risk.marginUsdt.toFixed(2)} USDT | Notional ${hedefGercekNotional.toFixed(2)} USDT`);
                 }

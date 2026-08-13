@@ -715,7 +715,11 @@ const ayarlar = {
     postCloseTakipStateKayitAraligiMs: 60000,
     postCloseTakipTamamlananSakla: 1000,
     gercekEmirKorumaEmirleriZorunlu: true,
+    // Gerçek fill/fiyat sapması için sert güvenlik limiti; R24.2 hotfix bunu değiştirmez.
     gercekEmirMaksNotionalSapmaYuzde: 2,
+    // Binance LOT_SIZE nedeniyle hedef notionalın ALTINDA kalan geçerli miktara ayrı tolerans.
+    // Hedef notionalın üstüne çıkılmaz; yalnız aşağı sapma en fazla %5 kabul edilir.
+    gercekEmirLotSizeAsagiSapmaYuzde: 5,
     gercekEmirAnaAgZorunlu: true,
     // Lig modeli bu süreden eskiyse gerçek emir fail-closed engellenir.
     gercekEmirLigModelMaksYasDakika: 360,
