@@ -1,0 +1,35 @@
+AGROS ST2 v6.13.5-R24.2 committed files
+
+Execution authority:
+73_st2_renko_entry_evolution.js
+motor.js
+
+Version/package contract:
+versiyon.js
+package.json
+package-lock.json
+
+R24.2 test:
+test_v6168_r242_unified_execution_stop_authority.js
+
+Version-contract compatibility tests:
+test_v6105_active_exit_report_reconciliation.js
+test_v6109_final_chain_reconciliation.js
+test_v6110_golden_live_chain.js
+test_v6112_direct_profit_floor_two_slot.js
+test_v6122_golden_renko_williams_shadow.js
+test_v6140_market_data_transport_stability.js
+test_v6141_market_data_known_good_rollback.js
+test_v6142_startup_panel_guard.js
+test_v6143_telegram_live_panel_delivery_truth.js
+test_v6154_r12_live_liveness_recovery.js
+test_v6160_live_panel_direct_entry_truth.js
+test_v6164_r222_kasa_recovery_40usdt_postclose.js
+test_v6165_r231_confirmed_frozen_long_life.js
+test_v6166_r232_confirmed_first_reversal_fresh_window.js
+test_v6167_r24_confirmed_percent_economy.js
+
+Release evidence:
+CHANGELOG-v6.13.5-R24.2.md
+AWS-DEPLOY-v6.13.5-R24.2.md
+TEST-RESULT-v6.13.5-R24.2.txt

@@ -679,11 +679,16 @@ const m = {
                 return false;
             }
             const yasamProfili = labLifecycle.apply(hazirKimlik);
-            const etkinStopYuzdesi = Number(yasamProfili?.stopPct || ayarlar.sabitStopYuzdesi || 1.5);
+
+            // R24.2: LAB lifecycle bilimsel profildir; execution SL otoritesi değildir.
+            const etkinStopYuzdesi = Number(ayarlar.sabitStopYuzdesi || 2.5);
             const etkinStopOrani = etkinStopYuzdesi / 100;
-            sl = fiyatKlip(symbol, String(hazirKimlik.yon || yon).toUpperCase() === 'LONG' ? canliFiyat * (1 - etkinStopOrani) : canliFiyat * (1 + etkinStopOrani));
+            sl = fiyatKlip(symbol, String(hazirKimlik.yon || yon).toUpperCase() === 'LONG'
+                ? canliFiyat * (1 - etkinStopOrani)
+                : canliFiyat * (1 + etkinStopOrani));
             hazirKimlik.sl = sl;
             hazirKimlik.labLifecycleProfile = yasamProfili;
+            hazirKimlik.executionInitialStopPct = etkinStopYuzdesi;
             const islemYonu = String(hazirKimlik.yon || yon).toUpperCase();
             if (islemYonu !== yon) {
                 sl = fiyatKlip(symbol, islemYonu === 'LONG' ? canliFiyat * (1 - etkinStopOrani) : canliFiyat * (1 + etkinStopOrani));

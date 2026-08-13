@@ -216,7 +216,7 @@ function priceForPct(yon,entry,pct){ return yon==='SHORT'?entry*(1-pct/100):entr
 function frozenRisk(pos){
   const life=pos?.labLifecycleProfile||{};
   return {
-    stopPct:Math.max(0.01,n(life.stopPct,n(ayarlar.sabitStopYuzdesi,1.5))),
+    stopPct:Math.max(0.01,n(pos?.executionInitialStopPct,n(ayarlar.sabitStopYuzdesi,2.5))),
     beTriggerPct:Math.max(0,n(life.beTriggerPct,n(ayarlar.breakevenTetikYuzde,0.4))),
     beBufferPct:Math.max(0,n(life.beBufferPct,n(ayarlar.breakevenTamponYuzde,0.12)))
   };
@@ -323,7 +323,7 @@ function auditDecisionChain(s,pos,result,ga,pusu,points){
     detail:{assignedBrick:entryBrick,gateBrick,target,shadowTarget,actual,side,tolerance:entryTol,bindingVerified:binding.verified===true,shadowOnlyEvolution,timingAuthority:ga?.entryTimingAuthority||binding?.timingAuthority||null}
   });
 
-  const stopPct=Math.max(0.01,n(pos?.labLifecycleProfile?.stopPct,n(ayarlar.sabitStopYuzdesi,1.5)));
+  const stopPct=Math.max(0.01,n(pos?.executionInitialStopPct,n(ayarlar.sabitStopYuzdesi,2.5)));
   const assignedStop=actual>0?(String(pos?.yon).toUpperCase()==='SHORT'?actual*(1+stopPct/100):actual*(1-stopPct/100)):0;
   const appliedStop=n(pos?.initialSl||pos?.ilkSl||pos?.sanalIlkStop||pos?.sl);
   const stopTol=Math.max(actual*0.0005,1e-9);

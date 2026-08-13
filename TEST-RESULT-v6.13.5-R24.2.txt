@@ -1,0 +1,19 @@
+AGROS ST2 v6.13.5-R24.2 TEST RESULT
+
+PASS: npm run test:fast
+PASS: npm run test:syntax — 183 JavaScript files
+PASS: test_v6166_r232_confirmed_first_reversal_fresh_window.js
+PASS: test_v6167_r24_confirmed_percent_economy.js
+PASS: test_v6168_r242_unified_execution_stop_authority.js
+
+R24.2 contracts:
+- Real Premier + main Shadow/Development execution initial SL = -2.50%
+- LAB Lifecycle stopPct is replay/learning only; cannot override execution SL
+- +2.50% profit => stop +1.50%
+- Each additional +0.50 percentage point => stop +0.50 percentage point
+- Approx. 1.00 percentage-point trailing distance after activation
+- 10 real slots
+- 20 USDT notional per real position (10 USDT margin x 2x)
+- R23.2 CONFIRMED first-reversal fresh-window authority preserved
+- Live Premier / Real Premier / Shadow cohort panel preserved
+- Legacy 1m confirmation lab remains diagnostic/no real-order authority

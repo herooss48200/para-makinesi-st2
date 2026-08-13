@@ -15,7 +15,7 @@ assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde, 1.5);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde, 1.0);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAdimYuzde, 0.5);
 assert.ok(ayarlar.maxTpYuzdesi >= 50, 'failsafe TP erken kapatmamalı');
-assert.ok(version.botSurumu.includes('R24-CONFIRMED-PERCENT-ECONOMY'));
+assert.ok(version.botSurumu.includes('R24.2-UNIFIED-PERCENT-ECONOMY'));
 
 const pos = fs.readFileSync('./4_pozisyon.js','utf8');
 assert.ok(pos.includes('function yuzdeselEkonomiHesapla'));
@@ -44,7 +44,7 @@ assert.strictEqual(floor(3.00), 2.0);
 assert.strictEqual(floor(3.50), 2.5);
 assert.strictEqual(floor(5.00), 4.0);
 
-console.log('✅ R24 confirmed percent economy passed | 10 slot x 20USDT | SL -2.5 | +2.5=>+1.5 | 1pt trail | Premier/Real/Shadow live panel');
+console.log('✅ R24.2 confirmed percent economy passed | 10 slot x 20USDT | SL -2.5 | +2.5=>+1.5 | 1pt trail | Premier/Real/Shadow live panel');
 
 assert(report.includes("liveCohortEconomy.summary()"), 'panel cohort economy RAM cache kullanmali');
 assert(!report.slice(report.indexOf('function st2HafifCanliRaporMetniOlustur()'), report.indexOf('function minimalCanliRaporMetniOlustur()')).includes('operationIntelligence.scientificLedgerPartitions('), 'hafif panel ledger taramamali');
