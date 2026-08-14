@@ -9,8 +9,8 @@ process.env.AGROS_DATA_DIR = temp;
 
 try {
   const ayarlar = require('./ayarlar.js');
-  assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar, 10, 'R24 marjin 10 USDT olmalı');
-  assert.strictEqual(ayarlar.mevcutKaldirac, 2, 'kaldıraç 2x olmalı');
+  assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar, 4, 'R25.1 marjin 4 USDT olmalı');
+  assert.strictEqual(ayarlar.mevcutKaldirac, 5, 'R25.1 kaldıraç 5x olmalı');
   assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac, 20, 'R24 toplam notional 20 USDT olmalı');
   assert.deepStrictEqual(ayarlar.gercekDirectIzinliTuglalar, [0.50, 1.00], 'DIRECT gerçek izin yalnız 0.50T/1.00T olmalı');
   assert.strictEqual(ayarlar.gercekDirectTuglaFiltreAktif, true);
@@ -81,7 +81,7 @@ try {
   assert(fs.existsSync(tracker.LEDGER_FILE),'24h sonuç ledger yazılmalı');
 
   const version = require('./versiyon.js');
-  assert.strictEqual(version.botSurumu, '6.13.5-R24.2-UNIFIED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS-POSTCLOSE-24H');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.1-EARLY-PROFIT-LOCK-MACD-REPLAY-SHADOW-5X-20USDT-10SLOT-POSTCLOSE-24H');
 
   console.log('✅ v6.13.5-R23.1 risk/post-close compatibility passed | 20 USDT notional | CONFIRMED real authority | post-close 24h no-order tracker');
 } finally {

@@ -16,8 +16,8 @@ const bridge = require('./50_real_order_readiness_bridge.js');
 const lab = require('./62_lab_premier_league.js');
 
 assert.strictEqual(ayarlar.sanalEmirModu, false);
-assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar, 10);
-assert.strictEqual(ayarlar.mevcutKaldirac, 2);
+assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar, 4);
+assert.strictEqual(ayarlar.mevcutKaldirac, 5);
 assert.strictEqual(ayarlar.gercekEmirMarjinTipi, 'ISOLATED');
 assert(Number.isInteger(Number(ayarlar.gercekEmirMaxAktifPozisyon)) && Number(ayarlar.gercekEmirMaxAktifPozisyon) >= 1, 'aktif gerçek pozisyon limiti ayarlardan yönetilmeli');
 assert.strictEqual(bridge.realAuthorization().valid, true, 'mainnet + genel canlı onayı birlikte gerçek yetki vermeli');

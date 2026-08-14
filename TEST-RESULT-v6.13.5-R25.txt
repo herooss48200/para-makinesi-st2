@@ -1,0 +1,40 @@
+AGROS ST2 v6.13.5-R25 TEST SONUCU
+======================================
+Taban: eb0a6fa
+Tarih: 14.08.2026
+
+SONUC: RELEASE ADAYI / FAST CANLI GUVENLIK ZINCIRI PASS
+
+1) Tum kaynak syntax
+- 187 adet ST2 kok JavaScript dosyasi tek tek `node --check`: PASS
+- Mevcut test_v674_full_source_syntax.js: PASS
+
+2) `npm test` / test:fast
+- RC=0: PASS
+- Telegram/panel cadence, real-order safety, atomic stop, market-data fallback,
+  Renko CPU/cache liveness, DIRECT+CONFIRMED shared authority, 15m CONFIRMED,
+  R22/R23 compatibility, R25 percent economy, R24.2 LOT_SIZE hotfix,
+  exact leverage ve MACD Shadow testleri birlikte gecti.
+
+3) R25 yeni regresyonlar
+- test_v6170_r25_early_profit_lock_exact_leverage.js: PASS
+  +1.50=>+1.00 | +2.00=>+1.50 | +2.50=>+2.00 | LONG/SHORT monotonic
+  | live 2x no silent 1x
+- test_v6171_r25_macd_shadow_intelligence.js: PASS
+  1m+15m cache only | histogram decay | delayed 0.25/0.50/0.75T snapshot
+  | MACD stop/emir authority YOK
+- HBAR-benzeri test: MFE +1.85 / anlik +1.20 / MACD DECAY => Shadow +1.00 onerisi;
+  pos.sl degismedi: PASS
+
+4) Korunan eski kritik regresyonlar
+- R23.2 first reversal + fresh fractional window: PASS
+- R24.2 LOT_SIZE safe under-target: PASS
+- Unified execution stop authority: PASS
+- Symbol leverage policy compatibility: PASS
+- 1m confirmation FULL lifecycle Shadow: PASS
+
+5) Full `npm run check` sandbox notu
+- Sandbox'ta Git archive node_modules icermedigi icin full check `test:v673` asamasinda
+  `Cannot find module dotenv` ile durdu. Bu bir kaynak/regresyon hatasi degildir.
+- `npm test` RC=0'dur. Windows/AWS mevcut node_modules ortaminda deploy oncesi
+  `npm run check` tekrar calistirilmalidir.

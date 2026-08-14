@@ -238,8 +238,8 @@ function pozisyonSatiri(p) {
         const protectedPct = Number(p.yuzdeselEkonomiKorunanKarYuzde);
         const phase = Number.isFinite(protectedPct)
             ? `KİLİT +%${protectedPct.toFixed(2)}`
-            : `BEKLE +%${Number(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde||2.5).toFixed(2)}`;
-        satir += ` | %EKONOMİ ${phase} | Adım ${Number(ayarlar.confirmedYuzdeselEkonomiAdimYuzde||0.5).toFixed(2)} | Geriden %${Number(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde||1).toFixed(2)}`;
+            : `BEKLE +%${Number(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde||1.5).toFixed(2)}`;
+        satir += ` | %EKONOMİ ${phase} | Adım ${Number(ayarlar.confirmedYuzdeselEkonomiAdimYuzde||0.5).toFixed(2)} | Geriden %${Number(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde||0.5).toFixed(2)}`;
         const sonOlay = Array.isArray(p.renkoProtectionTimeline) ? p.renkoProtectionTimeline.at(-1) : null;
         if (sonOlay?.type) satir += ` | Son olay ${sonOlay.type}`;
         return satir;

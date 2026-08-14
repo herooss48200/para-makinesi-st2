@@ -7,11 +7,11 @@ const version = require('./versiyon.js');
 assert.strictEqual(ayarlar.sabitStopYuzdesi, 2.5, 'R24.2 execution başlangıç SL -%2.50 olmalı');
 assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 10, 'R24.2 gerçek slot 10 olmalı');
 assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac, 20, 'R24.2 notional 20 USDT olmalı');
-assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde, 2.5);
-assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde, 1.5);
-assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde, 1.0);
+assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde, 1.5);
+assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde, 1.0);
+assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde, 0.5);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAdimYuzde, 0.5);
-assert.ok(version.botSurumu.includes('R24.2-UNIFIED-PERCENT-ECONOMY'));
+assert.ok(version.botSurumu.includes('R25.1-EARLY-PROFIT-LOCK-MACD-REPLAY-SHADOW-5X-20USDT'));
 
 const motor = fs.readFileSync('./motor.js','utf8');
 assert.ok(motor.includes('const etkinStopYuzdesi = Number(ayarlar.sabitStopYuzdesi || 2.5);'), 'motor execution SL global R24.2 riskinden gelmeli');
@@ -27,4 +27,4 @@ assert.ok(!evo.includes('const stopPct=Math.max(0.01,n(pos?.labLifecycleProfile?
 // LAB profili öğrenme amacıyla korunur; sadece execution SL otoritesi kaldırılır.
 assert.ok(motor.includes('hazirKimlik.labLifecycleProfile = yasamProfili;'));
 
-console.log('✅ R24.2 unified execution stop authority passed | Real Premier + main Shadow/Development SL -2.5 | LAB stop replay-only | 10 slot x 20USDT');
+console.log('✅ R25 unified execution stop authority passed | Real Premier + main Shadow/Development SL -2.5 | early profit lock + MACD shadow | LAB stop replay-only | 10 slot x 20USDT');

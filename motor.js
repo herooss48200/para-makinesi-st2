@@ -845,7 +845,8 @@ const m = {
                     if (!text.includes('-4046') && !/no need to change margin type/i.test(text)) throw err;
                 });
                 const leverageDecision = await symbolLeveragePolicy.negotiate({
-                    symbol, requestedLeverage: kaldirac, client: h.client
+                    symbol, requestedLeverage: kaldirac, client: h.client,
+                    allowFallback: ayarlar.gercekEmirKaldiracFallbackAktif === true
                 });
                 kaldirac = leverageDecision.effective;
                 if (kaldirac !== risk.leverage) {

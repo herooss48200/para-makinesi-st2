@@ -17,6 +17,7 @@ const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_
 const renkoEntryModePolicy = require('./90_st2_renko_entry_mode_policy.js');
 const renko15mConfirmedEvidence = require('./94_st2_15m_confirmed_evidence.js');
 const filteredDirectShadow = require('./96_st2_filtered_direct_shadow.js');
+const macdShadow = require('./97_st2_macd_shadow_intelligence.js');
 // v6.12.3 compatibility marker: entryTimingAuthority: 'RENKO_EVOLUTION_1M_RENKO_ST'
 
 let baslangicPusuOzetiGonderildi = false;
@@ -791,6 +792,8 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     // v6.12.3: Williams dönüş gölgesi artık gerçek giriş zaman otoritesiyle aynı 1m Renko serisini izler.
     // Emir engellemez; uç bölgede kalmayı değil, nötre doğru dönüşü etiketler.
     const williamsShadow = williamsCycleShadow.entrySnapshot(sym, pusu.yon, onayBricks1m);
+    // R25: MACD giriş fotoğrafı yalnız SHADOW. 1m/15m kapanmış cache kullanır, giriş kararını değiştirmez.
+    const macdShadowAtEntry = macdShadow.entrySnapshot(sym, pusu.yon, Date.now(), h.state);
     // v6.12.3: Erken/yalancı giriş hipotezi için R→G / G→R sonrası 0.25T–0.75T
     // alternatifleri yalnız gölgede dondurulur. Golden Renko canlı kararı değişmez.
     const renkoEntryConfirmation = renkoEntryConfirmationShadow.entrySnapshot(
@@ -839,6 +842,7 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         stKaynak: '1m_RENKO',
         st1EntryGateShadow: { ...st1Shadow, authority: 'SHADOW_ONLY', blocksEntry: false },
         williamsCycleShadow: williamsShadow,
+        macdShadowAtEntry,
         renkoEntryConfirmationShadow: renkoEntryConfirmation,
         senaryo: pusu.senaryo,
         patternId: pusu.patternId,
@@ -870,6 +874,9 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     const ok = await m.pozisyonAc(sym, pusu.yon, price, girisAnalizi);
     if (audit) { if (ok) audit.pozisyonAcildi++; else audit.pozisyonReddedildi++; }
     if (ok) {
+        try {
+            macdShadow.recordEntry({ sym, yon: pusu.yon, entryMode: entryModeDecision.selectedMode, entryModeOffsetT: selectedEntryBrick }, macdShadowAtEntry, Date.now());
+        } catch (e) { console.log(`⚠️ [MACD SHADOW ENTRY] ${sym} ${pusu.yon} | ${e.message}`); }
         store.sonIptalPatternSignature[sym] = pusu.patternSignature;
         delete store.pusular[sym];
     }

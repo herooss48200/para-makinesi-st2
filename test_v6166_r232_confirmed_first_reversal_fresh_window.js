@@ -12,7 +12,7 @@ try {
   const version = require('./versiyon.js');
   const policy = require('./90_st2_renko_entry_mode_policy.js');
 
-  assert.strictEqual(version.botSurumu, '6.13.5-R24.2-UNIFIED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS-POSTCLOSE-24H');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.1-EARLY-PROFIT-LOCK-MACD-REPLAY-SHADOW-5X-20USDT-10SLOT-POSTCLOSE-24H');
   assert.strictEqual(ayarlar.renkoGirisModuZorlaConfirmed, true);
 
   const decision = { selectedMode:'CONFIRMED', selectedOffsetT:0.25 };

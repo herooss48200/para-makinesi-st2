@@ -15,7 +15,7 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const transparency = require('./82_st2_operation_transparency.js');
 
-  const CURRENT = '6.13.5-R24.2-UNIFIED-PERCENT-ECONOMY-10SLOT-20USDT-LIVE-COHORTS-POSTCLOSE-24H';
+  const CURRENT = '6.13.5-R25.1-EARLY-PROFIT-LOCK-MACD-REPLAY-SHADOW-5X-20USDT-10SLOT-POSTCLOSE-24H';
   assert.strictEqual(version.botSurumu, CURRENT);
   assert.strictEqual(ayarlar.renkoGirisModuZorlaConfirmed, true, 'yeni gerçek giriş authority CONFIRMED olmalı');
   assert.strictEqual(ayarlar.renkoConfirmedLongLifeAktif, true, 'CONFIRMED long-life aktif olmalı');
@@ -98,8 +98,8 @@ try {
   const opening = transparency.openingText(confirmedPos, { real: false, pricePrecision: 4 });
   assert(opening.includes('Giriş modu: <b>CONFIRMED</b>'));
   assert(opening.includes('YÜZDESEL EKONOMİ'));
-  assert(opening.includes('+%2.50 görülene kadar erken kâr kilidi YOK'));
-  assert(opening.includes('İlk kilit +%1.50'));
+  assert(opening.includes('+%1.50 görülene kadar erken kâr kilidi YOK'));
+  assert(opening.includes('İlk kilit +%1.00'));
 
   const closing = transparency.closingText(confirmedPos, {
     pricePrecision: 4, exitPrice: 101.2, openedAtText: '12.08.2026 10:00', closedAtText: '12.08.2026 11:00',
@@ -108,8 +108,8 @@ try {
   });
   assert(closing.includes('Mod CONFIRMED'));
   assert(closing.includes('YÜZDESEL EKONOMİ'));
-  assert(closing.includes('+%2.50 → ilk stop +%1.50'));
-  assert(closing.includes('yaklaşık %1.00 geriden takip'));
+  assert(closing.includes('+%1.50 → ilk stop +%1.00'));
+  assert(closing.includes('yaklaşık %0.50 geriden takip'));
 
   // DIRECT davranışı geriye dönük bozulmamalı: +0.25 erken ekonomi tabanı hâlâ aktif.
   const directPos = {

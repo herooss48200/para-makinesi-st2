@@ -1,0 +1,19 @@
+AGROS ST2 v6.13.5-R25.1 TEST RESULT — 14.08.2026
+
+BASE: eb0a6fa + R25/R25.1 overlay
+
+PASS:
+- Full source syntax: 187 JavaScript files
+- npm test / test:fast: RC=0
+- CONFIRMED first reversal fresh-window regression: PASS
+- R25 percent economy +1.50=>+1.00, +2.00=>+1.50, +2.50=>+2.00: PASS
+- R24.2 LOT_SIZE under-target safety: PASS
+- Exact live leverage: 4 USDT margin x 5x = 20 USDT notional, no silent fallback: PASS
+- MACD replay shadow: 1m STRONG + 15m OPPOSED/EARLY_RECOVERY cohort; DECAY observe-only; OPPOSED/REVERSAL protection candidate; entry/stop authority NONE: PASS
+- 10-slot v6102 compatibility: PASS
+- Minimal Telegram v683 10-slot compatibility: PASS
+
+FULL npm run check note:
+- In the model container it stopped at test:v673 because the staged node_modules/dotenv directory was incomplete.
+- This is an environment/dependency materialization issue, not a source assertion failure.
+- The user Windows/AWS installations already have runtime dependencies; run npm test before deploy and npm run check when desired.

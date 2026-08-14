@@ -5,13 +5,14 @@ function invalidLeverageError(err) {
   return /leverage\s+\d+\s+is\s+not\s+valid/i.test(text) || /invalid leverage/i.test(text) || /-4028/.test(text);
 }
 
-async function negotiate({ symbol, requestedLeverage, client }) {
+async function negotiate({ symbol, requestedLeverage, client, allowFallback = true }) {
   const requested = Math.floor(Number(requestedLeverage));
   if (!(requested >= 1) || !client || typeof client.futuresLeverage !== 'function') {
     throw new Error('KALDIRAC_POLITIKASI_GECERSIZ');
   }
   const attempts = [];
-  for (let leverage = requested; leverage >= 1; leverage--) {
+  const minLeverage = allowFallback === true ? 1 : requested;
+  for (let leverage = requested; leverage >= minLeverage; leverage--) {
     try {
       const response = await client.futuresLeverage({ symbol, leverage });
       const confirmed = Math.floor(Number(response?.leverage));
@@ -22,7 +23,9 @@ async function negotiate({ symbol, requestedLeverage, client }) {
       if (!invalidLeverageError(err)) throw err;
     }
   }
-  const error = new Error(`SEMBOL_KALDIRAC_UYUMLU_DEGIL:${symbol}:${requested}->1`);
+  const error = new Error(allowFallback === true
+    ? `SEMBOL_KALDIRAC_UYUMLU_DEGIL:${symbol}:${requested}->1`
+    : `SEMBOL_KALDIRAC_DOGRULANAMADI:${symbol}:${requested}x`);
   error.attempts = attempts;
   throw error;
 }

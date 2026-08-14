@@ -15,9 +15,9 @@ const ayarlar = {
     // CÜZDAN VE RİSK YÖNETİMİ
     // ========================================
     // R24 kontrollü CONFIRMED canlı ekonomi: pozisyon başına 20 USDT notional.
-    // 10 USDT marjin x 2x = 20 USDT notional; Shadow öğrenme Binance emri göndermez.
-    calisilmakIstenenUsdtMiktar: 10,
-    mevcutKaldirac: 2,
+    // 4 USDT marjin x 5x = 20 USDT notional; Shadow öğrenme Binance emri göndermez.
+    calisilmakIstenenUsdtMiktar: 4,
+    mevcutKaldirac: 5,
     maxPozisyonSayisi: 100,
 
     // ========================================
@@ -212,6 +212,22 @@ const ayarlar = {
     renkoGirisTeyitShadowMaksYasamDakika: 360,
     renkoGirisTeyitShadowStateKayitAraligiMs: 15000,
     renkoGirisTeyitShadowTamamlananSakla: 500,
+
+    // R25 — MACD yalnız SHADOW ölçüm katmanıdır. Emir açmaz, girişi engellemez,
+    // gerçek/sanal stopu değiştirmez. Mevcut kapanmış 1m + 15m cache'ini kullanır.
+    macdShadowAktif: true,
+    macdShadowFastPeriod: 12,
+    macdShadowSlowPeriod: 26,
+    macdShadowSignalPeriod: 9,
+    // İşlem yönündeki histogram gücü bu kadar ardışık kapanmış çubuk zayıflarsa DECAY etiketi.
+    macdShadowDecayArdisikCubuk: 2,
+    // +%1.50 MFE sonrası decay/reversal görülürse yalnız öneri kaydı üretir.
+    macdShadowKarKorumaEsikYuzde: 1.50,
+    macdShadowHistogramEpsilon: 0.000000000001,
+    macdShadowTimelineSakla: 120,
+    macdShadowLedgerAktif: true,
+    macdShadowEmirYetkisi: false,
+    macdShadowStopYetkisi: false,
 
     // v6.13.5-R21 — Tek gerçek giriş kapısı: DIRECT champion / CONFIRMED challenger.
     // CONFIRMED seçilirse gerçek zaman/fiyat otoritesi pusu SONRASI kapanmış 15m Renko
@@ -696,8 +712,11 @@ const ayarlar = {
     // Tutar, kaldıraç, marjin ve aktif pozisyon limiti aşağıdaki ayarlardan yönetilir.
     gercekEmirOnayKodu: 'LIVE_TRADING_CONFIRMED',
     // Gerçek işlem riski yalnız bu AYARLAR SAYFASI üzerinden yönetilir.
-    // Marjin: calisilmakIstenenUsdtMiktar (10), kaldıraç: mevcutKaldirac (2); notional 20 USDT türetilir.
+    // Marjin: calisilmakIstenenUsdtMiktar (4), kaldıraç: mevcutKaldirac (5); notional 20 USDT türetilir.
     gercekEmirMarjinTipi: 'ISOLATED',
+    // R25: canlı ekonomi tek kaldıraçla karşılaştırılabilir kalsın. Binance istenen 2x'i
+    // doğrulamazsa sessizce 1x'e düşmek yerine gerçek giriş fail-closed olur.
+    gercekEmirKaldiracFallbackAktif: false,
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
     // R24 kontrollü canlı gerçek pozisyon kapasitesi 10'dur.
@@ -903,14 +922,14 @@ const ayarlar = {
     renkoConfirmedLongLifeAktif: true,
     renkoConfirmedLongLifeTarget1Yuzde: 1.50,
 
-    // R24 — CONFIRMED ekonomi yönetimi: erken K1/K2/Renko/Dynamic Exit yok.
-    // Başlangıç SL sabitStopYuzdesi (-%2.50). +%2.50 görülünce +%1.50 kilit;
-    // sonra her +%0.50 yeni kâr kademesinde stop +%0.50 ilerler (zirvenin yaklaşık %1.00 gerisi).
-    // Gerçek Premier ve sanal/shadow yaşamlar aynı metodla yönetilir.
+    // R25 — erken kâr koruma ekonomisi. Başlangıç risk SL'si -%2.50 korunur.
+    // +%1.50 görülünce +%1.00; +%2.00 görülünce +%1.50; +%2.50 görülünce +%2.00.
+    // Sonra her +%0.50 yeni kâr kademesinde stop +%0.50 ilerler; yaklaşık %0.50 geriden.
+    // Gerçek Premier ve ana sanal/shadow yaşamlar aynı metodla yönetilir; stop asla gevşemez.
     confirmedYuzdeselEkonomiAktif: true,
-    confirmedYuzdeselEkonomiAktivasyonYuzde: 2.50,
-    confirmedYuzdeselEkonomiIlkKilitYuzde: 1.50,
-    confirmedYuzdeselEkonomiTakipMesafeYuzde: 1.00,
+    confirmedYuzdeselEkonomiAktivasyonYuzde: 1.50,
+    confirmedYuzdeselEkonomiIlkKilitYuzde: 1.00,
+    confirmedYuzdeselEkonomiTakipMesafeYuzde: 0.50,
     confirmedYuzdeselEkonomiAdimYuzde: 0.50,
 
     renkoCikisKarTabaniAktivasyonYuzde: 0.50,

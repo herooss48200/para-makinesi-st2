@@ -17,7 +17,7 @@ const botSource = read('bot.js');
 assert(ayarlarSource.includes('telegramMinimalOperasyonModu: true'), 'minimal Telegram modu varsayılan aktif olmalı');
 assert(ayarlarSource.includes('telegramMesajMaxKarakter: 3400'), 'tek mesaj güvenli limiti 3400 olmalı');
 assert(ayarlarSource.includes('telegramDetayRaporlariAktif: false'), 'ağır Telegram detay raporları kapalı olmalı');
-assert(ayarlarSource.includes('telegramCanliRaporMaxPozisyon: 5'), 'canlı panel pozisyon satırı sınırlı olmalı');
+assert(ayarlarSource.includes('telegramCanliRaporMaxPozisyon: 10'), 'R24/R25 canlı panel pozisyon satırı 10-slot görünürlüğüyle uyumlu olmalı');
 assert(ayarlarSource.includes('telegramAcilisPusuMaxSatir: 6'), 'açılış pusu özeti sınırlı olmalı');
 assert(ayarlarSource.includes('telegramIslemAcilisMesaji: true'), 'işlem açılış kanıt mesajı açık olmalı');
 

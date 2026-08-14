@@ -27,6 +27,7 @@ const realExecution = require('./85_st2_real_order_execution.js');
 const closeLifecycle = require('./86_st2_close_lifecycle.js');
 const postClosePricePath = require('./95_st2_post_close_price_path.js');
 const liveCohortEconomy = require('./96_st2_live_cohort_economy.js');
+const macdShadow = require('./97_st2_macd_shadow_intelligence.js');
 
 let pusuRaporu = [];
 let sonRaporZamani = 0;
@@ -1086,6 +1087,12 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
             closedAt: Date.now()
         });
     } catch (e) { console.log(`⚠️ [RENKO ENTRY CONFIRMATION SHADOW] ${e.message}`); }
+    if (!manuelDisKapanis) try {
+        macdShadow.close(pos, {
+            net: netKarZarar, outcome: kaliteSonuc, reason: duzeltilmisSebep,
+            exitPrice: kapanisFiyati, fiyatKarYuzdesi
+        }, Date.now());
+    } catch (e) { console.log(`⚠️ [MACD SHADOW CLOSE] ${e.message}`); }
     if (!manuelDisKapanis && !restartGap.isQuarantined(pos)) try {
         const ev15m = renko15mConfirmedEvidence.recordLiveClose(pos, {
             netPct: netPozisyonYuzdesi,
@@ -1235,6 +1242,7 @@ async function kapanisRaporla(pos, kapanisFiyati, sebep) {
         replayUnavailableReason
     }) +
     renkoEntryConfirmationShadow.telegramText(renkoEntryConfirmationResult) +
+    macdShadow.telegramText(pos) +
     (gercekMuhasebe
         ? `\n\n💳 <b>GERÇEK FILL MUHASEBESİ</b>\nKaynak: Binance User Trades | Fill ${hamGercekMuhasebe.tradeCount || 0} | Muhasebe ${hamGercekMuhasebe.accountingExact === false ? 'KISMİ (yabancı komisyon asseti ayrı)' : 'TAM'}`
         : '') +
@@ -1421,13 +1429,17 @@ function yuzdeselEkonomiHesapla(pos, canliFiyat) {
     const karYuzde = pos.yon === 'LONG'
         ? ((fiyat - giris) / giris) * 100
         : ((giris - fiyat) / giris) * 100;
-    const aktivasyon = Number(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde || 2.50);
+    const aktivasyon = Number(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde || 1.50);
     if (karYuzde + 1e-9 < aktivasyon) return false;
 
-    const ilkKilit = Number(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde || 1.50);
+    const ilkKilit = Number(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde || 1.00);
+    const takipMesafe = Math.max(0, Number(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde ?? 0.50));
     const adim = Math.max(0.05, Number(ayarlar.confirmedYuzdeselEkonomiAdimYuzde || 0.50));
     const kademe = Math.max(0, Math.floor((karYuzde - aktivasyon + 1e-9) / adim));
-    const korunanKar = ilkKilit + kademe * adim;
+    const kademeTepeKar = aktivasyon + kademe * adim;
+    // R25: raporda gösterilen takip mesafesi artık gerçek hesap otoritesidir.
+    // İlk kilit alt sınırdır; sonraki kademeler tepe - mesafe olarak ilerler.
+    const korunanKar = Math.max(ilkKilit, kademeTepeKar - takipMesafe);
     const adaySl = pos.yon === 'LONG'
         ? giris * (1 + korunanKar / 100)
         : giris * (1 - korunanKar / 100);
@@ -1650,6 +1662,14 @@ async function izSurmeyiGuncelle(options = {}) {
 
         analizMerkezi.journeyGuncelle(pos, canliFiyat);
         exitOptimizer.tickGuncelle(pos, canliFiyat);
+        // R25 MACD tamamen SHADOW'dur: yalnız kapanmış 1m/15m cache üzerinden momentum/decay kaydı.
+        // Emir veya stop yetkisi yoktur. Gerçek pozisyonda anlamlı state değişimi restart için persist edilir.
+        try {
+            const macdTick = macdShadow.updatePosition(pos, canliFiyat, Date.now(), h.state);
+            if (macdTick?.meaningful === true && pos?.sanal === false) realExecution.persistPosition(pos, 'MACD_SHADOW_EVENT');
+        } catch (e) {
+            console.log(`⚠️ [MACD SHADOW] ${pos.sym} ${pos.yon} | ${e.message}`);
+        }
         // Yalnız gölge: R→G / G→R sonrası 0.25T–0.75T alternatif girişlerini izler.
         // Canlı stop, emir ve Exit Evolution pozisyonunu değiştirmez.
         const entryConfirmationTick = renkoEntryConfirmationShadow.update(pos, canliFiyat);
@@ -1917,5 +1937,6 @@ module.exports = {
     izSurmeyiGuncelle,
     pusuRaporuGonder,
     _kapanisRaporKimligi: kapanisRaporKimligi,
-    _closeLifecycle: closeLifecycle
+    _closeLifecycle: closeLifecycle,
+    _yuzdeselEkonomiHesapla: yuzdeselEkonomiHesapla
 };

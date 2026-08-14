@@ -21,6 +21,7 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const renkoExitEvolution = require('./74_st2_renko_exit_evolution.js');
 const sanalDynamicExit = require('./51_sanal_dynamic_exit_executor.js');
+const macdShadow = require('./97_st2_macd_shadow_intelligence.js');
 
 const VERSION = 'v6.12.3-R2-RENKO-ENTRY-CONFIRMATION-FULL-LIFECYCLE-SHADOW';
 const DATA_DIR = process.env.AGROS_DATA_DIR
@@ -446,7 +447,8 @@ function openCandidate(exp, candidate, at, price) {
         floorReached: false,
         takeoverReached: false,
         syntheticPos,
-        settings: { floorPct: exp.settings?.floorPct, takeoverPct: exp.settings?.takeoverPct }
+        settings: { floorPct: exp.settings?.floorPct, takeoverPct: exp.settings?.takeoverPct },
+        macdShadowAtEntry: macdShadow.entrySnapshot(exp.sym, exp.yon, candidate.triggeredAt)
     };
     console.log(`🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] ${exp.sym} ${exp.yon} | ${candidate.label} | ${candidate.targetPrice} | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK`);
     if (price > 0) updateOpenCandidate(exp, candidate, price, at, []);
@@ -489,6 +491,7 @@ function resultForExit(exp, candidate, exitPrice, reason, at) {
         commission,
         net,
         outcome: classifyNet(net, Math.max(0.000001, commission * 0.25)),
+        macdShadowAtEntry: clone(candidate.lifecycle?.macdShadowAtEntry),
         lifecyclePolicy: 'FIXED_INITIAL_STOP_PLUS_FROZEN_DYNAMIC_EXIT_AND_RENKO_PROTECTION'
     };
 }
