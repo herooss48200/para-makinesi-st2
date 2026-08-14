@@ -130,8 +130,12 @@ function periyodikTazelemeyiBaslat() {
         // R14: bu plan yalnız ilk gerçek Golden Renko auditinden SONRA başlatılır.
         // Böylece startup cache hazır olur olmaz ana ticker + ilk Renko scan temiz ağ hattı bulur.
         stTimerRef = setInterval(() => {
-            superTrendHesapla(false, { skipTrend: true, priority: 'HIGH' })
-                .catch(e => console.error('❌ 1m Renko ST tazeleme üst hata:', e.message));
+            superTrendHesapla(false, {
+                skipTrend: true,
+                priority: 'LOW',
+                requestTimeoutMs: Math.max(3000, Number(ayarlar.renkoOnayRefreshTimeoutMs || 6000)),
+                requestRetries: Math.max(0, Number(ayarlar.renkoOnayRefreshRetry ?? 0))
+            }).catch(e => console.error('❌ 1m Renko ST tazeleme üst hata:', e.message));
         }, ayarlar.superTrendTazelemeMs || 15000);
         stTimerRef.unref?.();
     }
@@ -170,6 +174,25 @@ function mumDonustur(x) {
     return { openTime:Number(x.openTime), closeTime:Number(x.closeTime), open:parseFloat(x.open), high:parseFloat(x.high), low:parseFloat(x.low), close:parseFloat(x.close), volume:parseFloat(x.volume || 0) };
 }
 function sadeceKapanmisMumlar(mumlar) { const now=Date.now(); return (mumlar||[]).filter(x=>Number(x.closeTime)<=now).map(mumDonustur); }
+function mumSerisiBirlestir(eski, yeni, maxCount = 480) {
+    const byClose = new Map();
+    for (const row of [...(Array.isArray(eski) ? eski : []), ...(Array.isArray(yeni) ? yeni : [])]) {
+        const key = Number(row?.closeTime || row?.openTime || 0);
+        if (key > 0) byClose.set(key, row);
+    }
+    const merged = Array.from(byClose.values()).sort((a,b)=>Number(a.closeTime||0)-Number(b.closeTime||0));
+    return merged.slice(-Math.max(16, Number(maxCount || 480)));
+}
+function renko1mIncrementalFetchLimit(sym, now = Date.now()) {
+    const minLimit = Math.max(3, Number(ayarlar.renkoOnayIncrementalMumMin || 5));
+    const maxLimit = Math.max(minLimit, Math.min(renko1mBaseLimit(), Number(ayarlar.renkoOnayIncrementalMumMax || 30)));
+    const mevcut = h.state.sniperMumlar?.[sym];
+    const sonClose = Number(Array.isArray(mevcut) && mevcut.length ? mevcut.at(-1)?.closeTime : 0);
+    if (!(sonClose > 0)) return renko1mBaseLimit();
+    const step = Math.max(60_000, intervalMs(ayarlar.sniperPeriyodu || ayarlar.renkoOnayPeriyodu || '1m'));
+    const missed = Math.max(0, Math.ceil((Number(now) - sonClose) / step));
+    return Math.max(minLimit, Math.min(maxLimit, missed + 2));
+}
 function superTrendOnayPeriyodu() { return ayarlar.superTrendPeriyodu || ayarlar.trendPeriyodu || ayarlar.sniperPeriyodu || '5m'; }
 function pusuKaynakPeriyodu() { return ayarlar.entryStrategyMode === 'ST2_RENKO' ? (ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu || '15m') : (ayarlar.pusuPeriyodu || '5m'); }
 function pusuMumLimiti() {
@@ -211,7 +234,9 @@ async function mumCek(sym, interval, limit, label, priority = 'LOW', overrides =
 async function sembolHavuzu(worker, options = {}) {
     const concurrency = Math.max(1, Number(options.concurrency || ayarlar.binanceAgEszamanlilik || 3));
     const workers = Math.max(concurrency, Number(options.workers || ayarlar.binanceAgIsciSayisi || 8));
-    ag.configure({ concurrency });
+    // R25.2 LIVENESS: worker sayısı shared Binance socket concurrency'sini değiştirmez.
+    // Ağ concurrency yalnız açıkça networkConcurrency verildiğinde değişir; normal runtime 3'te kalır.
+    if (options.networkConcurrency != null) ag.configure({ concurrency: Math.max(1, Number(options.networkConcurrency) || 1) });
     return ag.havuzdaCalistir(Array.from(options.symbols || h.state.semboller || []), worker, workers);
 }
 
@@ -219,6 +244,11 @@ async function derinGecmisiInsaEt(options = {}) {
     const baslangic = Date.now();
     const startupConcurrency = Math.max(1, Number(options.concurrency || ayarlar.binanceStartupAgEszamanlilik || 8));
     const startupWorkers = Math.max(startupConcurrency, Number(options.workers || ayarlar.binanceStartupAgIsciSayisi || 16));
+    const startupNetworkConcurrency = Math.max(1, Math.min(
+        startupConcurrency,
+        Number(ayarlar.binanceStartupNetworkConcurrency || 4)
+    ));
+    ag.configure({ concurrency: startupNetworkConcurrency });
     const threshold = readyRatioThreshold();
     const tumSemboller = [...(h.state.semboller || [])];
     const toplam = Math.max(1, tumSemboller.length);
@@ -232,7 +262,7 @@ async function derinGecmisiInsaEt(options = {}) {
         pusuHazir: 0, trendHazir: 0, sniperHazir: 0, islenen: 0, toplam,
         oran: 0, hata: 0, sonIlerleme: new Date().toISOString()
     };
-    console.log(`📥 [AŞAMALI BAŞLANGIÇ] Golden Renko çekirdeği hazırlanıyor | ${pusuTf} ATR-Renko + ${sniperTf} Renko ST verisi | Eşzamanlılık ${startupConcurrency} | ${trendTf} ST1 yalnız shadow sonra.`);
+    console.log(`📥 [AŞAMALI BAŞLANGIÇ] Golden Renko çekirdeği hazırlanıyor | ${pusuTf} ATR-Renko + ${sniperTf} Renko ST verisi | Worker ${startupWorkers} | Ağ concurrency ${startupNetworkConcurrency} | ${trendTf} ST1 yalnız shadow sonra.`);
 
     h.state.yerelPusuHafizasi={}; h.state.canliFiyatlar={}; h.state.canliFiyatMeta={}; h.state.sniperMumlar={}; h.state.sniperCanliMumlar={}; h.state.sniperSuperTrend={}; h.state.sniperSuperTrendCanli={}; h.state.trendMumlar={}; h.state.trendCanliMumlar={}; h.state.trendSuperTrend={}; h.state.trendSuperTrendCanli={}; h.state.sonPusuMumZamani={}; h.state.renko1mStHazirlik={}; h.state.renko1mStCache={};
 
@@ -426,16 +456,26 @@ async function superTrendHesapla(baslangic=false, options={}) {
             if(sniperDue){
                 try{
                     const oncekiLimit=Math.max(renko1mBaseLimit(), Number(h.state.renko1mStHazirlik?.[sym]?.sourceLimit || 0));
-                    const fetchAndAnalyze=async (limit,label)=>{
-                        const ham=await mumCek(sym, sniperTf, limit, label, requestPriority);
-                        const sniper=sadeceKapanmisMumlar(ham);
+                    const fetchAndAnalyze=async (limit,label,fullHistory=false)=>{
+                        const mevcut = Array.isArray(h.state.sniperMumlar?.[sym]) ? h.state.sniperMumlar[sym] : [];
+                        const oncekiSourceLimit = Math.max(renko1mBaseLimit(), Number(h.state.renko1mStHazirlik?.[sym]?.sourceLimit || mevcut.length || 0));
+                        const incremental = !baslangic && !fullHistory && mevcut.length > 0;
+                        const fetchLimit = incremental ? renko1mIncrementalFetchLimit(sym, baslamaZamani) : limit;
+                        const requestOverrides = {
+                            timeoutMs: options.requestTimeoutMs ?? (ayarlar.binanceAgTimeoutMs || 15000),
+                            retries: options.requestRetries ?? (ayarlar.binanceAgRetry ?? 2)
+                        };
+                        const ham=await mumCek(sym, sniperTf, fetchLimit, label, requestPriority, requestOverrides);
+                        const gelen=sadeceKapanmisMumlar(ham);
+                        const keepLimit = Math.max(renko1mBaseLimit(), oncekiSourceLimit, Number(limit || 0));
+                        const sniper=incremental ? mumSerisiBirlestir(mevcut, gelen, keepLimit) : gelen;
                         if(sniper.length>=Math.max(5,Number(ayarlar.renkoOnayAtrPeriod||14)+2)) h.state.sniperMumlar[sym]=sniper;
                         marketPriceRuntime.seedClosed1m(h.state, sym, sniper, baslangic ? 'STARTUP_CLOSED_1M' : 'REFRESH_CLOSED_1M');
-                        return renko1mHazirlikKaydet(sym,sniper,limit);
+                        return renko1mHazirlikKaydet(sym,sniper,keepLimit);
                     };
-                    let stAnaliz=await fetchAndAnalyze(oncekiLimit,`SNIPER_CANDLE:${sym}`);
-                    if(!stAnaliz.ready && oncekiLimit<renko1mRepairLimit()) stAnaliz=await fetchAndAnalyze(renko1mRepairLimit(),`SNIPER_REPAIR_1:${sym}`);
-                    if(!stAnaliz.ready && Number(h.state.renko1mStHazirlik?.[sym]?.sourceLimit||0)<renko1mMaxRepairLimit()) stAnaliz=await fetchAndAnalyze(renko1mMaxRepairLimit(),`SNIPER_REPAIR_2:${sym}`);
+                    let stAnaliz=await fetchAndAnalyze(oncekiLimit,`SNIPER_CANDLE:${sym}`,baslangic);
+                    if(!stAnaliz.ready && Number(h.state.renko1mStHazirlik?.[sym]?.sourceLimit||0)<renko1mRepairLimit()) stAnaliz=await fetchAndAnalyze(renko1mRepairLimit(),`SNIPER_REPAIR_1:${sym}`,true);
+                    if(!stAnaliz.ready && Number(h.state.renko1mStHazirlik?.[sym]?.sourceLimit||0)<renko1mMaxRepairLimit()) stAnaliz=await fetchAndAnalyze(renko1mMaxRepairLimit(),`SNIPER_REPAIR_2:${sym}`,true);
                     if(stAnaliz.ready) sniperGuncellenen++; else sniperHatali++;
                 }catch(err){sniperHatali++;throw err;}
             }

@@ -1,0 +1,21 @@
+AGROS ST2 v6.13.5-R25.2
+
+CORE CHANGES
+- revizyon.js — incremental 1m refresh; worker/network concurrency separation; fail-fast background refresh
+- ayarlar.js — incremental refresh + startup network limits
+- bot.js — startup/degraded live panel visibility; trade gate unchanged
+- versiyon.js — R25.2 identity
+- package.json / package-lock.json — R25.2 metadata + test
+
+TEST/DOC
+- test_v6172_r252_incremental_1m_liveness.js
+- AWS-ST2-v6.13.5-R25.2.md
+- compatible version assertions updated in existing tests
+
+UNCHANGED CONTRACT
+- CONFIRMED real entry authority
+- 0.25T current confirmed offset
+- 10 real slots
+- 4 USDT margin x exact 5x = 20 USDT notional
+- initial SL -2.50%; +1.50=>+1.00, +2.00=>+1.50, +2.50=>+2.00, then 0.50-point staircase
+- MACD 1m/15m SHADOW only; no order/stop authority

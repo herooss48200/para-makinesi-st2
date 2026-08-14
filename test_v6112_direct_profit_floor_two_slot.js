@@ -152,7 +152,7 @@ try {
   assert(text.includes('Doğrudan Renko aktivasyonu: %0.60'));
   assert(text.includes('Stop güncelleme adımı: 0.50'));
 
-  assert.strictEqual(version.botSurumu, '6.13.5-R25.1-EARLY-PROFIT-LOCK-MACD-REPLAY-SHADOW-5X-20USDT-10SLOT-POSTCLOSE-24H');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.2-LIVENESS-INCREMENTAL-1M-CONFIRMED-5X20-MACD-SHADOW-POSTCLOSE-24H');
   assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
   console.log('✅ v6.11.2 direct floor/activation, no 2x rule, frozen brick trail and configurable 2-slot passed');
 } finally {

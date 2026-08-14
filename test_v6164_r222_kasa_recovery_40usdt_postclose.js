@@ -81,7 +81,7 @@ try {
   assert(fs.existsSync(tracker.LEDGER_FILE),'24h sonuç ledger yazılmalı');
 
   const version = require('./versiyon.js');
-  assert.strictEqual(version.botSurumu, '6.13.5-R25.1-EARLY-PROFIT-LOCK-MACD-REPLAY-SHADOW-5X-20USDT-10SLOT-POSTCLOSE-24H');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.2-LIVENESS-INCREMENTAL-1M-CONFIRMED-5X20-MACD-SHADOW-POSTCLOSE-24H');
 
   console.log('✅ v6.13.5-R23.1 risk/post-close compatibility passed | 20 USDT notional | CONFIRMED real authority | post-close 24h no-order tracker');
 } finally {

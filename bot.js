@@ -292,13 +292,13 @@ async function baslat() {
         if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
             const st2LivePanelScheduler = createSt2LivePanelScheduler({
                 enabled: () => ayarlar.canliRaporAktif === true,
-                ready: () => h.state.startupMarketReady === true,
+                ready: () => true, // R25.2: startup/degraded panel de görünür; trade gate bağımsızdır.
                 intervalMs: () => Number(ayarlar.canliRaporGuncellemeMs || 30000),
                 request: () => rapor.raporTalepEt(false),
                 onError: err => console.error(`⚠️ [ST2 LIVE PANEL SCHEDULER] ${err?.message || err}`)
             });
             st2LivePanelScheduler.start();
-            console.log(`📊 [ST2 LIVE PANEL SCHEDULER] Gate READY sonrası bağımsız cadence ${Math.round(Number(ayarlar.canliRaporGuncellemeMs || 30000) / 1000)} sn`);
+            console.log(`📊 [ST2 LIVE PANEL SCHEDULER] Startup dahil bağımsız cadence ${Math.round(Number(ayarlar.canliRaporGuncellemeMs || 30000) / 1000)} sn`);
 
             // R18: Binance gerçek pozisyon mutabakatı ana Renko döngüsünü ASLA bekletmez.
             // Mutabakat ayrı control-plane worker'ında akar; tazeliği gerçek emir kapısında fail-closed kullanılır.
