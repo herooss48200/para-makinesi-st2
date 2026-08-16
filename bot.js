@@ -8,18 +8,13 @@ const rapor = require('./2_rapor.js');
 const versiyonBilgi = require('./versiyon.js');
 const kaliciHafiza = require('./5_kalici_hafiza.js');
 const binanceAg = require('./64_binance_network_resilience.js');
-const accountingContinuity = require('./65_accounting_continuity.js');
-const globalHistoricalRuntime = require('./79_st2_global_historical_runtime.js');
 const { createSt2LivePanelScheduler } = require('./92_st2_live_panel_scheduler.js');
 const marketPriceRuntime = require('./93_st2_market_price_runtime.js');
 binanceAg.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
 
 let donguCalisiyor = false;
 let sonOzetLog = 0;
-let sonCanliRapor = 0;
-let pusuRaporCalisiyor = false;
 let ilkSt2TaramaTamamlandi = false;
-let startupPanelPlanlandi = false;
 let sonStartupGateLog = 0;
 let startupEarlyDeliveryPromise = null;
 let donguBaslangic = 0;
@@ -27,6 +22,7 @@ let donguAsama = 'IDLE';
 let sonDonguWatchdogLog = 0;
 let exchangeReconcileTask = null;
 let startupExchangeReconcileTask = null;
+let sonStartupProtectionAt = 0;
 
 function st2ExchangeReconcileState() {
     h.state.st2ExchangeReconciliation ||= {
@@ -60,7 +56,7 @@ function st2RealEntrySafetyUpdate(priceNetworkOk = null) {
 }
 
 async function st2ExchangeReconcileBackground(reason = 'INTERVAL') {
-    if (ayarlar.sanalEmirModu || ayarlar.entryStrategyMode !== 'ST2_RENKO') {
+    if (ayarlar.sanalEmirModu) {
         const rec = st2ExchangeReconcileState();
         rec.status = 'VIRTUAL'; rec.ok = true; rec.lastOkAt = Date.now(); rec.error = null;
         st2RealEntrySafetyUpdate();
@@ -109,6 +105,16 @@ async function baslat() {
         h.state.st2FirstScanCompletedAt = null;
         const safeStartup = require('./74_st2_safe_startup.js');
         safeStartup.verifyOrThrow();
+        // R26 CORE ONLY: aktif runtime yalnız gerçek pozisyonları taşır. Tarihsel deney kayıtları runtime'a yüklenmez.
+        if (!ayarlar.sanalEmirModu) {
+            const once = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar.length : 0;
+            const gercekler = (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false);
+            const temizlenen = Math.max(0, once - gercekler.length);
+            h.state.aktifPozisyonlar = gercekler;
+            h.state.alinanlar = gercekler.filter(p => String(p?.yon || '').toUpperCase() === 'LONG').map(p => p.sym);
+            h.state.aktifShortlar = gercekler.filter(p => String(p?.yon || '').toUpperCase() === 'SHORT').map(p => p.sym);
+            console.log(`🧹 [CORE RUNTIME] Aktif deney yaşamı kaldırıldı ${temizlenen} | Korunan gerçek ${gercekler.length}`);
+        }
         await piyasa.sembolleriYukle();
         // v6.11.0: Signed Futures çağrıları ve restart mutabakatı raw sistem saatine bırakılmaz.
         const timeHealth = await h.binanceTimeSync({ force: true });
@@ -168,9 +174,6 @@ async function baslat() {
                 })
                 .finally(() => { startupExchangeReconcileTask = null; });
         }
-        accountingContinuity.initializeMigration();
-        kaliciHafiza.kaydet('accounting-continuity-migration');
-
         // v6.8.3-HOTFIX1: Kritik başlangıç görünürlüğü ağır tarihsel hazırlığın arkasında beklemez.
         // Mesaj başarılı/belirsiz teslimde aynı startup damgasını yazar; normal startup görevi
         // daha sonra bu damgayı görüp ikinci mesajı bastırır.
@@ -190,8 +193,7 @@ async function baslat() {
                     `🧩 Sürüm: ${versiyonBilgi.botSurumu}`,
                     `📡 İzlenen evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)}`,
                     `💼 Korunan ${ayarlar.sanalEmirModu ? 'sanal' : 'gerçek'} pozisyon: ${ayarlar.sanalEmirModu ? h.state.aktifPozisyonlar.length : h.state.aktifPozisyonlar.filter(p => p?.sanal === false).length}`,
-                    ...(!ayarlar.sanalEmirModu ? [`🧪 Geri yüklenen Shadow/GAP: ${h.state.aktifPozisyonlar.filter(p => p?.sanal !== false).length}`] : []),
-                    '⏳ Tarihsel veri ve Renko hazırlığı sürüyor; işlem defteri korunuyor.'
+                    '⏳ 15m/1m Renko çekirdeği hazırlanıyor; yeni gerçek emir hazır olana kadar fail-closed.'
                 ].join('\n');
                 startupEarlyDeliveryPromise = new Promise(resolve => {
                     setImmediate(async () => {
@@ -238,37 +240,7 @@ async function baslat() {
                 });
         });
 
-        const historicalRuntimeStatus = globalHistoricalRuntime.activate({
-            warmupMs: ayarlar.globalHistoricalStartupWarmupMs || 600000,
-            retryMs: 300000,
-            canRun: () => h.state.startupMarketReady === true && !h.state.aktifPozisyonlar.some(pos => pos?.sanal === false)
-        });
-        console.log(`🌍 [GLOBAL HISTORICAL RUNTIME] ${historicalRuntimeStatus.activation} | Isınma ${Math.round(Number(historicalRuntimeStatus.warmupMs || 0) / 1000)} sn | Gerçek pozisyon varsa ertelenir | Coin ${historicalRuntimeStatus.readyCoins}/${historicalRuntimeStatus.coins} | Sinyal ${historicalRuntimeStatus.signals} | Pattern ${historicalRuntimeStatus.patterns} | Mutabakat ${historicalRuntimeStatus.reconciliationOk ? 'OK' : 'ARKA PLANDA'}`);
-
-        // v4.0.1: Yeni katmanların gerçekten yüklendiğini düşük maliyetli biçimde doğrula.
-        // Ağır DNA/exit geçmişi başlangıçta yeniden hesaplanmaz; kayıtlı modeller kullanılır.
-        try {
-            const dnaLeague = require('./46_dna_league_engine.js');
-            const dynamicExit = require('./47_dynamic_dna_exit_engine.js');
-            const premierObservation = require('./48_premier_observation_engine.js');
-            const adaptiveLeague = require('./49_adaptive_trading_league.js');
-            const labPremier = require('./62_lab_premier_league.js');
-            const leagueState = dnaLeague.findPlayer('__HEALTHCHECK__') === null;
-            let exitModel = dynamicExit.readModel();
-            if (exitModel && (!Array.isArray(exitModel.dnaBase) || exitModel.version !== dynamicExit.VERSION)) {
-                console.log(`🧬 [EXIT MODEL MIGRATION] Eski anahtar modeli algılandı (${exitModel.version || 'BILINMIYOR'}). DNA aile eşleştirmesi bir kez yenileniyor...`);
-                exitModel = dynamicExit.updateFromReplay();
-                console.log(`✅ [EXIT MODEL MIGRATION] ${Number(exitModel?.totalBaseDna || 0)} temel DNA exit profili hazır.`);
-            }
-            const observation = premierObservation.read();
-            const labModel = labPremier.build();
-            console.log(`🧩 [LEGACY COMPATIBILITY MEMORY] ${adaptiveLeague.VERSION} | Kimlik/audit uyumluluğu ${leagueState ? 'OK' : 'OK'} | Premier/Shadow yetkisi YOK | Eski observation kapanan ${Number(observation?.closed || 0)}`);
-            console.log(`🧩 [LEGACY EXIT COMPATIBILITY] ${labPremier.VERSION} | Eski kayıt ${Number(labModel?.premierCount || 0)} | İleri kayıt ${Number(labModel?.forwardVerifiedCount || 0)} | Exit uyumluluğu ${exitModel ? 'HAZIR' : 'ACTUAL_FALLBACK'} | Yeni Premier yetkisi YOK`);
-            console.log('🛡️ [RAM-SAFE] Ağır replay yalnız model eskiyse bir kez, sonrasında kontrollü 25 kapanış aralığında güncellenir.');
-            console.log('🧬 [ST2 PREMIER SCORE RUNTIME ACTIVE] EXACT_CONTEXT + PF + EXPECTANCY + CANLI_FORM + ENTRY + TAKEOVER + ÖRNEK_GÜVENİ | GÖRECELİ_SIRALAMA=AKTİF | GERÇEK=FAIL_CLOSED');
-        } catch (err) {
-            console.error(`❌ [ADAPTIVE LEAGUE STARTUP HATASI] ${err.message}`);
-        }
+        console.log('🧹 [CORE RUNTIME] Yalnız ST2 Renko + Premier/N5 + gerçek execution zinciri aktif.');
 
         const emirModu = ayarlar.sanalEmirModu ? 'SANAL EMİR MODU' : 'BINANCE EMİR MODU';
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
@@ -277,12 +249,10 @@ async function baslat() {
             `📊 Strateji: ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} ATR-Renko pusu + Entry Evolution + 1m Renko SuperTrend\n` +
             `📡 İzlenen Evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)} | Veri ${h.state.sembolVeriSagligi?.durum || 'BEKLIYOR'}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
-            `🧬 Sanal öğrenme: Renko exact-context + Premier kalite puanı + Williams %R dar-bölge gölge döngüsü\n` +
-            `⭐ Premier seçimi: PF + expectancy + canlı form + Entry + Takeover + örnek güveni\n` +
-            `📊 Karar: minimum kalite eşiği + göreceli sıralama; geçiş nedeni açık\n` +
+            `⭐ Premier seçimi: Score + N5 canlı ekonomi + Renko Premier koruması\n` +
+            `📊 Giriş: Direct/Confirmed + Entry Evolution + 1m Renko ST\n` +
             `🔒 Gerçek emir: fail-closed\n` +
             `🛡️ Binance minimumu karşılanmazsa emir güvenle atlanır.\n` +
-            `🗃️ Eski muhasebe/başarı sayıları korunuyor; açılış ekranında gizlendi.\n\n` +
             `<i>Sistem kapanmış mumları izliyor, pusu kuruyor ve sniper tetik bekliyor...</i>`;
 
         const fs = require('fs');
@@ -291,17 +261,6 @@ async function baslat() {
         let startupLastSentAt = 0;
         try { startupLastSentAt = Number(JSON.parse(fs.readFileSync(startupStampFile, 'utf8'))?.lastSentAt || 0); } catch (_) {}
         const startupCooldownMs = 10 * 60 * 1000;
-        const startupPanelPlanla = (reason, delayMs = null) => {
-            if (startupPanelPlanlandi) return;
-            startupPanelPlanlandi = true;
-            const gecikme = delayMs == null
-                ? Math.max(5000, Number(ayarlar.st2StartupPanelGecikmeMs || 15000))
-                : Math.max(0, Number(delayMs) || 0);
-            setTimeout(() => {
-                console.log(`📊 [ST2 STARTUP PANEL] ${reason} sonrası canlı panel talep edildi.`);
-                rapor.raporTalepEt(false);
-            }, gecikme).unref?.();
-        };
         const startupTelegramTask = async () => {
             // Erken teslim tamamlanmadan zengin startup mesajını başlatma; aynı açılışta çift mesaj üretme.
             if (startupEarlyDeliveryPromise) await startupEarlyDeliveryPromise.catch(() => {});
@@ -321,9 +280,7 @@ async function baslat() {
             } else {
                 console.log(`⏭️ [ST2 STARTUP TELEGRAM] Tekrar başlangıç mesajı bastırıldı | Son gönderim ${new Date(startupLastSentAt).toISOString()}`);
             }
-            // ST2 canlı paneli bağımsız scheduler tarafından yalnız Entry Gate READY olduktan sonra başlatılır.
-            // Non-ST2 eski startup panel davranışı korunur.
-            if (ayarlar.entryStrategyMode !== 'ST2_RENKO') startupPanelPlanla('GENEL_STARTUP');
+            // R26 CORE ONLY: yalnız ST2 panel scheduler kullanılır.
         };
 
         console.log(`✅ SİSTEM HAZIR. DÖNGÜ BAŞLATILDI. Emir Modu: ${emirModu}`);
@@ -378,17 +335,22 @@ async function baslat() {
             donguBaslangic = Date.now();
             donguAsama = 'STARTUP_WAIT';
             try {
-                // R15: ST2 startup warmup sırasında açık pozisyon yoksa global ticker çağrısı yapılmaz.
-                // Pozisyon varsa koruma için ticker çalışır; gate READY olduğunda giriş motoru kendi dedicated ticker hattını kullanır.
-                const st2StartupBos = ayarlar.entryStrategyMode === 'ST2_RENKO' && h.state.startupMarketReady !== true && h.state.aktifPozisyonlar.length === 0;
-                if (st2StartupBos) return;
+                // R26 CORE ONLY: warmup sırasında ana loop tarama yapmaz.
+                // Gerçek pozisyon varsa yalnız 5 sn aralıkla fiyat/koruma çalışır; böylece startup KLINE CPU'yu tek başına kullanır.
+                if (h.state.startupMarketReady !== true) {
+                    const realPositions = (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false);
+                    if (realPositions.length === 0) return;
+                    const protectionEveryMs = Math.max(5000, Number(ayarlar.st2StartupProtectionIntervalMs || 5000));
+                    if (Date.now() - sonStartupProtectionAt < protectionEveryMs) return;
+                    sonStartupProtectionAt = Date.now();
+                }
 
                 // R18 CONTROL PLANE: exchange reconciliation artık ana Renko döngüsünün dışında akar.
                 // Ana döngü pusu/scan üretmeye devam eder; gerçek emir ve stop ilerletme yalnız taze
                 // reconciliation + doğrulanmış network fiyatı varken açılır.
                 donguAsama = 'FUTURES_PRICES';
                 let st2NetworkPriceOk = true;
-                if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
+                {
                     const firstSt2AuditPending = h.state.startupMarketReady === true && !ilkSt2TaramaTamamlandi;
                     const priceState = await marketPriceRuntime.refreshForMainLoop({
                         state: h.state,
@@ -426,87 +388,44 @@ async function baslat() {
                             console.warn(`🛡️ [ST2 GERÇEK ENTRY FAIL-CLOSED] ${safety.reason} | Renko/pusu taraması DEVAM | Gerçek yeni emir YOK`);
                         }
                     }
-                } else {
-                    const fiyatlar = await binanceAg.binanceFiyatlariCek({ timeoutMs: ayarlar.futuresTickerTimeoutMs || 6000, retries: ayarlar.futuresTickerRetry ?? 0, baseDelayMs: ayarlar.binanceAgRetryTabanMs || 900, priority: 'CRITICAL', label: 'FUTURES_PRICES' });
-                    for (const [sym, price] of Object.entries(fiyatlar)) h.state.canliFiyatlar[sym] = parseFloat(price);
                 }
 
                 donguAsama = 'POSITION_PROTECTION';
-                const protectionSafety = ayarlar.entryStrategyMode === 'ST2_RENKO' ? (h.state.st2RealEntrySafety || {}) : { ready: true, reconciliationFresh: true };
-                if (ayarlar.entryStrategyMode !== 'ST2_RENKO' || ayarlar.sanalEmirModu || (st2NetworkPriceOk && protectionSafety.reconciliationFresh === true)) {
-                    // Exchange mutabakatı background worker'da; burada tekrar signed positionRisk çağrısı YOK.
-                    // Stop/trail yalnız network fiyatı + taze signed mutabakat birlikte doğrulanmışsa ilerler.
+                const protectionSafety = h.state.st2RealEntrySafety || {};
+                if (ayarlar.sanalEmirModu || (st2NetworkPriceOk && protectionSafety.reconciliationFresh === true)) {
+                    // R26 CORE ONLY: tek gerçek pozisyon koruma yolu.
                     await p.izSurmeyiGuncelle({ skipExchangeReconcile: !ayarlar.sanalEmirModu });
                 } else {
-                    // Mevcut Binance SL/TP korunur; stale mutabakat veya doğrulanmamış fiyatla stop/trail ileri taşınmaz.
                     h.state.st2ProtectionDeferredAt = Date.now();
                     h.state.st2ProtectionDeferredReason = !st2NetworkPriceOk ? 'NETWORK_PRICE_NOT_VERIFIED' : 'EXCHANGE_RECONCILIATION_STALE';
                 }
-                if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
-                    if (h.state.startupMarketReady === true) {
-                        donguAsama = 'RENKO_SCAN';
-                        h.state.st2RenkoScanInProgress = true;
-                        h.state.st2RenkoScanStartedAt = Date.now();
-                        let st2Audit;
-                        try {
-                            st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
-                        } finally {
-                            h.state.st2RenkoScanInProgress = false;
-                            h.state.st2RenkoScanFinishedAt = Date.now();
-                        }
-                        donguAsama = 'POST_RENKO';
-                        if (!ilkSt2TaramaTamamlandi) {
-                            ilkSt2TaramaTamamlandi = true;
-                            h.state.st2FirstScanCompleted = true;
-                            h.state.st2FirstScanCompletedAt = Date.now();
-                            console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
-                            // R14: ilk canlı Renko auditinden önce hiçbir toplu refresh yok.
-                            // Audit kanıtından sonra önce çekirdek 15m/1m planı, sonra düşük öncelikli ST1 shadow planlanır.
-                            if (typeof revizyon.periyodikTazelemeyiBaslat === 'function') revizyon.periyodikTazelemeyiBaslat();
-                            if (typeof revizyon.st1ShadowTazelemeyiBaslat === 'function') revizyon.st1ShadowTazelemeyiBaslat();
-                            // R11: panel ilk tam Renko taramasını beklemez; bağımsız scheduler gate READY ile çalışır.
-                        }
-                    } else if (Date.now() - sonStartupGateLog >= Math.max(30000, Number(ayarlar.startupMarketGuardLogAralikMs || 60000))) {
-                        sonStartupGateLog = Date.now();
-                        const warm = h.state.startupMarketWarmup || {};
-                        console.log(`⏳ [STARTUP ENTRY GATE] Yeni giriş kapalı | Piyasa hazırlığı ${warm.durum || 'BEKLIYOR'} | Mum ${Number(warm.pusuHazir || 0)} | ST ${Number(warm.trendHazir || 0)} | Pozisyon koruma aktif`);
+
+                if (h.state.startupMarketReady === true) {
+                    donguAsama = 'RENKO_SCAN';
+                    h.state.st2RenkoScanInProgress = true;
+                    h.state.st2RenkoScanStartedAt = Date.now();
+                    let st2Audit;
+                    try {
+                        st2Audit = await require('./72_st2_renko_entry.js').taraVeDegerlendir();
+                    } finally {
+                        h.state.st2RenkoScanInProgress = false;
+                        h.state.st2RenkoScanFinishedAt = Date.now();
                     }
-                } else if (h.state.startupMarketReady === true) {
-                    await p.piyasayiTaraVePusuKur();
-                    await p.pusulariDenetleVeIslemAc();
-                }
-                // v6.4.1: Telegram pusu bildirimi ana piyasa döngüsünü bekletmez.
-                // Aynı anda yalnız tek pusu raporu çalışır; yenileri bir sonraki turda güncel state ile birleşir.
-                // ST2 kendi tekil/açılış pusu dedupe hattını kullanır. Eski genel pusu raporu
-                // ST2 modunda çağrılmaz; böylece açılış pusuları iki kez gönderilmez.
-                if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && !pusuRaporCalisiyor) {
-                    pusuRaporCalisiyor = true;
-                    setImmediate(() => {
-                        Promise.resolve(p.pusuRaporuGonder())
-                            .catch(err => console.error(`⚠️ [PUSU RAPOR ARKA PLAN HATASI] ${err.message}`))
-                            .finally(() => { pusuRaporCalisiyor = false; });
-                    });
+                    donguAsama = 'POST_RENKO';
+                    if (!ilkSt2TaramaTamamlandi) {
+                        ilkSt2TaramaTamamlandi = true;
+                        h.state.st2FirstScanCompleted = true;
+                        h.state.st2FirstScanCompletedAt = Date.now();
+                        console.log(`✅ [ST2 İLK TARAMA TAMAMLANDI] Yeni pusu ${Number(st2Audit?.yeniPusu || 0)} | Aktif ${Object.keys(h.state.st2Renko?.pusular || {}).length}`);
+                        if (typeof revizyon.periyodikTazelemeyiBaslat === 'function') revizyon.periyodikTazelemeyiBaslat();
+                    }
+                } else if (Date.now() - sonStartupGateLog >= Math.max(30000, Number(ayarlar.startupMarketGuardLogAralikMs || 60000))) {
+                    sonStartupGateLog = Date.now();
+                    const warm = h.state.startupMarketWarmup || {};
+                    console.log(`⏳ [STARTUP ENTRY GATE] Yeni giriş kapalı | Piyasa hazırlığı ${warm.durum || 'BEKLIYOR'} | Mum ${Number(warm.pusuHazir || 0)} | ST ${Number(warm.trendHazir || 0)} | Pozisyon koruma aktif`);
                 }
 
                 const now = Date.now();
-                // Non-ST2 eski periyodik rapor davranışı korunur.
-                // ST2 paneli yukarıdaki bağımsız scheduler tarafından yönetilir ve Renko taramasını beklemez.
-                if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && ayarlar.canliRaporAktif && now - sonCanliRapor >= (ayarlar.canliRaporGuncellemeMs || 60000)) {
-                    sonCanliRapor = now;
-                    rapor.raporTalepEt(false);
-                }
-
-                // v3.0.2 FIX: Strategy Lab toplu başarı/uyum analizi sadece kapanış sayacına bağlı kalmasın.
-                // Ayarlanan dakikada bir Telegram'a ayrı mesaj olarak düşer; canlı raporu düzenlemez/silmez.
-                try {
-                    const blackbox = require('./8_blackbox.js');
-                    if (ayarlar.entryStrategyMode !== 'ST2_RENKO' && blackbox.istatistikDakikaRaporGerekli && blackbox.istatistikDakikaRaporGerekli()) {
-                        await h.telegramMesajGonder(blackbox.telegramIstatistikRaporMetni());
-                        kaliciHafiza.kaydet('blackbox-dakika-istatistik-raporu-gonderildi');
-                    }
-                } catch (err) {
-                    console.error(`⚠️ [BLACKBOX DAKİKA RAPOR HATASI] ${err.message}`);
-                }
 
                 if (now - sonOzetLog > 30000) {
                     sonOzetLog = now;

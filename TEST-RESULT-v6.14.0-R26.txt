@@ -1,0 +1,20 @@
+AGROS ST2 v6.14.0-R26 CORE ONLY — TEST RESULT
+Date: 2026-08-16
+
+PASS: all 39 root JS syntax checks
+PASS: npm run check
+PASS: R26 CORE-ONLY dependency/authority contract
+PASS: N5 positive override + negative veto
+PASS: COIN1000/1001 OOS veto + N5 recovery
+PASS: Renko Premier preserve + at-open freeze markers
+PASS: 20 slots x 20 USDT
+PASS: stop SL -2.5 / arm +1.5 / lock +1.0 / trail 0.5 / step 0.5 LONG+SHORT
+PASS: startup CPU isolation static contract
+PASS: no forbidden ST1/Williams/MACD/shadow-lab/legacy modules in live closure
+PASS: Entry Evolution core replay uses current percentage-stop economy and contains no Dynamic Exit/lifecycle logic
+
+MEASURED REDUCTION
+Before: 195 root JS / 37,859 lines
+After: 39 root JS / 10,754 lines
+Live closure: 35 JS / 10,641 lines
+Explicit physical prune targets: 160 JS

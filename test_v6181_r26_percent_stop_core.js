@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('assert');
+const a=require('./ayarlar');
+const p=require('./4_pozisyon');
+const f=p._yuzdeselEkonomiHesapla;
+assert.equal(typeof f,'function');
+assert.equal(a.sabitStopYuzdesi,2.5);
+function near(x,y){assert.ok(Math.abs(Number(x)-Number(y))<1e-9,`${x} != ${y}`);}
+let long={yon:'LONG',girisFiyati:100,sl:97.5};
+assert.equal(f(long,101.49),false); near(long.sl,97.5);
+assert.equal(f(long,101.5),true); near(long.sl,101.0);
+assert.equal(f(long,102.0),true); near(long.sl,101.5);
+assert.equal(f(long,102.5),true); near(long.sl,102.0);
+assert.equal(f(long,102.1),false); near(long.sl,102.0);
+let short={yon:'SHORT',girisFiyati:100,sl:102.5};
+assert.equal(f(short,98.51),false); near(short.sl,102.5);
+assert.equal(f(short,98.5),true); near(short.sl,99.0);
+assert.equal(f(short,98.0),true); near(short.sl,98.5);
+assert.equal(f(short,97.5),true); near(short.sl,98.0);
+assert.equal(f(short,97.9),false); near(short.sl,98.0);
+console.log('✅ R26 percent stop core passed | SL -2.5 | +1.50 -> +1.00 | then 0.50 behind / 0.50 step | LONG+SHORT monotonic');

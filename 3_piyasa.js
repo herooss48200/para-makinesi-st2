@@ -101,7 +101,7 @@ async function sembolleriYukle() {
     }
 
     // R25.4: Giriş readiness evreni hacim sıralamasındaki çekirdek evrendir.
-    // Restartta açık gerçek/Shadow sembolleri h.state.semboller'e korunmak için eklenebilir;
+    // Restartta açık gerçek pozisyon sembolleri koruma için h.state.semboller'e eklenebilir;
     // bu ek koruma sembolleri yeni giriş readiness denominatorünü büyütmemelidir.
     const coreLimit = Math.max(1, Number(ayarlar.taranacakCoinSayisi || 200));
     h.state.st2CoreUniverseSymbols = [...new Set((h.state.semboller || []).map(String).filter(Boolean))].slice(0, coreLimit);
@@ -120,15 +120,10 @@ async function acikPozisyonlariBorsadanDevral() {
     }
 
     try {
-        const yuklenenShadowlar = (Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [])
-            .filter(pos => pos?.sanal !== false && pos?.liveShadowObservation === true);
         const reconciliation = await realExecution.startupReconcile(h.client);
-        const gercekAktifler = Array.isArray(reconciliation.positions) ? reconciliation.positions : [];
-        const gercekSemboller = new Set(gercekAktifler.map(pos => String(pos?.sym || '').toUpperCase()).filter(Boolean));
-        const korunanShadowlar = yuklenenShadowlar.filter(pos => !gercekSemboller.has(String(pos?.sym || '').toUpperCase()));
-        const aktifler = [...gercekAktifler, ...korunanShadowlar];
+        const gercekAktifler = Array.isArray(reconciliation.positions) ? reconciliation.positions.filter(pos => pos?.sanal === false) : [];
+        const aktifler = gercekAktifler;
         reconciliation.positions = aktifler;
-        reconciliation.restoredShadow = korunanShadowlar.length;
         h.state.aktifPozisyonlar = aktifler;
         h.state.alinanlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'LONG').map(p => p.sym).filter(Boolean))];
         h.state.aktifShortlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'SHORT').map(p => p.sym).filter(Boolean))];
@@ -150,7 +145,7 @@ async function acikPozisyonlariBorsadanDevral() {
 
         const recoveredClosures = Array.isArray(reconciliation.recoveredClosures) ? reconciliation.recoveredClosures : [];
         h.state.realOrderRecoveredClosures = recoveredClosures;
-        console.log(`🔐 [GERÇEK RESTART MUTABAKATI] Gerçek açık ${gercekAktifler.length} | Shadow/GAP ${korunanShadowlar.length} | Kalıcı gerçek ${reconciliation.restored || 0} | Harici/adopted ${reconciliation.adopted || 0} | Restart kapanışı ${recoveredClosures.length} | Koruma hatası ${reconciliation.protectionFailures || 0}`);
+        console.log(`🔐 [GERÇEK RESTART MUTABAKATI] Gerçek açık ${gercekAktifler.length} | Kalıcı gerçek ${reconciliation.restored || 0} | Harici/adopted ${reconciliation.adopted || 0} | Restart kapanışı ${recoveredClosures.length} | Koruma hatası ${reconciliation.protectionFailures || 0}`);
         if (recoveredClosures.length > 0) {
             const satirlar = recoveredClosures.slice(0, 10).map(row =>
                 `${row.symbol || 'YOK'} | ${row.reason || 'MUTABAKAT'} | Net ${Number(row.netPnl || 0).toFixed(6)} | ${row.accountingExact ? 'KESİN' : 'KISMİ'}`

@@ -1,0 +1,37 @@
+AGROS ST2 v6.14.0-R26 CORE ONLY — FILE MANIFEST
+
+CANLI RUNTIME CLOSURE: 35 JS / 10,641 satır
+ROOT JS AFTER PRUNE: 39 JS / 10,754 satır
+BEFORE PRUNE: 195 JS / 37,859 satır
+PHYSICAL DELETE TARGETS: 160 JS
+
+CORE CONTRACT
+- 200 Binance Futures symbol universe
+- 15m ATR-Renko + Bollinger pusu
+- 15m closed Confirmed evidence
+- Direct/Confirmed actual entry policy
+- 1m Renko SuperTrend confirmation
+- Entry Evolution: core percentage-stop replay only
+- Premier quality + exact N5 live economy final authority
+- R25.3 N5 positive override / negative veto / OOS COIN1000-1001 veto / Renko Premier preserve
+- Binance real execution, 20 slots x 20 USDT notional
+- SL -2.50%; +1.50% arm -> +1.00%; then 0.50% behind / 0.50 point step
+- Exchange reconciliation + fail-closed real-entry control plane
+- State/ledger + Telegram core operation
+
+PHYSICALLY REMOVED FROM RUNTIME
+- ST1 entry gate/shadow
+- Williams shadow
+- MACD shadow
+- 1m confirmation shadow lab
+- filtered-direct shadow lifecycle
+- post-close 24h tracker
+- global historical runtime
+- old DNA League / Dynamic Exit / Exit Replay / Renko Exit Evolution
+- Champion / Reverse / Bottom lifecycle engines
+- old Premier/Shadow/GAP accounting continuity engine
+- legacy compatibility/report/replay engines
+- old test/migration JS files listed in R26-OBSOLETE-JS-LIST.txt
+
+PRESERVED DATA
+R26-CORE-PRUNE.ps1 never deletes data/, logs, .env, ledger/state files, or ecosystem.config.js.

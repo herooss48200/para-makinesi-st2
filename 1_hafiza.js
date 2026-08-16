@@ -93,7 +93,6 @@ const state = {
     sanalEmirSayaci: 1,
     executionOzet: null,
     restartGapOzet: null,
-    accountingContinuity: null,
     manualCloseLocks: {}
 };
 

@@ -11,13 +11,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const pusuNotificationDedupe = require('./81_st2_pusu_notification_dedupe.js');
-const st1EntryGate = require('./87_st2_st1_entry_gate.js'); // yalnız shadow etki etiketi
-const williamsCycleShadow = require('./88_st2_williams_cycle_shadow_lab.js');
-const renkoEntryConfirmationShadow = require('./89_st2_renko_entry_confirmation_shadow_lab.js');
 const renkoEntryModePolicy = require('./90_st2_renko_entry_mode_policy.js');
-const renko15mConfirmedEvidence = require('./94_st2_15m_confirmed_evidence.js');
-const filteredDirectShadow = require('./96_st2_filtered_direct_shadow.js');
-const macdShadow = require('./97_st2_macd_shadow_intelligence.js');
 // v6.12.3 compatibility marker: entryTimingAuthority: 'RENKO_EVOLUTION_1M_RENKO_ST'
 
 let baslangicPusuOzetiGonderildi = false;
@@ -59,7 +53,7 @@ function pusuGateOzeti(pusu) {
         return {
             dnaKey: key,
             dnaId: dnaKisaId(key),
-            executionMode: gate.executionMode || 'SHADOW',
+            executionMode: gate.executionMode || 'REJECT',
             reason: gate.reason || 'UNKNOWN',
             completion: gate.completion || null,
             premierScore: gate.premierScore || null,
@@ -92,7 +86,6 @@ function pusuSkorAciklama(gateOzeti = {}) {
         `📚 ${premierQuality.metricText(evidence.historical, { prefix: 'Tarihsel' })}`,
         `🕔 ${last5 ? premierQuality.metricText(last5, { prefix: 'Son 5' }) : 'Son 5 N0'}`,
         `🚪 ${premierQuality.metricText(evidence.entry, { prefix: 'Entry' })}`,
-        `🧬 ${premierQuality.metricText(evidence.takeover, { prefix: 'Takeover', hideOutcomeCounts: true })}`,
         `⚙️ Model ${model}${q.calibrationGeneratedAt ? ` | Kalibrasyon ${q.calibrationGeneratedAt}` : ''}`
     ];
     return lines.join('\n');
@@ -153,12 +146,6 @@ function aktifTuglaMesafesi(pusu) {
 }
 
 
-function entryEvolutionShadowTetikFiyati(pusu) {
-    return entryEvolution.targetPrice(pusu, aktifTuglaMesafesi(pusu));
-}
-
-// v6.12.2: Canlı giriş yeniden öğrenilmiş Entry Evolution 0.25T–1.50T
-// seviyesine bağlandı. Referans 0T kırılımı yalnız kanıt alanıdır; giriş yetkisi değildir.
 function canliTetikFiyati(pusu) {
     const frozen = Number(pusu?.renkoEntryBrickDistance);
     const brick = Number.isFinite(frozen) && frozen > 0 ? frozen : aktifTuglaMesafesi(pusu);
@@ -287,15 +274,13 @@ function auditBaslat() {
         stOnayi: 0, stReddi: 0, birlikteUygun: 0, pozisyonAcildi: 0, pozisyonReddedildi: 0,
         entryModeDirect: 0, entryModeConfirmed: 0, confirmedReady: 0, confirmedWaiting: 0,
         directPriceWaiting: 0, confirmedPriceWaiting: 0, confirmedWaitReasons: {},
-        confirmedShadowActive: 0, confirmedShadowWaiting: 0, confirmedShadowOpen: 0, confirmedShadowClosed: 0, confirmedShadowNoEntry: 0,
-        filteredDirectShadowOpened: 0, filteredDirectShadowActive: 0, filteredDirectShadowClosed: 0,
-        st1GateUygun: 0, st1GateBekleyen: 0, st1GateReddi: 0, tazeKirilim: 0,
+        tazeKirilim: 0,
         eskiKirilimEngeli: 0, gecGirisReddi: 0, st2ContextIptal: 0,
         red: {
             ATR_YETERSIZ: 0, RENKO_YETERSIZ: 0, PATTERN_YOK: 0,
             BB_YETERSIZ: 0, BB_GECERSIZ: 0, BB_TEMAS_YOK: 0, PUSU_SURESI_DOLDU: 0, ONAY_1M_RENKO_YETERSIZ: 0,
             LONG_ALT_BAND_TEMASI_YOK: 0, SHORT_UST_BAND_TEMASI_YOK: 0, ORTA_BAND_BOLGE_RED: 0,
-            ST1_GATE_RED: 0, ST1_GEC_GIRIS: 0, ST2_CONTEXT_INVALIDATED: 0, LEGACY_PUSU_INVALIDATED: 0
+            ST2_CONTEXT_INVALIDATED: 0, LEGACY_PUSU_INVALIDATED: 0
         }
     };
 }
@@ -453,10 +438,6 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
         yeniPusu.entryModeDecisionAtSignal = entryModeDecision;
         yeniPusu.entryMode = entryModeDecision.selectedMode;
         yeniPusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
-        if (ayarlar.renkoGiris15mShadowCanliAktif !== false) {
-            try { renko15mConfirmedEvidence.ensureConfirmedShadowForPusu(yeniPusu); }
-            catch (e) { console.log(`⚠️ [15M CONFIRMED SHADOW LIVE] ${sym} | başlangıç ${e.message}`); }
-        }
         yeniPusu.entryTimingAuthority = entryModeDecision.selectedMode === 'CONFIRMED'
             ? 'CLOSED_15M_RENKO_REVERSAL_PLUS_OFFSET_1M_ST'
             : 'RENKO_EVOLUTION_1M_RENKO_ST';
@@ -493,7 +474,7 @@ function patternPususuGuncelle(sym, bricks, bollinger, boxSize, candles, audit =
                     const patternEtiketi = patternKodu && !/^(undefined|null|nan)$/i.test(patternKodu)
                         ? `${patternId} (${patternKodu})`
                         : patternId;
-                    const modEtiketi = gateOzeti.executionMode === 'PREMIER' ? '🏆 PREMIER' : gateOzeti.executionMode === 'SHADOW' ? '👻 SHADOW' : '❓ UNKNOWN';
+                    const modEtiketi = gateOzeti.executionMode === 'PREMIER' ? '🏆 PREMIER' : '⛔ REJECT';
                     const skorMetni = gateOzeti.relativeCohort > 0 ? ` | Skor ${gateOzeti.score.toFixed(1)}/${gateOzeti.scoreThreshold.toFixed(1)} | #${gateOzeti.relativeRank}/${gateOzeti.relativeCohort}` : '';
                     const skorAciklama = pusuSkorAciklama(gateOzeti);
                     const kisaMesaj = `🪤 <b>YENİ ST2 RENKO PUSU</b>
@@ -502,7 +483,7 @@ ${sym} ${match.yon} | ${patternEtiketi}
 🧾 ${gateOzeti.reason}
 ${skorAciklama ? `${skorAciklama}
 ` : ''}BB temas ✅ | Referans ${fiyatFormatla(yeniPusu.referansSeviye)} | Entry Evolution ${pusuTetikSunumu(yeniPusu)}
-⏳ Giriş: CONFIRMED ise pusu sonrası kapanmış 15m Renko dönüşü + seçilen T seviyesi; 1m Renko SuperTrend yalnız son yön teyidi. ST1 yalnız gölge etiketi.`;
+⏳ Giriş: CONFIRMED ise pusu sonrası kapanmış 15m Renko dönüşü + seçilen T seviyesi; 1m Renko SuperTrend yalnız son yön teyidi. .`;
                     h.telegramMesajGonderTekil(kisaMesaj, { coalesceKey: `st2-yeni-pusu:${bildirimAnahtari}` })
                         .then(sonuclar => {
                             const ok = Array.isArray(sonuclar) && sonuclar.length > 0 && sonuclar.every(x => x?.sonuc?.ok === true);
@@ -626,10 +607,6 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     pusu.entryModeDecisionAtSignal = entryModeDecision;
     pusu.entryMode = entryModeDecision.selectedMode;
     pusu.entryModeOffsetT = Number(entryModeDecision.selectedOffsetT);
-    if (ayarlar.renkoGiris15mShadowCanliAktif !== false) {
-        try { renko15mConfirmedEvidence.ensureConfirmedShadowForPusu(pusu); }
-        catch (e) { console.log(`⚠️ [15M CONFIRMED SHADOW LIVE] ${sym} | ensure ${e.message}`); }
-    }
     if (audit) {
         if (entryModeDecision.selectedMode === 'CONFIRMED') audit.entryModeConfirmed = Number(audit.entryModeConfirmed || 0) + 1;
         else audit.entryModeDirect = Number(audit.entryModeDirect || 0) + 1;
@@ -730,21 +707,6 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     pusu.superTrendOnayi = stUygun;
     pusu.sonCanliFiyat = price;
 
-    // ST1 artık emir kapısı değildir; yalnız etki/bağlam etiketi olarak dondurulur.
-    let st1Shadow = null;
-    try {
-        st1Shadow = st1EntryGate.degerlendir(sym, pusu.yon, price, target);
-    } catch (error) {
-        st1Shadow = { uygun: false, hardReject: false, reason: `ST1_SHADOW_ERROR:${error.message}`, shadowOnly: true };
-    }
-    pusu.sonSt1Shadow = {
-        uygun: st1Shadow?.uygun === true,
-        reason: st1Shadow?.reason || 'UNKNOWN',
-        superTrendYonu: st1Shadow?.superTrendYonu || st1Shadow?.superTrend?.trend || null,
-        evaluatedAt: new Date().toISOString(),
-        authority: 'SHADOW_ONLY'
-    };
-
     if (audit) {
         if (fiyatUygun) audit.fiyatTetigi++;
         else {
@@ -754,7 +716,6 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         }
         if (entryModeDecision.selectedMode === 'CONFIRMED') audit.confirmedReady = Number(audit.confirmedReady || 0) + 1;
         if (stUygun) audit.stOnayi++; else audit.stReddi++;
-        if (st1Shadow?.uygun) audit.st1GateUygun++; else audit.st1GateBekleyen++;
         if (fiyatUygun && stUygun) audit.birlikteUygun++;
     }
 
@@ -762,10 +723,7 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     // Fiyat seçilmiş seviyenin doğru tarafında ve 1m Renko ST aynı yöndeyse giriş yapılır.
     if (!fiyatUygun || !stUygun) return false;
 
-    // Legacy DIRECT güvenlik kapısı:
-    // Force-CONFIRMED kapalıysa DIRECT 0.50T/1.00T dışı aday aktif pozisyon zincirine girmez;
-    // ayrı, sembolü bloke etmeyen FILTERED DIRECT SHADOW lifecycle'a gider.
-    // R23.1 CONFIRMED gerçek girişleri bu filtreden muaftır.
+    // DIRECT gerçek kapısı: izin verilmeyen tuğla profili canlı runtime'a alınmaz.
     const directRealGate = m.gercekDirectTuglaKapisi({
         entryStrategy: 'ST2_RENKO',
         entryMode: entryModeDecision.selectedMode,
@@ -773,40 +731,16 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         entryModeOffsetT: selectedEntryBrick
     });
     if (entryModeDecision.selectedMode === 'DIRECT' && directRealGate?.allowed !== true) {
-        const shadow = filteredDirectShadow.open(pusu, price, selectedEntryBrick, {
-            at: Date.now(),
-            stTrend: renkoSt?.trend || null
-        });
-        if (audit) {
-            audit.filteredDirectShadowOpened = Number(audit.filteredDirectShadowOpened || 0) + (shadow?.accepted ? 1 : 0);
-            audit.pozisyonReddedildi = Number(audit.pozisyonReddedildi || 0) + 1;
-        }
+        if (audit) audit.pozisyonReddedildi = Number(audit.pozisyonReddedildi || 0) + 1;
         const izinli = (directRealGate?.allowedBricks || []).map(x => Number(x).toFixed(2) + 'T').join(',') || '0.50T,1.00T';
-        console.log(`👻 [DIRECT T SHADOW-ONLY] ${sym} ${pusu.yon} | ${selectedEntryBrick.toFixed(2)}T gerçek emir YOK | İzinli ${izinli} | Shadow ${shadow?.accepted ? 'AÇILDI' : shadow?.reason || 'YOK'} | CONFIRMED öğrenme bağımsız devam`);
+        console.log(`⛔ [DIRECT T RED] ${sym} ${pusu.yon} | ${selectedEntryBrick.toFixed(2)}T gerçek emir YOK | İzinli ${izinli}`);
         store.sonIptalPatternSignature[sym] = pusu.patternSignature;
         delete store.pusular[sym];
         return false;
     }
-
-    const onayBricks1m = renkoSt?.bricks || store.onaySerileri1m?.[sym] || [];
-    // v6.12.3: Williams dönüş gölgesi artık gerçek giriş zaman otoritesiyle aynı 1m Renko serisini izler.
-    // Emir engellemez; uç bölgede kalmayı değil, nötre doğru dönüşü etiketler.
-    const williamsShadow = williamsCycleShadow.entrySnapshot(sym, pusu.yon, onayBricks1m);
-    // R25: MACD giriş fotoğrafı yalnız SHADOW. 1m/15m kapanmış cache kullanır, giriş kararını değiştirmez.
-    const macdShadowAtEntry = macdShadow.entrySnapshot(sym, pusu.yon, Date.now(), h.state);
-    // v6.12.3: Erken/yalancı giriş hipotezi için R→G / G→R sonrası 0.25T–0.75T
-    // alternatifleri yalnız gölgede dondurulur. Golden Renko canlı kararı değişmez.
-    const renkoEntryConfirmation = renkoEntryConfirmationShadow.entrySnapshot(
-        sym,
-        pusu.yon,
-        onayBricks1m,
-        Number(store.onayBoxSize1m?.[sym] || pusu.renkoOnayBoxSize1m || 0),
-        price,
-        { at: Date.now(), williamsTurnState: williamsShadow?.turnState || null }
-    );
     const renkoKanit = renkoKanitiMetni(sym, pusu, target, price, renkoSt);
     renkoProofConsoleYaz(renkoKanit);
-    console.log(`🎯 [GOLDEN RENKO TETİK] ${sym} ${pusu.yon} | Mode ${entryModeDecision.selectedMode} | Offset ${selectedEntryBrick.toFixed(2)}T ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${renkoSt?.trend || 'YOK'} | ST1 shadow ${st1Shadow?.reason || 'YOK'} | W%R ${williamsShadow.pattern}`);
+    console.log(`🎯 [GOLDEN RENKO TETİK] ${sym} ${pusu.yon} | Mode ${entryModeDecision.selectedMode} | Offset ${selectedEntryBrick.toFixed(2)}T ${fiyatFormatla(target)} | Canlı ${fiyatFormatla(price)} | 1m Renko ST ${renkoSt?.trend || 'YOK'}`);
 
     const girisAnalizi = {
         entryStrategy: 'ST2_RENKO',
@@ -840,10 +774,6 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
         girisFiyati: price,
         superTrendYonu: renkoSt?.trend || null,
         stKaynak: '1m_RENKO',
-        st1EntryGateShadow: { ...st1Shadow, authority: 'SHADOW_ONLY', blocksEntry: false },
-        williamsCycleShadow: williamsShadow,
-        macdShadowAtEntry,
-        renkoEntryConfirmationShadow: renkoEntryConfirmation,
         senaryo: pusu.senaryo,
         patternId: pusu.patternId,
         patternAilesi: pusu.patternAilesi,
@@ -874,9 +804,6 @@ async function pusuDegerlendir(sym, onay1m = null, audit = null) {
     const ok = await m.pozisyonAc(sym, pusu.yon, price, girisAnalizi);
     if (audit) { if (ok) audit.pozisyonAcildi++; else audit.pozisyonReddedildi++; }
     if (ok) {
-        try {
-            macdShadow.recordEntry({ sym, yon: pusu.yon, entryMode: entryModeDecision.selectedMode, entryModeOffsetT: selectedEntryBrick }, macdShadowAtEntry, Date.now());
-        } catch (e) { console.log(`⚠️ [MACD SHADOW ENTRY] ${sym} ${pusu.yon} | ${e.message}`); }
         store.sonIptalPatternSignature[sym] = pusu.patternSignature;
         delete store.pusular[sym];
     }
@@ -894,8 +821,8 @@ function auditLogla(audit) {
     console.log(`🧱 [ST2 RENKO AUDIT] Evren ${audit.evrenToplam} | Taranan ${audit.sembol} | Açık atlandı ${audit.acikPozisyonAtlandi} | Veri eksik ${audit.veriEksik} | Süre ${audit.sureMs} ms | Sembol ${audit.sembol} | 15m ATR ${audit.atrHazir} | Renko ${audit.renkoHazir} (min ${audit.renkoMin ?? 0}/max ${audit.renkoMax}) | Pattern aday ${audit.patternAday} | Yeni pattern ${audit.yeniPattern} | BB hazır ${audit.bbHazir} | BB temas L${audit.bbLongTemas}/S${audit.bbShortTemas} | 1m Renko ST ${audit.onay1mRenkoHazir} (UP ${audit.onay1mUp}/DOWN ${audit.onay1mDown}) | Yeni pusu L${audit.longPusu}/S${audit.shortPusu} | Aktif ${aktif.length}`);
     if (Number(audit.bildirimHafizaTemizlenen || 0) > 0) console.log(`🧹 [ST2 PUSU DEDUPE] Eski/fazla bildirim anahtarı temizlendi: ${audit.bildirimHafizaTemizlenen}`);
     const confirmedReasons = Object.entries(audit.confirmedWaitReasons || {}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k}:${v}`).join(',') || 'YOK';
-    console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → Mode D/C ${Number(audit.entryModeDirect||0)}/${Number(audit.entryModeConfirmed||0)} → Evolution fiyat uygun ${audit.fiyatTetigi} → 1m Renko ST uygun ${audit.stOnayi} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Bekleyen: DIRECT fiyat ${Number(audit.directPriceWaiting||0)} | CONFIRMED 15m dönüş ${Number(audit.confirmedWaiting||0)} [${confirmedReasons}] | CONFIRMED fiyat ${Number(audit.confirmedPriceWaiting||0)} | 1m ST ${audit.stReddi} | ST1 shadow uygun/bekleyen ${audit.st1GateUygun}/${audit.st1GateBekleyen} | Bağlam iptal ${audit.st2ContextIptal} | Pozisyon katmanı ${audit.pozisyonReddedildi} | Filtered DIRECT shadow A/K ${Number(audit.filteredDirectShadowActive||0)}/${Number(audit.filteredDirectShadowClosed||0)}`);
-    console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu Renko süre ${audit.red.PUSU_SURESI_DOLDU} | ST1 hard red 0 | Geç giriş hard red 0 | ST2 bağlam ${audit.red.ST2_CONTEXT_INVALIDATED} | Legacy pusu ${audit.red.LEGACY_PUSU_INVALIDATED} | 1m Renko ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ} (tuğla ${audit.onay1mTuglaYetersiz} / hesap ${audit.onay1mStHesapYetersiz})`);
+    console.log(`🔎 [ST2 GİRİŞ HUNİSİ] Tarama ${audit.sembol} → Renko ${audit.renkoHazir} → Aktif/Yeni pusu ${aktif.length}/${audit.yeniPusu} → Değerlendirilen ${audit.pusuDegerlendirilen} → Mode D/C ${Number(audit.entryModeDirect||0)}/${Number(audit.entryModeConfirmed||0)} → Evolution fiyat uygun ${audit.fiyatTetigi} → 1m Renko ST uygun ${audit.stOnayi} → Birlikte uygun ${audit.birlikteUygun} → Pozisyon ${audit.pozisyonAcildi} | Bekleyen: DIRECT fiyat ${Number(audit.directPriceWaiting||0)} | CONFIRMED 15m dönüş ${Number(audit.confirmedWaiting||0)} [${confirmedReasons}] | CONFIRMED fiyat ${Number(audit.confirmedPriceWaiting||0)} | 1m ST ${audit.stReddi} | Bağlam iptal ${audit.st2ContextIptal} | Pozisyon katmanı ${audit.pozisyonReddedildi}`);
+    console.log(`🧱 [ST2 RENKO RED] ATR ${audit.red.ATR_YETERSIZ} | Renko ${audit.red.RENKO_YETERSIZ} | Pattern yok ${audit.red.PATTERN_YOK} | BB yetersiz ${audit.red.BB_YETERSIZ} | BB geçersiz ${audit.red.BB_GECERSIZ} | BB temas yok ${audit.red.BB_TEMAS_YOK} | Long alt temas yok ${audit.red.LONG_ALT_BAND_TEMASI_YOK} | Short üst temas yok ${audit.red.SHORT_UST_BAND_TEMASI_YOK} | Orta bölge red ${audit.red.ORTA_BAND_BOLGE_RED} | Pusu Renko süre ${audit.red.PUSU_SURESI_DOLDU} | Geç giriş hard red 0 | ST2 bağlam ${audit.red.ST2_CONTEXT_INVALIDATED} | Legacy pusu ${audit.red.LEGACY_PUSU_INVALIDATED} | 1m Renko ST yetersiz ${audit.red.ONAY_1M_RENKO_YETERSIZ} (tuğla ${audit.onay1mTuglaYetersiz} / hesap ${audit.onay1mStHesapYetersiz})`);
     const dagilim = Object.entries(audit.patternDagilimi || {}).sort().map(([k,v]) => `${k}:${v}`).join(' ') || 'YOK';
     console.log(`🧱 [ST2 RENKO PATTERN] ${dagilim}`);
     for (const [i, x] of (audit.yakinRedAdaylari || []).entries()) {
@@ -911,7 +838,7 @@ async function taraVeDegerlendir() {
     audit.evrenToplam = (h.state.semboller || []).length;
     for (const sym of h.state.semboller || []) {
         let sembolBaslangicMs = Date.now();
-        let tAtrMs = 0, tRenkoMs = 0, tWilliamsMs = 0, tExpireMs = 0, tBbMs = 0, tPatternMs = 0, tOnay1mMs = 0, tPusuMs = 0;
+        let tAtrMs = 0, tRenkoMs = 0, tExpireMs = 0, tBbMs = 0, tPatternMs = 0, tOnay1mMs = 0, tPusuMs = 0;
         const acikPozisyonVar = (h.state.alinanlar || []).includes(sym) || (h.state.aktifShortlar || []).includes(sym);
         if (acikPozisyonVar) audit.acikPozisyonAtlandi++;
         audit.sembol++;
@@ -956,7 +883,6 @@ async function taraVeDegerlendir() {
             64,
             Number(ayarlar.renkoCanliTaramaMaxTugla || 128),
             Number(ayarlar.renkoBollingerPeriod || ayarlar.bollingerperiod || 20) + 16,
-            Number(ayarlar.williamsCyclePeriod || 14) + 16,
             Number(ayarlar.maxPusuBeklemeTugla || 3) + 16
         );
         const renkoBaslangicMs = Date.now();
@@ -972,10 +898,7 @@ async function taraVeDegerlendir() {
         audit.renkoHazir++;
         store.seriler[sym] = bricks;
         store.boxSize[sym] = box;
-        const williamsBaslangicMs = Date.now();
-        williamsCycleShadow.update(sym, bricks, { persist: false }); // shadow-only; tarama içinde disk I/O YOK
-        tWilliamsMs = Date.now() - williamsBaslangicMs;
-        if (acikPozisyonVar) continue; // Williams izlenir; yeni pusu/pozisyon üretilmez.
+        if (acikPozisyonVar) continue;
 
         const expireBaslangicMs = Date.now();
         eskiPusuyuSuresiDolduysaSil(sym, bricks, candles, audit);
@@ -999,51 +922,11 @@ async function taraVeDegerlendir() {
         const sembolToplamMs = Date.now() - sembolBaslangicMs;
         const slowEsikMs = Math.max(250, Number(ayarlar.renkoSlowSymbolLogMs || 1000));
         if (sembolToplamMs >= slowEsikMs) {
-            console.log(`🐢 [ST2 RENKO SLOW SYMBOL] ${sym} | Toplam ${sembolToplamMs} ms | ATR ${tAtrMs} | Renko15m ${tRenkoMs} | Williams ${tWilliamsMs} | Expire ${tExpireMs} | BB ${tBbMs} | Pattern/DNA ${tPatternMs} | 1mST ${tOnay1mMs} | PusuGate ${tPusuMs}`);
+            console.log(`🐢 [ST2 RENKO SLOW SYMBOL] ${sym} | Toplam ${sembolToplamMs} ms | ATR ${tAtrMs} | Renko15m ${tRenkoMs} | Expire ${tExpireMs} | BB ${tBbMs} | Pattern/DNA ${tPatternMs} | 1mST ${tOnay1mMs} | PusuGate ${tPusuMs}`);
         }
         if (audit.sembol % 25 === 0 && Date.now() - taramaBaslangici >= 5000) {
             console.log(`⏱️ [ST2 RENKO SCAN İLERLEME] ${audit.sembol}/${audit.evrenToplam} | ${Date.now() - taramaBaslangici} ms | Son ${sym} | Renko ${audit.renkoHazir} | Pusu ${Object.keys(store.pusular || {}).length}`);
         }
-    }
-    if (ayarlar.renkoGiris15mShadowCanliAktif !== false) {
-        try {
-            const shadow15m = renko15mConfirmedEvidence.advanceConfirmedShadow({
-                bricksBySymbol: store.seriler || {},
-                boxBySymbol: store.boxSize || {},
-                prices: h.state.canliFiyatlar || {},
-                stCache: h.state.renko1mStCache || {},
-                candles15mBySymbol: h.state.yerelPusuHafizasi || {},
-                now: Date.now()
-            });
-            audit.confirmedShadowActive = Number(shadow15m.active || 0);
-            audit.confirmedShadowWaiting = Number(shadow15m.waiting || 0);
-            audit.confirmedShadowOpen = Number(shadow15m.open || 0);
-            audit.confirmedShadowClosed = Number(shadow15m.closed || 0);
-            audit.confirmedShadowNoEntry = Number(shadow15m.noEntry || 0);
-            for (const ev of shadow15m.events || []) {
-                if (ev.type === 'OPEN') {
-                    console.log(`🧪 [15M CONFIRMED SHADOW OPEN] ${ev.exp.sym} ${ev.exp.direction} | ${ev.exp.pattern} ${Number(ev.exp.offsetT).toFixed(2)}T | ${ev.exp.reversalPair || 'REV'} | Tetik ${fiyatFormatla(ev.exp.targetPrice)} | Fill ${fiyatFormatla(ev.exp.entryPrice)} | 1m ST ${ev.stTrend || 'YOK'} | GERÇEK EMİR YOK`);
-                } else if (ev.type === 'CLOSE') {
-                    console.log(`📚 [15M CONFIRMED SHADOW CLOSE] ${ev.exp.sym} ${ev.exp.direction} | ${ev.exp.pattern} ${Number(ev.exp.offsetT).toFixed(2)}T | ${ev.result?.outcome || 'YOK'} ${Number(ev.result?.netPct || 0) >= 0 ? '+' : ''}${Number(ev.result?.netPct || 0).toFixed(4)}% | N${Number(ev.metric?.samples || 0).toFixed(0)} WR %${Number(ev.metric?.wr || 0).toFixed(1)} PF ${Number(ev.metric?.pf || 0).toFixed(2)} Exp ${Number(ev.metric?.expectancy || 0) >= 0 ? '+' : ''}${Number(ev.metric?.expectancy || 0).toFixed(4)} | GERÇEK EMİR YOK`);
-                }
-            }
-            if (shadow15m.noEntry > 0) console.log(`📚 [15M CONFIRMED SHADOW NO_ENTRY] Bu tur ${shadow15m.noEntry} aday pusu 15m Renko penceresinde tetiklenmedi | GERÇEK EMİR YOK`);
-        } catch (e) { console.log(`⚠️ [15M CONFIRMED SHADOW LIVE] advance ${e.message}`); }
-    }
-    try {
-        const directShadow = filteredDirectShadow.advance({
-            prices: h.state.canliFiyatlar || {},
-            candles15mBySymbol: h.state.yerelPusuHafizasi || {},
-            now: Date.now()
-        });
-        audit.filteredDirectShadowActive = Number(directShadow.active || 0);
-        audit.filteredDirectShadowClosed = Number(directShadow.closed || 0);
-        for (const ev of directShadow.events || []) {
-            const row = ev.row || {};
-            console.log(`📚 [FILTERED DIRECT SHADOW CLOSE] ${row.sym} ${row.direction} | ${Number(row.offsetT || 0).toFixed(2)}T ${row.pattern || 'UNKNOWN'} | ${row.outcome || 'YOK'} ${Number(row.netPct || 0) >= 0 ? '+' : ''}${Number(row.netPct || 0).toFixed(4)}% | MFE ${Number(row.peakPct || 0) >= 0 ? '+' : ''}${Number(row.peakPct || 0).toFixed(3)}% | MAE ${Number(row.troughPct || 0).toFixed(3)}% | GERÇEK EMİR YOK`);
-        }
-    } catch (e) {
-        console.log(`⚠️ [FILTERED DIRECT SHADOW] advance ${e.message}`);
     }
 
     audit.tetikBekleyen = Object.keys(store.pusular || {}).length;
@@ -1059,14 +942,9 @@ async function taraVeDegerlendir() {
         stOnayi: audit.stOnayi, stReddi: audit.stReddi, birlikteUygun: audit.birlikteUygun, pozisyonAcildi: audit.pozisyonAcildi, pozisyonReddedildi: audit.pozisyonReddedildi,
         entryModeDirect: audit.entryModeDirect, entryModeConfirmed: audit.entryModeConfirmed, confirmedReady: audit.confirmedReady, confirmedWaiting: audit.confirmedWaiting,
         directPriceWaiting: audit.directPriceWaiting, confirmedPriceWaiting: audit.confirmedPriceWaiting, confirmedWaitReasons: { ...(audit.confirmedWaitReasons || {}) },
-        confirmedShadowActive: audit.confirmedShadowActive, confirmedShadowWaiting: audit.confirmedShadowWaiting, confirmedShadowOpen: audit.confirmedShadowOpen,
-        confirmedShadowClosed: audit.confirmedShadowClosed, confirmedShadowNoEntry: audit.confirmedShadowNoEntry,
-        filteredDirectShadowOpened: audit.filteredDirectShadowOpened, filteredDirectShadowActive: audit.filteredDirectShadowActive, filteredDirectShadowClosed: audit.filteredDirectShadowClosed,
         sonTamamlanma: new Date().toISOString()
     };
     auditLogla(audit);
-    // Williams shadow state ilk 200-sembol taramasını bloke etmesin: RAM'de toplandı, tek flush arka planda.
-    if (typeof williamsCycleShadow.scheduleFlush === 'function') williamsCycleShadow.scheduleFlush();
 
     // Açılışta bulunan bütün mevcut pusular tek mesajda bir kez bildirilir.
     // Sonraki taramalarda yalnız yeni bulunan pusu kendi kanıt mesajıyla gönderilir.
@@ -1090,7 +968,7 @@ async function taraVeDegerlendir() {
             } else {
                 const longlar = benzersiz.filter(x => x.yon === 'LONG');
                 const shortlar = benzersiz.filter(x => x.yon === 'SHORT');
-                const satir = x => `${x.sym} ${x.yon} | ${x.patternId || x.patternKodu || 'PATTERN'} | ${x.executionMode === 'PREMIER' ? '🏆' : x.executionMode === 'SHADOW' ? '👻' : '❓'} DNA ${x.dnaId || 'YOK'}`;
+                const satir = x => `${x.sym} ${x.yon} | ${x.patternId || x.patternKodu || 'PATTERN'} | ${x.executionMode === 'PREMIER' ? '🏆' : '⛔'} DNA ${x.dnaId || 'YOK'}`;
                 const maxSatir = ayarlar.telegramMinimalOperasyonModu === true
                     ? Math.max(1, Number(ayarlar.telegramAcilisPusuMaxSatir || 6))
                     : benzersiz.length;
@@ -1137,7 +1015,6 @@ module.exports = {
     ...core,
     tetikFiyati,
     canliTetikFiyati,
-    entryEvolutionShadowTetikFiyati,
     pusuTetikSunumu,
     dnaKisaId,
     pusuGateOzeti,
