@@ -1,0 +1,29 @@
+AGROS ST2 v6.13.5-R25.6 — TEST RESULT
+Date: 2026-08-16
+
+ROOT CAUSE PROOF
+- R25.5 live log: 200/200 processed while 15m/1m cache remained 3/200; attempt Hata 394; queue exceeded 200.
+- Cause: outer per-symbol deadline expired while requests were still queued; rejected callers moved on but stale queued requests were not cancelled.
+
+R25.6 REGRESSION
+PASS test_v6176_r256_startup_queue_bound_repair.js
+  4 ACTIVE simulated network slots
+  max queued = 12 with 8 workers x 2 legs
+  40/40 initial requests completed
+  no stale deadline duplicates
+
+PRESERVATION
+PASS R25.5 15m + 1m repair behavior
+PASS R25.4 200-core/protection-extra liveness
+PASS R25.3 Premier selection recovery / N5 / 20 slot x 20USDT
+PASS R24.2 unified execution stop authority
+PASS R25.2 incremental 1m liveness
+PASS R25.1 MACD replay shadow; no entry/stop authority
+
+FULL SUITE
+npm run check: EXIT 0
+All test_*.js: 80/80 PASS
+Syntax: 192 JavaScript files
+
+SAFETY
+No data/ files included. No live ledger/state files included. No MACD authority change. No Premier/stop/risk change.

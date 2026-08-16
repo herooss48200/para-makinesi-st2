@@ -49,11 +49,14 @@ function candleSeries(tf, count, trendStep=0.4){
     h.state.startupMarketWarmup={};
 
     const calls=[];
-    ag.binanceMumlariCek=async (sym,tf,limit)=>{
-      calls.push({sym,tf,limit:Number(limit)});
-      // Initial 80-candle 1m call for one core symbol never resolves.
-      // R25.4 must deadline it, finish the first pass and recover it in 240-candle repair.
-      if(sym===hang && tf==='1m' && Number(limit)<=80) return new Promise(resolve=>setTimeout(()=>resolve(candleSeries('1m',80,0.45)),1000));
+    ag.binanceMumlariCek=async (sym,tf,limit,opts={})=>{
+      calls.push({sym,tf,limit:Number(limit),opts:{...opts}});
+      // R25.6 contract: queue wait is not timed out by revizyon.js. A failure is produced only
+      // after the ACTIVE request/network layer rejects it; then 240/480 repair recovers it.
+      if(sym===hang && tf==='1m' && Number(limit)<=80) {
+        const err=new Error('ACTIVE_HTTP_TIMEOUT'); err.code='ETIMEDOUT';
+        return new Promise((_,reject)=>setTimeout(()=>reject(err),50));
+      }
       if(tf==='15m') return candleSeries('15m',Math.max(30,Number(limit)||30),0.25);
       return candleSeries('1m',Math.max(80,Number(limit)||80),0.45);
     };
@@ -61,7 +64,7 @@ function candleSeries(tf, count, trendStep=0.4){
     console.warn=(...a)=>logs.push(a.join(' '));
 
     const started=Date.now();
-    const summary=await rev.derinGecmisiInsaEt({concurrency:4,workers:8,symbolDeadlineMs:40,repairSymbolDeadlineMs:200});
+    const summary=await rev.derinGecmisiInsaEt({concurrency:4,workers:8,initialRequestTimeoutMs:50,initialRequestRetries:0,repairRequestTimeoutMs:200,repairRequestRetries:1});
     const elapsed=Date.now()-started;
 
     assert(elapsed<3000,`asılı sembol startupı bloke etti: ${elapsed}ms`);
@@ -77,7 +80,7 @@ function candleSeries(tf, count, trendStep=0.4){
     assert.strictEqual(h.state.renko1mStHazirlik[hang]?.ready,true,'deadline sembolü 240/480 repair ile geri kazanılmalı');
     assert(!calls.some(x=>extras.includes(x.sym)),'koruma-extra sembolleri startup core candle fetchine girmemeli');
     assert(calls.some(x=>x.sym===hang && x.tf==='1m' && x.limit>=Number(ayarlar.renkoOnayDerinOnarimMumLimiti)),'deadline sembolü derin 1m repair görmedi');
-    assert(logs.some(x=>x.includes('[STARTUP SYMBOL DEADLINE]')),'deadline observability logu yok');
+    assert(logs.some(x=>x.includes('[STARTUP INITIAL REQUEST FAIL]')),'aktif request fail observability logu yok');
     assert(logs.some(x=>x.includes('[1m RENKO ST DERİN ONARIM]')),'derin onarım logu yok');
     assert(logs.some(x=>x.includes('[1m RENKO ST DERİN ONARIM SONUÇ]')),'repair sonrası gate/coverage kanıtı yok');
 
@@ -85,10 +88,10 @@ function candleSeries(tf, count, trendStep=0.4){
     const revSrc=fs.readFileSync('./revizyon.js','utf8');
     assert(marketSrc.includes('st2CoreUniverseSymbols'),'core universe snapshot yok');
     assert(marketSrc.includes('st2ProtectionExtraSymbols'),'protection extra ayrımı yok');
-    assert(revSrc.includes('STARTUP_SYMBOL_DEADLINE'),'per-symbol startup deadline yok');
+    assert(!revSrc.includes('startupDeadlineIle('),'queue-wait outer deadline hâlâ kaynakta aktif');
     assert(revSrc.includes('startupCoreSymbols()'),'startup core universe authority yok');
 
-    originalLog('✅ R25.4 startup core liveness passed | 200-core authority + protection-extra isolation + hung-symbol deadline + 240/480 repair + final error truth');
+    originalLog('✅ R25.4 core liveness preserved under R25.6 | 200-core authority + protection-extra isolation + active-request failure + 240/480 repair + final error truth');
   } finally {
     ag.binanceMumlariCek=originalFetch;
     ayarlar.startupMarketReadyOrani=originalThreshold;

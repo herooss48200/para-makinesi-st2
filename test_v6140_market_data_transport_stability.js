@@ -6,7 +6,7 @@ const version=require('./versiyon.js');
 const ag=require('./64_binance_network_resilience.js');
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R25.5-STARTUP-FAST-FAIL-REPAIR-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu,'6.13.5-R25.6-STARTUP-QUEUE-BOUND-REPAIR-N5-20SLOT-20USDT');
   assert.strictEqual(Number(ayarlar.binanceStartupAgEszamanlilik),8);
   assert.strictEqual(Number(ayarlar.binanceStartupAgIsciSayisi),8);
   assert.strictEqual(Number(ayarlar.binanceAgTimeoutMs),15000);

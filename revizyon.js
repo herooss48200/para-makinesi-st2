@@ -37,12 +37,6 @@ function cacheHazirSayisiSemboller(cache, symbols) {
     const set = new Set(Array.from(symbols || []).map(String));
     return Object.keys(cache || {}).filter(sym => set.has(String(sym))).length;
 }
-function startupSymbolDeadlineMs(options = {}) {
-    return Math.max(50, Number(options.symbolDeadlineMs || ayarlar.binanceStartupSymbolDeadlineMs || 180000));
-}
-function startupRepairSymbolDeadlineMs(options = {}) {
-    return Math.max(50, Number(options.repairSymbolDeadlineMs || ayarlar.binanceStartupRepairSymbolDeadlineMs || ayarlar.binanceStartupSymbolDeadlineMs || 180000));
-}
 function startupInitialRequestOptions(options = {}) {
     return {
         timeoutMs: Math.max(1000, Number(options.initialRequestTimeoutMs ?? ayarlar.binanceStartupRequestTimeoutMs ?? 7000)),
@@ -56,20 +50,6 @@ function startupRepairRequestOptions(options = {}) {
         retries: Math.max(0, Number(options.repairRequestRetries ?? ayarlar.binanceStartupRepairRequestRetry ?? 1)),
         baseDelayMs: Math.max(100, Number(options.repairRequestRetryBaseMs ?? ayarlar.binanceStartupRepairRequestRetryTabanMs ?? 700))
     };
-}
-function startupDeadlineIle(promise, timeoutMs, label) {
-    const ms = Math.max(50, Number(timeoutMs || 180000));
-    let timer = null;
-    return Promise.race([
-        Promise.resolve(promise),
-        new Promise((_, reject) => {
-            timer = setTimeout(() => {
-                const err = new Error(`${label}:${ms}ms`);
-                err.code = 'ETIMEDOUT';
-                reject(err);
-            }, ms);
-        })
-    ]).finally(() => { if (timer) clearTimeout(timer); });
 }
 
 function renko1mBaseLimit() { return Math.max(80, Number(ayarlar.renkoOnayKaynakMumLimiti || 80)); }
@@ -302,8 +282,6 @@ async function derinGecmisiInsaEt(options = {}) {
     const korumaEkstra = tumCanliSemboller.filter(sym => !startupCoreSet.has(sym));
     h.state.startupMarketProtectionExtraCount = korumaEkstra.length;
     h.state.startupMarketProtectionExtraSymbols = korumaEkstra;
-    const symbolDeadlineMs = startupSymbolDeadlineMs(options);
-    const repairSymbolDeadlineMs = startupRepairSymbolDeadlineMs(options);
     const initialRequestOptions = startupInitialRequestOptions(options);
     const repairRequestOptions = startupRepairRequestOptions(options);
     const pusuTf = pusuKaynakPeriyodu();
@@ -325,16 +303,8 @@ async function derinGecmisiInsaEt(options = {}) {
         await sembolHavuzu(async sym => {
             try {
                 const [pusuSonuc, sniperSonuc] = await Promise.allSettled([
-                    startupDeadlineIle(
-                        mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH', initialRequestOptions),
-                        symbolDeadlineMs,
-                        `STARTUP_SYMBOL_DEADLINE_15M:${sym}`
-                    ),
-                    startupDeadlineIle(
-                        mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, 'HIGH', initialRequestOptions),
-                        symbolDeadlineMs,
-                        `STARTUP_SYMBOL_DEADLINE_1M:${sym}`
-                    )
+                    mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH', initialRequestOptions),
+                    mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, 'HIGH', initialRequestOptions)
                 ]);
 
                 if (pusuSonuc.status === 'fulfilled') {
@@ -347,7 +317,7 @@ async function derinGecmisiInsaEt(options = {}) {
                     pusuHata++;
                     h.state.startupMarketSymbolFailures ||= {};
                     h.state.startupMarketSymbolFailures[sym] = { ...(h.state.startupMarketSymbolFailures[sym] || {}), at: Date.now(), pusuReason: String(pusuSonuc.reason?.message || pusuSonuc.reason), stage: 'INITIAL_CORE' };
-                    if (/DEADLINE/.test(String(pusuSonuc.reason?.message || pusuSonuc.reason))) console.warn(`⚠️ [STARTUP SYMBOL DEADLINE] ${sym} 15m | ${String(pusuSonuc.reason?.message || pusuSonuc.reason)}`);
+                    console.warn(`⚠️ [STARTUP INITIAL REQUEST FAIL] ${sym} 15m | ${String(pusuSonuc.reason?.message || pusuSonuc.reason)} | Aktif istek timeout/retry sonrası 15m onarıma bırakıldı`);
                 }
 
                 if (sniperSonuc.status === 'fulfilled') {
@@ -365,16 +335,16 @@ async function derinGecmisiInsaEt(options = {}) {
                     sniperHata++;
                     h.state.startupMarketSymbolFailures ||= {};
                     h.state.startupMarketSymbolFailures[sym] = { ...(h.state.startupMarketSymbolFailures[sym] || {}), at: Date.now(), sniperReason: String(sniperSonuc.reason?.message || sniperSonuc.reason), stage: 'INITIAL_CORE' };
-                    if (/DEADLINE/.test(String(sniperSonuc.reason?.message || sniperSonuc.reason))) console.warn(`⚠️ [STARTUP SYMBOL DEADLINE] ${sym} 1m | ${String(sniperSonuc.reason?.message || sniperSonuc.reason)} | Derin onarıma bırakıldı`);
+                    console.warn(`⚠️ [STARTUP INITIAL REQUEST FAIL] ${sym} 1m | ${String(sniperSonuc.reason?.message || sniperSonuc.reason)} | Aktif istek timeout/retry sonrası derin onarıma bırakıldı`);
                 }
             } catch (err) {
-                // R25.4: Bir sembolün beklenmeyen/asılı ilk-tur işi tüm 200-core warmup ve
-                // 240/480 onarım zincirini sonsuza kadar bloke edemez. Sembol eksik bırakılır;
-                // derin onarımda yeniden denenir.
+                // R25.6: Queue bekleme süresine dış deadline uygulanmaz. Timeout yalnız ağ isteği aktifken
+                // network katmanında işler; böylece timeout olmuş görünürken alttaki queued request yaşamaya devam edip
+                // kuyruğu zehirleyemez. Gerçek aktif istek hatası olursa sembol repair aşamasına bırakılır.
                 pusuHata++; sniperHata++;
                 h.state.startupMarketSymbolFailures ||= {};
                 h.state.startupMarketSymbolFailures[sym] = { at: Date.now(), reason: String(err?.message || err), stage: 'INITIAL_CORE' };
-                console.warn(`⚠️ [STARTUP SYMBOL DEADLINE] ${sym} | ${String(err?.message || err)} | Derin onarıma bırakıldı`);
+                console.warn(`⚠️ [STARTUP INITIAL SYMBOL FAIL] ${sym} | ${String(err?.message || err)} | Onarıma bırakıldı`);
             } finally {
                 islenen++;
                 const pusuHazir = cacheHazirSayisiSemboller(h.state.yerelPusuHafizasi, tumSemboller);
@@ -410,11 +380,7 @@ async function derinGecmisiInsaEt(options = {}) {
             console.log(`🔧 [15m STARTUP ONARIM] ${pusuEksikler.length} sembol | hızlı ilk turda alınamayan ${pusuTf} mumları yeniden deneniyor.`);
             await sembolHavuzu(async sym => {
                 try {
-                    const ham = await startupDeadlineIle(
-                        mumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, 'HIGH', repairRequestOptions),
-                        repairSymbolDeadlineMs,
-                        `START_15M_REPAIR_DEADLINE:${sym}`
-                    );
+                    const ham = await mumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, 'HIGH', repairRequestOptions);
                     const kapanmis = sadeceKapanmisMumlar(ham);
                     if (kapanmis.length >= (ayarlar.bollingerperiod || 20)) {
                         h.state.yerelPusuHafizasi[sym] = kapanmis;
@@ -435,11 +401,7 @@ async function derinGecmisiInsaEt(options = {}) {
             console.log(`🔧 [1m RENKO ST DERİN ONARIM] ${etiket} | ${eksikler.length} sembol | ${limit} kapanmış 1m mum deneniyor.`);
             await sembolHavuzu(async sym => {
                 try {
-                    const ham = await startupDeadlineIle(
-                        mumCek(sym, sniperTf, limit, `${etiket}:${sym}`, 'HIGH', repairRequestOptions),
-                        repairSymbolDeadlineMs,
-                        `${etiket}_DEADLINE:${sym}`
-                    );
+                    const ham = await mumCek(sym, sniperTf, limit, `${etiket}:${sym}`, 'HIGH', repairRequestOptions);
                     const sniper = sadeceKapanmisMumlar(ham);
                     if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
                         h.state.sniperMumlar[sym] = sniper;

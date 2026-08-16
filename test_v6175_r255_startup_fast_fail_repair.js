@@ -52,10 +52,12 @@ function candleSeries(tf,count,trendStep=0.4){
     ag.binanceMumlariCek=async (sym,tf,limit,opts={})=>{
       calls.push({sym,tf,limit:Number(limit),opts:{...opts}});
       if(sym===hang15 && tf==='15m' && String(opts.label||'').startsWith('START_CANDLE:')) {
-        return new Promise(resolve=>setTimeout(()=>resolve(candleSeries('15m',Math.max(30,Number(limit)||30),0.25)),1000));
+        const err=new Error('ACTIVE_15M_TIMEOUT'); err.code='ETIMEDOUT';
+        return new Promise((_,reject)=>setTimeout(()=>reject(err),50));
       }
       if(sym===hang1m && tf==='1m' && Number(limit)<=80) {
-        return new Promise(resolve=>setTimeout(()=>resolve(candleSeries('1m',80,0.45)),1000));
+        const err=new Error('ACTIVE_1M_TIMEOUT'); err.code='ETIMEDOUT';
+        return new Promise((_,reject)=>setTimeout(()=>reject(err),50));
       }
       if(tf==='15m') return candleSeries('15m',Math.max(30,Number(limit)||30),0.25);
       return candleSeries('1m',Math.max(80,Number(limit)||80),0.45);
@@ -66,7 +68,6 @@ function candleSeries(tf,count,trendStep=0.4){
     const started=Date.now();
     const summary=await rev.derinGecmisiInsaEt({
       concurrency:4,workers:4,
-      symbolDeadlineMs:40,repairSymbolDeadlineMs:200,
       initialRequestTimeoutMs:1200,initialRequestRetries:0,initialRequestRetryBaseMs:111,
       repairRequestTimeoutMs:1400,repairRequestRetries:1,repairRequestRetryBaseMs:222
     });
@@ -95,12 +96,12 @@ function candleSeries(tf,count,trendStep=0.4){
     assert(src.includes('initialRequestOptions'),'initial fast-fail request policy yok');
     assert(src.includes('repairRequestOptions'),'repair request policy yok');
     assert(cfg.includes('binanceStartupRequestRetry: 0'),'production initial startup retry 0 değil');
-    assert(cfg.includes('binanceStartupSymbolDeadlineMs: 35000'),'production initial symbol deadline 35sn değil');
-    assert(cfg.includes('binanceStartupRepairSymbolDeadlineMs: 45000'),'production repair deadline 45sn değil');
+    assert(!src.includes('startupDeadlineIle('),'queue-wait outer deadline R25.6 içinde kalmamalı');
+    assert(cfg.includes('queue bekleme süresine dış deadline YOK'),'R25.6 queue-bound config açıklaması yok');
     assert(logs.some(x=>x.includes('[15m STARTUP ONARIM]')),'15m repair logu üretilmedi');
     assert(logs.some(x=>x.includes('[1m RENKO ST DERİN ONARIM]')),'1m repair logu üretilmedi');
 
-    originalLog('✅ R25.5 startup fast-fail repair passed | bounded initial request + 15m repair + 1m 240/480 repair + 200-core fail-forward');
+    originalLog('✅ R25.5 repair behavior preserved under R25.6 | active-request timeout + 15m repair + 1m 240/480 repair + 200-core fail-forward');
   } finally {
     ag.binanceMumlariCek=originalFetch;
     ayarlar.startupMarketReadyOrani=originalThreshold;
