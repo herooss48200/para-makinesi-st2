@@ -42,6 +42,7 @@ const state = {
     yerelPusuHafizasi: {},
     pusuListesi: {},
     st2Renko: { seriler: {}, onaySerileri1m: {}, pusular: {}, sonIslenenTugla: {}, boxSize: {}, onayBoxSize1m: {}, audit: null },
+    st2HeikinAshi: { pusular: {}, sonKaynakMum: {}, audit: { yeniPusu: 0, teyit: 0, tetik: 0, expired: 0, collision: 0, slotRed: 0, opened: 0 } },
     aktifPozisyonlar: [],
     alinanlar: [],
     aktifShortlar: [],

@@ -241,7 +241,7 @@ async function baslat() {
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
             `🧪 Emir Modu: ${emirModu}\n` +
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
-            `📊 Strateji: ${ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu} ATR-Renko pusu + Entry Evolution + 1m Renko SuperTrend\n` +
+            `📊 Strateji: DUAL REAL | Renko Confirmed + Heikin Ashi Confirmed Body Break\n` +
             `📡 İzlenen Evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)} | Veri ${h.state.sembolVeriSagligi?.durum || 'BEKLIYOR'}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
             `⭐ Premier seçimi: Score + N5 canlı ekonomi + Renko Premier koruması\n` +
@@ -283,7 +283,7 @@ async function baslat() {
         // v6.13.5-R11: ST2 canlı panel ritmi ağır 200-sembol Renko taramasının DIŞINDADIR.
         // Gate READY olduğunda ilk panel hemen talep edilir; sonrasında ayarlanan cadence ile devam eder.
         // Bu scheduler yalnız rapor ister; giriş/çıkış/Renko karar matematiğine dokunmaz.
-        if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
+        if (['ST2_RENKO','ST2_DUAL_REAL'].includes(ayarlar.entryStrategyMode)) {
             const st2LivePanelScheduler = createSt2LivePanelScheduler({
                 enabled: () => ayarlar.canliRaporAktif === true,
                 ready: () => h.state.startupMarketReady === true, // R26: warmup CPU tek başına; operasyon paneli READY sonrası.
@@ -405,6 +405,14 @@ async function baslat() {
                         h.state.st2RenkoScanInProgress = false;
                         h.state.st2RenkoScanFinishedAt = Date.now();
                     }
+                    donguAsama = 'HEIKIN_ASHI_SCAN';
+                    if (ayarlar.entryStrategyMode === 'ST2_DUAL_REAL' && ayarlar.heikinAshiAktif === true) {
+                        try {
+                            h.state.st2HeikinAshiLastAudit = await require('./75_st2_heikin_ashi_entry.js').taraVeDegerlendir();
+                        } catch (err) {
+                            console.error(`⚠️ [HA SCAN] ${err?.message || err}`);
+                        }
+                    }
                     donguAsama = 'POST_RENKO';
                     if (!ilkSt2TaramaTamamlandi) {
                         ilkSt2TaramaTamamlandi = true;
@@ -431,7 +439,11 @@ async function baslat() {
                 const warmMetni = h.state.startupMarketReady === true
                     ? 'READY'
                     : `${warm.asama || warm.durum || 'BEKLIYOR'} READY ${warmHazir}/${Number(warm.toplam || h.state.semboller.length || 0)} (işlenen ${Number(warm.islenen || 0)})`;
-                console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu: ${Object.keys(ayarlar.entryStrategyMode === 'ST2_RENKO' ? (h.state.st2Renko?.pusular || {}) : h.state.pusuListesi).length} | Pozisyon: ${h.state.aktifPozisyonlar.length} | Entry Gate: ${warmMetni} | ST Güncelleme: ${sonStGuncelleme ? new Date(sonStGuncelleme).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow} | TG Kritik ${tg.critical} Panel ${tg.panel} Detay ${tg.detail}`);
+                const renkoPusu = Object.keys(h.state.st2Renko?.pusular || {}).length;
+                const haPusu = Object.keys(h.state.st2HeikinAshi?.pusular || {}).length;
+                const renkoPos = (h.state.aktifPozisyonlar || []).filter(x => x?.sanal === false && String(x?.strategyLane || x?.entryStrategy || x?.girisAnalizi?.entryStrategy || 'ST2_RENKO').toUpperCase().includes('HEIKIN') === false).length;
+                const haPos = (h.state.aktifPozisyonlar || []).filter(x => x?.sanal === false && String(x?.strategyLane || x?.entryStrategy || x?.girisAnalizi?.entryStrategy || '').toUpperCase().includes('HEIKIN')).length;
+                console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu R/H ${renkoPusu}/${haPusu} | Pozisyon R/H ${renkoPos}/${haPos} | Entry Gate: ${warmMetni} | ST Güncelleme: ${sonStGuncelleme ? new Date(sonStGuncelleme).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow} | TG Kritik ${tg.critical} Panel ${tg.panel} Detay ${tg.detail}`);
                 }
             } catch (e) {
                 if (e.message && (e.message.includes('429') || e.message.includes('1095'))) {

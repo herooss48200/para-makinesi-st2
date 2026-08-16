@@ -1,0 +1,7 @@
+AGROS ST2 v6.15.0-R27 DUAL REAL
+Expected checks:
+- R26/R27 core closure / no legacy runtime
+- current percent-stop contract
+- phased startup isolation
+- startup safety snapshot/full reconcile phasing
+- R27 dual real: Renko 10 + HA 10, HA 3-candle confirmation/body break, lane counters, same-symbol fail-closed

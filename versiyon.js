@@ -2,11 +2,11 @@
 
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'R26-CORE-ONLY-N5-20SLOT',
-    kod: 'AGROS ST2 v6.14.0-R26 — CORE ONLY / PHYSICAL PRUNE / STARTUP CPU ISOLATION',
-    botSurumu: '6.14.1-R26-CORE-PHASED-STARTUP-N5-20SLOT-20USDT',
-    stratejiSurumu: '1.0.50',
-    yayinTarihi: '16.08.2026',
+    kodAdi: 'R27-DUAL-REAL-RENKO-HA-10X10',
+    kod: 'AGROS ST2 v6.15.0-R27 — DUAL REAL / RENKO vs HEIKIN ASHI / 10+10',
+    botSurumu: '6.15.0-R27-DUAL-REAL-RENKO-HA-10X10-20USDT',
+    stratejiSurumu: '1.1.0',
+    yayinTarihi: '17.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
 });
 

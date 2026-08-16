@@ -27,6 +27,7 @@ const DATA_DIR = process.env.AGROS_DATA_DIR ? path.resolve(process.env.AGROS_DAT
 const STATE_FILE = path.join(DATA_DIR, 'st2-real-order-execution-state.json');
 const BACKUP_FILE = `${STATE_FILE}.bak`;
 const AUDIT_FILE = path.join(DATA_DIR, 'st2-real-order-execution-audit.jsonl');
+const STRATEGY_RACE_FILE = path.join(DATA_DIR, 'st2-dual-strategy-race.json');
 const BINANCE_ENDPOINT = binanceEndpointAuthority.resolve();
 const ACCOUNT_LOCK_KEY = hash(`${BINANCE_ENDPOINT.httpFutures}|${process.env.BINANCE_API_KEY || 'NO_KEY'}`, 16);
 const PROCESS_LOCK_FILE = process.env.AGROS_REAL_ORDER_LOCK_FILE
@@ -93,6 +94,63 @@ function positionDirection(row) {
 }
 function positionAmount(row) { return Math.abs(finite(row?.positionAmt, 0)); }
 function activeRecord(record) { return Boolean(record && ACTIVE_STATUSES.has(upper(record.status))); }
+
+function strategyLaneFrom(value = {}) {
+  const analysis = value?.girisAnalizi || value?.positionSnapshot?.girisAnalizi || value?.preparedSnapshot?.girisAnalizi || {};
+  const raw = upper(
+    value?.strategyLane || value?.entryStrategy ||
+    value?.positionSnapshot?.strategyLane || value?.positionSnapshot?.entryStrategy ||
+    value?.preparedSnapshot?.strategyLane || value?.preparedSnapshot?.entryStrategy ||
+    analysis?.strategyLane || analysis?.entryStrategy || ''
+  );
+  return raw.includes('HEIKIN') || raw === 'HA' ? 'HEIKIN_ASHI' : 'RENKO';
+}
+
+function ensureStrategyRaceBaseline() {
+  ensureDir();
+  try {
+    const row = JSON.parse(fs.readFileSync(STRATEGY_RACE_FILE, 'utf8'));
+    if (Number(row?.startedAtMs) > 0) return row;
+  } catch (_) {}
+  const baseline = { version: 'R27-DUAL-REAL-RACE', startedAt: nowIso(), startedAtMs: Date.now() };
+  fs.writeFileSync(STRATEGY_RACE_FILE, JSON.stringify(baseline, null, 2));
+  return baseline;
+}
+
+function emptyLaneCounter() {
+  return { opened: 0, closed: 0, wins: 0, losses: 0, be: 0, netPnl: 0, commission: 0, grossRealizedPnl: 0 };
+}
+
+function strategyRaceSummary() {
+  const baseline = ensureStrategyRaceBaseline();
+  const state = readState();
+  const lanes = { RENKO: emptyLaneCounter(), HEIKIN_ASHI: emptyLaneCounter() };
+  for (const record of Object.values(state.records || {})) {
+    const lane = strategyLaneFrom(record);
+    const bucket = lanes[lane] || lanes.RENKO;
+    const openedMs = Date.parse(record?.openedAt || record?.positionSnapshot?.gercekEmirYurutme?.openedAt || '');
+    if (!(openedMs >= Number(baseline.startedAtMs || 0))) continue;
+    bucket.opened++;
+    if (upper(record?.status) !== 'CLOSED') continue;
+    bucket.closed++;
+    const net = finite(record?.netPnl, finite(record?.accounting?.netPnl, 0));
+    const commission = finite(record?.totalCommission, finite(record?.accounting?.commission, 0));
+    const realized = finite(record?.realizedPnl, finite(record?.accounting?.realizedPnl, 0));
+    bucket.netPnl += net;
+    bucket.commission += commission;
+    bucket.grossRealizedPnl += realized;
+    if (net > 1e-9) bucket.wins++;
+    else if (net < -1e-9) bucket.losses++;
+    else bucket.be++;
+  }
+  for (const bucket of Object.values(lanes)) {
+    bucket.netPnl = Number(bucket.netPnl.toFixed(8));
+    bucket.commission = Number(bucket.commission.toFixed(8));
+    bucket.grossRealizedPnl = Number(bucket.grossRealizedPnl.toFixed(8));
+    bucket.wr = bucket.wins + bucket.losses > 0 ? Number((bucket.wins / (bucket.wins + bucket.losses) * 100).toFixed(2)) : 0;
+  }
+  return { version: baseline.version, startedAt: baseline.startedAt, startedAtMs: baseline.startedAtMs, lanes };
+}
 
 function normalizeTriggerPrice(symbol, side, rawPrice) {
   const price = finite(rawPrice, NaN);
@@ -238,7 +296,7 @@ function contextFingerprint(symbol, side, context = {}) {
   const analysis = context?.girisAnalizi || context || {};
   const readiness = context?.realOrderReadiness || {};
   const source = [
-    sanitize(symbol, 16), upper(side),
+    sanitize(symbol, 16), upper(side), strategyLaneFrom(context),
     pusu.patternSignature || analysis.patternSignature || analysis.patternId || analysis.patternKodu || 'PATTERN_YOK',
     pusu.sonKapaliTuglaZamani || analysis.sonKapaliTuglaZamani || 0,
     pusu.referansTuglaId || analysis.referansTuglaId || 0,
@@ -1688,6 +1746,7 @@ module.exports = {
   readState, writeState, audit, acquireProcessLock, cleanupProcessLock, contextFingerprint, clientIds, ownedId,
   reserveEntry, releaseReservation, executeEntry, installProtections, rollbackEntry, startupSafetySnapshot,
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
+  strategyRaceSummary, ensureStrategyRaceBaseline, strategyLaneFrom,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
   ensureProtectionForPosition, startupReconcile, statusSummary,
   _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, restartProtectionClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable, protectionTrigger, triggerEqual, adoptDesiredStop, signedReadDeadline }

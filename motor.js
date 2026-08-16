@@ -63,6 +63,32 @@ function aktifGercekPozisyonSayisi() {
     return (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false).length;
 }
 
+
+function strategyLaneFromAnalysis(girisAnalizi = {}) {
+    const raw = String(girisAnalizi?.strategyLane || girisAnalizi?.entryStrategy || '').toUpperCase();
+    return raw.includes('HEIKIN') || raw === 'HA' ? 'HEIKIN_ASHI' : 'RENKO';
+}
+
+function strategyEntryName(girisAnalizi = {}) {
+    return strategyLaneFromAnalysis(girisAnalizi) === 'HEIKIN_ASHI' ? 'ST2_HEIKIN_ASHI' : 'ST2_RENKO';
+}
+
+function aktifGercekPozisyonSayisiLane(lane) {
+    const wanted = String(lane || 'RENKO').toUpperCase();
+    return (h.state.aktifPozisyonlar || []).filter(pos => {
+        if (pos?.sanal !== false) return false;
+        const raw = String(pos?.strategyLane || pos?.entryStrategy || pos?.girisAnalizi?.strategyLane || pos?.girisAnalizi?.entryStrategy || 'ST2_RENKO').toUpperCase();
+        const actual = raw.includes('HEIKIN') || raw === 'HA' ? 'HEIKIN_ASHI' : 'RENKO';
+        return actual === wanted;
+    }).length;
+}
+
+function strategyLaneLimit(lane) {
+    return lane === 'HEIKIN_ASHI'
+        ? Math.max(0, Number(ayarlar.heikinAshiGercekMaxAktifPozisyon ?? 10))
+        : Math.max(0, Number(ayarlar.renkoGercekMaxAktifPozisyon ?? 10));
+}
+
 function gercekSembolKuraliGecerli(kural) {
     if (!kural || typeof kural !== 'object') return false;
     return Number(kural.stepSize) > 0 && Number(kural.tickSize) > 0 &&
@@ -177,8 +203,15 @@ function st2PremierScoreBagla(pos, girisAnalizi, symbol, yon) {
 
 async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
     try {
-        if (ayarlar.entryStrategyMode !== 'ST2_RENKO') {
-            console.log(`⛔ [CORE_ONLY] ${symbol} ${yon} | ST2_RENKO dışında giriş yok`);
+        const requestedStrategy = strategyEntryName(girisAnalizi || {});
+        const strategyLane = strategyLaneFromAnalysis({ ...(girisAnalizi || {}), entryStrategy: requestedStrategy });
+        const dualMode = ayarlar.entryStrategyMode === 'ST2_DUAL_REAL';
+        if (!(dualMode || (ayarlar.entryStrategyMode === 'ST2_RENKO' && requestedStrategy === 'ST2_RENKO'))) {
+            console.log(`⛔ [CORE_ONLY] ${symbol} ${yon} | Strateji modu ${ayarlar.entryStrategyMode} / istek ${requestedStrategy}`);
+            return false;
+        }
+        if (requestedStrategy === 'ST2_HEIKIN_ASHI' && ayarlar.heikinAshiAktif !== true) {
+            console.log(`⛔ [HA REAL] ${symbol} ${yon} | Heikin Ashi lane kapalı`);
             return false;
         }
         if (ayarlar.sanalEmirModu) {
@@ -218,6 +251,19 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             console.log(`🚫 [GERÇEK SLOT DOLU] ${symbol} ${yon} | ${aktifGercekPozisyonSayisi()}/${maxReal}`);
             return false;
         }
+        const laneLimit = strategyLaneLimit(strategyLane);
+        const laneActive = aktifGercekPozisyonSayisiLane(strategyLane);
+        if (!(laneLimit > 0) || laneActive >= laneLimit) {
+            console.log(`🚫 [${strategyLane} SLOT DOLU] ${symbol} ${yon} | ${laneActive}/${laneLimit}`);
+            if (strategyLane === 'HEIKIN_ASHI') h.state.st2HeikinAshi.audit.slotRed = Number(h.state.st2HeikinAshi.audit.slotRed || 0) + 1;
+            return false;
+        }
+        const symbolOccupied = (h.state.aktifPozisyonlar || []).some(pos => pos?.sanal === false && String(pos?.sym || '').toUpperCase() === String(symbol).toUpperCase());
+        if (symbolOccupied) {
+            console.log(`🚫 [STRATEJİ ÇAKIŞMASI] ${symbol} ${yon} | Binance one-way: sembolde başka gerçek pozisyon var`);
+            if (strategyLane === 'HEIKIN_ASHI') h.state.st2HeikinAshi.audit.collision = Number(h.state.st2HeikinAshi.audit.collision || 0) + 1;
+            return false;
+        }
 
         const pPrecision = Number(kural.pricePrecision ?? 4);
         const minQty = Number(kural.minQty || 0);
@@ -229,19 +275,25 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
         let sl = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 - etkinStopOrani) : canliFiyat * (1 + etkinStopOrani));
         let tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
 
-        const etkinGirisAnalizi = { ...(girisAnalizi || {}), entryStrategy: 'ST2_RENKO' };
+        const etkinGirisAnalizi = { ...(girisAnalizi || {}), entryStrategy: requestedStrategy, strategyLane };
         const hazirKimlik = {
             sym: symbol, yon, girisFiyati: Number(canliFiyat), sl, tp,
             miktar: miktarKlip(symbol, risk.notionalUsdt / Number(canliFiyat)),
-            sanal: false, acilisZamani: Date.now(), entryStrategy: 'ST2_RENKO', girisAnalizi: etkinGirisAnalizi
+            sanal: false, acilisZamani: Date.now(), entryStrategy: requestedStrategy, strategyLane, girisAnalizi: etkinGirisAnalizi
         };
 
-        // Kimlik/N5/Premier için gereken çekirdek hazırlık korunur; sanal reverse/exit yürütmesi kullanılmaz.
-        await identityChain.prepare(hazirKimlik, { realMode: true });
-        const labGercekKarar = st2PremierScoreBagla(hazirKimlik, etkinGirisAnalizi, symbol, yon);
-        if (!labGercekKarar.realTradingAuthorized) {
-            console.log(`🚫 [PREMIER/N5 GERÇEK RED] ${symbol} ${yon} | ${labGercekKarar.proofLevel}`);
-            return false;
+        if (requestedStrategy === 'ST2_RENKO') {
+            // Renko lane mevcut Premier/N5 otoritesini aynen korur.
+            await identityChain.prepare(hazirKimlik, { realMode: true });
+            const labGercekKarar = st2PremierScoreBagla(hazirKimlik, etkinGirisAnalizi, symbol, yon);
+            if (!labGercekKarar.realTradingAuthorized) {
+                console.log(`🚫 [PREMIER/N5 GERÇEK RED] ${symbol} ${yon} | ${labGercekKarar.proofLevel}`);
+                return false;
+            }
+        } else {
+            // HA lane kendi pusu + kapanmış teyit + gövde kırılımıyla yarışır; Renko DNA/Premier verisiyle kirletilmez.
+            hazirKimlik.gercekLig = 'HEIKIN_ASHI_CONFIRMED';
+            hazirKimlik.premierSelectionFrozenAtOpen = false;
         }
 
         const auth = realOrderBridge.realAuthorization();
@@ -250,10 +302,12 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             return false;
         }
 
-        const directGate = gercekDirectTuglaKapisi(etkinGirisAnalizi);
-        if (!directGate.allowed) {
-            console.log(`🛡️ [DIRECT T MOTOR FAIL-CLOSED] ${symbol} ${yon} | ${directGate.reason}`);
-            return false;
+        if (requestedStrategy === 'ST2_RENKO') {
+            const directGate = gercekDirectTuglaKapisi(etkinGirisAnalizi);
+            if (!directGate.allowed) {
+                console.log(`🛡️ [DIRECT T MOTOR FAIL-CLOSED] ${symbol} ${yon} | ${directGate.reason}`);
+                return false;
+            }
         }
 
         const safety = h.state.st2RealEntrySafety || {};
@@ -337,7 +391,8 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             hedefNotionalUsdt: Number(hedefGercekNotional.toFixed(6)),
             gerceklesenNotionalUsdt: Number(gerceklesenNotional.toFixed(6)),
             kaldirac, marjinTipi: risk.marginType, ligBoyutCarpani,
-            gercekLig: 'PREMIER', sanal: false, borsaOrderId: fill.order?.orderId || null,
+            entryStrategy: requestedStrategy, strategyLane,
+            gercekLig: requestedStrategy === 'ST2_RENKO' ? 'PREMIER' : 'HEIKIN_ASHI_CONFIRMED', sanal: false, borsaOrderId: fill.order?.orderId || null,
             acilisZamani: Date.now(), mevcutTpYuzdesi: 0, tpKademe: 0, sonTpSeviyesi: tp,
             breakevenAktif: false, girisAnalizi: etkinGirisAnalizi,
             renkoPremierDecision: hazirKimlik.renkoPremierDecision,
@@ -365,16 +420,22 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
 
         if (ayarlar.telegramIslemAcilisMesaji === true) {
             const score = yeniPozisyon.renkoPremierDecision?.premierScore || {};
+            const strategyText = requestedStrategy === 'ST2_RENKO' ? '🧱 RENKO REAL / PREMIER' : '🕯️ HEIKIN ASHI REAL / CONFIRMED';
+            const scoreText = requestedStrategy === 'ST2_RENKO'
+                ? `⭐ Score ${Number(score.score || 0).toFixed(1)}/${Number(score.threshold || 0).toFixed(1)} | Sıra #${Number(score.rank || 0)}/${Number(score.cohortSize || 0)}\n`
+                : `✅ HA pusu + kapanmış renk teyidi + gövde kırılımı\n`;
             await h.telegramMesajGonder(
                 `<b>✅ GERÇEK POZİSYON AÇILDI</b>\n\n` +
-                `🔀 ${symbol} ${yon} | 🏆 PREMIER\n` +
-                `⭐ Score ${Number(score.score || 0).toFixed(1)}/${Number(score.threshold || 0).toFixed(1)} | Sıra #${Number(score.rank || 0)}/${Number(score.cohortSize || 0)}\n` +
+                `🔀 ${symbol} ${yon} | ${strategyText}\n` +
+                scoreText +
                 `Giriş ${gerceklesenFiyat} | SL ${sl} | TP ${tp}\n` +
                 `Notional ${gerceklesenNotional.toFixed(2)} USDT | ${kaldirac}x\n` +
-                `Mode ${etkinGirisAnalizi.entryMode || 'YOK'} | ${Number(etkinGirisAnalizi.renkoEntryBrickDistance || 0).toFixed(2)}T`
+                (requestedStrategy === 'ST2_RENKO'
+                    ? `Mode ${etkinGirisAnalizi.entryMode || 'YOK'} | ${Number(etkinGirisAnalizi.renkoEntryBrickDistance || 0).toFixed(2)}T`
+                    : `Mode CONFIRMED_BODY_BREAK | Sayaç ${Number(etkinGirisAnalizi.pusuSayaci || 0)}/${Number(etkinGirisAnalizi.maxPusuBeklemeMum || 3)}`)
             ).catch(() => {});
         }
-        console.log(`✅ [CORE REAL OPEN] ${symbol} ${yon} | PREMIER/N5 | ${gerceklesenNotional.toFixed(2)} USDT`);
+        console.log(`✅ [CORE REAL OPEN] ${symbol} ${yon} | ${strategyLane} | ${gerceklesenNotional.toFixed(2)} USDT`);
         return true;
     } catch (e) {
         console.error(`❌ [CORE ENTRY HATASI] ${symbol} ${yon} | ${e.message || e}`);
@@ -453,5 +514,8 @@ module.exports = {
     gercekMiktarHedefeEnYakinKlip,
     fiyatKlip,
     gercekDirectTuglaKapisi,
+    strategyLaneFromAnalysis,
+    aktifGercekPozisyonSayisiLane,
+    strategyLaneLimit,
     _st2PremierScoreBagla: st2PremierScoreBagla
 };

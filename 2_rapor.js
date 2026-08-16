@@ -3,6 +3,7 @@ require('dotenv').config();
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const versiyon = require('./versiyon.js');
+const realExecution = require('./85_st2_real_order_execution.js');
 
 let raporZinciriCalisiyor = false;
 let raporTekrarIstegi = false;
@@ -12,6 +13,10 @@ function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function yon(p) { return String(p?.yon || p?.side || p?.direction || '').toUpperCase(); }
 function sym(p) { return p?.sym || p?.symbol || p?.sembol || 'BILINMIYOR'; }
 function entry(p) { return n(p?.girisFiyati || p?.entryPrice); }
+function strategyLane(p) {
+  const raw = String(p?.strategyLane || p?.entryStrategy || p?.girisAnalizi?.strategyLane || p?.girisAnalizi?.entryStrategy || 'ST2_RENKO').toUpperCase();
+  return raw.includes('HEIKIN') || raw === 'HA' ? 'HEIKIN_ASHI' : 'RENKO';
+}
 function livePrice(p) { return n(h.state.canliFiyatlar?.[sym(p)] || p?.sonFiyat || p?.currentPrice || entry(p)); }
 function pnlPct(p) {
   const e = entry(p), px = livePrice(p), side = yon(p);
@@ -26,8 +31,9 @@ function stopPct(p) {
 function posLine(p) {
   const profit = pnlPct(p); const sp = stopPct(p);
   const mode = String(p?.girisAnalizi?.entryMode || p?.entryMode || 'DIRECT').toUpperCase();
+  const lane = strategyLane(p);
   const q = p?.renkoPremierDecision?.premierScore || p?.labPremierDecision?.premierScore || {};
-  let out = `${sym(p)} ${yon(p)} | ${mode} | Anlık ${profit >= 0 ? '+' : ''}%${profit.toFixed(2)}`;
+  let out = `${sym(p)} ${yon(p)} | ${lane === 'HEIKIN_ASHI' ? 'HA' : 'RENKO'}-${mode} | Anlık ${profit >= 0 ? '+' : ''}%${profit.toFixed(2)}`;
   if (sp != null) out += ` | SL ${sp >= 0 ? '+' : ''}%${sp.toFixed(2)}`;
   if (Number.isFinite(Number(q.score))) out += ` | Skor ${n(q.score).toFixed(1)}/${n(q.threshold).toFixed(1)}`;
   return out;
@@ -56,6 +62,11 @@ function st2VeriSagligiOzeti() {
 function canliRaporMetniOlustur() {
   const list = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
   const real = list.filter(p => p?.sanal === false);
+  const renkoReal = real.filter(p => strategyLane(p) === 'RENKO');
+  const haReal = real.filter(p => strategyLane(p) === 'HEIKIN_ASHI');
+  const race = realExecution.strategyRaceSummary();
+  const renkoRace = race.lanes.RENKO || {};
+  const haRace = race.lanes.HEIKIN_ASHI || {};
   const warm = h.state.startupMarketWarmup || {};
   const data = st2VeriSagligiOzeti();
   const time = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy:false, offsetMs:0 };
@@ -65,18 +76,22 @@ function canliRaporMetniOlustur() {
   const price = h.state.st2PriceRuntime || {};
   const pc = price.coverage || {};
   const pusular = Object.values(h.state.st2Renko?.pusular || {});
+  const haPusular = Object.values(h.state.st2HeikinAshi?.pusular || {});
   const gate = data.ready ? 'READY' : `${String(warm.durum || 'CALISIYOR')}/${String(warm.asama || 'CORE_15M_1M_RENKO')} ${data.processed}/${data.selected}`;
   const lines = [
     `📊 AGROS ST2 CORE — ${versiyon.botSurumu}`,
     `🕒 ${new Date().toLocaleTimeString('tr-TR',{hour12:false})} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
-    `🛡️ Gerçek pozisyon ${real.length} | State ${list.length}`,
+    `🛡️ Gerçek pozisyon ${real.length} | State ${list.length} | RENKO ${renkoReal.length}/${n(ayarlar.renkoGercekMaxAktifPozisyon,10)} | HA ${haReal.length}/${n(ayarlar.heikinAshiGercekMaxAktifPozisyon,10)}`,
     `🌐 Evren ${data.selected}/${data.requested} | Gate ${gate}`,
     `📡 15m ${data.candles}/${data.selected} | 1m ${data.oneMin}/${data.selected} | 1m Renko ST ${data.renkoSt}/${data.selected} | Hata ${data.errors} | Son tarama ${data.scanned}/${data.selected} ${(data.scanMs/1000).toFixed(1)}sn`,
     `⚙️ Saat ${time.healthy ? 'HEALTHY' : 'DEGRADED'} ${n(time.offsetMs)>=0?'+':''}${n(time.offsetMs)}ms | Fiyat ${String(price.source || 'BEKLIYOR')} ${n(pc.fresh)}/${n(pc.total)} | TG ${tg.transport?.nativeCircuitOpen ? 'NATIVE-CIRCUIT' : 'OK'} | Kuyruk ${n(tg.critical)}/${n(tg.panel)}/${n(tg.detail)}`,
     `🔁 Mutabakat ${String(rec.status || 'BEKLIYOR')} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (safety.ready === true && data.ready ? 'READY' : `FAIL-CLOSED/${String(!data.ready ? 'MARKET_WARMUP_NOT_READY' : (safety.reason || 'NOT_READY'))}`)}`,
-    `🎯 Pusu ${pusular.length} | LONG ${pusular.filter(x=>yon(x)==='LONG').length} | SHORT ${pusular.filter(x=>yon(x)==='SHORT').length}`,
-    `🧠 Yetki zinciri: 15m ATR-Renko/BB → Entry Evolution → DIRECT/CONFIRMED → 1m Renko ST → Premier/N5 → Gerçek Execution`,
-    `🛡️ Ekonomi: SL -%${n(ayarlar.sabitStopYuzdesi).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra %${n(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde).toFixed(2)} geriden / ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`,
+    `🎯 Pusu RENKO ${pusular.length} (L${pusular.filter(x=>yon(x)==='LONG').length}/S${pusular.filter(x=>yon(x)==='SHORT').length}) | HA ${haPusular.length} (L${haPusular.filter(x=>yon(x)==='LONG').length}/S${haPusular.filter(x=>yon(x)==='SHORT').length})`,
+    `🏁 RENKO Sayaç: Aç ${n(renkoRace.opened)} | Kap ${n(renkoRace.closed)} | W/L/BE ${n(renkoRace.wins)}/${n(renkoRace.losses)}/${n(renkoRace.be)} | WR %${n(renkoRace.wr).toFixed(1)} | Net ${n(renkoRace.netPnl)>=0?'+':''}${n(renkoRace.netPnl).toFixed(4)} | Kom ${n(renkoRace.commission).toFixed(4)}`,
+    `🏁 HA Sayaç: Aç ${n(haRace.opened)} | Kap ${n(haRace.closed)} | W/L/BE ${n(haRace.wins)}/${n(haRace.losses)}/${n(haRace.be)} | WR %${n(haRace.wr).toFixed(1)} | Net ${n(haRace.netPnl)>=0?'+':''}${n(haRace.netPnl).toFixed(4)} | Kom ${n(haRace.commission).toFixed(4)}`,
+    `🧠 RENKO: 15m ATR-Renko/BB → Entry Evolution → CONFIRMED → 1m Renko ST → Premier/N5 → REAL`,
+    `🕯️ HA: 15m HA/BB pusu → ≤${n(ayarlar.heikinAshiMaxPusuBeklemeMum,3)} kapanmış mum → karşı renk teyit → teyit gövde kırılımı (iğne yok) → REAL`,
+    `🛡️ Ortak ekonomi: SL -%${n(ayarlar.sabitStopYuzdesi).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra %${n(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde).toFixed(2)} geriden / ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`,
   ];
   if (real.length) {
     lines.push('', `💼 GERÇEK POZİSYONLAR (${Math.min(real.length,10)}/${real.length})`);
