@@ -6,6 +6,7 @@ const path = require('path');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agros-r26-phased-'));
 process.env.AGROS_DATA_DIR = tmp;
+process.env.AGROS_REAL_ORDER_LOCK_FILE = path.join(tmp, 'r26-phased-test.pidlock');
 process.env.SANAL_EMIR_MODU = 'false';
 
 const h = require('./1_hafiza.js');
