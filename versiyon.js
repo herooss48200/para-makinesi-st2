@@ -7,9 +7,9 @@
 // v6.8.4 compatibility marker: 6.8.4-MINIMAL-TELEGRAM-OPERATION-PROOF
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'R25.8-STARTUP-CANCELLABLE-LIVENESS-20SLOT',
+    kodAdi: 'R25.9-BOOTSTRAP-RECONCILE-DECOUPLED-20SLOT',
     kod: 'AGROS ST2 v6.13.5-R25.8 — STARTUP CANCELLABLE LIVENESS + R25.4 CORE LIVENESS + R25.3 PREMIER RECOVERY + 20 SLOT × 20USDT',
-    botSurumu: '6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT',
+    botSurumu: '6.13.5-R25.9-BOOTSTRAP-RECONCILE-DECOUPLED-N5-20SLOT-20USDT',
     stratejiSurumu: '1.0.50',
     yayinTarihi: '16.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })

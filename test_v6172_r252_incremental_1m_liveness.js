@@ -19,7 +19,7 @@ function candle(closeTime, close=100){
 }
 
 (async()=>{
-  assert(version.botSurumu.includes('R25.8-STARTUP-CANCELLABLE-LIVENESS'));
+  assert(version.botSurumu.includes('R25.9-BOOTSTRAP-RECONCILE-DECOUPLED'));
   assert.strictEqual(Number(ayarlar.binanceAgEszamanlilik),3);
   assert.strictEqual(Number(ayarlar.binanceStartupNetworkConcurrency),4);
   assert.strictEqual(Number(ayarlar.renkoOnayRefreshRetry),0);

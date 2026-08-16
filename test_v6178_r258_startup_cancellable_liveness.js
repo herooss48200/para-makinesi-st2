@@ -16,7 +16,7 @@ const rev=require('./revizyon.js');
 const version=require('./versiyon.js');
 function candles(tf,count){const ms=tf==='15m'?900000:60000,end=Date.now()-ms;return Array.from({length:count},(_,i)=>{const t=end-(count-i)*ms,b=100+i*.5;return{openTime:t,closeTime:t+ms-1,open:String(b),high:String(b+.7),low:String(b-.4),close:String(b+.4),volume:'1000'};});}
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu,'6.13.5-R25.9-BOOTSTRAP-RECONCILE-DECOUPLED-N5-20SLOT-20USDT');
   assert.strictEqual(Number(ayarlar.binanceStartupNetworkConcurrency),4);
   assert.strictEqual(Number(ayarlar.binanceStartupAgIsciSayisi),4);
   const originalStartup=ag.binanceStartupMumlariCek, originalShared=ag.binanceMumlariCek;

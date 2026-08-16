@@ -26,6 +26,7 @@ let donguBaslangic = 0;
 let donguAsama = 'IDLE';
 let sonDonguWatchdogLog = 0;
 let exchangeReconcileTask = null;
+let startupExchangeReconcileTask = null;
 
 function st2ExchangeReconcileState() {
     h.state.st2ExchangeReconciliation ||= {
@@ -114,10 +115,10 @@ async function baslat() {
         if (!ayarlar.sanalEmirModu && timeHealth?.healthy !== true) throw new Error('BINANCE_TIME_AUTHORITY_NOT_READY');
         h.binanceTimeStartPeriodic();
         console.log(`⏱️ [BINANCE TIME AUTHORITY] ${timeHealth?.healthy ? 'HEALTHY' : 'DEGRADED'} | Offset ${Number(timeHealth?.offsetMs || 0)} ms | RTT ${Number(timeHealth?.lastRttMs || 0)} ms`);
-        await piyasa.acikPozisyonlariBorsadanDevral();
-        {
+        if (ayarlar.sanalEmirModu) {
+            await piyasa.acikPozisyonlariBorsadanDevral();
             const rec = st2ExchangeReconcileState();
-            rec.status = ayarlar.sanalEmirModu ? 'VIRTUAL' : 'READY';
+            rec.status = 'VIRTUAL';
             rec.ok = true;
             rec.lastOkAt = Date.now();
             rec.lastAttemptAt = rec.lastOkAt;
@@ -125,6 +126,47 @@ async function baslat() {
             rec.lastDurationMs = 0;
             rec.error = null;
             st2RealEntrySafetyUpdate(false);
+        } else {
+            // R25.9: gerçek restart reconciliation startup yaşam döngüsünü bloke edemez.
+            // Kalıcı state'teki gerçek pozisyonlar korunur; exchange doğrulanana kadar yeni gerçek entry fail-closed kalır.
+            const persistedReal = (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false);
+            h.state.semboller = [...new Set([...(h.state.semboller || []), ...persistedReal.map(pos => pos?.sym).filter(Boolean)])];
+            const coreSet = new Set((h.state.st2CoreUniverseSymbols || []).map(String));
+            h.state.st2ProtectionExtraSymbols = h.state.semboller.filter(sym => !coreSet.has(String(sym)));
+            h.state.realOrderStartupBlocked = true;
+            const rec = st2ExchangeReconcileState();
+            rec.status = 'STARTUP_BACKGROUND';
+            rec.ok = false;
+            rec.lastAttemptAt = Date.now();
+            rec.error = 'STARTUP_RECONCILIATION_PENDING';
+            st2RealEntrySafetyUpdate(false);
+            console.log(`🔐 [GERÇEK RESTART MUTABAKATI] ARKA PLANDA | Kalıcı gerçek ${persistedReal.length} | Yeni gerçek entry FAIL-CLOSED | Startup devam ediyor`);
+            startupExchangeReconcileTask = Promise.resolve()
+                .then(() => piyasa.acikPozisyonlariBorsadanDevral())
+                .then(result => {
+                    rec.status = 'READY';
+                    rec.ok = true;
+                    rec.lastFinishAt = Date.now();
+                    rec.lastDurationMs = rec.lastFinishAt - Number(rec.lastAttemptAt || rec.lastFinishAt);
+                    rec.lastOkAt = rec.lastFinishAt;
+                    rec.error = null;
+                    h.state.realOrderStartupBlocked = Boolean(result?.blocked);
+                    st2RealEntrySafetyUpdate();
+                    console.log(`✅ [GERÇEK RESTART MUTABAKATI BG] Tamamlandı | Gerçek ${Array.isArray(result?.positions) ? result.positions.filter(p => p?.sanal === false).length : 0} | Blok ${result?.blocked ? 'EVET' : 'HAYIR'}`);
+                    return result;
+                })
+                .catch(err => {
+                    rec.status = 'DEGRADED';
+                    rec.ok = false;
+                    rec.lastFinishAt = Date.now();
+                    rec.lastDurationMs = rec.lastFinishAt - Number(rec.lastAttemptAt || rec.lastFinishAt);
+                    rec.error = String(err?.message || err);
+                    h.state.realOrderStartupBlocked = true;
+                    st2RealEntrySafetyUpdate();
+                    console.error(`⚠️ [GERÇEK RESTART MUTABAKATI BG] ${rec.error} | Startup devam ediyor, yeni gerçek entry kapalı`);
+                    return { blocked: true, error: rec.error };
+                })
+                .finally(() => { startupExchangeReconcileTask = null; });
         }
         accountingContinuity.initializeMigration();
         kaliciHafiza.kaydet('accounting-continuity-migration');

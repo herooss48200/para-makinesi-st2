@@ -315,8 +315,23 @@ function applyStopProtection(pos, fingerprint, protection, reason) {
   persistPosition(pos, reason);
 }
 
+function signedReadDeadline(factory, label = 'SIGNED_READ_TIMEOUT', timeoutMs = null) {
+  const ms = Math.max(2000, Number(timeoutMs || ayarlar.gercekPozisyonMutabakatTimeoutMs || 8000));
+  let timer = null;
+  return Promise.race([
+    Promise.resolve().then(factory),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error(`${label}:${ms}ms`);
+        err.code = 'ETIMEDOUT';
+        reject(err);
+      }, ms);
+    })
+  ]).finally(() => { if (timer) clearTimeout(timer); });
+}
+
 async function allPositions(client = h.client) {
-  const rows = await client.futuresPositionRisk();
+  const rows = await signedReadDeadline(() => client.futuresPositionRisk(), 'FUTURES_POSITION_RISK_TIMEOUT');
   return Array.isArray(rows) ? rows : [];
 }
 
@@ -1640,5 +1655,5 @@ module.exports = {
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
   ensureProtectionForPosition, startupReconcile, statusSummary,
-  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, restartProtectionClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable, protectionTrigger, triggerEqual, adoptDesiredStop }
+  _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, restartProtectionClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable, protectionTrigger, triggerEqual, adoptDesiredStop, signedReadDeadline }
 };

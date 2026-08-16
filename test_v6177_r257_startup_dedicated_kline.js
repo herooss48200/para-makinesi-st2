@@ -20,7 +20,7 @@ function candles(tf,count,step=0.45){
 }
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu,'6.13.5-R25.9-BOOTSTRAP-RECONCILE-DECOUPLED-N5-20SLOT-20USDT');
   const originalStartup=ag.binanceStartupMumlariCek;
   const originalShared=ag.binanceMumlariCek;
   const originalThreshold=ayarlar.startupMarketReadyOrani;

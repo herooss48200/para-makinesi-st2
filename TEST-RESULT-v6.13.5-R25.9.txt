@@ -1,0 +1,10 @@
+AGROS ST2 R25.9 validation
+- npm run check: PASS / exit 0
+- all test_*.js: 83/83 PASS
+- JS syntax: 195/195 PASS
+- R25.9 root test: PASS; hung signed read deadline observed at 2003 ms test setting
+- R25.8 cancellable startup: PASS
+- R25.7 dedicated startup KLINE: PASS
+- R25.6 queue-bound behavior: PASS
+- R25.3 Premier/N5: PASS
+- R25 unified stop authority: PASS
