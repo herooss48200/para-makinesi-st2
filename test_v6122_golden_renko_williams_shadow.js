@@ -90,7 +90,7 @@ assert.strictEqual(lab.close(pos, result).reason, 'DUPLICATE_CLOSE');
 assert.strictEqual(lab.summary().totals.n, 1);
 
 const version = require('./versiyon.js');
-assert.strictEqual(version.botSurumu, '6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT');
+assert.strictEqual(version.botSurumu, '6.13.5-R25.4-STARTUP-CORE-LIVENESS-N5-20SLOT-20USDT');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('✅ v6.12.2 compatibility: Golden Renko + Entry Evolution + Williams shadow foundation passed');

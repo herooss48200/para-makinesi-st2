@@ -10,7 +10,7 @@ const core = require('./72_st2_renko_core.js');
 assert.strictEqual(cfg.renkoOnayKaynakMumLimiti, 80);
 assert(cfg.renkoOnayDerinOnarimMumLimiti > cfg.renkoOnayKaynakMumLimiti);
 assert(cfg.renkoOnayMaksOnarimMumLimiti >= cfg.renkoOnayDerinOnarimMumLimiti);
-assert(rev.includes("return renko1mHazirSayisi();"), 'Entry Gate ham 1m cache sayısına değil gerçek Renko-ST readiness sayısına bakmalı');
+assert(rev.includes("return renko1mHazirSayisi(symbols);"), 'Entry Gate ham 1m cache sayısına değil core semboller için gerçek Renko-ST readiness sayısına bakmalı');
 assert(rev.includes('RENKO_1M_TUGLA_YETERSIZ'), 'Renko tuğla yetersizliği ayrı sınıflanmalı');
 assert(rev.includes('START_RENKO_ST_REPAIR_1') && rev.includes('START_RENKO_ST_REPAIR_2'), '80 mum yetmezse 240/480 derin onarım olmalı');
 assert(ent.includes('h.state.renko1mStCache?.[sym]'), 'Entry scan önceden hesaplanmış 1m Renko-ST cache kullanmalı');

@@ -15,7 +15,7 @@ assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde, 1.0);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde, 0.5);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAdimYuzde, 0.5);
 assert.ok(ayarlar.maxTpYuzdesi >= 50, 'failsafe TP erken kapatmamalı');
-assert.ok(version.botSurumu.includes('R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT'));
+assert.ok(version.botSurumu.includes('R25.4-STARTUP-CORE-LIVENESS-N5-20SLOT-20USDT'));
 
 const pos = fs.readFileSync('./4_pozisyon.js','utf8');
 assert.ok(pos.includes('function yuzdeselEkonomiHesapla'));

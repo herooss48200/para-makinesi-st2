@@ -1,0 +1,36 @@
+AGROS ST2 v6.13.5-R25.4 — TEST RESULT
+Date: 2026-08-16
+
+RESULT: PASS
+
+1) Official package test chain
+   NODE_PATH=<test-only stubs> npm run check
+   Exit: 0
+
+2) Entire repository test sweep
+   test_*.js total: 78
+   PASS: 78
+   FAIL: 0
+
+3) Full source syntax
+   190 JavaScript files: PASS
+
+4) New deterministic R25.4 proof
+   test_v6174_r254_startup_core_liveness.js: PASS
+   - core universe denominator isolated from 3 restart protection extras
+   - simulated slow/hung initial 1m symbol does not block startup forever
+   - slow initial symbol is recovered through 240/480 repair path
+   - repaired first-pass error does not remain as final panel error
+   - protection-extra symbols remain in live symbol list after core warmup
+
+5) Critical regression proofs
+   test_v6173_r253_premier_selection_recovery.js: PASS
+   test_v6172_r252_incremental_1m_liveness.js: PASS
+   test_v6168_r242_unified_execution_stop_authority.js: PASS
+   test_v6158_nonblocking_control_plane_liveness.js: PASS
+   test_v6145_1m_renko_st_readiness.js: PASS
+   test_v6139_market_data_recovery_fairness.js: PASS
+   test_v6121_core_first_startup_warmup.js: PASS
+
+NOTE:
+The execution environment did not have installable npm dependencies available from the registry, so tests were run with test-only external shims for `dotenv` and `binance-api-node`. These shims were NOT added to the delivery package. Tests that require concrete Binance client behavior already inject their own mocks. Production source/dependency declarations remain unchanged except package version metadata.

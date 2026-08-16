@@ -12,7 +12,7 @@ try {
   const version = require('./versiyon.js');
   const policy = require('./90_st2_renko_entry_mode_policy.js');
 
-  assert.strictEqual(version.botSurumu, '6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.4-STARTUP-CORE-LIVENESS-N5-20SLOT-20USDT');
   assert.strictEqual(ayarlar.renkoGirisModuZorlaConfirmed, true);
 
   const decision = { selectedMode:'CONFIRMED', selectedOffsetT:0.25 };

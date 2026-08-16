@@ -99,6 +99,13 @@ async function sembolleriYukle() {
             XRPUSDT: { pricePrecision: 4, quantityPrecision: 1, tickSize: 0.0001, stepSize: 0.1, minQty: 0.1, minNotional: 5 }
         };
     }
+
+    // R25.4: Giriş readiness evreni hacim sıralamasındaki çekirdek evrendir.
+    // Restartta açık gerçek/Shadow sembolleri h.state.semboller'e korunmak için eklenebilir;
+    // bu ek koruma sembolleri yeni giriş readiness denominatorünü büyütmemelidir.
+    const coreLimit = Math.max(1, Number(ayarlar.taranacakCoinSayisi || 200));
+    h.state.st2CoreUniverseSymbols = [...new Set((h.state.semboller || []).map(String).filter(Boolean))].slice(0, coreLimit);
+    h.state.st2CoreUniverseSelectedAt = new Date().toISOString();
 }
 
 async function acikPozisyonlariBorsadanDevral() {
@@ -136,7 +143,10 @@ async function acikPozisyonlariBorsadanDevral() {
         h.state.realOrderStartupBlocked = Boolean(reconciliation.blocked);
 
         // Borsada açık gerçek pozisyon, hacim evreninin dışına düşmüş olsa bile fiyat takibinden çıkarılamaz.
+        // Ancak R25.4'te bu ek koruma sembolleri startup giriş readiness evrenine dahil edilmez.
         h.state.semboller = [...new Set([...(h.state.semboller || []), ...aktifler.map(p => p.sym).filter(Boolean)])];
+        const coreSet = new Set((h.state.st2CoreUniverseSymbols || []).map(String));
+        h.state.st2ProtectionExtraSymbols = h.state.semboller.filter(sym => !coreSet.has(String(sym)));
 
         const recoveredClosures = Array.isArray(reconciliation.recoveredClosures) ? reconciliation.recoveredClosures : [];
         h.state.realOrderRecoveredClosures = recoveredClosures;

@@ -23,9 +23,39 @@ let st1ShadowTimerRef = null;
 let st1ShadowDelayRef = null;
 function readyRatioThreshold() { return Math.max(0.80, Math.min(1, Number(ayarlar.startupMarketReadyOrani || 0.95))); }
 function aktifEvrenSeti() { return new Set((h.state.semboller || []).map(String)); }
+function startupCoreSymbols() {
+    const requested = Math.max(1, Number(ayarlar.taranacakCoinSayisi || 200));
+    const persisted = Array.isArray(h.state.st2CoreUniverseSymbols) ? h.state.st2CoreUniverseSymbols : [];
+    const source = persisted.length ? persisted : (h.state.semboller || []).slice(0, requested);
+    return [...new Set(source.map(String).filter(Boolean))].slice(0, requested);
+}
 function cacheHazirSayisi(cache) {
     const aktif = aktifEvrenSeti();
     return Object.keys(cache || {}).filter(sym => aktif.has(String(sym))).length;
+}
+function cacheHazirSayisiSemboller(cache, symbols) {
+    const set = new Set(Array.from(symbols || []).map(String));
+    return Object.keys(cache || {}).filter(sym => set.has(String(sym))).length;
+}
+function startupSymbolDeadlineMs(options = {}) {
+    return Math.max(50, Number(options.symbolDeadlineMs || ayarlar.binanceStartupSymbolDeadlineMs || 180000));
+}
+function startupRepairSymbolDeadlineMs(options = {}) {
+    return Math.max(50, Number(options.repairSymbolDeadlineMs || ayarlar.binanceStartupRepairSymbolDeadlineMs || ayarlar.binanceStartupSymbolDeadlineMs || 180000));
+}
+function startupDeadlineIle(promise, timeoutMs, label) {
+    const ms = Math.max(50, Number(timeoutMs || 180000));
+    let timer = null;
+    return Promise.race([
+        Promise.resolve(promise),
+        new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                const err = new Error(`${label}:${ms}ms`);
+                err.code = 'ETIMEDOUT';
+                reject(err);
+            }, ms);
+        })
+    ]).finally(() => { if (timer) clearTimeout(timer); });
 }
 
 function renko1mBaseLimit() { return Math.max(80, Number(ayarlar.renkoOnayKaynakMumLimiti || 80)); }
@@ -69,8 +99,8 @@ function renko1mHazirlikKaydet(sym, mumlar, sourceLimit = 0) {
     }
     return analiz;
 }
-function renko1mHazirSayisi() {
-    const aktif = aktifEvrenSeti();
+function renko1mHazirSayisi(symbols = null) {
+    const aktif = symbols ? new Set(Array.from(symbols || []).map(String)) : aktifEvrenSeti();
     return Object.entries(h.state.renko1mStHazirlik || {}).filter(([sym,x]) => aktif.has(String(sym)) && x?.ready === true).length;
 }
 function renko1mYetersizSemboller(symbols = h.state.semboller || []) {
@@ -83,14 +113,15 @@ function overlapLog(kind, message) {
     overlapLogAt[kind] = now;
     console.log(message);
 }
-function startupOnayHazirSayisi() {
-    if (ayarlar.entryStrategyMode === 'ST2_RENKO') return renko1mHazirSayisi();
-    return cacheHazirSayisi(h.state.trendSuperTrend);
+function startupOnayHazirSayisi(symbols = startupCoreSymbols()) {
+    if (ayarlar.entryStrategyMode === 'ST2_RENKO') return renko1mHazirSayisi(symbols);
+    return cacheHazirSayisiSemboller(h.state.trendSuperTrend, symbols);
 }
 function startupMarketDurumuGuncelle(source = 'REFRESH') {
-    const total = Math.max(1, Number(h.state.semboller?.length || 0));
-    const pusuHazir = cacheHazirSayisi(h.state.yerelPusuHafizasi);
-    const onayHazir = startupOnayHazirSayisi();
+    const coreSymbols = startupCoreSymbols();
+    const total = Math.max(1, coreSymbols.length);
+    const pusuHazir = cacheHazirSayisiSemboller(h.state.yerelPusuHafizasi, coreSymbols);
+    const onayHazir = startupOnayHazirSayisi(coreSymbols);
     const threshold = readyRatioThreshold();
     const pusuRatio = pusuHazir / total;
     const onayRatio = onayHazir / total;
@@ -106,7 +137,7 @@ function startupMarketDurumuGuncelle(source = 'REFRESH') {
         tamamlanma: ready ? (current.tamamlanma || new Date().toISOString()) : current.tamamlanma,
         pusuHazir,
         trendHazir: onayHazir,
-        sniperHazir: cacheHazirSayisi(h.state.sniperMumlar),
+        sniperHazir: cacheHazirSayisiSemboller(h.state.sniperMumlar, coreSymbols),
         renko1mStHazir: ayarlar.entryStrategyMode === 'ST2_RENKO' ? onayHazir : undefined,
         renko1mStYetersiz: ayarlar.entryStrategyMode === 'ST2_RENKO' ? Math.max(0, total - onayHazir) : undefined,
         oran: ratio,
@@ -250,8 +281,15 @@ async function derinGecmisiInsaEt(options = {}) {
     ));
     ag.configure({ concurrency: startupNetworkConcurrency });
     const threshold = readyRatioThreshold();
-    const tumSemboller = [...(h.state.semboller || [])];
+    const tumSemboller = startupCoreSymbols();
     const toplam = Math.max(1, tumSemboller.length);
+    const tumCanliSemboller = [...new Set((h.state.semboller || []).map(String).filter(Boolean))];
+    const startupCoreSet = new Set(tumSemboller);
+    const korumaEkstra = tumCanliSemboller.filter(sym => !startupCoreSet.has(sym));
+    h.state.startupMarketProtectionExtraCount = korumaEkstra.length;
+    h.state.startupMarketProtectionExtraSymbols = korumaEkstra;
+    const symbolDeadlineMs = startupSymbolDeadlineMs(options);
+    const repairSymbolDeadlineMs = startupRepairSymbolDeadlineMs(options);
     const pusuTf = pusuKaynakPeriyodu();
     const sniperTf = ayarlar.sniperPeriyodu || ayarlar.renkoOnayPeriyodu || '1m';
     const trendTf = superTrendOnayPeriyodu();
@@ -269,53 +307,82 @@ async function derinGecmisiInsaEt(options = {}) {
     let islenen=0, pusuHata=0, sniperHata=0;
     try {
         await sembolHavuzu(async sym => {
-            const [pusuSonuc, sniperSonuc] = await Promise.allSettled([
-                mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH'),
-                mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, 'HIGH')
-            ]);
+            try {
+                const [pusuSonuc, sniperSonuc] = await Promise.allSettled([
+                    startupDeadlineIle(
+                        mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH'),
+                        symbolDeadlineMs,
+                        `STARTUP_SYMBOL_DEADLINE_15M:${sym}`
+                    ),
+                    startupDeadlineIle(
+                        mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, 'HIGH'),
+                        symbolDeadlineMs,
+                        `STARTUP_SYMBOL_DEADLINE_1M:${sym}`
+                    )
+                ]);
 
-            if (pusuSonuc.status === 'fulfilled') {
-                const kapanmis = sadeceKapanmisMumlar(pusuSonuc.value);
-                if (kapanmis.length >= (ayarlar.bollingerperiod || 20)) {
-                    h.state.yerelPusuHafizasi[sym] = kapanmis;
-                    h.state.sonPusuMumZamani[sym] = kapanmis.at(-1).closeTime;
-                } else pusuHata++;
-            } else pusuHata++;
-
-            if (sniperSonuc.status === 'fulfilled') {
-                const sniper = sadeceKapanmisMumlar(sniperSonuc.value);
-                if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
-                    h.state.sniperMumlar[sym] = sniper;
-                    marketPriceRuntime.seedClosed1m(h.state, sym, sniper, 'STARTUP_CLOSED_1M');
-                    const stAnaliz = renko1mHazirlikKaydet(sym, sniper, renko1mBaseLimit());
-                    if (!stAnaliz.ready) sniperHata++;
+                if (pusuSonuc.status === 'fulfilled') {
+                    const kapanmis = sadeceKapanmisMumlar(pusuSonuc.value);
+                    if (kapanmis.length >= (ayarlar.bollingerperiod || 20)) {
+                        h.state.yerelPusuHafizasi[sym] = kapanmis;
+                        h.state.sonPusuMumZamani[sym] = kapanmis.at(-1).closeTime;
+                    } else pusuHata++;
                 } else {
-                    renko1mHazirlikKaydet(sym, sniper, renko1mBaseLimit());
-                    sniperHata++;
+                    pusuHata++;
+                    h.state.startupMarketSymbolFailures ||= {};
+                    h.state.startupMarketSymbolFailures[sym] = { ...(h.state.startupMarketSymbolFailures[sym] || {}), at: Date.now(), pusuReason: String(pusuSonuc.reason?.message || pusuSonuc.reason), stage: 'INITIAL_CORE' };
+                    if (/DEADLINE/.test(String(pusuSonuc.reason?.message || pusuSonuc.reason))) console.warn(`⚠️ [STARTUP SYMBOL DEADLINE] ${sym} 15m | ${String(pusuSonuc.reason?.message || pusuSonuc.reason)}`);
                 }
-            } else sniperHata++;
 
-            islenen++;
-            const pusuHazir = cacheHazirSayisi(h.state.yerelPusuHafizasi);
-            const sniperHazir = cacheHazirSayisi(h.state.sniperMumlar);
-            const renkoStHazir = renko1mHazirSayisi();
-            const ratio = Math.min(pusuHazir / toplam, renkoStHazir / toplam);
-            h.state.startupMarketWarmup = {
-                ...(h.state.startupMarketWarmup || {}), durum: h.state.startupMarketReady === true ? 'READY' : 'CALISIYOR',
-                asama: 'CORE_15M_1M_RENKO', islenen, toplam, pusuHazir, trendHazir: renkoStHazir, sniperHazir, renko1mStHazir: renkoStHazir,
-                oran: ratio, hata: pusuHata + sniperHata, sonIlerleme: new Date().toISOString()
-            };
-            h.state.sembolVeriSagligi = {
-                ...(h.state.sembolVeriSagligi || {}),
-                durum: ratio >= threshold ? 'HEALTHY' : 'CALISIYOR',
-                istenen: Number(ayarlar.taranacakCoinSayisi || 200), secilen: toplam,
-                mumHazir: pusuHazir, mumHata: pusuHata,
-                sniperHazir, renko1mVeriHazir: sniperHazir, renko1mStHazir: renkoStHazir, renko1mStYetersiz: Math.max(0, toplam-renkoStHazir), superTrendHazir: renkoStHazir, superTrendHata: sniperHata,
-                sonGuncelleme: new Date().toISOString()
-            };
-            startupMarketDurumuGuncelle('INITIAL_GOLDEN_RENKO_PROGRESS');
-            if (islenen === toplam || islenen % 25 === 0) {
-                console.log(`⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] İşlenen ${islenen}/${toplam} | ${pusuTf} Mum ${pusuHazir}/${toplam} | ${sniperTf} Renko ST veri ${sniperHazir}/${toplam} | Hata ${pusuHata + sniperHata}`);
+                if (sniperSonuc.status === 'fulfilled') {
+                    const sniper = sadeceKapanmisMumlar(sniperSonuc.value);
+                    if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
+                        h.state.sniperMumlar[sym] = sniper;
+                        marketPriceRuntime.seedClosed1m(h.state, sym, sniper, 'STARTUP_CLOSED_1M');
+                        const stAnaliz = renko1mHazirlikKaydet(sym, sniper, renko1mBaseLimit());
+                        if (!stAnaliz.ready) sniperHata++;
+                    } else {
+                        renko1mHazirlikKaydet(sym, sniper, renko1mBaseLimit());
+                        sniperHata++;
+                    }
+                } else {
+                    sniperHata++;
+                    h.state.startupMarketSymbolFailures ||= {};
+                    h.state.startupMarketSymbolFailures[sym] = { ...(h.state.startupMarketSymbolFailures[sym] || {}), at: Date.now(), sniperReason: String(sniperSonuc.reason?.message || sniperSonuc.reason), stage: 'INITIAL_CORE' };
+                    if (/DEADLINE/.test(String(sniperSonuc.reason?.message || sniperSonuc.reason))) console.warn(`⚠️ [STARTUP SYMBOL DEADLINE] ${sym} 1m | ${String(sniperSonuc.reason?.message || sniperSonuc.reason)} | Derin onarıma bırakıldı`);
+                }
+            } catch (err) {
+                // R25.4: Bir sembolün beklenmeyen/asılı ilk-tur işi tüm 200-core warmup ve
+                // 240/480 onarım zincirini sonsuza kadar bloke edemez. Sembol eksik bırakılır;
+                // derin onarımda yeniden denenir.
+                pusuHata++; sniperHata++;
+                h.state.startupMarketSymbolFailures ||= {};
+                h.state.startupMarketSymbolFailures[sym] = { at: Date.now(), reason: String(err?.message || err), stage: 'INITIAL_CORE' };
+                console.warn(`⚠️ [STARTUP SYMBOL DEADLINE] ${sym} | ${String(err?.message || err)} | Derin onarıma bırakıldı`);
+            } finally {
+                islenen++;
+                const pusuHazir = cacheHazirSayisiSemboller(h.state.yerelPusuHafizasi, tumSemboller);
+                const sniperHazir = cacheHazirSayisiSemboller(h.state.sniperMumlar, tumSemboller);
+                const renkoStHazir = renko1mHazirSayisi(tumSemboller);
+                const ratio = Math.min(pusuHazir / toplam, renkoStHazir / toplam);
+                h.state.startupMarketWarmup = {
+                    ...(h.state.startupMarketWarmup || {}), durum: h.state.startupMarketReady === true ? 'READY' : 'CALISIYOR',
+                    asama: 'CORE_15M_1M_RENKO', islenen, toplam, pusuHazir, trendHazir: renkoStHazir, sniperHazir, renko1mStHazir: renkoStHazir,
+                    oran: ratio, hata: pusuHata + sniperHata, sonIlerleme: new Date().toISOString(), korumaEkstra: korumaEkstra.length
+                };
+                h.state.sembolVeriSagligi = {
+                    ...(h.state.sembolVeriSagligi || {}),
+                    durum: ratio >= threshold ? 'HEALTHY' : 'CALISIYOR',
+                    istenen: Number(ayarlar.taranacakCoinSayisi || 200), secilen: toplam,
+                    mumHazir: pusuHazir, mumHata: pusuHata,
+                    sniperHazir, renko1mVeriHazir: sniperHazir, renko1mStHazir: renkoStHazir, renko1mStYetersiz: Math.max(0, toplam-renkoStHazir), superTrendHazir: renkoStHazir, superTrendHata: sniperHata,
+                    startupCoreToplam: toplam, startupKorumaEkstra: korumaEkstra.length,
+                    sonGuncelleme: new Date().toISOString()
+                };
+                startupMarketDurumuGuncelle('INITIAL_GOLDEN_RENKO_PROGRESS');
+                if (islenen === toplam || islenen % 25 === 0) {
+                    console.log(`⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] İşlenen ${islenen}/${toplam} | ${pusuTf} Mum ${pusuHazir}/${toplam} | ${sniperTf} Renko ST veri ${sniperHazir}/${toplam} | Hata ${pusuHata + sniperHata} | Koruma-ekstra ${korumaEkstra.length}`);
+                }
             }
         }, { concurrency: startupConcurrency, workers: startupWorkers, symbols: tumSemboller });
 
@@ -324,10 +391,16 @@ async function derinGecmisiInsaEt(options = {}) {
             const eksikler = renko1mYetersizSemboller(tumSemboller);
             if (!eksikler.length) return 0;
             derinOnarimToplam += eksikler.length;
+            h.state.startupMarketWarmup = { ...(h.state.startupMarketWarmup || {}), asama: etiket, derinOnarimToplam, sonIlerleme: new Date().toISOString() };
+            h.state.sembolVeriSagligi = { ...(h.state.sembolVeriSagligi || {}), renko1mStDerinOnarim: derinOnarimToplam, sonGuncelleme: new Date().toISOString() };
             console.log(`🔧 [1m RENKO ST DERİN ONARIM] ${etiket} | ${eksikler.length} sembol | ${limit} kapanmış 1m mum deneniyor.`);
             await sembolHavuzu(async sym => {
                 try {
-                    const ham = await mumCek(sym, sniperTf, limit, `${etiket}:${sym}`, 'HIGH');
+                    const ham = await startupDeadlineIle(
+                        mumCek(sym, sniperTf, limit, `${etiket}:${sym}`, 'HIGH'),
+                        repairSymbolDeadlineMs,
+                        `${etiket}_DEADLINE:${sym}`
+                    );
                     const sniper = sadeceKapanmisMumlar(ham);
                     if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
                         h.state.sniperMumlar[sym] = sniper;
@@ -335,15 +408,37 @@ async function derinGecmisiInsaEt(options = {}) {
                     }
                 } catch (_) {}
             }, { concurrency: Math.min(4, startupConcurrency), workers: Math.min(8, startupWorkers), symbols: eksikler });
+            const repairPusuHazir = cacheHazirSayisiSemboller(h.state.yerelPusuHafizasi, tumSemboller);
+            const repairSniperHazir = cacheHazirSayisiSemboller(h.state.sniperMumlar, tumSemboller);
+            const repairRenkoHazir = renko1mHazirSayisi(tumSemboller);
+            const repairEksik = tumSemboller.filter(sym => !h.state.yerelPusuHafizasi?.[sym] || h.state.renko1mStHazirlik?.[sym]?.ready !== true).length;
+            h.state.sembolVeriSagligi = {
+                ...(h.state.sembolVeriSagligi || {}),
+                mumHazir: repairPusuHazir, mumHata: Math.max(0, toplam-repairPusuHazir),
+                sniperHazir: repairSniperHazir, renko1mVeriHazir: repairSniperHazir,
+                renko1mStHazir: repairRenkoHazir, renko1mStYetersiz: Math.max(0, toplam-repairRenkoHazir),
+                renko1mStDerinOnarim: derinOnarimToplam, superTrendHazir: repairRenkoHazir,
+                superTrendHata: Math.max(0, toplam-repairRenkoHazir), hata: 0,
+                sonGuncelleme: new Date().toISOString()
+            };
+            h.state.startupMarketWarmup = {
+                ...(h.state.startupMarketWarmup || {}), asama: `${etiket}_COMPLETE`,
+                pusuHazir: repairPusuHazir, sniperHazir: repairSniperHazir, trendHazir: repairRenkoHazir, renko1mStHazir: repairRenkoHazir,
+                hata: repairEksik, derinOnarimToplam, sonIlerleme: new Date().toISOString()
+            };
+            const repairGate = startupMarketDurumuGuncelle(`${etiket}_COMPLETE`);
+            console.log(`${repairGate.currentReady ? '✅' : '⏳'} [1m RENKO ST DERİN ONARIM SONUÇ] ${etiket} | ST ${repairRenkoHazir}/${toplam} | Eksik ${Math.max(0, toplam-repairRenkoHazir)} | Gate ${repairGate.currentReady ? 'READY' : 'BEKLIYOR'}`);
             return eksikler.length;
         };
         await derinOnar(renko1mRepairLimit(), 'START_RENKO_ST_REPAIR_1');
         await derinOnar(renko1mMaxRepairLimit(), 'START_RENKO_ST_REPAIR_2');
 
-        h.state.semboller = tumSemboller;
-        const pusuHazir = cacheHazirSayisi(h.state.yerelPusuHafizasi);
-        const sniperHazir = cacheHazirSayisi(h.state.sniperMumlar);
-        const renkoStHazir = renko1mHazirSayisi();
+        // R25.4: Core warmup yalnız 200 hacim sembolünde çalışır; restart koruma sembolleri
+        // fiyat/pozisyon takibinden düşürülmez ve ana canlı sembol listesinde korunur.
+        h.state.semboller = tumCanliSemboller;
+        const pusuHazir = cacheHazirSayisiSemboller(h.state.yerelPusuHafizasi, tumSemboller);
+        const sniperHazir = cacheHazirSayisiSemboller(h.state.sniperMumlar, tumSemboller);
+        const renkoStHazir = renko1mHazirSayisi(tumSemboller);
         const pusuRatio = pusuHazir / toplam;
         const sniperRatio = renkoStHazir / toplam;
         const now = Date.now();
@@ -356,11 +451,13 @@ async function derinGecmisiInsaEt(options = {}) {
         h.state.sonSniperGuncellemeZamani = now;
 
         const gate = startupMarketDurumuGuncelle('INITIAL_GOLDEN_RENKO_COMPLETE');
+        const finalEksik = tumSemboller.filter(sym => !h.state.yerelPusuHafizasi?.[sym] || h.state.renko1mStHazirlik?.[sym]?.ready !== true).length;
         h.state.sembolVeriSagligi = {
             ...(h.state.sembolVeriSagligi || {}),
             durum: gate.currentReady ? 'HEALTHY' : 'DEGRADED',
-            mumHazir: pusuHazir, mumHata: pusuHata,
+            mumHazir: pusuHazir, mumHata: Math.max(0, toplam-pusuHazir),
             sniperHazir, renko1mVeriHazir: sniperHazir, renko1mStHazir: renkoStHazir, renko1mStYetersiz: Math.max(0, toplam-renkoStHazir), renko1mStDerinOnarim: derinOnarimToplam, superTrendHazir: renkoStHazir, superTrendHata: Math.max(0, toplam-renkoStHazir),
+            hata: 0, startupFinalEksik: finalEksik, startupAttemptHata: pusuHata + sniperHata, startupCoreToplam: toplam, startupKorumaEkstra: korumaEkstra.length,
             baslangicMumMs: now - baslangic, superTrendTazelemeMs: now - baslangic,
             sonGuncelleme: new Date().toISOString()
         };
@@ -368,7 +465,7 @@ async function derinGecmisiInsaEt(options = {}) {
             ...(h.state.startupMarketWarmup || {}),
             durum: gate.currentReady ? 'READY' : 'DEGRADED', asama: 'GOLDEN_RENKO_CORE_COMPLETE',
             islenen: toplam, toplam, pusuHazir, trendHazir: renkoStHazir, sniperHazir, renko1mStHazir: renkoStHazir,
-            tamamlanma: new Date().toISOString(), hata: pusuHata + sniperHata, sureMs: now - baslangic
+            tamamlanma: new Date().toISOString(), hata: finalEksik, denemeHata: pusuHata + sniperHata, sureMs: now - baslangic
         };
         console.log(`${gate.currentReady ? '✅' : '⚠️'} [AŞAMALI BAŞLANGIÇ] GOLDEN RENKO ${gate.currentReady ? 'TAMAM' : 'DEGRADED'} | ${pusuTf} Mum ${pusuHazir}/${toplam} | ${sniperTf} Renko ST veri ${sniperHazir}/${toplam} | Eşik %${(threshold * 100).toFixed(0)} | Süre ${now - baslangic} ms.`);
 
@@ -377,9 +474,9 @@ async function derinGecmisiInsaEt(options = {}) {
         console.log('🧪 [ST1 SHADOW DEFERRED] İlk Golden Renko taraması tamamlanana kadar ağ isteği YOK | Giriş yetkisine etkisi YOK');
 
         return {
-            ready: gate.currentReady, pusuHazir, trendHazir: sniperHazir, sniperHazir, total: toplam,
-            ratio: gate.ratio, hata: pusuHata + sniperHata, durationMs: now - baslangic,
-            coreRequests: toplam * 2, deferredTrendRequests: toplam
+            ready: gate.currentReady, pusuHazir, trendHazir: renkoStHazir, sniperHazir, total: toplam,
+            ratio: gate.ratio, hata: finalEksik, attemptHata: pusuHata + sniperHata, durationMs: now - baslangic,
+            coreRequests: toplam * 2, deferredTrendRequests: toplam, derinOnarimToplam, protectionExtra: korumaEkstra.length
         };
     } finally {
         ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
@@ -558,4 +655,4 @@ function resetScheduleForTest(){
     if (st1ShadowDelayRef) clearTimeout(st1ShadowDelayRef);
     pusuTimerRef=null; stTimerRef=null; st1ShadowTimerRef=null; st1ShadowDelayRef=null;
 }
-module.exports={ derinGecmisiInsaEt, pusuVerileriniTazele, superTrendHesapla, periyodikTazelemeyiBaslat, st1ShadowTazelemeyiBaslat, _startupMarketDurumuGuncelle:startupMarketDurumuGuncelle, _readyRatioThreshold:readyRatioThreshold, _intervalMs:intervalMs, _closedCandleBucket:closedCandleBucket, _refreshDue:refreshDue, _resetScheduleForTest:resetScheduleForTest };
+module.exports={ derinGecmisiInsaEt, pusuVerileriniTazele, superTrendHesapla, periyodikTazelemeyiBaslat, st1ShadowTazelemeyiBaslat, _startupMarketDurumuGuncelle:startupMarketDurumuGuncelle, _readyRatioThreshold:readyRatioThreshold, _startupCoreSymbols:startupCoreSymbols, _renko1mHazirSayisi:renko1mHazirSayisi, _intervalMs:intervalMs, _closedCandleBucket:closedCandleBucket, _refreshDue:refreshDue, _resetScheduleForTest:resetScheduleForTest };
