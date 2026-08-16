@@ -4,7 +4,7 @@ const fs=require('fs');
 const version=require('./versiyon.js');
 const settings=require('./ayarlar.js');
 
-assert.strictEqual(version.botSurumu,'6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT');
+assert.strictEqual(version.botSurumu,'6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT');
 const rev=fs.readFileSync('./revizyon.js','utf8');
 const net=fs.readFileSync('./64_binance_network_resilience.js','utf8');
 assert(!rev.includes('startupAgOverrides'),'R5 startup transport override must remain absent');
@@ -25,8 +25,8 @@ assert(net.includes('HARD_TIMEOUT'),'socket-wait-inclusive wall clock deadline m
 
 assert.strictEqual(Number(settings.binanceAgEszamanlilik),3);
 assert.strictEqual(Number(settings.binanceAgIsciSayisi),8);
-assert.strictEqual(Number(settings.binanceStartupAgEszamanlilik),8);
-assert.strictEqual(Number(settings.binanceStartupAgIsciSayisi),8);
+assert.strictEqual(Number(settings.binanceStartupAgEszamanlilik),4);
+assert.strictEqual(Number(settings.binanceStartupAgIsciSayisi),4);
 assert.strictEqual(Number(settings.binanceAgTimeoutMs),15000);
 assert.strictEqual(Number(settings.binanceAgRetry),2);
 assert.strictEqual(Number(settings.binanceTopluVeriRetryMs),90000);

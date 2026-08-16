@@ -52,8 +52,14 @@ function startupRepairRequestOptions(options = {}) {
     };
 }
 function startupMumCek(sym, interval, limit, label, overrides = {}) {
-    // R25.7: startup market-data kendi dedicated agent hattında akar; shared runtime queue'ya girmez.
+    // R25.8: startup market-data dedicated agent hattında akar; signal ile queued/active request iptal edilebilir.
     return ag.binanceStartupMumlariCek(sym, interval, limit, { ...(overrides || {}), label });
+}
+function startupAbortController(deadlineMs, label) {
+    const controller = new AbortController();
+    const ms = Math.max(1000, Number(deadlineMs) || 20000);
+    const timer = setTimeout(() => controller.abort(new Error(`${label}:DEADLINE:${ms}ms`)), ms);
+    return { controller, timer, clear: () => clearTimeout(timer) };
 }
 
 function renko1mBaseLimit() { return Math.max(80, Number(ayarlar.renkoOnayKaynakMumLimiti || 80)); }
@@ -271,8 +277,8 @@ async function sembolHavuzu(worker, options = {}) {
 
 async function derinGecmisiInsaEt(options = {}) {
     const baslangic = Date.now();
-    const startupConcurrency = Math.max(1, Number(options.concurrency || ayarlar.binanceStartupAgEszamanlilik || 8));
-    const startupWorkers = Math.max(startupConcurrency, Number(options.workers || ayarlar.binanceStartupAgIsciSayisi || 16));
+    const startupConcurrency = Math.max(1, Math.min(4, Number(options.concurrency || ayarlar.binanceStartupAgEszamanlilik || 4)));
+    const startupWorkers = Math.max(1, Math.min(startupConcurrency, Number(options.workers || ayarlar.binanceStartupAgIsciSayisi || 4)));
     const startupNetworkConcurrency = Math.max(1, Math.min(
         startupConcurrency,
         Number(ayarlar.binanceStartupNetworkConcurrency || 4)
@@ -300,16 +306,27 @@ async function derinGecmisiInsaEt(options = {}) {
     };
     console.log(`📥 [AŞAMALI BAŞLANGIÇ] Golden Renko çekirdeği hazırlanıyor | ${pusuTf} ATR-Renko + ${sniperTf} Renko ST verisi | Worker ${startupWorkers} | Ağ concurrency ${startupNetworkConcurrency} | ${trendTf} ST1 yalnız shadow sonra.`);
 
+    const startupLivenessTimer = setInterval(() => {
+        const warm = h.state.startupMarketWarmup || {};
+        const net = ag.durumOzeti();
+        console.log(`🫀 [STARTUP LIVENESS] İşlenen ${Number(warm.islenen || 0)}/${toplam} | Mum ${Number(warm.pusuHazir || 0)} | ST ${Number(warm.trendHazir || 0)} | Dedicated active ${Number(net.startupActive || 0)} ok ${Number(net.startupSucceeded || 0)} fail ${Number(net.startupFailed || 0)} timeout ${Number(net.startupTimeout || 0)}`);
+    }, 10000);
+    startupLivenessTimer.unref?.();
+
     h.state.yerelPusuHafizasi={}; h.state.canliFiyatlar={}; h.state.canliFiyatMeta={}; h.state.sniperMumlar={}; h.state.sniperCanliMumlar={}; h.state.sniperSuperTrend={}; h.state.sniperSuperTrendCanli={}; h.state.trendMumlar={}; h.state.trendCanliMumlar={}; h.state.trendSuperTrend={}; h.state.trendSuperTrendCanli={}; h.state.sonPusuMumZamani={}; h.state.renko1mStHazirlik={}; h.state.renko1mStCache={};
 
     let islenen=0, pusuHata=0, sniperHata=0;
     try {
         await sembolHavuzu(async sym => {
             try {
-                const [pusuSonuc, sniperSonuc] = await Promise.allSettled([
-                    startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, initialRequestOptions),
-                    startupMumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, initialRequestOptions)
-                ]);
+                const guard = startupAbortController(Number(options.symbolDeadlineMs ?? ayarlar.binanceStartupSymbolDeadlineMs ?? 20000), `START_SYMBOL:${sym}`);
+                let pusuSonuc, sniperSonuc;
+                try {
+                    [pusuSonuc, sniperSonuc] = await Promise.allSettled([
+                        startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, { ...initialRequestOptions, signal: guard.controller.signal }),
+                        startupMumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, { ...initialRequestOptions, signal: guard.controller.signal })
+                    ]);
+                } finally { guard.clear(); }
 
                 if (pusuSonuc.status === 'fulfilled') {
                     const kapanmis = sadeceKapanmisMumlar(pusuSonuc.value);
@@ -384,7 +401,10 @@ async function derinGecmisiInsaEt(options = {}) {
             console.log(`🔧 [15m STARTUP ONARIM] ${pusuEksikler.length} sembol | hızlı ilk turda alınamayan ${pusuTf} mumları yeniden deneniyor.`);
             await sembolHavuzu(async sym => {
                 try {
-                    const ham = await startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, repairRequestOptions);
+                    const guard = startupAbortController(Number(options.repairSymbolDeadlineMs ?? ayarlar.binanceStartupRepairSymbolDeadlineMs ?? 40000), `START_15M_REPAIR:${sym}`);
+                    let ham;
+                    try { ham = await startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, { ...repairRequestOptions, signal: guard.controller.signal }); }
+                    finally { guard.clear(); }
                     const kapanmis = sadeceKapanmisMumlar(ham);
                     if (kapanmis.length >= (ayarlar.bollingerperiod || 20)) {
                         h.state.yerelPusuHafizasi[sym] = kapanmis;
@@ -405,7 +425,10 @@ async function derinGecmisiInsaEt(options = {}) {
             console.log(`🔧 [1m RENKO ST DERİN ONARIM] ${etiket} | ${eksikler.length} sembol | ${limit} kapanmış 1m mum deneniyor.`);
             await sembolHavuzu(async sym => {
                 try {
-                    const ham = await startupMumCek(sym, sniperTf, limit, `${etiket}:${sym}`, repairRequestOptions);
+                    const guard = startupAbortController(Number(options.repairSymbolDeadlineMs ?? ayarlar.binanceStartupRepairSymbolDeadlineMs ?? 40000), `${etiket}:${sym}`);
+                    let ham;
+                    try { ham = await startupMumCek(sym, sniperTf, limit, `${etiket}:${sym}`, { ...repairRequestOptions, signal: guard.controller.signal }); }
+                    finally { guard.clear(); }
                     const sniper = sadeceKapanmisMumlar(ham);
                     if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
                         h.state.sniperMumlar[sym] = sniper;
@@ -484,7 +507,8 @@ async function derinGecmisiInsaEt(options = {}) {
             coreRequests: toplam * 2, deferredTrendRequests: toplam, pusuOnarimToplam, derinOnarimToplam, protectionExtra: korumaEkstra.length
         };
     } finally {
-        // R25.7 startup dedicated agent kullandığı için shared runtime concurrency değiştirilmez.
+        clearInterval(startupLivenessTimer);
+        // R25.8 startup dedicated agent kullandığı için shared runtime concurrency değiştirilmez.
         // R14: periyodikTazelemeyiBaslat() ilk canlı Renko auditinden sonra bot.js tarafından çağrılır.
     }
 }

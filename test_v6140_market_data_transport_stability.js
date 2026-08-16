@@ -6,16 +6,16 @@ const version=require('./versiyon.js');
 const ag=require('./64_binance_network_resilience.js');
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT');
-  assert.strictEqual(Number(ayarlar.binanceStartupAgEszamanlilik),8);
-  assert.strictEqual(Number(ayarlar.binanceStartupAgIsciSayisi),8);
+  assert.strictEqual(version.botSurumu,'6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT');
+  assert.strictEqual(Number(ayarlar.binanceStartupAgEszamanlilik),4);
+  assert.strictEqual(Number(ayarlar.binanceStartupAgIsciSayisi),4);
   assert.strictEqual(Number(ayarlar.binanceAgTimeoutMs),15000);
   assert.strictEqual(Number(ayarlar.binanceAgRetry),2);
   assert.strictEqual(Number(ayarlar.binanceTopluVeriRetryMs),90000);
   for(const k of ['binanceStartupTimeoutMs','binanceStartupRetry','binanceStartupQueueTimeoutMs','binanceBulkRefreshTimeoutMs','binanceBulkRefreshRetry']) assert.strictEqual(ayarlar[k],undefined,`${k} must be retired`);
   const rev=fs.readFileSync('./revizyon.js','utf8');
-  assert(rev.includes("startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, initialRequestOptions)"),'startup initial pass must use dedicated bounded request policy');
-  assert(rev.includes("startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, repairRequestOptions)"),'startup repair must use dedicated repair request policy');
+  assert(rev.includes('START_CANDLE:${sym}') && rev.includes('signal: guard.controller.signal'),'startup initial pass must use cancellable dedicated request policy');
+  assert(rev.includes('START_15M_REPAIR:${sym}') && rev.includes('repairSymbolDeadlineMs'),'startup repair must use cancellable repair request policy');
   assert(rev.includes('ag.binanceStartupMumlariCek'),'startup must use dedicated KLINE transport');
   assert(!rev.includes('bulkAgOverrides'),'bulk-specific aggressive transport must be gone');
   const net=fs.readFileSync('./64_binance_network_resilience.js','utf8');

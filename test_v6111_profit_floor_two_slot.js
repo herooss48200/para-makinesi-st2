@@ -113,7 +113,7 @@ try {
   assert(report.includes('Brüt taban %'));
   assert(report.includes('Min net %'));
   assert(!report.includes('Net taban %${Number(atama.assignedSafeFloorPct)'));
-  assert.strictEqual(version.botSurumu, '6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT');
   assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 
   console.log('✅ v6.11.1 minimum net +%0.30 floor first, frozen brick trail second, 0.50T update and current 20-slot risk settings passed');

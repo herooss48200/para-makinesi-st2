@@ -20,7 +20,7 @@ function candles(tf,count,step=0.45){
 }
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu,'6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT');
   const originalStartup=ag.binanceStartupMumlariCek;
   const originalShared=ag.binanceMumlariCek;
   const originalThreshold=ayarlar.startupMarketReadyOrani;
@@ -47,7 +47,7 @@ function candles(tf,count,step=0.45){
     assert.strictEqual(summary.ready,true,'dedicated startup transport gate READY olmalı');
     assert.strictEqual(sharedCalls,0,'startup shared Binance KLINE queue kullanmamalı');
     assert.strictEqual(startupCalls,40,'20 core x 15m+1m = 40 dedicated request olmalı');
-    assert(peak<=16 && peak>=8,`worker-bound dedicated request envelope beklenmiyor: peak=${peak}`);
+    assert(peak<=8 && peak>=4,`R25.8 worker/socket bounded dedicated request envelope beklenmiyor: peak=${peak}`);
     assert.strictEqual(h.state.sembolVeriSagligi.mumHazir,20);
     assert.strictEqual(h.state.sembolVeriSagligi.renko1mStHazir,20);
 
@@ -59,7 +59,7 @@ function candles(tf,count,step=0.45){
     assert(!beforeSocket.includes('startHardTimer();'),'hard timeout socket assignment öncesinde tetikleniyor');
     assert(revSrc.includes('ag.binanceStartupMumlariCek'),'revizyon dedicated startup fetch kullanmıyor');
     assert(!revSrc.includes("ag.configure({ concurrency: startupNetworkConcurrency })"),'startup shared queue concurrency değiştirmemeli');
-    log(`✅ R25.7 dedicated startup KLINE passed | shared calls 0 | dedicated 40/40 | peak ${peak} | socket-bound timeout`);
+    log(`✅ R25.8 dedicated startup KLINE preserved | shared calls 0 | dedicated 40/40 | peak ${peak} | socket-bound timeout`);
   } finally {
     ag.binanceStartupMumlariCek=originalStartup; ag.binanceMumlariCek=originalShared;
     ayarlar.startupMarketReadyOrani=originalThreshold; ayarlar.taranacakCoinSayisi=originalCore;

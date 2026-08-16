@@ -309,10 +309,13 @@ function httpsJson(urlString, options = {}) {
         let settled = false;
         let req = null;
         let hardTimer = null;
+        const signal = options.signal || null;
+        let abortHandler = null;
         const finish = (fn, value) => {
             if (settled) return;
             settled = true;
             if (hardTimer) clearTimeout(hardTimer);
+            if (signal && abortHandler) { try { signal.removeEventListener('abort', abortHandler); } catch (_) {} }
             fn(value);
         };
         const startHardTimer = () => {
@@ -368,6 +371,16 @@ function httpsJson(urlString, options = {}) {
                 }
             });
         });
+        abortHandler = () => {
+            const err = new Error(`${label}:ABORTED`);
+            err.code = 'EABORTED';
+            try { req?.destroy(err); } catch (_) {}
+            finish(reject, err);
+        };
+        if (signal) {
+            if (signal.aborted) abortHandler();
+            else signal.addEventListener('abort', abortHandler, { once: true });
+        }
         req.once('socket', startHardTimer);
         req.setTimeout(timeoutMs, () => {
             const err = new Error(`${label}:TIMEOUT:${timeoutMs}ms`);
@@ -425,7 +438,8 @@ function binanceStartupMumlariCek(symbol, interval, limit = 80, options = {}) {
     return retryIleCalistir(() => httpsJson(url, {
         timeoutMs: cfg.timeoutMs,
         label: cfg.label || `STARTUP_KLINES:${sym}:${tf}`,
-        agent: startupKlineAgent
+        agent: startupKlineAgent,
+        signal: cfg.signal || null
     }), cfg).then(rows => {
         startupStats.succeeded++;
         return (rows || []).map(row => ({

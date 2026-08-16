@@ -72,7 +72,7 @@ function candleSeries(tf,count,trendStep=0.4){
     assert(!src.includes('startupDeadlineIle('),'R25.6 outer queue-wait deadline kaldırılmadı');
     assert(src.includes("startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`"),'15m initial request dedicated startup promiseini beklemiyor');
     assert(src.includes("startupMumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`"),'1m initial request dedicated startup promiseini beklemiyor');
-    originalLog(`✅ R25.6 queue-bound behavior preserved under R25.7 dedicated startup transport | 4 active + max queued ${maxQueued} | 40/40 request complete | no stale deadline duplicates | ${elapsed}ms`);
+    originalLog(`✅ R25.6 queue-bound behavior preserved under R25.8 cancellable dedicated startup transport | 4 active + max queued ${maxQueued} | 40/40 request complete | no stale deadline duplicates | ${elapsed}ms`);
   } finally {
     ag.binanceStartupMumlariCek=originalFetch;
     ayarlar.startupMarketReadyOrani=originalThreshold;ayarlar.taranacakCoinSayisi=originalCore;ayarlar.binanceStartupAgEszamanlilik=originalConcurrency;ayarlar.binanceStartupAgIsciSayisi=originalWorkers;

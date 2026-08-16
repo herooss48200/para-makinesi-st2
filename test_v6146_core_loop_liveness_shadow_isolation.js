@@ -7,7 +7,7 @@ const bot = fs.readFileSync('./bot.js', 'utf8');
 const settings = require('./ayarlar.js');
 const version = require('./versiyon.js');
 
-assert.strictEqual(version.botSurumu, '6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT');
+assert.strictEqual(version.botSurumu, '6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT');
 assert.ok(rev.includes('superTrendHesapla(false, {') && rev.includes('skipTrend: true') && rev.includes("priority: 'LOW'"),
   'core periodic refresh must update 1m Renko ST without ST1 shadow');
 assert.ok(!rev.includes("superTrendHesapla(true, {\n                concurrency: ayarlar.binanceAgEszamanlilik"),

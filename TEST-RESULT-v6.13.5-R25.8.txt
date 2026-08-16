@@ -1,0 +1,16 @@
+AGROS ST2 v6.13.5-R25.8 TEST RESULT
+
+Version: 6.13.5-R25.8-STARTUP-CANCELLABLE-LIVENESS-N5-20SLOT-20USDT
+
+npm run check: PASS (EXIT 0)
+All test_*.js: 82 PASS / 0 FAIL
+Syntax: 194 JavaScript files PASS
+R25.8 cancellable startup liveness: PASS
+- intentionally hung startup request aborted: YES
+- dedicated caller peak: <= 8
+- shared startup KLINE calls: 0
+- worker/socket contract: 4/4
+Premier/N5: PASS
+Unified stop authority: PASS
+MACD: Shadow-only preserved
+20 real slots x 20USDT: preserved

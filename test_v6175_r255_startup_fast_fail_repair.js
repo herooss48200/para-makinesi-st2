@@ -96,12 +96,12 @@ function candleSeries(tf,count,trendStep=0.4){
     assert(src.includes('initialRequestOptions'),'initial fast-fail request policy yok');
     assert(src.includes('repairRequestOptions'),'repair request policy yok');
     assert(cfg.includes('binanceStartupRequestRetry: 0'),'production initial startup retry 0 değil');
-    assert(!src.includes('startupDeadlineIle('),'queue-wait outer deadline R25.7 içinde kalmamalı');
-    assert(cfg.includes('startup dedicated agent kullanır'),'R25.7 dedicated startup config açıklaması yok');
+    assert(!src.includes('startupDeadlineIle('),'queue-wait outer deadline R25.8 içinde kalmamalı');
+    assert(cfg.includes('cancellable symbol deadline'),'R25.8 cancellable startup config açıklaması yok');
     assert(logs.some(x=>x.includes('[15m STARTUP ONARIM]')),'15m repair logu üretilmedi');
     assert(logs.some(x=>x.includes('[1m RENKO ST DERİN ONARIM]')),'1m repair logu üretilmedi');
 
-    originalLog('✅ R25.5 repair behavior preserved under R25.7 | active-request timeout + 15m repair + 1m 240/480 repair + 200-core fail-forward');
+    originalLog('✅ R25.5 repair behavior preserved under R25.8 | active-request timeout + 15m repair + 1m 240/480 repair + 200-core fail-forward');
   } finally {
     ag.binanceStartupMumlariCek=originalFetch;
     ayarlar.startupMarketReadyOrani=originalThreshold;
