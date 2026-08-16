@@ -43,6 +43,20 @@ function startupSymbolDeadlineMs(options = {}) {
 function startupRepairSymbolDeadlineMs(options = {}) {
     return Math.max(50, Number(options.repairSymbolDeadlineMs || ayarlar.binanceStartupRepairSymbolDeadlineMs || ayarlar.binanceStartupSymbolDeadlineMs || 180000));
 }
+function startupInitialRequestOptions(options = {}) {
+    return {
+        timeoutMs: Math.max(1000, Number(options.initialRequestTimeoutMs ?? ayarlar.binanceStartupRequestTimeoutMs ?? 7000)),
+        retries: Math.max(0, Number(options.initialRequestRetries ?? ayarlar.binanceStartupRequestRetry ?? 0)),
+        baseDelayMs: Math.max(100, Number(options.initialRequestRetryBaseMs ?? ayarlar.binanceStartupRequestRetryTabanMs ?? 500))
+    };
+}
+function startupRepairRequestOptions(options = {}) {
+    return {
+        timeoutMs: Math.max(1000, Number(options.repairRequestTimeoutMs ?? ayarlar.binanceStartupRepairRequestTimeoutMs ?? 8000)),
+        retries: Math.max(0, Number(options.repairRequestRetries ?? ayarlar.binanceStartupRepairRequestRetry ?? 1)),
+        baseDelayMs: Math.max(100, Number(options.repairRequestRetryBaseMs ?? ayarlar.binanceStartupRepairRequestRetryTabanMs ?? 700))
+    };
+}
 function startupDeadlineIle(promise, timeoutMs, label) {
     const ms = Math.max(50, Number(timeoutMs || 180000));
     let timer = null;
@@ -290,6 +304,8 @@ async function derinGecmisiInsaEt(options = {}) {
     h.state.startupMarketProtectionExtraSymbols = korumaEkstra;
     const symbolDeadlineMs = startupSymbolDeadlineMs(options);
     const repairSymbolDeadlineMs = startupRepairSymbolDeadlineMs(options);
+    const initialRequestOptions = startupInitialRequestOptions(options);
+    const repairRequestOptions = startupRepairRequestOptions(options);
     const pusuTf = pusuKaynakPeriyodu();
     const sniperTf = ayarlar.sniperPeriyodu || ayarlar.renkoOnayPeriyodu || '1m';
     const trendTf = superTrendOnayPeriyodu();
@@ -310,12 +326,12 @@ async function derinGecmisiInsaEt(options = {}) {
             try {
                 const [pusuSonuc, sniperSonuc] = await Promise.allSettled([
                     startupDeadlineIle(
-                        mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH'),
+                        mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH', initialRequestOptions),
                         symbolDeadlineMs,
                         `STARTUP_SYMBOL_DEADLINE_15M:${sym}`
                     ),
                     startupDeadlineIle(
-                        mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, 'HIGH'),
+                        mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, 'HIGH', initialRequestOptions),
                         symbolDeadlineMs,
                         `STARTUP_SYMBOL_DEADLINE_1M:${sym}`
                     )
@@ -386,6 +402,29 @@ async function derinGecmisiInsaEt(options = {}) {
             }
         }, { concurrency: startupConcurrency, workers: startupWorkers, symbols: tumSemboller });
 
+        let pusuOnarimToplam = 0;
+        const pusuEksikler = tumSemboller.filter(sym => !h.state.yerelPusuHafizasi?.[sym]);
+        if (pusuEksikler.length) {
+            pusuOnarimToplam = pusuEksikler.length;
+            h.state.startupMarketWarmup = { ...(h.state.startupMarketWarmup || {}), asama: 'START_15M_REPAIR', pusuOnarimToplam, sonIlerleme: new Date().toISOString() };
+            console.log(`🔧 [15m STARTUP ONARIM] ${pusuEksikler.length} sembol | hızlı ilk turda alınamayan ${pusuTf} mumları yeniden deneniyor.`);
+            await sembolHavuzu(async sym => {
+                try {
+                    const ham = await startupDeadlineIle(
+                        mumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, 'HIGH', repairRequestOptions),
+                        repairSymbolDeadlineMs,
+                        `START_15M_REPAIR_DEADLINE:${sym}`
+                    );
+                    const kapanmis = sadeceKapanmisMumlar(ham);
+                    if (kapanmis.length >= (ayarlar.bollingerperiod || 20)) {
+                        h.state.yerelPusuHafizasi[sym] = kapanmis;
+                        h.state.sonPusuMumZamani[sym] = kapanmis.at(-1).closeTime;
+                    }
+                } catch (_) {}
+            }, { concurrency: Math.min(4, startupConcurrency), workers: Math.min(8, startupWorkers), symbols: pusuEksikler });
+            console.log(`📊 [15m STARTUP ONARIM SONUÇ] ${pusuTf} Mum ${cacheHazirSayisiSemboller(h.state.yerelPusuHafizasi, tumSemboller)}/${toplam}`);
+        }
+
         let derinOnarimToplam = 0;
         const derinOnar = async (limit, etiket) => {
             const eksikler = renko1mYetersizSemboller(tumSemboller);
@@ -397,7 +436,7 @@ async function derinGecmisiInsaEt(options = {}) {
             await sembolHavuzu(async sym => {
                 try {
                     const ham = await startupDeadlineIle(
-                        mumCek(sym, sniperTf, limit, `${etiket}:${sym}`, 'HIGH'),
+                        mumCek(sym, sniperTf, limit, `${etiket}:${sym}`, 'HIGH', repairRequestOptions),
                         repairSymbolDeadlineMs,
                         `${etiket}_DEADLINE:${sym}`
                     );
@@ -476,7 +515,7 @@ async function derinGecmisiInsaEt(options = {}) {
         return {
             ready: gate.currentReady, pusuHazir, trendHazir: renkoStHazir, sniperHazir, total: toplam,
             ratio: gate.ratio, hata: finalEksik, attemptHata: pusuHata + sniperHata, durationMs: now - baslangic,
-            coreRequests: toplam * 2, deferredTrendRequests: toplam, derinOnarimToplam, protectionExtra: korumaEkstra.length
+            coreRequests: toplam * 2, deferredTrendRequests: toplam, pusuOnarimToplam, derinOnarimToplam, protectionExtra: korumaEkstra.length
         };
     } finally {
         ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });

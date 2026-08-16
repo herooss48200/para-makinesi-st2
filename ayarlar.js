@@ -778,11 +778,17 @@ const ayarlar = {
     binanceStartupAgEszamanlilik: 8,
     // Worker havuzu 8 kalabilir; gerçek shared Binance socket concurrency startup'ta 4 ile sınırlıdır.
     binanceStartupNetworkConcurrency: 4,
-    binanceStartupAgIsciSayisi: 16,
+    binanceStartupAgIsciSayisi: 8,
     // R25.4: Tek sembolün beklenmeyen/asılı startup işi tüm çekirdek warmup + derin onarımı bloke edemez.
     // Normal Binance request retry bütçesinden geniş tutulur; yalnız gerçek straggler için fail-forward çalışır.
-    binanceStartupSymbolDeadlineMs: 180000,
-    binanceStartupRepairSymbolDeadlineMs: 180000,
+    binanceStartupSymbolDeadlineMs: 35000,
+    binanceStartupRepairSymbolDeadlineMs: 45000,
+    binanceStartupRequestTimeoutMs: 7000,
+    binanceStartupRequestRetry: 0,
+    binanceStartupRequestRetryTabanMs: 500,
+    binanceStartupRepairRequestTimeoutMs: 8000,
+    binanceStartupRepairRequestRetry: 1,
+    binanceStartupRepairRequestRetryTabanMs: 700,
     startupMarketReadyOrani: 0.95,
     startupMarketGuardLogAralikMs: 60000,
     // İmzalı Futures çağrıları Binance sunucu saatine bağlanır; -1021'de bir kez zorunlu senkron + tek retry.

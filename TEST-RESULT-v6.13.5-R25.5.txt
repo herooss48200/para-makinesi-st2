@@ -1,0 +1,13 @@
+AGROS ST2 v6.13.5-R25.5 — STARTUP FAST-FAIL REPAIR
+
+VALIDATION
+- npm run check: PASS (EXIT 0)
+- all test_*.js: 79/79 PASS
+- R25.5 startup fast-fail repair: PASS
+- R25.4 startup core liveness: PASS
+- R25.3 Premier recovery: PASS
+- R24.2 unified execution stop authority: PASS
+- R25.1 MACD replay shadow: PASS / SHADOW-ONLY, no entry/stop authority
+
+SCOPE
+- Startup/liveness only. No new MACD authority. No change to N5 Premier selection, 20 x 20USDT, or percent-economy stop.

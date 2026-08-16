@@ -6,15 +6,16 @@ const version=require('./versiyon.js');
 const ag=require('./64_binance_network_resilience.js');
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R25.4-STARTUP-CORE-LIVENESS-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu,'6.13.5-R25.5-STARTUP-FAST-FAIL-REPAIR-N5-20SLOT-20USDT');
   assert.strictEqual(Number(ayarlar.binanceStartupAgEszamanlilik),8);
-  assert.strictEqual(Number(ayarlar.binanceStartupAgIsciSayisi),16);
+  assert.strictEqual(Number(ayarlar.binanceStartupAgIsciSayisi),8);
   assert.strictEqual(Number(ayarlar.binanceAgTimeoutMs),15000);
   assert.strictEqual(Number(ayarlar.binanceAgRetry),2);
   assert.strictEqual(Number(ayarlar.binanceTopluVeriRetryMs),90000);
   for(const k of ['binanceStartupTimeoutMs','binanceStartupRetry','binanceStartupQueueTimeoutMs','binanceBulkRefreshTimeoutMs','binanceBulkRefreshRetry']) assert.strictEqual(ayarlar[k],undefined,`${k} must be retired`);
   const rev=fs.readFileSync('./revizyon.js','utf8');
-  assert(rev.includes("mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH')"),'startup must use shared proven network policy');
+  assert(rev.includes("mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH', initialRequestOptions)"),'startup initial pass must use bounded fast-fail request policy');
+  assert(rev.includes("mumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, 'HIGH', repairRequestOptions)"),'startup repair must use bounded repair request policy');
   assert(!rev.includes('startupAgOverrides'),'startup-specific aggressive transport must be gone');
   assert(!rev.includes('bulkAgOverrides'),'bulk-specific aggressive transport must be gone');
   const net=fs.readFileSync('./64_binance_network_resilience.js','utf8');
