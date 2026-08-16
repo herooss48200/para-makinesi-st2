@@ -1,0 +1,7 @@
+AGROS ST2 v6.14.1-R26 CORE PHASED STARTUP
+
+PASS: all root JS syntax
+PASS: R26 CORE-ONLY
+PASS: R26 percent stop core
+PASS: R26 startup isolation
+PASS: R26 phased startup — one bounded positionRisk snapshot, full reconciliation deferred until market READY, panel deferred, real entry market-gated

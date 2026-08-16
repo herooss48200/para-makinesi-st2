@@ -44,13 +44,17 @@ function st2RealEntrySafetyUpdate(priceNetworkOk = null) {
     const reconciliationFresh = ayarlar.sanalEmirModu === true || (rec.ok === true && Number(rec.lastOkAt || 0) > 0 && now - Number(rec.lastOkAt || 0) <= freshMs);
     const previous = h.state.st2RealEntrySafety || {};
     const networkOk = priceNetworkOk == null ? previous.priceNetworkOk === true : priceNetworkOk === true;
-    const realEntrySafe = ayarlar.sanalEmirModu === true || (reconciliationFresh && networkOk);
+    const marketReady = h.state.startupMarketReady === true;
+    const startupUnblocked = h.state.realOrderStartupBlocked !== true;
+    const realEntrySafe = ayarlar.sanalEmirModu === true || (marketReady && startupUnblocked && reconciliationFresh && networkOk);
     h.state.st2RealEntrySafety = {
         ready: realEntrySafe,
         reconciliationFresh,
         priceNetworkOk: networkOk,
+        marketReady,
+        startupUnblocked,
         updatedAt: now,
-        reason: realEntrySafe ? 'READY' : (!reconciliationFresh ? 'EXCHANGE_RECONCILIATION_STALE' : 'NETWORK_PRICE_NOT_VERIFIED')
+        reason: realEntrySafe ? 'READY' : (!marketReady ? 'MARKET_WARMUP_NOT_READY' : (!startupUnblocked ? 'STARTUP_RECONCILIATION_PENDING' : (!reconciliationFresh ? 'EXCHANGE_RECONCILIATION_STALE' : 'NETWORK_PRICE_NOT_VERIFIED')))
     };
     return h.state.st2RealEntrySafety;
 }
@@ -124,55 +128,20 @@ async function baslat() {
         if (ayarlar.sanalEmirModu) {
             await piyasa.acikPozisyonlariBorsadanDevral();
             const rec = st2ExchangeReconcileState();
-            rec.status = 'VIRTUAL';
-            rec.ok = true;
-            rec.lastOkAt = Date.now();
-            rec.lastAttemptAt = rec.lastOkAt;
-            rec.lastFinishAt = rec.lastOkAt;
-            rec.lastDurationMs = 0;
-            rec.error = null;
+            rec.status = 'VIRTUAL'; rec.ok = true; rec.lastOkAt = Date.now();
+            rec.lastAttemptAt = rec.lastOkAt; rec.lastFinishAt = rec.lastOkAt; rec.lastDurationMs = 0; rec.error = null;
+            h.state.realOrderStartupBlocked = false;
             st2RealEntrySafetyUpdate(false);
         } else {
-            // R25.9: gerçek restart reconciliation startup yaşam döngüsünü bloke edemez.
-            // Kalıcı state'teki gerçek pozisyonlar korunur; exchange doğrulanana kadar yeni gerçek entry fail-closed kalır.
-            const persistedReal = (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false);
-            h.state.semboller = [...new Set([...(h.state.semboller || []), ...persistedReal.map(pos => pos?.sym).filter(Boolean)])];
-            const coreSet = new Set((h.state.st2CoreUniverseSymbols || []).map(String));
-            h.state.st2ProtectionExtraSymbols = h.state.semboller.filter(sym => !coreSet.has(String(sym)));
-            h.state.realOrderStartupBlocked = true;
+            // R26 CORE PHASED STARTUP: warmup öncesi yalnız tek bounded positionRisk snapshot.
+            // Ağır open-order/history/accounting reconciliation warmup ile ASLA yarışmaz.
+            const snapshot = await piyasa.acikPozisyonlariHizliDevral();
             const rec = st2ExchangeReconcileState();
-            rec.status = 'STARTUP_BACKGROUND';
-            rec.ok = false;
-            rec.lastAttemptAt = Date.now();
-            rec.error = 'STARTUP_RECONCILIATION_PENDING';
+            rec.status = 'WARMUP_DEFERRED'; rec.ok = false; rec.lastAttemptAt = Date.now();
+            rec.error = 'FULL_RECONCILIATION_DEFERRED_UNTIL_MARKET_READY';
+            h.state.realOrderStartupBlocked = true;
             st2RealEntrySafetyUpdate(false);
-            console.log(`🔐 [GERÇEK RESTART MUTABAKATI] ARKA PLANDA | Kalıcı gerçek ${persistedReal.length} | Yeni gerçek entry FAIL-CLOSED | Startup devam ediyor`);
-            startupExchangeReconcileTask = Promise.resolve()
-                .then(() => piyasa.acikPozisyonlariBorsadanDevral())
-                .then(result => {
-                    rec.status = 'READY';
-                    rec.ok = true;
-                    rec.lastFinishAt = Date.now();
-                    rec.lastDurationMs = rec.lastFinishAt - Number(rec.lastAttemptAt || rec.lastFinishAt);
-                    rec.lastOkAt = rec.lastFinishAt;
-                    rec.error = null;
-                    h.state.realOrderStartupBlocked = Boolean(result?.blocked);
-                    st2RealEntrySafetyUpdate();
-                    console.log(`✅ [GERÇEK RESTART MUTABAKATI BG] Tamamlandı | Gerçek ${Array.isArray(result?.positions) ? result.positions.filter(p => p?.sanal === false).length : 0} | Blok ${result?.blocked ? 'EVET' : 'HAYIR'}`);
-                    return result;
-                })
-                .catch(err => {
-                    rec.status = 'DEGRADED';
-                    rec.ok = false;
-                    rec.lastFinishAt = Date.now();
-                    rec.lastDurationMs = rec.lastFinishAt - Number(rec.lastAttemptAt || rec.lastFinishAt);
-                    rec.error = String(err?.message || err);
-                    h.state.realOrderStartupBlocked = true;
-                    st2RealEntrySafetyUpdate();
-                    console.error(`⚠️ [GERÇEK RESTART MUTABAKATI BG] ${rec.error} | Startup devam ediyor, yeni gerçek entry kapalı`);
-                    return { blocked: true, error: rec.error };
-                })
-                .finally(() => { startupExchangeReconcileTask = null; });
+            console.log(`🔐 [GERÇEK RESTART MUTABAKATI] SAFETY SNAPSHOT ${Array.isArray(snapshot?.positions) ? snapshot.positions.length : 0} | Full mutabakat warmup READY sonrası | Yeni gerçek entry FAIL-CLOSED`);
         }
         // v6.8.3-HOTFIX1: Kritik başlangıç görünürlüğü ağır tarihsel hazırlığın arkasında beklemez.
         // Mesaj başarılı/belirsiz teslimde aynı startup damgasını yazar; normal startup görevi
@@ -231,7 +200,33 @@ async function baslat() {
         setImmediate(() => {
             Promise.resolve(revizyon.derinGecmisiInsaEt())
                 .then(summary => {
-                    console.log(`${summary?.ready ? '✅' : '⚠️'} [STARTUP MARKET WARMUP] ${summary?.ready ? 'ENTRY GATE AÇILDI' : 'ENTRY GATE KAPALI'} | ${Number(summary?.pusuHazir || 0)}/${Number(summary?.total || 0)} mum | ${Number(summary?.trendHazir || 0)}/${Number(summary?.total || 0)} ST`);
+                    console.log(`${summary?.ready ? '✅' : '⚠️'} [STARTUP MARKET WARMUP] ${summary?.ready ? 'MARKET READY' : 'ENTRY GATE KAPALI'} | ${Number(summary?.pusuHazir || 0)}/${Number(summary?.total || 0)} mum | ${Number(summary?.trendHazir || 0)}/${Number(summary?.total || 0)} ST`);
+                    if (!ayarlar.sanalEmirModu && summary?.ready === true && !startupExchangeReconcileTask) {
+                        const rec = st2ExchangeReconcileState();
+                        rec.status = 'POST_WARMUP_RUNNING'; rec.ok = false; rec.lastAttemptAt = Date.now(); rec.error = null;
+                        h.state.realOrderStartupBlocked = true;
+                        st2RealEntrySafetyUpdate();
+                        startupExchangeReconcileTask = Promise.resolve()
+                            .then(() => piyasa.acikPozisyonlariBorsadanDevral())
+                            .then(result => {
+                                rec.status = 'READY'; rec.ok = true; rec.lastFinishAt = Date.now();
+                                rec.lastDurationMs = rec.lastFinishAt - Number(rec.lastAttemptAt || rec.lastFinishAt);
+                                rec.lastOkAt = rec.lastFinishAt; rec.error = null;
+                                h.state.realOrderStartupBlocked = Boolean(result?.blocked);
+                                st2RealEntrySafetyUpdate();
+                                console.log(`✅ [GERÇEK FULL MUTABAKAT POST-WARMUP] Tamamlandı | Gerçek ${Array.isArray(result?.positions) ? result.positions.length : 0} | ${rec.lastDurationMs}ms`);
+                                return result;
+                            })
+                            .catch(err => {
+                                rec.status = 'DEGRADED'; rec.ok = false; rec.lastFinishAt = Date.now();
+                                rec.lastDurationMs = rec.lastFinishAt - Number(rec.lastAttemptAt || rec.lastFinishAt);
+                                rec.error = String(err?.message || err); h.state.realOrderStartupBlocked = true;
+                                st2RealEntrySafetyUpdate();
+                                console.error(`⚠️ [GERÇEK FULL MUTABAKAT POST-WARMUP] ${rec.error} | Yeni gerçek entry kapalı`);
+                                return { blocked: true, error: rec.error };
+                            })
+                            .finally(() => { startupExchangeReconcileTask = null; });
+                    }
                 })
                 .catch(err => {
                     h.state.startupMarketReady = false;
@@ -291,7 +286,7 @@ async function baslat() {
         if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
             const st2LivePanelScheduler = createSt2LivePanelScheduler({
                 enabled: () => ayarlar.canliRaporAktif === true,
-                ready: () => true, // R25.2: startup/degraded panel de görünür; trade gate bağımsızdır.
+                ready: () => h.state.startupMarketReady === true, // R26: warmup CPU tek başına; operasyon paneli READY sonrası.
                 intervalMs: () => Number(ayarlar.canliRaporGuncellemeMs || 30000),
                 request: () => rapor.raporTalepEt(false),
                 onError: err => console.error(`⚠️ [ST2 LIVE PANEL SCHEDULER] ${err?.message || err}`)
@@ -304,12 +299,11 @@ async function baslat() {
             if (!ayarlar.sanalEmirModu) {
                 const reconcileIntervalMs = Math.max(2000, Number(ayarlar.st2ExchangeReconcileIntervalMs || 5000));
                 setInterval(() => {
+                    if (h.state.startupMarketReady !== true || h.state.realOrderStartupBlocked === true || startupExchangeReconcileTask) return;
                     st2ExchangeReconcileBackground('INTERVAL').catch(err =>
                         console.error(`⚠️ [ST2 EXCHANGE RECONCILE SCHEDULER] ${err?.message || err}`));
                 }, reconcileIntervalMs).unref?.();
-                setImmediate(() => st2ExchangeReconcileBackground('STARTUP').catch(err =>
-                    console.error(`⚠️ [ST2 EXCHANGE RECONCILE STARTUP] ${err?.message || err}`)));
-                console.log(`🔁 [ST2 EXCHANGE RECONCILE BG] Ana döngüden ayrıldı | Periyot ${reconcileIntervalMs} ms | Gerçek emir fail-closed tazelik ${Math.max(5000, Number(ayarlar.st2ExchangeReconcileFreshMs || 15000))} ms`);
+                console.log(`🔁 [ST2 EXCHANGE RECONCILE BG] Warmup sonrası aktif | Periyot ${reconcileIntervalMs} ms | Gerçek emir fail-closed tazelik ${Math.max(5000, Number(ayarlar.st2ExchangeReconcileFreshMs || 15000))} ms`);
             }
         }
 

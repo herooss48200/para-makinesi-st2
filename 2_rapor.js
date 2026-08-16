@@ -73,7 +73,7 @@ function canliRaporMetniOlustur() {
     `🌐 Evren ${data.selected}/${data.requested} | Gate ${gate}`,
     `📡 15m ${data.candles}/${data.selected} | 1m ${data.oneMin}/${data.selected} | 1m Renko ST ${data.renkoSt}/${data.selected} | Hata ${data.errors} | Son tarama ${data.scanned}/${data.selected} ${(data.scanMs/1000).toFixed(1)}sn`,
     `⚙️ Saat ${time.healthy ? 'HEALTHY' : 'DEGRADED'} ${n(time.offsetMs)>=0?'+':''}${n(time.offsetMs)}ms | Fiyat ${String(price.source || 'BEKLIYOR')} ${n(pc.fresh)}/${n(pc.total)} | TG ${tg.transport?.nativeCircuitOpen ? 'NATIVE-CIRCUIT' : 'OK'} | Kuyruk ${n(tg.critical)}/${n(tg.panel)}/${n(tg.detail)}`,
-    `🔁 Mutabakat ${String(rec.status || 'BEKLIYOR')} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (safety.ready === true ? 'READY' : `FAIL-CLOSED/${String(safety.reason || 'NOT_READY')}`)}`,
+    `🔁 Mutabakat ${String(rec.status || 'BEKLIYOR')} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (safety.ready === true && data.ready ? 'READY' : `FAIL-CLOSED/${String(!data.ready ? 'MARKET_WARMUP_NOT_READY' : (safety.reason || 'NOT_READY'))}`)}`,
     `🎯 Pusu ${pusular.length} | LONG ${pusular.filter(x=>yon(x)==='LONG').length} | SHORT ${pusular.filter(x=>yon(x)==='SHORT').length}`,
     `🧠 Yetki zinciri: 15m ATR-Renko/BB → Entry Evolution → DIRECT/CONFIRMED → 1m Renko ST → Premier/N5 → Gerçek Execution`,
     `🛡️ Ekonomi: SL -%${n(ayarlar.sabitStopYuzdesi).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra %${n(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde).toFixed(2)} geriden / ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`,

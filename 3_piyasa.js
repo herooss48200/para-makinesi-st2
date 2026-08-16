@@ -108,6 +108,26 @@ async function sembolleriYukle() {
     h.state.st2CoreUniverseSelectedAt = new Date().toISOString();
 }
 
+
+async function acikPozisyonlariHizliDevral() {
+    if (ayarlar.sanalEmirModu) return acikPozisyonlariBorsadanDevral();
+    const snapshot = await realExecution.startupSafetySnapshot(h.client);
+    const aktifler = Array.isArray(snapshot.positions) ? snapshot.positions.filter(pos => pos?.sanal === false) : [];
+    h.state.aktifPozisyonlar = aktifler;
+    h.state.alinanlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'LONG').map(p => p.sym).filter(Boolean))];
+    h.state.aktifShortlar = [...new Set(aktifler.filter(p => String(p?.yon || '').toUpperCase() === 'SHORT').map(p => p.sym).filter(Boolean))];
+    h.state.semboller = [...new Set([...(h.state.semboller || []), ...aktifler.map(p => p.sym).filter(Boolean)])];
+    const coreSet = new Set((h.state.st2CoreUniverseSymbols || []).map(String));
+    h.state.st2ProtectionExtraSymbols = h.state.semboller.filter(sym => !coreSet.has(String(sym)));
+    h.state.realOrderStartupBlocked = true;
+    h.state.realOrderStartupSafetySnapshot = {
+        at: new Date().toISOString(), restored: snapshot.restored || 0, adopted: snapshot.adopted || 0,
+        open: aktifler.length, blocked: true
+    };
+    console.log(`🛡️ [GERÇEK STARTUP SAFETY SNAPSHOT] Açık gerçek ${aktifler.length} | Warmup öncelikli | Full mutabakat READY sonrası`);
+    return snapshot;
+}
+
 async function acikPozisyonlariBorsadanDevral() {
     if (ayarlar.sanalEmirModu) {
         const aktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
@@ -176,4 +196,4 @@ async function acikPozisyonlariBorsadanDevral() {
     }
 }
 
-module.exports = { sembolleriYukle, acikPozisyonlariBorsadanDevral, tickerListesi, hacimSiralamasiCek };
+module.exports = { sembolleriYukle, acikPozisyonlariHizliDevral, acikPozisyonlariBorsadanDevral, tickerListesi, hacimSiralamasiCek };

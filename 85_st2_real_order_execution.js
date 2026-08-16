@@ -1464,6 +1464,41 @@ function emergencySnapshot(row, saved = null) {
   };
 }
 
+
+async function startupSafetySnapshot(client = h.client) {
+  if (ayarlar.sanalEmirModu) return { positions: h.state.aktifPozisyonlar || [], restored: 0, adopted: 0, blocked: false, safetyOnly: true };
+  const processLock = acquireProcessLock();
+  if (!processLock.ok) throw new Error(processLock.reason);
+  const state = readState();
+  if (upper(state?.globalBlock?.reason) === 'STATE_CORRUPTION_NO_RECOVERY') throw new Error('STATE_CORRUPTION_NO_RECOVERY');
+  const positions = await allPositions(client);
+  if (positions.some(row => !positionSideSupported(row))) {
+    setGlobalBlock('HEDGE_MODE_DESTEKLENMIYOR_ONE_WAY_ZORUNLU');
+    throw new Error('HEDGE_MODE_DESTEKLENMIYOR_ONE_WAY_ZORUNLU');
+  }
+  const openPositions = positions.filter(row => positionAmount(row) > 0);
+  const restored = [];
+  let adopted = 0;
+  for (const row of openPositions) {
+    const record = Object.values(state.records || {}).find(r => upper(r?.symbol) === upper(row.symbol) && activeRecord(r));
+    const saved = record?.positionSnapshot || record?.preparedSnapshot || null;
+    const pos = emergencySnapshot(row, saved);
+    const fingerprint = record?.fingerprint || contextFingerprint(pos.sym, pos.yon, pos);
+    pos.realExecutionFingerprint = fingerprint;
+    pos.gercekEmirYurutme = {
+      ...(pos.gercekEmirYurutme || {}), version: VERSION, fingerprint,
+      ids: record?.ids || clientIds(pos.sym, pos.yon, fingerprint),
+      entryOrder: record?.entryOrder || pos?.gercekEmirYurutme?.entryOrder || null,
+      protections: record?.protections || pos?.gercekEmirYurutme?.protections || null,
+      startupSafetySnapshotAt: nowIso()
+    };
+    if (!record) adopted++;
+    restored.push(pos);
+  }
+  audit('STARTUP_SAFETY_SNAPSHOT', { exchangeOpen: openPositions.length, restored: restored.length - adopted, adopted });
+  return { positions: restored, restored: restored.length - adopted, adopted, blocked: true, safetyOnly: true };
+}
+
 async function startupReconcile(client = h.client) {
   if (ayarlar.sanalEmirModu) return { positions: h.state.aktifPozisyonlar || [], restored: 0, adopted: 0, blocked: false };
   const processLock = acquireProcessLock();
@@ -1651,7 +1686,7 @@ function statusSummary() {
 module.exports = {
   VERSION, STATE_FILE, AUDIT_FILE, PROCESS_LOCK_FILE, OWNED_PREFIX,
   readState, writeState, audit, acquireProcessLock, cleanupProcessLock, contextFingerprint, clientIds, ownedId,
-  reserveEntry, releaseReservation, executeEntry, installProtections, rollbackEntry,
+  reserveEntry, releaseReservation, executeEntry, installProtections, rollbackEntry, startupSafetySnapshot,
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
   ensureProtectionForPosition, startupReconcile, statusSummary,

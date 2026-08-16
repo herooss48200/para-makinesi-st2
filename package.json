@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.14.0-r26-core-only-n5-20slot",
+  "version": "6.14.1-r26-core-phased-startup-n5-20slot",
   "description": "AGROS ST2 v6.14.0-R26 CORE ONLY: physical runtime prune, startup CPU isolation, N5 Premier authority, Direct/Confirmed Renko, 20 real slots x 20USDT.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js",
+    "check": "node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js",
     "test": "npm run check",
     "test:core": "node test_v6180_r26_core_only.js",
     "test:stop": "node test_v6181_r26_percent_stop_core.js",
