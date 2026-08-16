@@ -29,7 +29,7 @@ function candles(tf, count) {
 }
 
 (async () => {
-    const originalFetch = ag.binanceMumlariCek;
+    const originalFetch = ag.binanceStartupMumlariCek;
     const originalThreshold = ayarlar.startupMarketReadyOrani;
     const originalStartupConcurrency = ayarlar.binanceStartupAgEszamanlilik;
     const originalStartupWorkers = ayarlar.binanceStartupAgIsciSayisi;
@@ -48,7 +48,7 @@ function candles(tf, count) {
         h.state.startupMarketReady = false;
         h.state.startupMarketWarmup = {};
 
-        ag.binanceMumlariCek = async (_sym, tf, limit) => {
+        ag.binanceStartupMumlariCek = async (_sym, tf, limit) => {
             calls[tf] = Number(calls[tf] || 0) + 1;
             await new Promise(resolve => setTimeout(resolve, 1));
             return candles(tf, Math.max(Number(limit) || 80, tf === '15m' ? 30 : 20));
@@ -85,7 +85,7 @@ function candles(tf, count) {
 
         originalLog('✅ current core-first 15m+1m Renko-ST startup gate + progressive health + deferred 3m ST1 shadow passed');
     } finally {
-        ag.binanceMumlariCek = originalFetch;
+        ag.binanceStartupMumlariCek = originalFetch;
         ayarlar.startupMarketReadyOrani = originalThreshold;
         ayarlar.binanceStartupAgEszamanlilik = originalStartupConcurrency;
         ayarlar.binanceStartupAgIsciSayisi = originalStartupWorkers;

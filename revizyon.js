@@ -51,6 +51,10 @@ function startupRepairRequestOptions(options = {}) {
         baseDelayMs: Math.max(100, Number(options.repairRequestRetryBaseMs ?? ayarlar.binanceStartupRepairRequestRetryTabanMs ?? 700))
     };
 }
+function startupMumCek(sym, interval, limit, label, overrides = {}) {
+    // R25.7: startup market-data kendi dedicated agent hattında akar; shared runtime queue'ya girmez.
+    return ag.binanceStartupMumlariCek(sym, interval, limit, { ...(overrides || {}), label });
+}
 
 function renko1mBaseLimit() { return Math.max(80, Number(ayarlar.renkoOnayKaynakMumLimiti || 80)); }
 function renko1mRepairLimit() { return Math.max(renko1mBaseLimit(), Number(ayarlar.renkoOnayDerinOnarimMumLimiti || 240)); }
@@ -273,7 +277,7 @@ async function derinGecmisiInsaEt(options = {}) {
         startupConcurrency,
         Number(ayarlar.binanceStartupNetworkConcurrency || 4)
     ));
-    ag.configure({ concurrency: startupNetworkConcurrency });
+    ag.configureStartup({ concurrency: startupNetworkConcurrency });
     const threshold = readyRatioThreshold();
     const tumSemboller = startupCoreSymbols();
     const toplam = Math.max(1, tumSemboller.length);
@@ -303,8 +307,8 @@ async function derinGecmisiInsaEt(options = {}) {
         await sembolHavuzu(async sym => {
             try {
                 const [pusuSonuc, sniperSonuc] = await Promise.allSettled([
-                    mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, 'HIGH', initialRequestOptions),
-                    mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, 'HIGH', initialRequestOptions)
+                    startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`, initialRequestOptions),
+                    startupMumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`, initialRequestOptions)
                 ]);
 
                 if (pusuSonuc.status === 'fulfilled') {
@@ -338,7 +342,7 @@ async function derinGecmisiInsaEt(options = {}) {
                     console.warn(`⚠️ [STARTUP INITIAL REQUEST FAIL] ${sym} 1m | ${String(sniperSonuc.reason?.message || sniperSonuc.reason)} | Aktif istek timeout/retry sonrası derin onarıma bırakıldı`);
                 }
             } catch (err) {
-                // R25.6: Queue bekleme süresine dış deadline uygulanmaz. Timeout yalnız ağ isteği aktifken
+                // R25.7: Startup KLINE dedicated agent kullanır; queue bekleme dış deadline yok, timeout socket atandıktan sonra
                 // network katmanında işler; böylece timeout olmuş görünürken alttaki queued request yaşamaya devam edip
                 // kuyruğu zehirleyemez. Gerçek aktif istek hatası olursa sembol repair aşamasına bırakılır.
                 pusuHata++; sniperHata++;
@@ -380,7 +384,7 @@ async function derinGecmisiInsaEt(options = {}) {
             console.log(`🔧 [15m STARTUP ONARIM] ${pusuEksikler.length} sembol | hızlı ilk turda alınamayan ${pusuTf} mumları yeniden deneniyor.`);
             await sembolHavuzu(async sym => {
                 try {
-                    const ham = await mumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, 'HIGH', repairRequestOptions);
+                    const ham = await startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_15M_REPAIR:${sym}`, repairRequestOptions);
                     const kapanmis = sadeceKapanmisMumlar(ham);
                     if (kapanmis.length >= (ayarlar.bollingerperiod || 20)) {
                         h.state.yerelPusuHafizasi[sym] = kapanmis;
@@ -401,7 +405,7 @@ async function derinGecmisiInsaEt(options = {}) {
             console.log(`🔧 [1m RENKO ST DERİN ONARIM] ${etiket} | ${eksikler.length} sembol | ${limit} kapanmış 1m mum deneniyor.`);
             await sembolHavuzu(async sym => {
                 try {
-                    const ham = await mumCek(sym, sniperTf, limit, `${etiket}:${sym}`, 'HIGH', repairRequestOptions);
+                    const ham = await startupMumCek(sym, sniperTf, limit, `${etiket}:${sym}`, repairRequestOptions);
                     const sniper = sadeceKapanmisMumlar(ham);
                     if (sniper.length >= Math.max(5, Number(ayarlar.renkoOnayAtrPeriod || 14) + 2)) {
                         h.state.sniperMumlar[sym] = sniper;
@@ -480,7 +484,7 @@ async function derinGecmisiInsaEt(options = {}) {
             coreRequests: toplam * 2, deferredTrendRequests: toplam, pusuOnarimToplam, derinOnarimToplam, protectionExtra: korumaEkstra.length
         };
     } finally {
-        ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 });
+        // R25.7 startup dedicated agent kullandığı için shared runtime concurrency değiştirilmez.
         // R14: periyodikTazelemeyiBaslat() ilk canlı Renko auditinden sonra bot.js tarafından çağrılır.
     }
 }

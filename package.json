@@ -1,11 +1,11 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.13.5-r25.6-startup-queue-bound-repair-n5-20slot",
-  "description": "AGROS ST2 v6.13.5-R25.6: R25.4 core liveness preserved; startup queue wait no longer uses outer deadline, timeout applies only to active HTTP requests; 15m + 1m repair preserved, MACD shadow-only, N5 Premier recovery, 20 real slots x 20USDT.",
+  "version": "6.13.5-r25.7-startup-dedicated-kline-n5-20slot",
+  "description": "AGROS ST2 v6.13.5-R25.7: startup KLINE traffic isolated on a dedicated bounded HTTPS agent; request timeout starts after socket assignment; 15m + 1m repair preserved, MACD shadow-only, N5 Premier recovery, 20 real slots x 20USDT.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112 && npm run test:v6122 && npm run test:v6123 && npm run test:v6130 && npm run test:v6132 && npm run test:v6133 && npm run test:v6134 && npm run test:v6135 && npm run test:v6135r2 && npm run test:v6137 && npm run test:v6138 && npm run test:v6139 && npm run test:v6140 && npm run test:v6141 && npm run test:v6142 && npm run test:v6143 && npm run test:v6144 && npm run test:v6153 && npm run test:v6149 && npm run test:v6150 && npm run test:v6157 && npm run test:v6158 && npm run test:v6159 && npm run test:v6160 && npm run test:v6161 && npm run test:v6162 && npm run test:v6163 && npm run test:v6164 && npm run test:v6165 && npm run test:v6166 && npm run test:v6167 && npm run test:v6168 && npm run test:v6169 && npm run test:v6170 && npm run test:v6171 && npm run test:v6172 && npm run test:v6173 && npm run test:v6174 && npm run test:v6175 && npm run test:v6176",
+    "check": "npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112 && npm run test:v6122 && npm run test:v6123 && npm run test:v6130 && npm run test:v6132 && npm run test:v6133 && npm run test:v6134 && npm run test:v6135 && npm run test:v6135r2 && npm run test:v6137 && npm run test:v6138 && npm run test:v6139 && npm run test:v6140 && npm run test:v6141 && npm run test:v6142 && npm run test:v6143 && npm run test:v6144 && npm run test:v6153 && npm run test:v6149 && npm run test:v6150 && npm run test:v6157 && npm run test:v6158 && npm run test:v6159 && npm run test:v6160 && npm run test:v6161 && npm run test:v6162 && npm run test:v6163 && npm run test:v6164 && npm run test:v6165 && npm run test:v6166 && npm run test:v6167 && npm run test:v6168 && npm run test:v6169 && npm run test:v6170 && npm run test:v6171 && npm run test:v6172 && npm run test:v6173 && npm run test:v6174 && npm run test:v6175 && npm run test:v6176 && npm run test:v6177",
     "test": "npm run test:fast",
     "test:syntax": "node test_v674_full_source_syntax.js",
     "test:v672": "node test_v672_single_delivery_safe_exit.js",
@@ -83,7 +83,8 @@
     "test:v6173": "node test_v6173_r253_premier_selection_recovery.js",
     "test:v6174": "node test_v6174_r254_startup_core_liveness.js",
     "test:v6175": "node test_v6175_r255_startup_fast_fail_repair.js",
-    "test:v6176": "node test_v6176_r256_startup_queue_bound_repair.js"
+    "test:v6176": "node test_v6176_r256_startup_queue_bound_repair.js",
+    "test:v6177": "node test_v6177_r257_startup_dedicated_kline.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

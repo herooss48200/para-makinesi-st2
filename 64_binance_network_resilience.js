@@ -44,6 +44,17 @@ const criticalTickerAgent = new https.Agent({
     keepAliveMsecs: 1000,
     timeout: 10000
 });
+// R25.7: 200-sembol startup KLINE trafiği normal shared kuyruğu kullanmaz.
+// Açık pozisyon kapanış analizi / diğer kritik KLINE işleri startup çekirdeğini boğamasın diye
+// ayrı keep-alive agent üzerinde sınırlı soket havuzu kullanılır.
+const startupKlineAgent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 8,
+    maxFreeSockets: 8,
+    scheduling: 'lifo',
+    keepAliveMsecs: 1000
+});
+const startupStats = { active:0, peakActive:0, succeeded:0, failed:0, timeout:0 };
 let tickerDirectInFlight = null;
 let tickerDirectCache = null;
 
@@ -304,15 +315,19 @@ function httpsJson(urlString, options = {}) {
             if (hardTimer) clearTimeout(hardTimer);
             fn(value);
         };
-        // R14: req.setTimeout() alone does not bound time spent waiting for an Agent socket.
-        // This wall-clock timer starts before a socket is assigned and therefore bounds the
-        // complete lifecycle (Agent queue + connect + response).
-        hardTimer = setTimeout(() => {
-            const err = new Error(`${label}:HARD_TIMEOUT:${timeoutMs}ms`);
-            err.code = 'ETIMEDOUT';
-            if (req) req.destroy(err);
-            finish(reject, err);
-        }, timeoutMs);
+        const startHardTimer = () => {
+            if (hardTimer || settled) return;
+            // R25.7: timeout Agent kuyruğunda beklerken başlamaz. Socket gerçekten atanıp
+            // request ağ yaşamına girdiği anda başlar; aksi halde sağlıklı queued işler
+            // sahte HARD_TIMEOUT ile öldürülüyordu.
+            hardTimer = setTimeout(() => {
+                const err = new Error(`${label}:HARD_TIMEOUT:${timeoutMs}ms`);
+                err.code = 'ETIMEDOUT';
+                if (req) req.destroy(err);
+                finish(reject, err);
+            }, timeoutMs);
+            hardTimer.unref?.();
+        };
         req = https.request(url, {
             method: 'GET',
             family: 4,
@@ -353,6 +368,7 @@ function httpsJson(urlString, options = {}) {
                 }
             });
         });
+        req.once('socket', startHardTimer);
         req.setTimeout(timeoutMs, () => {
             const err = new Error(`${label}:TIMEOUT:${timeoutMs}ms`);
             err.code = 'ETIMEDOUT';
@@ -389,6 +405,38 @@ function binanceMumlariCek(symbol, interval, limit = 80, options = {}) {
         volume: String(row[5]),
         closeTime: Number(row[6])
     }))), cfg);
+}
+
+function configureStartup(options = {}) {
+    const wanted = Math.max(2, Math.min(12, Number(options.concurrency) || startupKlineAgent.maxSockets || 8));
+    startupKlineAgent.maxSockets = wanted;
+    startupKlineAgent.maxFreeSockets = wanted;
+    return { concurrency:wanted, ...startupStats };
+}
+
+function binanceStartupMumlariCek(symbol, interval, limit = 80, options = {}) {
+    const sym = String(symbol || '').toUpperCase();
+    const tf = String(interval || '3m');
+    const lim = Math.max(1, Math.min(1500, Number(limit) || 80));
+    const url = publicUrlOlustur('/fapi/v1/klines', { symbol: sym, interval: tf, limit: lim });
+    const cfg = { ...DEFAULTS, ...options };
+    startupStats.active++;
+    startupStats.peakActive = Math.max(startupStats.peakActive, startupStats.active);
+    return retryIleCalistir(() => httpsJson(url, {
+        timeoutMs: cfg.timeoutMs,
+        label: cfg.label || `STARTUP_KLINES:${sym}:${tf}`,
+        agent: startupKlineAgent
+    }), cfg).then(rows => {
+        startupStats.succeeded++;
+        return (rows || []).map(row => ({
+            openTime: Number(row[0]), open: String(row[1]), high: String(row[2]), low: String(row[3]),
+            close: String(row[4]), volume: String(row[5]), closeTime: Number(row[6])
+        }));
+    }).catch(err => {
+        startupStats.failed++;
+        if (String(err?.code || '').toUpperCase() === 'ETIMEDOUT' || /timeout/i.test(String(err?.message || ''))) startupStats.timeout++;
+        throw err;
+    }).finally(() => { startupStats.active = Math.max(0, startupStats.active - 1); });
 }
 
 function binanceFiyatlariCek(options = {}) {
@@ -459,6 +507,8 @@ function durumOzeti({ reset = false } = {}) {
         concurrency: configuredConcurrency,
         inFlight: inFlightByKey.size,
         cacheSize: cache.size,
+        startupActive: startupStats.active, startupPeakActive: startupStats.peakActive,
+        startupSucceeded: startupStats.succeeded, startupFailed: startupStats.failed, startupTimeout: startupStats.timeout,
         ...stats
     };
     if (reset) {
@@ -484,6 +534,8 @@ function testReset() {
     tickerDirectInFlight = null;
     tickerDirectCache = null;
     criticalTickerAgent.destroy();
+    startupKlineAgent.destroy();
+    for (const key of Object.keys(startupStats)) startupStats[key] = 0;
     for (const key of Object.keys(stats)) stats[key] = typeof stats[key] === 'number' ? 0 : '';
 }
 
@@ -491,16 +543,19 @@ module.exports = {
     DEFAULTS,
     sleep,
     configure,
+    configureStartup,
     timeoutIle,
     geciciAgHatasi,
     istekYap,
     kuyrukluIstek,
     binanceMumlariCek,
+    binanceStartupMumlariCek,
     binanceFiyatlariCek,
     havuzdaCalistir,
     durumOzeti,
     _publicUrlOlustur: publicUrlOlustur,
     _httpsJson: httpsJson,
     _criticalTickerAgent: criticalTickerAgent,
+    _startupKlineAgent: startupKlineAgent,
     _testReset: testReset
 };

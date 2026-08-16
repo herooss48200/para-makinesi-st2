@@ -21,7 +21,7 @@ function candleSeries(tf,count,trendStep=0.4){
 }
 
 (async()=>{
-  const originalFetch=ag.binanceMumlariCek;
+  const originalFetch=ag.binanceStartupMumlariCek;
   const originalThreshold=ayarlar.startupMarketReadyOrani;
   const originalCore=ayarlar.taranacakCoinSayisi;
   const originalConcurrency=ayarlar.binanceStartupAgEszamanlilik;
@@ -53,7 +53,7 @@ function candleSeries(tf,count,trendStep=0.4){
         },70);
       }
     };
-    ag.binanceMumlariCek=(sym,tf,limit,opts={})=>new Promise((resolve,reject)=>{q.push({sym,tf,limit:Number(limit),opts,resolve,reject});maxQueued=Math.max(maxQueued,q.length);pump();});
+    ag.binanceStartupMumlariCek=(sym,tf,limit,opts={})=>new Promise((resolve,reject)=>{q.push({sym,tf,limit:Number(limit),opts,resolve,reject});maxQueued=Math.max(maxQueued,q.length);pump();});
     console.log=()=>{};console.warn=()=>{};
 
     const startedAt=Date.now();
@@ -70,11 +70,11 @@ function candleSeries(tf,count,trendStep=0.4){
     assert(elapsed>=600 && elapsed<1600,`queue-bound akış beklenmeyen süre: ${elapsed}ms`);
     const src=fs.readFileSync('./revizyon.js','utf8');
     assert(!src.includes('startupDeadlineIle('),'R25.6 outer queue-wait deadline kaldırılmadı');
-    assert(src.includes("mumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`"),'15m initial request doğrudan network promiseini beklemiyor');
-    assert(src.includes("mumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`"),'1m initial request doğrudan network promiseini beklemiyor');
-    originalLog(`✅ R25.6 startup queue-bound repair passed | 4 active + max queued ${maxQueued} | 40/40 request complete | no stale deadline duplicates | ${elapsed}ms`);
+    assert(src.includes("startupMumCek(sym, pusuTf, pusuMumLimiti(), `START_CANDLE:${sym}`"),'15m initial request dedicated startup promiseini beklemiyor');
+    assert(src.includes("startupMumCek(sym, sniperTf, renko1mBaseLimit(), `START_SNIPER:${sym}`"),'1m initial request dedicated startup promiseini beklemiyor');
+    originalLog(`✅ R25.6 queue-bound behavior preserved under R25.7 dedicated startup transport | 4 active + max queued ${maxQueued} | 40/40 request complete | no stale deadline duplicates | ${elapsed}ms`);
   } finally {
-    ag.binanceMumlariCek=originalFetch;
+    ag.binanceStartupMumlariCek=originalFetch;
     ayarlar.startupMarketReadyOrani=originalThreshold;ayarlar.taranacakCoinSayisi=originalCore;ayarlar.binanceStartupAgEszamanlilik=originalConcurrency;ayarlar.binanceStartupAgIsciSayisi=originalWorkers;
     console.log=originalLog;console.warn=originalWarn;rev._resetScheduleForTest();
   }

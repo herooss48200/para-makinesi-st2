@@ -472,9 +472,10 @@ async function baslat() {
                     const tg = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical: 0, panel: 0, detail: 0 };
                     const sonStGuncelleme = Number(h.state.sonTrendGuncellemeZamani || h.state.sonSniperGuncellemeZamani || 0);
                 const warm = h.state.startupMarketWarmup || {};
+                const warmHazir = Math.min(Number(warm.pusuHazir || 0), Number(warm.trendHazir || 0));
                 const warmMetni = h.state.startupMarketReady === true
                     ? 'READY'
-                    : `${warm.asama || warm.durum || 'BEKLIYOR'} ${Number(warm.islenen || 0)}/${Number(warm.toplam || h.state.semboller.length || 0)}`;
+                    : `${warm.asama || warm.durum || 'BEKLIYOR'} READY ${warmHazir}/${Number(warm.toplam || h.state.semboller.length || 0)} (işlenen ${Number(warm.islenen || 0)})`;
                 console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu: ${Object.keys(ayarlar.entryStrategyMode === 'ST2_RENKO' ? (h.state.st2Renko?.pusular || {}) : h.state.pusuListesi).length} | Pozisyon: ${h.state.aktifPozisyonlar.length} | Entry Gate: ${warmMetni} | ST Güncelleme: ${sonStGuncelleme ? new Date(sonStGuncelleme).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow} | TG Kritik ${tg.critical} Panel ${tg.panel} Detay ${tg.detail}`);
                 }
             } catch (e) {

@@ -11,7 +11,7 @@ assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde, 1.5);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde, 1.0);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde, 0.5);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAdimYuzde, 0.5);
-assert.ok(version.botSurumu.includes('R25.6-STARTUP-QUEUE-BOUND-REPAIR-N5-20SLOT-20USDT'));
+assert.ok(version.botSurumu.includes('R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT'));
 
 const motor = fs.readFileSync('./motor.js','utf8');
 assert.ok(motor.includes('const etkinStopYuzdesi = Number(ayarlar.sabitStopYuzdesi || 2.5);'), 'motor execution SL global R24.2 riskinden gelmeli');

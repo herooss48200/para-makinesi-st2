@@ -24,7 +24,7 @@ function candleSeries(tf, count, trendStep=0.4){
 }
 
 (async()=>{
-  const originalFetch = ag.binanceMumlariCek;
+  const originalFetch = ag.binanceStartupMumlariCek;
   const originalThreshold = ayarlar.startupMarketReadyOrani;
   const originalCore = ayarlar.taranacakCoinSayisi;
   const originalStartupConcurrency = ayarlar.binanceStartupAgEszamanlilik;
@@ -49,9 +49,9 @@ function candleSeries(tf, count, trendStep=0.4){
     h.state.startupMarketWarmup={};
 
     const calls=[];
-    ag.binanceMumlariCek=async (sym,tf,limit,opts={})=>{
+    ag.binanceStartupMumlariCek=async (sym,tf,limit,opts={})=>{
       calls.push({sym,tf,limit:Number(limit),opts:{...opts}});
-      // R25.6 contract: queue wait is not timed out by revizyon.js. A failure is produced only
+      // R25.7 contract: queue wait is not timed out by revizyon.js. A failure is produced only
       // after the ACTIVE request/network layer rejects it; then 240/480 repair recovers it.
       if(sym===hang && tf==='1m' && Number(limit)<=80) {
         const err=new Error('ACTIVE_HTTP_TIMEOUT'); err.code='ETIMEDOUT';
@@ -91,9 +91,9 @@ function candleSeries(tf, count, trendStep=0.4){
     assert(!revSrc.includes('startupDeadlineIle('),'queue-wait outer deadline hâlâ kaynakta aktif');
     assert(revSrc.includes('startupCoreSymbols()'),'startup core universe authority yok');
 
-    originalLog('✅ R25.4 core liveness preserved under R25.6 | 200-core authority + protection-extra isolation + active-request failure + 240/480 repair + final error truth');
+    originalLog('✅ R25.4 core liveness preserved under R25.7 | 200-core authority + protection-extra isolation + active-request failure + 240/480 repair + final error truth');
   } finally {
-    ag.binanceMumlariCek=originalFetch;
+    ag.binanceStartupMumlariCek=originalFetch;
     ayarlar.startupMarketReadyOrani=originalThreshold;
     ayarlar.taranacakCoinSayisi=originalCore;
     ayarlar.binanceStartupAgEszamanlilik=originalStartupConcurrency;

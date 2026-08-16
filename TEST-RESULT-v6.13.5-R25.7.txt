@@ -1,0 +1,22 @@
+AGROS ST2 v6.13.5-R25.7 TEST RESULT
+
+Version: 6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT
+
+npm run check: PASS / EXIT 0
+All test_*.js: 81/81 PASS
+Full source syntax: 193 JavaScript files PASS
+
+Critical evidence:
+- R25.7 dedicated startup KLINE: PASS
+  shared startup KLINE calls = 0
+  dedicated requests = 40/40 in 20-symbol behavioral test
+  timeout starts on socket assignment
+- R25.6 queue-bound behavior preserved: PASS
+- R25.5 15m + 1m repair behavior preserved: PASS
+- R25.4 200-core liveness preserved: PASS
+- R25.3 Premier selection recovery / N5 / 20 slot x 20USDT: PASS
+- R25 unified stop authority: PASS
+- R25.1 MACD: SHADOW-only PASS, no order/stop authority
+
+No data/ or live ledger files are included in the overlay package.
+Live AWS startup proof is still required before declaring the incident closed.

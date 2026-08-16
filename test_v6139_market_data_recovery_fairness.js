@@ -22,7 +22,7 @@ function candles(tfMs,count,base=100){
   const symbols=['AAAUSDT','BBBUSDT','CCCUSDT','DDDUSDT'];
   const h={state:{semboller:symbols,yerelPusuHafizasi:{},sonPusuMumZamani:{},sniperMumlar:{},sniperCanliMumlar:{},sniperSuperTrend:{},sniperSuperTrendCanli:{},trendMumlar:{},trendCanliMumlar:{},trendSuperTrend:{},trendSuperTrendCanli:{},canliFiyatlar:{},startupMarketReady:false,startupMarketWarmup:{},sembolVeriSagligi:{}}};
   let calls=0;
-  const ag={configure(){},async binanceMumlariCek(sym,tf,limit){calls++; const ms=tf==='15m'?900000:tf==='3m'?180000:60000; return candles(ms,Number(limit),100);},async havuzdaCalistir(items,worker){const out=[];for(const item of items){try{out.push({ok:true,value:await worker(item)});}catch(error){out.push({ok:false,error});}}return out;}};
+  const ag={configure(){},configureStartup(){},async binanceMumlariCek(sym,tf,limit){calls++; const ms=tf==='15m'?900000:tf==='3m'?180000:60000; return candles(ms,Number(limit),100);},async binanceStartupMumlariCek(sym,tf,limit){calls++; const ms=tf==='15m'?900000:tf==='3m'?180000:60000; return candles(ms,Number(limit),100);},async havuzdaCalistir(items,worker){const out=[];for(const item of items){try{out.push({ok:true,value:await worker(item)});}catch(error){out.push({ok:false,error});}}return out;}};
   const motor={hesaplaSuperTrend:()=>({trend:'UP',value:1})};
   const original=Module._load;
   Module._load=function(req,parent,isMain){if(parent?.filename?.endsWith('revizyon.js')){if(req==='./ayarlar.js')return ayarlar;if(req==='./1_hafiza.js')return h;if(req==='./motor.js')return motor;if(req==='./64_binance_network_resilience.js')return ag;}return original.apply(this,arguments);};

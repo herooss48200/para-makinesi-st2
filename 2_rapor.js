@@ -519,9 +519,10 @@ function st2HafifCanliRaporMetniOlustur() {
         && h.state.startupMarketReady === true
         && h.state.st2FirstScanCompleted !== true
         && Number(veriSagligi.taranan || 0) === 0;
+    const startupReadyCount = Math.min(Number(warm.pusuHazir || 0), Number(warm.trendHazir || 0));
     const startupGate = h.state.startupMarketReady === true
         ? (firstScanPending ? 'READY/FIRST_SCAN_PENDING' : 'READY')
-        : `${String(warm.durum || 'BEKLIYOR')}/${String(warm.asama || 'YOK')} ${Number(warm.islenen || 0)}/${Number(warm.toplam || veriSagligi.secilen || 0)}`;
+        : `${String(warm.durum || 'BEKLIYOR')}/${String(warm.asama || 'YOK')} READY ${startupReadyCount}/${Number(warm.toplam || veriSagligi.secilen || 0)} (işlenen ${Number(warm.islenen || 0)})`;
     const offsetMetni = `${Number(binanceSaat.offsetMs || 0) >= 0 ? '+' : ''}${Number(binanceSaat.offsetMs || 0)}ms`;
     const scanInProgress = h.state.st2RenkoScanInProgress === true;
     const scanAgeMs = scanInProgress && Number(h.state.st2RenkoScanStartedAt || 0) > 0

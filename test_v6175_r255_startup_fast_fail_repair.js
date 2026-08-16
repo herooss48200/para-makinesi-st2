@@ -24,7 +24,7 @@ function candleSeries(tf,count,trendStep=0.4){
 }
 
 (async()=>{
-  const originalFetch=ag.binanceMumlariCek;
+  const originalFetch=ag.binanceStartupMumlariCek;
   const originalThreshold=ayarlar.startupMarketReadyOrani;
   const originalCore=ayarlar.taranacakCoinSayisi;
   const originalStartupConcurrency=ayarlar.binanceStartupAgEszamanlilik;
@@ -49,7 +49,7 @@ function candleSeries(tf,count,trendStep=0.4){
     h.state.startupMarketWarmup={};
 
     const calls=[];
-    ag.binanceMumlariCek=async (sym,tf,limit,opts={})=>{
+    ag.binanceStartupMumlariCek=async (sym,tf,limit,opts={})=>{
       calls.push({sym,tf,limit:Number(limit),opts:{...opts}});
       if(sym===hang15 && tf==='15m' && String(opts.label||'').startsWith('START_CANDLE:')) {
         const err=new Error('ACTIVE_15M_TIMEOUT'); err.code='ETIMEDOUT';
@@ -96,14 +96,14 @@ function candleSeries(tf,count,trendStep=0.4){
     assert(src.includes('initialRequestOptions'),'initial fast-fail request policy yok');
     assert(src.includes('repairRequestOptions'),'repair request policy yok');
     assert(cfg.includes('binanceStartupRequestRetry: 0'),'production initial startup retry 0 değil');
-    assert(!src.includes('startupDeadlineIle('),'queue-wait outer deadline R25.6 içinde kalmamalı');
-    assert(cfg.includes('queue bekleme süresine dış deadline YOK'),'R25.6 queue-bound config açıklaması yok');
+    assert(!src.includes('startupDeadlineIle('),'queue-wait outer deadline R25.7 içinde kalmamalı');
+    assert(cfg.includes('startup dedicated agent kullanır'),'R25.7 dedicated startup config açıklaması yok');
     assert(logs.some(x=>x.includes('[15m STARTUP ONARIM]')),'15m repair logu üretilmedi');
     assert(logs.some(x=>x.includes('[1m RENKO ST DERİN ONARIM]')),'1m repair logu üretilmedi');
 
-    originalLog('✅ R25.5 repair behavior preserved under R25.6 | active-request timeout + 15m repair + 1m 240/480 repair + 200-core fail-forward');
+    originalLog('✅ R25.5 repair behavior preserved under R25.7 | active-request timeout + 15m repair + 1m 240/480 repair + 200-core fail-forward');
   } finally {
-    ag.binanceMumlariCek=originalFetch;
+    ag.binanceStartupMumlariCek=originalFetch;
     ayarlar.startupMarketReadyOrani=originalThreshold;
     ayarlar.taranacakCoinSayisi=originalCore;
     ayarlar.binanceStartupAgEszamanlilik=originalStartupConcurrency;

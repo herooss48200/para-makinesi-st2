@@ -131,7 +131,8 @@ Module._load = function patched(request, parent, isMain) {
     assert(revSrc.includes('binanceStartupAgEszamanlilik'));
     assert(revSrc.includes('startupMarketDurumuGuncelle'));
     assert(revSrc.includes('periyodikTazelemeyiBaslat'));
-    assert(revSrc.includes("ag.configure({ concurrency: ayarlar.binanceAgEszamanlilik || 3 })"));
+    assert(revSrc.includes('ag.configureStartup({ concurrency: startupNetworkConcurrency })'));
+    assert(!revSrc.includes("ag.configure({ concurrency: startupNetworkConcurrency })"));
     const rev = require('./revizyon.js');
     h.state.startupMarketReady = false;
     h.state.startupMarketWarmup = { durum: 'DEGRADED' };
@@ -180,7 +181,7 @@ Module._load = function patched(request, parent, isMain) {
     assert.strictEqual(cooldownResult.reason, 'STOP_REPLACE_COOLDOWN');
     assert.strictEqual(cooldownResult.localFastFail, true);
     assert.strictEqual(cooldownNetworkCalls, 0, 'cooldown performed an unnecessary Binance call');
-    assert.strictEqual(version.botSurumu, '6.13.5-R25.6-STARTUP-QUEUE-BOUND-REPAIR-N5-20SLOT-20USDT');
+    assert.strictEqual(version.botSurumu, '6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT');
     assert.strictEqual(op.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
     assert.strictEqual(real.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');

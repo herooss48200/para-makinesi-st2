@@ -776,10 +776,10 @@ const ayarlar = {
     // v6.12.1: yalnız başlangıç çekirdeği (15m Renko + 3m ST1) için kontrollü hız; canlı döngü 3 bağlantıda kalır.
     // v6.13.5-R8: R5/R6/R7 FAST-REFRESH scheduler tamamen emekliye ayrıldı; R4'e kadar sahada çalışan profil geri yüklendi.
     binanceStartupAgEszamanlilik: 8,
-    // Worker havuzu 8 kalabilir; gerçek shared Binance socket concurrency startup'ta 4 ile sınırlıdır.
-    binanceStartupNetworkConcurrency: 4,
+    // R25.7: startup KLINE trafiği shared runtime queue'dan ayrıdır; dedicated agent 8 soketle sınırlıdır.
+    binanceStartupNetworkConcurrency: 8,
     binanceStartupAgIsciSayisi: 8,
-    // R25.6: queue bekleme süresine dış deadline YOK. Timeout yalnız aktif HTTP isteğinde network katmanında işler.
+    // R25.7: startup dedicated agent kullanır; timeout socket atandıktan sonra başlar, Agent kuyruğu timeout bütçesini tüketmez.
     // Eski deadline alanları geriye dönük config uyumluluğu için tutulur; startup request akışında kullanılmaz.
     binanceStartupSymbolDeadlineMs: 35000,
     binanceStartupRepairSymbolDeadlineMs: 45000,

@@ -7,7 +7,7 @@ const ag = require('./64_binance_network_resilience.js');
 const version = require('./versiyon.js');
 
 (async () => {
-  assert.strictEqual(version.botSurumu, '6.13.5-R25.6-STARTUP-QUEUE-BOUND-REPAIR-N5-20SLOT-20USDT');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.7-STARTUP-DEDICATED-KLINE-N5-20SLOT-20USDT');
   const bot = fs.readFileSync('./bot.js', 'utf8');
   const net = fs.readFileSync('./64_binance_network_resilience.js', 'utf8');
   assert(bot.includes("const st2StartupBos = ayarlar.entryStrategyMode === 'ST2_RENKO' && h.state.startupMarketReady !== true && h.state.aktifPozisyonlar.length === 0"), 'startup no-position ticker bypass missing');

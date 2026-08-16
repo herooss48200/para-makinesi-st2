@@ -19,9 +19,9 @@ function candle(closeTime, close=100){
 }
 
 (async()=>{
-  assert(version.botSurumu.includes('R25.6-STARTUP-QUEUE-BOUND-REPAIR'));
+  assert(version.botSurumu.includes('R25.7-STARTUP-DEDICATED-KLINE'));
   assert.strictEqual(Number(ayarlar.binanceAgEszamanlilik),3);
-  assert.strictEqual(Number(ayarlar.binanceStartupNetworkConcurrency),4);
+  assert.strictEqual(Number(ayarlar.binanceStartupNetworkConcurrency),8);
   assert.strictEqual(Number(ayarlar.renkoOnayRefreshRetry),0);
   assert(Number(ayarlar.renkoOnayRefreshTimeoutMs)<=6000);
   const src=fs.readFileSync('./revizyon.js','utf8');
