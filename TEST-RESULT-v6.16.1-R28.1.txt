@@ -1,0 +1,22 @@
+AGROS ST2 v6.16.1-R28.1 OVERLAY VALIDATION
+===========================================
+PASS: node --check 75_st2_heikin_ashi_entry.js
+PASS: node --check 77_st2_ha_formation_intelligence.js
+PASS: node --check 2_rapor.js
+PASS: node --check motor.js
+PASS: test_v6185_r28_ha_formation_intelligence.js
+PASS: test_v6186_r281_ha_strict_3stage.js
+
+Validated:
+- closed HA source candle
+- closed opposite-color confirmation within max 3 candles
+- only immediately NEXT 15m candle is allowed to trigger
+- same confirmation candle cannot be the trigger candle
+- wick ignored; filled HA confirmation body boundary is authoritative
+- next-candle miss expires stale confirmation
+- bullish HH/HL continuation vetoes ordinary SHORT without bearish reversal evidence
+- bearish LL/LH continuation vetoes ordinary LONG without bullish reversal evidence
+- cup/handle + Butterfly context remains active
+- occupied-symbol HA pusu suppression remains active
+
+NOTE: Full repository npm run check must be run in the user's complete ST2 tree before commit/push.

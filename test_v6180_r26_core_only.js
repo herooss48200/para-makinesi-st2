@@ -35,6 +35,9 @@ const a=require('./ayarlar');
 assert.equal(a.entryStrategyMode,'ST2_DUAL_REAL');
 assert.equal(a.renkoGercekMaxAktifPozisyon,10);
 assert.equal(a.heikinAshiGercekMaxAktifPozisyon,10);
+assert.equal(a.heikinAshiFormasyonAktif,true);
+assert.equal(a.heikinAshiFormasyonVetoAktif,true);
+assert.equal(a.heikinAshiTetikPenceresiMum,1);
 assert.equal(a.sanalEmirModu,false);
 assert.equal(a.taranacakCoinSayisi,200);
 assert.equal(a.calisilmakIstenenUsdtMiktar,4);
@@ -77,4 +80,4 @@ assert.ok(!pqSrc.includes('st2-renko-exit-evolution.json'),'Premier score still 
 
 const report=require('./2_rapor');
 for (const oldName of ['exitEvolutionDashboardGonder','analizRaporuGonder','championshipRaporuGonder']) assert.equal(report[oldName],undefined);
-console.log(`✅ R26/R27 CORE passed | runtime closure ${core.length} files | Renko N5 preserved + HA real lane | 10+10 slots x 20USDT | no legacy Shadow/LAB runtime`);
+console.log(`✅ R26/R28.1 CORE passed | runtime closure ${core.length} files | Renko N5 preserved + HA real lane | 10+10 slots x 20USDT | no legacy Shadow/LAB runtime`);

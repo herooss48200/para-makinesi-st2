@@ -1,16 +1,16 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.15.0-r27-dual-real-renko-ha-10x10",
-  "description": "AGROS ST2 v6.15.0-R27 DUAL REAL: independent Renko Confirmed and Heikin Ashi Confirmed real strategies, 10+10 slots, persistent race counters.",
+  "version": "6.16.1-r28.1-ha-strict-3stage-formation-veto",
+  "description": "AGROS ST2 v6.16.1-R28.1: Renko unchanged; HA uses strict closed-pusu -> closed-confirmation -> next-candle body-break plus cup/handle, Butterfly and structure veto.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6184_r27_dual_real_race.js",
+    "check": "node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6184_r27_dual_real_race.js && node test_v6185_r28_ha_formation_intelligence.js && node test_v6186_r281_ha_strict_3stage.js",
     "test": "npm run check",
     "test:core": "node test_v6180_r26_core_only.js",
     "test:stop": "node test_v6181_r26_percent_stop_core.js",
     "test:startup": "node test_v6182_r26_startup_isolation.js",
-    "test:dual": "node test_v6184_r27_dual_real_race.js"
+    "test:dual": "node test_v6184_r27_dual_real_race.js && node test_v6185_r28_ha_formation_intelligence.js && node test_v6186_r281_ha_strict_3stage.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

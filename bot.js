@@ -235,13 +235,13 @@ async function baslat() {
                 });
         });
 
-        console.log('🧹 [CORE RUNTIME] Yalnız ST2 Renko + Premier/N5 + gerçek execution zinciri aktif.');
+        console.log('🧹 [CORE RUNTIME] ST2 Renko + Premier/N5 ve HA Formasyon bağlamlı gerçek execution zinciri aktif.');
 
         const emirModu = ayarlar.sanalEmirModu ? 'SANAL EMİR MODU' : 'BINANCE EMİR MODU';
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
             `🧪 Emir Modu: ${emirModu}\n` +
             `🧩 Versiyon: ${versiyonBilgi.telegramOzet()}\n` +
-            `📊 Strateji: DUAL REAL | Renko Confirmed + Heikin Ashi Confirmed Body Break\n` +
+            `📊 Strateji: DUAL REAL | Renko Confirmed + HA Body Break + Fincan/Kulp + Butterfly Veto\n` +
             `📡 İzlenen Evren: ${h.state.semboller.length}/${Number(ayarlar.taranacakCoinSayisi || 200)} | Veri ${h.state.sembolVeriSagligi?.durum || 'BEKLIYOR'}\n` +
             `🧠 Geri Yüklenen Pozisyon: ${h.state.aktifPozisyonlar.length}\n` +
             `⭐ Premier seçimi: Score + N5 canlı ekonomi + Renko Premier koruması\n` +

@@ -421,9 +421,11 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
         if (ayarlar.telegramIslemAcilisMesaji === true) {
             const score = yeniPozisyon.renkoPremierDecision?.premierScore || {};
             const strategyText = requestedStrategy === 'ST2_RENKO' ? '🧱 RENKO REAL / PREMIER' : '🕯️ HEIKIN ASHI REAL / CONFIRMED';
+            const haForm = etkinGirisAnalizi?.haFormation || {};
+            const haSupport = Array.isArray(haForm.support) && haForm.support.length ? haForm.support.join(',') : 'NEUTRAL';
             const scoreText = requestedStrategy === 'ST2_RENKO'
                 ? `⭐ Score ${Number(score.score || 0).toFixed(1)}/${Number(score.threshold || 0).toFixed(1)} | Sıra #${Number(score.rank || 0)}/${Number(score.cohortSize || 0)}\n`
-                : `✅ HA pusu + kapanmış renk teyidi + gövde kırılımı\n`;
+                : `✅ HA KAPANMIŞ pusu + KAPANMIŞ renk teyidi + yalnız SONRAKİ 15m mumda gövde kırılımı\n🧩 Formasyon ${String(haForm.label || 'FORMATION_NEUTRAL')} | ${haSupport}\n`;
             await h.telegramMesajGonder(
                 `<b>✅ GERÇEK POZİSYON AÇILDI</b>\n\n` +
                 `🔀 ${symbol} ${yon} | ${strategyText}\n` +
@@ -432,7 +434,7 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
                 `Notional ${gerceklesenNotional.toFixed(2)} USDT | ${kaldirac}x\n` +
                 (requestedStrategy === 'ST2_RENKO'
                     ? `Mode ${etkinGirisAnalizi.entryMode || 'YOK'} | ${Number(etkinGirisAnalizi.renkoEntryBrickDistance || 0).toFixed(2)}T`
-                    : `Mode CONFIRMED_BODY_BREAK | Sayaç ${Number(etkinGirisAnalizi.pusuSayaci || 0)}/${Number(etkinGirisAnalizi.maxPusuBeklemeMum || 3)}`)
+                    : `Mode CONFIRMED_NEXT_CANDLE_BODY_BREAK | Sayaç ${Number(etkinGirisAnalizi.pusuSayaci || 0)}/${Number(etkinGirisAnalizi.maxPusuBeklemeMum || 3)}`)
             ).catch(() => {});
         }
         console.log(`✅ [CORE REAL OPEN] ${symbol} ${yon} | ${strategyLane} | ${gerceklesenNotional.toFixed(2)} USDT`);

@@ -1,0 +1,18 @@
+AGROS ST2 v6.16.1-R28.1 CHANGED FILES
+=====================================
+1_hafiza.js
+2_rapor.js
+75_st2_heikin_ashi_entry.js
+77_st2_ha_formation_intelligence.js
+ayarlar.js
+bot.js
+motor.js
+package-lock.json
+package.json
+test_v6180_r26_core_only.js
+test_v6185_r28_ha_formation_intelligence.js
+test_v6186_r281_ha_strict_3stage.js
+versiyon.js
+CHANGELOG-v6.16.1-R28.1.md
+TEST-RESULT-v6.16.1-R28.1.txt
+R28.1-FILES-MANIFEST.txt

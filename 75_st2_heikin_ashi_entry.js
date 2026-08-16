@@ -2,15 +2,17 @@
 
 // AGROS ST2 R27 — bağımsız Heikin Ashi gerçek giriş lane'i.
 // Ağ çağrısı yapmaz; R26/R26.1'in hazır 15m mum cache'i ve canlı fiyat cache'ini kullanır.
-// Kural: HA BB pusu -> en geç 3 kapanmış HA mum içinde karşı renk teyit ->
-// çalışan GERÇEK fiyat teyit mumunun DOLU GÖVDESİNİ kırar -> gerçek emir.
+// Kural: KAPANMIŞ HA BB pusu mumu -> en geç 3 KAPANMIŞ HA mum içinde karşı renk teyit ->
+// teyit mumundan SONRAKİ TEK 15m mumda çalışan GERÇEK fiyat teyit mumunun DOLU GÖVDESİNİ kırar -> gerçek emir.
+// Aynı mum hem teyit hem tetik olamaz; iğne hiçbir zaman tetik seviyesi değildir.
 
 const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const motor = require('./motor.js');
 const realExecution = require('./85_st2_real_order_execution.js');
+const formation = require('./77_st2_ha_formation_intelligence.js');
 
-const VERSION = 'R27-HEIKIN-ASHI-REAL-CONFIRMED-BODY-BREAK';
+const VERSION = 'R28.1-HEIKIN-ASHI-STRICT-3STAGE-FORMATION';
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function upper(v) { return String(v || '').trim().toUpperCase(); }
@@ -90,6 +92,33 @@ function livePriceCrossed(side, price, boundary) {
   return side === 'LONG' ? p > b : p < b;
 }
 
+
+function timeframeMs(tf = '15m') {
+  const m = String(tf || '15m').trim().match(/^(\d+)(m|h)$/i);
+  if (!m) return 15 * 60 * 1000;
+  const qty = Math.max(1, Number(m[1]));
+  return qty * (m[2].toLowerCase() === 'h' ? 60 : 1) * 60 * 1000;
+}
+function triggerWindowForConfirmation(candle) {
+  const periodMs = timeframeMs(ayarlar.heikinAshiPeriyodu || '15m');
+  const triggerWindowCandles = Math.max(1, Math.floor(n(ayarlar.heikinAshiTetikPenceresiMum, 1)));
+  const confirmationOpenTime = n(candle?.openTime);
+  const confirmationCloseTime = n(candle?.closeTime);
+  if (!(confirmationOpenTime > 0 && confirmationCloseTime > confirmationOpenTime)) return null;
+  // Sonraki mumun sınırını openTime'dan türetiyoruz; Binance closeTime'ın boundary-1ms olmasına bağımlı değil.
+  const triggerOpenTime = confirmationOpenTime + periodMs;
+  const triggerCloseTimeExclusive = triggerOpenTime + periodMs * triggerWindowCandles;
+  return { periodMs, triggerWindowCandles, confirmationOpenTime, confirmationCloseTime, triggerOpenTime, triggerCloseTimeExclusive };
+}
+function triggerWindowState(pusu, now = Date.now()) {
+  const open = n(pusu?.triggerOpenTime), end = n(pusu?.triggerCloseTimeExclusive);
+  if (!(open > 0 && end > open)) return { state:'MISSING', active:false, expired:false, waiting:true };
+  const t = n(now, Date.now());
+  if (t < open) return { state:'WAITING_NEXT_CANDLE', active:false, expired:false, waiting:true, triggerOpenTime:open, triggerCloseTimeExclusive:end };
+  if (t >= end) return { state:'NEXT_CANDLE_EXPIRED', active:false, expired:true, waiting:false, triggerOpenTime:open, triggerCloseTimeExclusive:end };
+  return { state:'NEXT_CANDLE_ACTIVE', active:true, expired:false, waiting:false, triggerOpenTime:open, triggerCloseTimeExclusive:end };
+}
+
 function occupiedSymbol(sym) {
   return (h.state.aktifPozisyonlar || []).some(p => p?.sanal === false && upper(p?.sym) === upper(sym));
 }
@@ -98,6 +127,14 @@ async function processExisting(sym, series) {
   const s = store();
   const pusu = s.pusular[sym];
   if (!pusu) return false;
+
+  // R28: gerçek pozisyon bulunan sembolde eski/karşı yön HA pususu yaşamaz.
+  if (occupiedSymbol(sym)) {
+    console.log(`🧹 [HA PUSU TEMİZLENDİ] ${sym} ${pusu.yon} | Sembolde gerçek pozisyon var`);
+    delete s.pusular[sym]; inc('occupiedDrop');
+    return false;
+  }
+
   const conf = confirmationFor(pusu, series);
   pusu.gecenMumSayisi = Math.min(conf.afterCount, conf.max);
 
@@ -110,18 +147,43 @@ async function processExisting(sym, series) {
 
   if (!pusu.confirmation && conf.confirmation) {
     const c = conf.confirmation;
+    const window = triggerWindowForConfirmation(c);
+    if (!window) return false;
     pusu.confirmation = candleCopy(c);
     pusu.confirmationColor = c.color;
+    pusu.confirmationOpenTime = n(c.openTime);
     pusu.confirmationCloseTime = n(c.closeTime);
     pusu.bodyBoundary = confirmationBodyBoundary(c, pusu.yon);
+    pusu.triggerOpenTime = window.triggerOpenTime;
+    pusu.triggerCloseTimeExclusive = window.triggerCloseTimeExclusive;
     pusu.confirmedAt = Date.now();
     inc('teyit');
-    console.log(`✅ [HA TEYİT MUMU] ${sym} ${pusu.yon} | ${c.color} | Gövde tetik ${pusu.bodyBoundary} | Sayaç ${pusu.gecenMumSayisi}/${conf.max} | İğne kullanılmaz`);
+    console.log(`✅ [HA TEYİT MUMU KAPANDI] ${sym} ${pusu.yon} | ${c.color} | Gövde ${pusu.bodyBoundary} | Sayaç ${pusu.gecenMumSayisi}/${conf.max} | Tetik yalnız SONRAKİ 15m mum | İğne kullanılmaz`);
   }
   if (!pusu.confirmation) return false;
 
+  // R28.1 kesin sözleşme: teyit kapanmadan tetik yok; teyidin yalnız hemen sonraki 15m mumu tetik penceresidir.
+  const triggerWindow = triggerWindowState(pusu);
+  if (triggerWindow.expired) {
+    console.log(`⏰ [HA TETİK MUMU EXPIRED] ${sym} ${pusu.yon} | Kapanmış teyitten sonraki tek 15m mum gövdeyi kırmadı; eski teyit kovalanmaz`);
+    delete s.pusular[sym]; inc('triggerExpired');
+    return false;
+  }
+  if (!triggerWindow.active) return false;
+
   const price = n(h.state.canliFiyatlar?.[sym]);
   if (!livePriceCrossed(pusu.yon, price, pusu.bodyBoundary)) return false;
+
+  // R28: teyit + gövde kırılımı tek başına yeterli değildir. Yapının yanlış tarafında
+  // (ör. büyük düşüş sonrası dipte/dar BB içinde SHORT) gerçek emir veto edilir.
+  const formationNow = formation.formationGate(series, pusu.yon, pusu.bb);
+  pusu.formationNow = formationNow;
+  if (formationNow.veto === true) {
+    console.log(`🛑 [HA FORMASYON VETO] ${sym} ${pusu.yon} | ${formationNow.reasons.join(',')} | ${formation.shortSummary(formationNow)} | Gövde kırıldı ama REAL YOK`);
+    inc('formationVeto');
+    delete s.pusular[sym];
+    return false;
+  }
 
   // Aynı Binance one-way sembolü iki stratejiye ayrı pozisyon olarak bölünemez.
   // Yarışı muhasebe olarak temiz tutmak için çakışan ikinci sinyal kovalanmadan kapanır.
@@ -143,25 +205,30 @@ async function processExisting(sym, series) {
   inc('tetik');
   const analysis = {
     entryStrategy:'ST2_HEIKIN_ASHI', strategyLane:'HEIKIN_ASHI', entryMode:'CONFIRMED',
-    entryTimingAuthority:'CLOSED_15M_HEIKIN_ASHI_REVERSAL_BODY_BREAK',
+    entryTimingAuthority:'CLOSED_15M_HA_CONFIRMATION_NEXT_15M_BODY_BREAK',
     patternKodu:pusu.scenario, patternSignature:`${pusu.yon}|${pusu.scenario}`,
     senaryo:pusu.scenario, pusuSayaci:pusu.gecenMumSayisi, maxPusuBeklemeMum:conf.max,
     olusumZamani:pusu.createdAt, kaynakMumZamani:pusu.sourceCloseTime,
     referansSeviye:pusu.bodyBoundary, tetikFiyati:pusu.bodyBoundary,
     heikinAshiBb:{ altBand:pusu.bb.lower, ortaBand:pusu.bb.mid, ustBand:pusu.bb.upper, bandFarkYuzde:pusu.bandGapPct },
     heikinAshiPusuMumu:pusu.sourceCandle, heikinAshiTeyitMumu:pusu.confirmation,
-    confirmationBodyBoundary:pusu.bodyBoundary, wickIgnored:true,
-    raceVersion:'R27-DUAL-REAL'
+    confirmationBodyBoundary:pusu.bodyBoundary, confirmationCloseTime:pusu.confirmationCloseTime,
+    triggerCandleOpenTime:pusu.triggerOpenTime, triggerCandleCloseTimeExclusive:pusu.triggerCloseTimeExclusive,
+    triggerWindowCandles:Number(ayarlar.heikinAshiTetikPenceresiMum || 1), sameCandleConfirmationTriggerForbidden:true, wickIgnored:true,
+    haFormationAtPusu:pusu.formationAtPusu || null, haFormation:formationNow,
+    formationAuthority:formationNow.support?.length ? 'SUPPORTED' : 'NEUTRAL',
+    raceVersion:'R28.1-HA-STRICT-3STAGE-FORMATION'
   };
-  console.log(`🎯 [HA GERÇEK TETİK] ${sym} ${pusu.yon} | Canlı ${price} ${pusu.yon === 'LONG' ? '>' : '<'} Gövde ${pusu.bodyBoundary} | Sayaç ${pusu.gecenMumSayisi}/${conf.max}`);
+  console.log(`🎯 [HA GERÇEK TETİK / SONRAKİ MUM] ${sym} ${pusu.yon} | Canlı ${price} ${pusu.yon === 'LONG' ? '>' : '<'} Gövde ${pusu.bodyBoundary} | Teyit kapanmış | Sayaç ${pusu.gecenMumSayisi}/${conf.max} | ${formation.shortSummary(formationNow)}`);
   const opened = await motor.pozisyonAc(sym, pusu.yon, price, analysis);
   if (opened) { inc('opened'); delete s.pusular[sym]; return true; }
   return false;
 }
 
-function maybeCreate(sym, series) {
+function maybeCreate(sym, series, options = {}) {
   const s = store();
   if (s.pusular[sym]) return null;
+  if (occupiedSymbol(sym)) return null;
   const setup = sourceSetup(series);
   if (!setup) return null;
   const sourceTime = n(setup.source?.closeTime);
@@ -171,23 +238,48 @@ function maybeCreate(sym, series) {
   const pusu = {
     sym, yon:setup.side, scenario:setup.scenario, createdAt:Date.now(), sourceCloseTime:sourceTime,
     sourceCandle:candleCopy(setup.source), bb:setup.bb, bandGapPct:setup.bandGapPct,
-    gecenMumSayisi:0, confirmation:null, bodyBoundary:null
+    gecenMumSayisi:0, confirmation:null, bodyBoundary:null,
+    formationAtPusu:formation.formationGate(series, setup.side, setup.bb)
   };
   s.pusular[sym] = pusu;
   inc('yeniPusu');
   console.log(`🕯️ [YENİ HA PUSU] ${sym} ${setup.side} | ${setup.scenario} | BB A/O/U ${setup.bb.lower}/${setup.bb.mid}/${setup.bb.upper} | Maks ${Number(ayarlar.heikinAshiMaxPusuBeklemeMum || 3)} mum`);
-  Promise.resolve(h.telegramMesajGonder(
-    `<b>🕯️ YENİ HEIKIN ASHI PUSU</b>\n${sym} ${setup.side} | ${setup.scenario}\n` +
-    `BB yaklaşma %${Number(setup.bandGapPct || 0).toFixed(3)} | Maks ${Number(ayarlar.heikinAshiMaxPusuBeklemeMum || 3)} mum\n` +
-    `Tetik: karşı renk HA teyit kapanışı → çalışan gerçek fiyat teyit gövdesini kırar (iğne yok).`
-  )).catch(()=>{});
+  if (options.notify !== false) {
+    Promise.resolve(h.telegramMesajGonder(
+      `<b>🕯️ YENİ HEIKIN ASHI PUSU</b>\n${sym} ${setup.side} | ${setup.scenario}\n` +
+      `BB yaklaşma %${Number(setup.bandGapPct || 0).toFixed(3)} | Maks ${Number(ayarlar.heikinAshiMaxPusuBeklemeMum || 3)} mum\n` +
+      `Formasyon: ${formation.shortSummary(pusu.formationAtPusu)}\n` +
+      `Tetik: karşı renk HA mum KAPANIR → yalnız SONRAKİ 15m mumda çalışan gerçek fiyat teyit gövdesini kırar (iğne yok).`
+    )).catch(()=>{});
+  }
   return pusu;
+}
+
+function pusuStatusText(p) {
+  if (!p) return 'BILINMIYOR';
+  if (p.confirmation) return `SONRAKİ MUMDA GÖVDE KIRILIMI BEKLİYOR ${Number(p.gecenMumSayisi||0)}/${Number(ayarlar.heikinAshiMaxPusuBeklemeMum||3)}`;
+  return `TEYİT BEKLİYOR ${Number(p.gecenMumSayisi||0)}/${Number(ayarlar.heikinAshiMaxPusuBeklemeMum||3)}`;
+}
+function initialSummarySend(active) {
+  const rows=Array.isArray(active)?active:[];
+  const longs=rows.filter(x=>x.yon==='LONG').length, shorts=rows.filter(x=>x.yon==='SHORT').length;
+  const sample=rows.slice(0,8).map(p=>`${p.sym} ${p.yon} | ${pusuStatusText(p)} | ${formation.shortSummary(p.formationAtPusu)}`);
+  const more=Math.max(0,rows.length-sample.length);
+  const text=[
+    `<b>🕯️ HA AÇILIŞ PUSU ÖZETİ</b>`,
+    `Mevcut ${rows.length} | LONG ${longs} | SHORT ${shorts}`,
+    ...sample,
+    more?`… +${more} aktif HA pususu`:null,
+    `Bundan sonra yalnız yeni bulunan HA pususu kısa mesajla bildirilir.`
+  ].filter(Boolean).join('\n');
+  Promise.resolve(h.telegramMesajGonder(text)).catch(()=>{});
 }
 
 async function taraVeDegerlendir() {
   realExecution.ensureStrategyRaceBaseline();
   if (ayarlar.heikinAshiAktif !== true || h.state.startupMarketReady !== true) return { enabled:false };
   const s = store();
+  const initialScan = s.audit.initialSummarySent !== true;
   const symbols = h.state.st2CoreUniverseSymbols || h.state.semboller || [];
   const audit = { version:VERSION, symbols:0, ready:0, active:0, long:0, short:0, opened:0, startedAt:Date.now() };
   for (let i=0;i<symbols.length;i++) {
@@ -198,7 +290,7 @@ async function taraVeDegerlendir() {
     audit.ready++;
     const opened = await processExisting(sym, series);
     if (opened) audit.opened++;
-    maybeCreate(sym, series);
+    maybeCreate(sym, series, { notify: !initialScan });
     if ((i+1) % 25 === 0) await new Promise(resolve => setImmediate(resolve));
   }
   const active = Object.values(s.pusular || {});
@@ -207,11 +299,12 @@ async function taraVeDegerlendir() {
   audit.short = active.filter(x=>x.yon==='SHORT').length;
   audit.durationMs = Date.now()-audit.startedAt;
   s.audit.lastScan = audit;
+  if (initialScan) { s.audit.initialSummarySent = true; initialSummarySend(active); }
   return audit;
 }
 
 module.exports = {
   VERSION, heikinAshiSeries, bollingerAt, sourceSetup, confirmationFor,
-  confirmationBodyBoundary, livePriceCrossed, taraVeDegerlendir,
+  confirmationBodyBoundary, livePriceCrossed, timeframeMs, triggerWindowForConfirmation, triggerWindowState, taraVeDegerlendir, pusuStatusText,
   _store: store
 };
