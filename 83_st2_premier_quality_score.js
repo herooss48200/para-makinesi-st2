@@ -329,6 +329,78 @@ function applyLabReview(result = {}, review = null) {
   };
 }
 
+function coinBitsFromLabKey(labKey = '') {
+  return String(labKey || '').toUpperCase().match(/(?:^|\|)COIN=([01Y]{4})(?:\||$)/)?.[1] || '';
+}
+
+function scoreCoinVetoBits() {
+  const configured = Array.isArray(ayarlar.premierScoreOosCoinVetoBits) ? ayarlar.premierScoreOosCoinVetoBits : ['1000', '1001'];
+  return [...new Set(configured.map(x => String(x || '').trim().toUpperCase()).filter(x => /^[01Y]{4}$/.test(x)))];
+}
+
+// R25.3 final selection authority. Score remains ranking intelligence; final admission order is:
+// N5 live economy -> proven Renko Premier -> OOS cohort veto -> calibrated Score.
+// Historical sample insufficiency may be superseded by N5/Renko proof, but structural exact-context/pool
+// failures remain fail-closed for real-order readiness.
+function resolveSelectionAuthority(result = {}, review = null, options = {}) {
+  const baseTrack = String(options.baseTrack || '').trim().toUpperCase();
+  const labKey = String(options.labKey || '');
+  const coinBits = coinBitsFromLabKey(labKey);
+  const liveComplete = review?.complete === true && review?.metrics && ['PREMIER', 'SHADOW'].includes(String(review?.currentLeague || '').toUpperCase());
+  const liveLeague = liveComplete ? String(review.currentLeague).toUpperCase() : '';
+  const livePositive = liveComplete && liveLeague === 'PREMIER';
+  const liveNegative = liveComplete && liveLeague === 'SHADOW';
+  const renkoPremier = baseTrack === 'RENKO_PATTERN_PREMIER';
+  const scoreSelected = result?.selected === true;
+  const vetoEnabled = ayarlar.premierScoreOosCoinVetoAktif !== false;
+  const vetoBits = scoreCoinVetoBits();
+  const scoreCoinVeto = vetoEnabled && scoreSelected && vetoBits.includes(coinBits);
+  const hardReasons = Array.isArray(result?.hardReasons) ? [...result.hardReasons] : [];
+  const structuralHardReasons = hardReasons.filter(x => x === 'EXACT_CONTEXT_INCOMPLETE' || x === 'HISTORICAL_CANONICAL_POOL_INCOMPLETE');
+  const evidenceHardReasons = hardReasons.filter(x => !structuralHardReasons.includes(x));
+
+  let selected = scoreSelected;
+  let reason = result?.reason || (scoreSelected ? 'PREMIER_SCORE_SELECTED' : 'PREMIER_SCORE_BELOW_RELATIVE_THRESHOLD');
+  let authority = 'PREMIER_QUALITY_SCORE';
+  let effectiveHardReasons = hardReasons;
+
+  if (liveComplete) {
+    authority = 'LAB_LIVE_N5_ECONOMY';
+    if (livePositive && structuralHardReasons.length === 0) {
+      selected = true;
+      reason = 'LAB_LIVE_N5_POSITIVE_ECONOMY_OVERRIDE';
+      effectiveHardReasons = [];
+    } else {
+      selected = false;
+      reason = liveNegative ? 'LAB_LIVE_N5_NEGATIVE_ECONOMY_VETO' : structuralHardReasons[0];
+      effectiveHardReasons = structuralHardReasons;
+    }
+  } else if (renkoPremier && structuralHardReasons.length === 0) {
+    selected = true;
+    reason = 'RENKO_PATTERN_PREMIER_PRESERVED';
+    authority = 'RENKO_PATTERN_PREMIER';
+    effectiveHardReasons = [];
+  } else if (scoreCoinVeto) {
+    selected = false;
+    reason = `PREMIER_SCORE_COIN_${coinBits}_OOS_VETO`;
+    authority = 'PREMIER_SCORE_OOS_COHORT_FILTER';
+  }
+
+  const explanation = `${reason} | Final otorite ${authority} | Skor ${n(result?.score).toFixed(1)}/${n(result?.threshold, 55).toFixed(1)}${coinBits ? ` | COIN ${coinBits}` : ''}`;
+  return {
+    ...result,
+    selected,
+    executionMode: selected ? 'PREMIER' : 'SHADOW',
+    reason,
+    explanation,
+    hardReasons: effectiveHardReasons,
+    selectionAuthority: {
+      authority, labKey, baseTrack, coinBits, liveComplete, liveLeague, livePositive, liveNegative,
+      scoreSelected, scoreCoinVeto, vetoBits, structuralHardReasons, evidenceHardReasons
+    }
+  };
+}
+
 function componentText(result = {}) {
   const c = result.components || {};
   return `Puanlar: PF ${n(c.historicalPf).toFixed(1)}/100 | Exp ${n(c.historicalExpectancy).toFixed(1)}/100 | Canlı ${n(c.liveForm).toFixed(1)}/100 | Entry ${n(c.entryEvolution).toFixed(1)}/100 | Takeover ${n(c.takeoverReplay).toFixed(1)}/100 | Örnek ${n(c.sampleConfidence).toFixed(1)}/100`;
@@ -355,5 +427,6 @@ module.exports = {
   n, clamp, norm, patternKey, completeContext, validWeights, readCalibration, activePolicy,
   pfScore, signedEconomyScore, metricScore, sampleScore, metricFromRaw,
   entryEvolutionEvidence, takeoverReplayEvidence, scoreEvidence, quantile, rank, evaluate, applyLabReview,
+  coinBitsFromLabKey, scoreCoinVetoBits, resolveSelectionAuthority,
   componentText, weightedComponentText, metricText
 };

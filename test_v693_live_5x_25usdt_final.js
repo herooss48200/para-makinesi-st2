@@ -22,7 +22,7 @@ assert.strictEqual(ayarlar.gercekEmirMarjinTipi, 'ISOLATED');
 assert(Number.isInteger(Number(ayarlar.gercekEmirMaxAktifPozisyon)) && Number(ayarlar.gercekEmirMaxAktifPozisyon) >= 1, 'aktif gerçek pozisyon limiti ayarlardan yönetilmeli');
 assert.strictEqual(bridge.realAuthorization().valid, true, 'mainnet + genel canlı onayı birlikte gerçek yetki vermeli');
 assert.deepStrictEqual(bridge.liveRiskProfile(), {
-  marginUsdt: 10, notionalUsdt: 20, leverage: 2, marginType: 'ISOLATED', maxActivePositions: Number(ayarlar.gercekEmirMaxAktifPozisyon), protectionRequired: true
+  marginUsdt: 4, notionalUsdt: 20, leverage: 5, marginType: 'ISOLATED', maxActivePositions: Number(ayarlar.gercekEmirMaxAktifPozisyon), protectionRequired: true
 });
 assert.strictEqual(lab.TRACK.SCORE, 'PREMIER_SCORE_RANKED');
 
@@ -55,4 +55,4 @@ assert(executionSource.includes("newOrderRespType: 'RESULT'"), 'gerçek dolum ce
 assert(executionSource.includes('futuresCreateAlgoOrder'), 'USDⓈ-M koşullu emirler Algo Service üzerinden gönderilmeli');
 assert(motorSource.includes('risk.maxActivePositions'), 'ayar tabanlı aktif gerçek pozisyon limiti uygulanmalı');
 
-console.log('✅ AGROS ST2 v6.9.3 compatibility + current 10 USDT risk + calibrated Premier ledger passed');
+console.log('✅ AGROS ST2 v6.9.3 compatibility + current 4 USDT margin x 5 = 20 USDT risk + calibrated Premier ledger passed');

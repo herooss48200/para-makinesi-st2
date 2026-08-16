@@ -15,12 +15,12 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const transparency = require('./82_st2_operation_transparency.js');
 
-  const CURRENT = '6.13.5-R25.2-LIVENESS-INCREMENTAL-1M-CONFIRMED-5X20-MACD-SHADOW-POSTCLOSE-24H';
+  const CURRENT = '6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT';
   assert.strictEqual(version.botSurumu, CURRENT);
   assert.strictEqual(ayarlar.renkoGirisModuZorlaConfirmed, true, 'yeni gerçek giriş authority CONFIRMED olmalı');
   assert.strictEqual(ayarlar.renkoConfirmedLongLifeAktif, true, 'CONFIRMED long-life aktif olmalı');
   assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac, 20, 'R24 kontrollü notional 20 USDT olmalı');
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 10, 'R24 gerçek slot limiti 10 olmalı');
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 20, 'R25.3 gerçek slot limiti 20 olmalı');
   assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT', 'legacy VERSION contract bozulmamalı');
   assert.strictEqual(exit.RUNTIME_VERSION, 'v6.13.5-R23.1-CONFIRMED-FROZEN-LONG-LIFE');
 

@@ -21,7 +21,7 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const version = require('./versiyon.js');
 
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 10, 'gerçek pozisyon limiti R24 sözleşmesinde 10 olmalı');
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 20, 'gerçek pozisyon limiti R25.3 sözleşmesinde 20 olmalı');
   assert.strictEqual(ayarlar.renkoCikisErkenEkonomiTetikYuzde, 0.25);
   assert.strictEqual(ayarlar.renkoCikisErkenEkonomiTabanYuzde, 0.20);
   assert.strictEqual(ayarlar.renkoCikisErkenEkonomiMinimumNetKarYuzde, 0.10);
@@ -152,7 +152,7 @@ try {
   assert(text.includes('Doğrudan Renko aktivasyonu: %0.60'));
   assert(text.includes('Stop güncelleme adımı: 0.50'));
 
-  assert.strictEqual(version.botSurumu, '6.13.5-R25.2-LIVENESS-INCREMENTAL-1M-CONFIRMED-5X20-MACD-SHADOW-POSTCLOSE-24H');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT');
   assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
   console.log('✅ v6.11.2 direct floor/activation, no 2x rule, frozen brick trail and configurable 2-slot passed');
 } finally {

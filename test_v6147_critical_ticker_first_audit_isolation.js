@@ -8,7 +8,7 @@ const version = require('./versiyon.js');
 const ayarlar = require('./ayarlar.js');
 
 (async () => {
-  assert.strictEqual(version.botSurumu, '6.13.5-R16-PRICE-FALLBACK-FULL-CHAIN-RECOVERY');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT');
   assert.strictEqual(ayarlar.futuresTickerRetry, 0, 'ticker retry must fail-fast; next main-loop tick is the retry');
   assert(Number(ayarlar.futuresTickerTimeoutMs) <= 6000, 'ticker wall deadline must stay short');
 

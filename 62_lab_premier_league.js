@@ -547,8 +547,12 @@ function frozenExit(decision) {
 }
 function applyToPosition(pos, decision = null) {
   if (!pos) return null; const d = decision || evaluate(pos, { realMode: pos.sanal === false });
+  // At-open kimlik alanları geçmiş işlemin bilimsel/operasyonel sınıfıdır; sonradan lifecycle
+  // değerlendirmesi bu alanları yeniden yazmaz. Yeni girişler güncel lifecycle kararını alır.
   pos.labPremierDecision = d; pos.leagueShadowOnly = !d.upperLayerIncluded; pos.virtualAccountIncluded = d.upperLayerIncluded;
-  pos.labLeagueAtOpen = d.labLeague; pos.labProofLevelAtOpen = d.proofLevel; pos.premierTrackAtOpen = d.premierTrack;
+  if (!pos.labLeagueAtOpen) pos.labLeagueAtOpen = d.labLeague;
+  if (!pos.labProofLevelAtOpen) pos.labProofLevelAtOpen = d.proofLevel;
+  if (!pos.premierTrackAtOpen) pos.premierTrackAtOpen = d.premierTrack;
   const entryAssignment = pos?.renkoEntryAssignment || pos?.entryReplayAssignment || {};
   const entrySamples = num(entryAssignment.samples, num(entryAssignment.sampleCount));
   if (entrySamples > 0 || entryAssignment.proven === true || entryAssignment.learned === true) d.entryProven = true;

@@ -1,0 +1,39 @@
+AGROS ST2 v6.13.5-R25.3 — PREMIER SELECTION RECOVERY
+Date: 2026-08-16
+Base Git HEAD: ffec84b (R25.2 incremental 1m liveness recovery)
+
+DELIVERED CONTRACT
+- Real capacity: 20 concurrent real positions.
+- Per-position size unchanged: 4 USDT margin x exact 5x = 20 USDT notional.
+- LAB live league sample threshold unchanged: N5.
+- Ordinary Score-Premier OOS veto: COIN=1000 and COIN=1001.
+- Same exact LAB context can override that cohort veto after complete positive N5 live economy: Net>0, PF>1, Expectancy>0.
+- Complete negative N5 live economy vetoes a high Score for subsequent new entries.
+- RENKO_PATTERN_PREMIER is preserved before complete N5 evidence instead of being overwritten by weak Score evidence.
+- Structural exact-context / canonical-pool failures remain fail-closed.
+- Premier/Shadow identity at position open is frozen; later lifecycle changes affect new entries, not the already-open position identity.
+- R24.2 unified execution stop authority unchanged.
+- DIRECT/CONFIRMED entry timing and MACD shadow authority unchanged.
+
+VALIDATION
+1) Full source syntax: PASS — 189 JavaScript files.
+2) Official repository suite: PASS — npm run check, exit 0.
+3) Every test_*.js in repository: PASS — 77/77, 0 failures.
+4) R25.3 deterministic selection test: PASS.
+   - COIN1000/1001 normal Score veto.
+   - COIN1100 control remains eligible through Score.
+   - N5 positive Shadow recovery.
+   - N5 negative Premier veto for subsequent entries.
+   - RENKO_PATTERN_PREMIER preservation.
+   - Structural fail-closed preservation.
+   - At-open league identity freeze.
+   - 20 slots x 20 USDT.
+5) Live protection/slot test: PASS — slots 1..20 accepted, 21st rejected at 20/20.
+6) R24.2 stop authority regression: PASS — Real Premier + main Shadow/Development SL -2.5%; LAB stop replay-only.
+7) R25.2 incremental 1m liveness regression: PASS.
+8) git diff --check: PASS.
+
+TEST ENVIRONMENT NOTE
+- External exchange/network adapters were isolated by a temporary test-only require hook; it is NOT included in source or delivery artifacts.
+- No live Binance orders were sent by these tests.
+- Final AWS runtime proof is still required after GitHub deployment; source tests do not substitute for live deployment verification.

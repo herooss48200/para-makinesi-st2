@@ -87,7 +87,7 @@ const negativeTier = league.tierWithLiveReview(
 assert.strictEqual(negativeTier.premierTrack, league.TRACK.SHADOW);
 
 const motor = fs.readFileSync('./motor.js', 'utf8');
-assert(motor.includes('const finalPremier = !exactLiveDemoted && !labLiveDemoted'), 'düşüş veto önceliği korunmalı');
+assert(motor.includes('premierQuality.resolveSelectionAuthority'), 'N5 lifecycle final seçim otoritesine bağlanmalı');
 const operation = fs.readFileSync('./69_operation_intelligence_dashboard.js', 'utf8');
 assert(operation.includes('Bu oturum terfi'), 'gerçek oturum terfisi ayrı raporlanmalı');
 assert(operation.includes('Canlı koşul Premier'), 'mevcut sınıflandırma gerçek geçişten ayrılmalı');

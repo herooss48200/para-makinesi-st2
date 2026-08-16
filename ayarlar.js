@@ -75,6 +75,11 @@ const ayarlar = {
     renkoPremierScoreMin: 55,
     renkoPremierScoreGoreceliYuzdelik: 0.40,
     renkoPremierScoreMaxDinamikEsik: 70,
+    // R25.3 OOS cohort filtresi: gerçek Premier auditinde belirgin kayıp üreten COIN 1000/1001
+    // normal Score-Premier yolunda Shadow'a alınır. Aynı tam LAB bağlamı N5 canlı pozitif ekonomi
+    // kanıtı üretirse bu veto kalkar ve canlı lig terfisi Premier otoritesi olur.
+    premierScoreOosCoinVetoAktif: true,
+    premierScoreOosCoinVetoBits: ['1000', '1001'],
     labStopAdaylariYuzde: [0.8, 1.0, 1.2, 1.5, 1.8, 2.1, 2.4],
     labBeTetikAdaylariYuzde: [0.30, 0.40, 0.60, 0.80],
     labBeAdaylariYuzde: [0.08, 0.12, 0.16, 0.20, 0.25, 0.30],
@@ -724,8 +729,8 @@ const ayarlar = {
     gercekEmirKaldiracFallbackAktif: false,
     // 0 yeni gerçek pozisyonları durdurur; mevcut pozisyon yönetimi devam eder.
     // v6.11.2: değer sabit kurala bağlı değildir; 0 yeni girişi kapatır, 1/2/3... ayarlardan seçilir.
-    // R24 kontrollü canlı gerçek pozisyon kapasitesi 10'dur.
-    gercekEmirMaxAktifPozisyon: 10,
+    // R25.3 kontrollü canlı gerçek pozisyon kapasitesi 20'dir; pozisyon başına notional 20 USDT değişmez.
+    gercekEmirMaxAktifPozisyon: 20,
     // Canlı modda Binance risk slotundan bağımsız sanal öğrenme havuzu.
     // Sembol başına tek gözlem, toplam en fazla 200; Binance emri göndermez.
     canliShadowOgrenmeAktif: true,

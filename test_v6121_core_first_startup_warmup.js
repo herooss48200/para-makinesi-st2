@@ -57,35 +57,33 @@ function candles(tf, count) {
 
         const summary = await revizyon.derinGecmisiInsaEt({ concurrency: 4, workers: 8 });
 
-        assert.strictEqual(summary.ready, true, '15m + 3m çekirdek veri giriş kapısını açmalı');
+        assert.strictEqual(summary.ready, true, '15m + 1m Renko-ST çekirdek veri giriş kapısını açmalı');
         assert.strictEqual(summary.pusuHazir, symbols.length);
         assert.strictEqual(summary.trendHazir, symbols.length);
         assert.strictEqual(summary.coreRequests, symbols.length * 2);
-        assert.strictEqual(summary.deferredSniperRequests, symbols.length);
+        assert.strictEqual(summary.deferredTrendRequests, symbols.length);
         assert.strictEqual(calls['15m'], symbols.length, 'her sembol için tek 15m çekirdek isteği');
-        assert.strictEqual(calls['3m'], symbols.length, 'her sembol için tek 3m ST1 isteği');
-        assert.strictEqual(calls['1m'], 0, '1m sniper çekirdek giriş kapısını bekletmemeli');
+        assert(calls['1m'] >= symbols.length, 'her sembol için 1m Renko-ST çekirdek verisi alınmalı');
+        assert.strictEqual(calls['3m'], 0, '3m ST1 startup çekirdeğini bloke etmemeli; shadow olarak ertelenmeli');
         assert.strictEqual(h.state.startupMarketReady, true);
         assert.strictEqual(Object.keys(h.state.yerelPusuHafizasi).length, symbols.length);
-        assert.strictEqual(Object.keys(h.state.trendSuperTrend).length, symbols.length);
-        assert(logs.some(x => x.includes('[AŞAMALI BAŞLANGIÇ İLERLEME]')), 'ilerleme kanıtı loglanmalı');
-        assert(logs.some(x => x.includes('ÇEKİRDEK TAMAM')), 'çekirdek tamamlanma kanıtı loglanmalı');
-
-        await new Promise(resolve => setTimeout(resolve, 150));
-        assert.strictEqual(calls['1m'], symbols.length, '1m sniper çekirdekten sonra arka planda yüklenmeli');
+        assert.strictEqual(Object.keys(h.state.renko1mStHazirlik).length, symbols.length);
         assert.strictEqual(Object.keys(h.state.sniperMumlar).length, symbols.length);
+        assert(logs.some(x => x.includes('[AŞAMALI BAŞLANGIÇ İLERLEME]')), 'ilerleme kanıtı loglanmalı');
+        assert(logs.some(x => x.includes('GOLDEN RENKO')), 'Golden Renko tamamlanma kanıtı loglanmalı');
 
         const reportSource = fs.readFileSync('./2_rapor.js', 'utf8');
         const botSource = fs.readFileSync('./bot.js', 'utf8');
         const revisionSource = fs.readFileSync('./revizyon.js', 'utf8');
-        assert(reportSource.includes('Entry Evolution yalnız GÖLGE'));
+        assert(reportSource.includes('Entry Evolution CANLI'));
+        assert(reportSource.includes('ST1 yalnız GÖLGE'));
         assert(!reportSource.includes('Uygulama ${Number(evo.decisionChain'));
         assert(botSource.includes('Entry Gate: ${warmMetni}'));
-        assert(revisionSource.includes("asama: 'CORE_15M_3M'"));
+        assert(revisionSource.includes("asama: 'CORE_15M_1M_RENKO'"));
         assert(revisionSource.includes("skipTrend: true"));
-        assert(revisionSource.includes("priority: 'LOW'"));
+        assert(revisionSource.includes('function st1ShadowTazelemeyiBaslat()'));
 
-        originalLog('✅ v6.12.1 core-first 15m+3m startup gate + progressive health + deferred 1m shadow passed');
+        originalLog('✅ current core-first 15m+1m Renko-ST startup gate + progressive health + deferred 3m ST1 shadow passed');
     } finally {
         ag.binanceMumlariCek = originalFetch;
         ayarlar.startupMarketReadyOrani = originalThreshold;

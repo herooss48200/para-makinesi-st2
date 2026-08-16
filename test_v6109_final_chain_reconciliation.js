@@ -160,7 +160,7 @@ for (const marker of ['const renkoExitAtamasi = renkoExitEvolution.assign(yeniPo
 // 10) Version and operation contract.
 const version=require('./versiyon.js');
 const op=require('./82_st2_operation_transparency.js');
-assert(version.botSurumu.startsWith('6.13.5-R25.2-LIVENESS-INCREMENTAL-1M-CONFIRMED-5X20-MACD-SHADOW-POSTCLOSE-24H'));
+assert(version.botSurumu.startsWith('6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT'));
 assert.strictEqual(op.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 assert.strictEqual(exit.VERSION,'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 

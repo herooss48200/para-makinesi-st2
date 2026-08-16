@@ -21,7 +21,7 @@ try {
   const exit = require('./74_st2_renko_exit_evolution.js');
   const version = require('./versiyon.js');
 
-  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 2);
+  assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 20);
   assert.strictEqual(ayarlar.renkoCikisStopGuncellemeAdimTugla, 0.50);
   assert.strictEqual(ayarlar.renkoCikisGuvenliKarTabaniYuzde, 0.40);
   assert.strictEqual(ayarlar.renkoCikisMinimumNetKarYuzde, 0.30);
@@ -45,7 +45,7 @@ try {
   assert.strictEqual(migrated.assignedSafeFloorPct, 0.40);
   assert.strictEqual(migrated.assignedMinimumNetProfitPct, 0.30);
   assert.strictEqual(migrated.assignedStopUpdateStepBricks, 0.50);
-  assert.strictEqual(migrated.safetyPolicySchema, 'V6111_PROFIT_FLOOR');
+  assert.strictEqual(migrated.safetyPolicySchema, 'V6112_DIRECT_PROFIT_FLOOR');
   assert(migrated.safetyPolicyMigratedAt, 'bekleyen açık pozisyon güvenlik göçü kaydedilmedi');
 
   // Takeover'ı zaten aktif eski pozisyon geriye dönük sıkılaştırılmaz; frozen politika korunur.
@@ -69,45 +69,43 @@ try {
   assert.strictEqual(activeTick.active, true, 'aktif eski pozisyon yeni taban nedeniyle pasife düştü');
   assert.strictEqual(activeLegacy.sl, 100.15, 'aktif eski pozisyon geriye dönük sıkılaştırıldı');
 
-  // Başlangıç SL korunur; live activation görülmeden Renko stop devralamaz.
-  let pre = exit.updateBrick(waiting, 100.70);
+  // Güncel V6112 doğrudan ekonomi: +%0.25 erken taban, +%0.50 güçlü taban, +%0.60 Renko aktivasyonu.
+  let pre = exit.updateBrick(waiting, 100.24);
   assert.strictEqual(pre.active, false);
-  assert(['COMMISSION_SAFE_PROTECTION_NOT_READY','CURRENT_PRICE_BELOW_LIVE_ACTIVATION_THRESHOLD'].includes(pre.reason));
+  assert.strictEqual(pre.reason, 'CURRENT_PRICE_BELOW_DIRECT_FLOOR_ARM_THRESHOLD');
   assert.strictEqual(waiting.sl, 98.5);
 
-  waiting.breakevenAktif = true;
-  waiting.korunanKarYuzdesi = 0.40;
-  pre = exit.updateBrick(waiting, 100.70);
-  assert.strictEqual(pre.active, false);
-  assert.strictEqual(pre.reason, 'CURRENT_PRICE_BELOW_LIVE_ACTIVATION_THRESHOLD');
+  pre = exit.updateBrick(waiting, 100.25);
+  assert.strictEqual(pre.active, true);
+  assert.strictEqual(pre.justEarlyFloorLocked, true);
+  assert(Math.abs(waiting.sl - 100.20) < 1e-9);
 
-  // +%0.80 aktivasyonda önce brüt +%0.40 / net +%0.30 tabanı kilitlenir.
-  const activated = exit.updateBrick(waiting, 100.80);
+  pre = exit.updateBrick(waiting, 100.50);
+  assert.strictEqual(pre.active, true);
+  assert.strictEqual(pre.justFloorLocked, true);
+  assert(Math.abs(waiting.sl - 100.40) < 1e-9);
+
+  const activated = exit.updateBrick(waiting, 100.60);
   assert.strictEqual(activated.active, true);
   assert.strictEqual(activated.justActivated, true);
-  assert(Math.abs(waiting.sl - 100.40) < 1e-9, `ilk minimum-net tabanı yanlış: ${waiting.sl}`);
-  assert.strictEqual(waiting.renkoProtectionState, 'RENKO_STOP_GUNCELLENDI');
-  assert.strictEqual(waiting.renkoProfitFloorMinimumNetPct, 0.30);
+  assert.strictEqual(waiting.renkoExitActivated, true);
 
-  // 0.50T tamamlanmadan stop oynamaz; tamamlandıktan sonra bile trail tabanı geçene kadar minimum net korunur.
+  // 0.50T tamamlanmadan stop oynamaz; büyüdükçe dondurulmuş trail ilerler ve geri gevşemez.
   const floorStop = waiting.sl;
-  const noise = exit.updateBrick(waiting, 101.20);
+  const noise = exit.updateBrick(waiting, 100.99);
   assert.strictEqual(noise.changed, false);
   assert.strictEqual(waiting.sl, floorStop);
-  const halfBrick = exit.updateBrick(waiting, 101.31);
+  const halfBrick = exit.updateBrick(waiting, 101.11);
   assert(halfBrick.advancedBricks >= 0.50);
-  assert.strictEqual(waiting.sl, floorStop, 'trail minimum net tabanını geçmeden stop gereksiz oynadı');
-
-  // Yeterli büyümeden sonra dondurulmuş 1.75T trail tabanı aşar ve stop ilerler; geriye gevşemez.
-  const runner = exit.updateBrick(waiting, 103.31);
+  const runner = exit.updateBrick(waiting, 103.11);
   assert(runner.changed, 'büyüyen pozisyonda öğrenilmiş trail stopu ilerlemedi');
-  assert(waiting.sl > floorStop);
   const tightened = waiting.sl;
-  exit.updateBrick(waiting, 102.50);
+  exit.updateBrick(waiting, 102.20);
   assert.strictEqual(waiting.sl, tightened, 'geri çekilmede stop gevşedi');
 
   const text = exit.takeoverText(waiting);
-  assert(text.includes('Brüt kâr tabanı: %0.40'));
+  assert(text.includes('Erken ekonomi: +%0.25 → stop +%0.20'));
+  assert(text.includes('Brüt güçlü kâr tabanı: %0.40'));
   assert(text.includes('Hedef minimum net: %0.30'));
   assert(text.includes('Stop güncelleme adımı: 0.50'));
 
@@ -115,10 +113,10 @@ try {
   assert(report.includes('Brüt taban %'));
   assert(report.includes('Min net %'));
   assert(!report.includes('Net taban %${Number(atama.assignedSafeFloorPct)'));
-  assert.strictEqual(version.botSurumu, '6.11.1-PROFIT-FLOOR-TWO-SLOT');
-  assert.strictEqual(exit.VERSION, 'v6.11.1-PROFIT-FLOOR-TWO-SLOT');
+  assert.strictEqual(version.botSurumu, '6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT');
+  assert.strictEqual(exit.VERSION, 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT');
 
-  console.log('✅ v6.11.1 minimum net +%0.30 floor first, frozen brick trail second, 0.50T update and 2-slot settings passed');
+  console.log('✅ v6.11.1 minimum net +%0.30 floor first, frozen brick trail second, 0.50T update and current 20-slot risk settings passed');
 } finally {
   Module._load = originalLoad;
   fs.rmSync(tmp, { recursive: true, force: true });

@@ -19,7 +19,7 @@ function candle(closeTime, close=100){
 }
 
 (async()=>{
-  assert(version.botSurumu.includes('R25.2-LIVENESS-INCREMENTAL-1M'));
+  assert(version.botSurumu.includes('R25.3-PREMIER-SELECTION-RECOVERY'));
   assert.strictEqual(Number(ayarlar.binanceAgEszamanlilik),3);
   assert.strictEqual(Number(ayarlar.binanceStartupNetworkConcurrency),4);
   assert.strictEqual(Number(ayarlar.renkoOnayRefreshRetry),0);

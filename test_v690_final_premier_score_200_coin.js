@@ -61,8 +61,8 @@ assert(reportSource.includes('Veri ${veriSagligi.durum}'), 'Telegram veri sağl�
 const closeSource = fs.readFileSync('4_pozisyon.js', 'utf8');
 for (const reason of ['PRICE_PATH_MISSING', 'EXIT_REPLAY_ENGINE_RETURNED_NULL', 'EXIT_REPLAY_SELECTION_VALIDATION_NOT_AVAILABLE', 'RESTART_GAP_SCIENTIFICALLY_EXCLUDED', 'MANUAL_EXTERNAL_CLOSE_SCIENTIFICALLY_EXCLUDED']) assert(closeSource.includes(reason), `kesin replay nedeni eksik: ${reason}`);
 const motorSource = fs.readFileSync('motor.js', 'utf8');
-assert(motorSource.includes("authority: 'ST2_PREMIER_QUALITY_SCORE'"), 'Premier Score nihai otorite değil');
+assert(motorSource.includes('premierQuality.resolveSelectionAuthority'), 'Premier final seçim otoritesi R25.3 resolvera bağlı değil');
 assert(motorSource.includes('premierQuality.applyLabReview'), 'canlı form puan düzeltmesine bağlanmamış');
-assert(!motorSource.includes("const finalPremier = !exactLiveDemoted && !labLiveDemoted &&"), 'eski katı lig kapısı aktif kalmamalı');
+assert(motorSource.includes('PREMIER_SCORE_RANKED'), 'Score-Premier track korunmalı');
 
 console.log('✅ AGROS ST2 v6.9.0 final Premier Score + 200 coin + replay separation passed');

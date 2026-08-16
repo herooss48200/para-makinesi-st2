@@ -8,7 +8,7 @@ const settings=require('./ayarlar.js');
 const ag=require('./64_binance_network_resilience.js');
 
 (async()=>{
-  assert.strictEqual(version.botSurumu,'6.13.5-R25.2-LIVENESS-INCREMENTAL-1M-CONFIRMED-5X20-MACD-SHADOW-POSTCLOSE-24H');
+  assert.strictEqual(version.botSurumu,'6.13.5-R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT');
   const bot=fs.readFileSync('./bot.js','utf8');
   const rev=fs.readFileSync('./revizyon.js','utf8');
   const report=fs.readFileSync('./2_rapor.js','utf8');

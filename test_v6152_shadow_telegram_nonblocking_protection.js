@@ -8,7 +8,7 @@ const path = require('path');
   const src = fs.readFileSync(path.join(__dirname, '4_pozisyon.js'), 'utf8');
 
   const start = src.indexOf('function renkoEntryConfirmationShadowTelegramArkaPlan');
-  const end = src.indexOf('\nasync function izSurmeyiGuncelle()', start);
+  const end = src.indexOf('\nasync function izSurmeyiGuncelle(', start);
   assert(start >= 0 && end > start, 'nonblocking shadow Telegram helper must exist');
   const helperSrc = src.slice(start, end);
 
@@ -33,8 +33,8 @@ const path = require('path');
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.strictEqual(calls, 200, 'all shadow messages should still be handed to Telegram asynchronously');
 
-  const protectionStart = src.indexOf('async function izSurmeyiGuncelle()');
-  const zeroPositionReturn = src.indexOf('if (h.state.aktifPozisyonlar.length === 0) return;', protectionStart);
+  const protectionStart = src.indexOf('async function izSurmeyiGuncelle(');
+  const zeroPositionReturn = src.indexOf('if (h.state.aktifPozisyonlar.length === 0) return { exchangeOk: true, reconciled: 0, closed: 0 };', protectionStart);
   assert(protectionStart >= 0 && zeroPositionReturn > protectionStart, 'zero-position fast return must exist');
   const preReturn = src.slice(protectionStart, zeroPositionReturn);
   assert(!preReturn.includes('await h.telegramMesajGonder'), 'shadow Telegram must not be awaited before zero-position return');

@@ -168,9 +168,17 @@ function st2PremierScoreBagla(pos, girisAnalizi, symbol, yon) {
         relativeRank: Number(gate.premierScore?.rank || 0),
         relativeCohort: Number(gate.premierScore?.cohortSize || 0)
     };
+    // R25.3: pozisyon açılışında verilen final lig kararı immutable'dır. Aynı açık pozisyon
+    // daha sonra tekrar değerlendirilirse Premier/Shadow kimliği değiştirilmez; lifecycle yalnız yeni girişleri etkiler.
+    if (pos.premierSelectionFrozenAtOpen === true && pos.labPremierDecision?.premierScore) return pos.labPremierDecision;
+
     const labLiveReview = labKarar?.liveLeagueReview || null;
     const previousScoreLeague = labKarar?.upperLayerIncluded === true ? 'PREMIER' : 'SHADOW';
-    const finalScore = premierQuality.applyLabReview(gate.premierScore || {}, labLiveReview);
+    const adjustedScore = premierQuality.applyLabReview(gate.premierScore || {}, labLiveReview);
+    const finalScore = premierQuality.resolveSelectionAuthority(adjustedScore, labLiveReview, {
+        labKey: labKarar?.labKey || '',
+        baseTrack: labKarar?.basePremierTrack || labKarar?.premierTrack || ''
+    });
     renkoPremier.premierScore = finalScore;
     renkoPremier.premier = finalScore.selected === true;
     renkoPremier.reason = finalScore.reason || gate.reason;
@@ -179,14 +187,18 @@ function st2PremierScoreBagla(pos, girisAnalizi, symbol, yon) {
     renkoPremier.relativeRank = Number(finalScore.rank || 0);
     renkoPremier.relativeCohort = Number(finalScore.cohortSize || 0);
     renkoPremier.executionMode = finalScore.executionMode || gate.executionMode;
-    pos.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: 'ST2_PREMIER_QUALITY_SCORE' };
-    // v6.7.3 compatibility proof: const finalPremier = !exactLiveDemoted && !labLiveDemoted
+    pos.renkoPremierDecision = { ...renkoPremier, evaluatedAt: new Date().toISOString(), authority: finalScore.selectionAuthority?.authority || 'ST2_PREMIER_QUALITY_SCORE' };
     const finalPremier = finalScore.selected === true;
     const finalScoreLeague = finalPremier ? 'PREMIER' : 'SHADOW';
     const scoreTransition = { from: previousScoreLeague, to: finalScoreLeague, changed: previousScoreLeague !== finalScoreLeague, reason: finalScore.explanation || finalScore.reason };
     if (finalPremier) {
-        const finalTrack = 'PREMIER_SCORE_RANKED';
-        const finalProof = 'ST2_PREMIER_SCORE_SELECTED';
+        const authority = String(finalScore.selectionAuthority?.authority || 'PREMIER_QUALITY_SCORE').toUpperCase();
+        const finalTrack = authority === 'LAB_LIVE_N5_ECONOMY'
+            ? 'LAB_LIVE_PROMOTED_PREMIER'
+            : (authority === 'RENKO_PATTERN_PREMIER' ? 'RENKO_PATTERN_PREMIER' : 'PREMIER_SCORE_RANKED');
+        const finalProof = authority === 'LAB_LIVE_N5_ECONOMY'
+            ? 'LAB_LIVE_N5_PROMOTED_PREMIER'
+            : (authority === 'RENKO_PATTERN_PREMIER' ? 'RENKO_PATTERN_PREMIER_PRESERVED' : 'ST2_PREMIER_SCORE_SELECTED');
         const calibrated = String(finalScore.policySource || '').toUpperCase() === 'CALIBRATED';
         labKarar = {
             ...(labKarar || {}),
@@ -217,6 +229,8 @@ function st2PremierScoreBagla(pos, girisAnalizi, symbol, yon) {
         pos.leagueShadowOnly = true;
         console.log(`👻 [ST2 PREMIER SCORE SHADOW] ${symbol} ${yon} | ${renkoPremier.patternKey} | ${finalScore.explanation || finalShadowReason} | ${premierQuality.componentText(finalScore)} | Giriş ${renkoPremier.activeBrick.toFixed(2)}`);
     }
+    pos.premierSelectionFrozenAtOpen = true;
+    pos.premierSelectionFrozenAt = pos.premierSelectionFrozenAt || new Date().toISOString();
     return labKarar;
 }
 

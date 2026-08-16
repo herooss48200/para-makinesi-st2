@@ -7,7 +7,7 @@ const version = require('./versiyon.js');
 assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar, 4, 'R25.1 marjin 4 USDT olmali');
 assert.strictEqual(ayarlar.mevcutKaldirac, 5, 'R25.1 kaldirac exact 5x olmali');
 assert.strictEqual(ayarlar.calisilmakIstenenUsdtMiktar * ayarlar.mevcutKaldirac, 20, 'notional 20 USDT olmali');
-assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 10, 'gercek slot 10 olmali');
+assert.strictEqual(ayarlar.gercekEmirMaxAktifPozisyon, 20, 'gercek slot 20 olmali');
 assert.strictEqual(ayarlar.sabitStopYuzdesi, 2.5, 'baslangic SL -%2.5 olmali');
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAktif, true);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde, 1.5);
@@ -15,7 +15,7 @@ assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde, 1.0);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde, 0.5);
 assert.strictEqual(ayarlar.confirmedYuzdeselEkonomiAdimYuzde, 0.5);
 assert.ok(ayarlar.maxTpYuzdesi >= 50, 'failsafe TP erken kapatmamalı');
-assert.ok(version.botSurumu.includes('R25.2-LIVENESS-INCREMENTAL-1M-CONFIRMED-5X20-MACD-SHADOW'));
+assert.ok(version.botSurumu.includes('R25.3-PREMIER-SELECTION-RECOVERY-N5-20SLOT-20USDT'));
 
 const pos = fs.readFileSync('./4_pozisyon.js','utf8');
 assert.ok(pos.includes('function yuzdeselEkonomiHesapla'));
@@ -47,7 +47,7 @@ assert.strictEqual(floor(2.00), 1.5);
 assert.strictEqual(floor(2.50), 2.0);
 assert.strictEqual(floor(5.00), 4.5);
 
-console.log('✅ R25 confirmed percent economy passed | 10 slot x 20USDT | SL -2.5 | +1.5=>+1.0 | 0.5pt trail | Premier/Real/Shadow live panel');
+console.log('✅ R25 confirmed percent economy passed | 20 slot x 20USDT | SL -2.5 | +1.5=>+1.0 | 0.5pt trail | Premier/Real/Shadow live panel');
 
 assert(report.includes("liveCohortEconomy.summary()"), 'panel cohort economy RAM cache kullanmali');
 assert(!report.slice(report.indexOf('function st2HafifCanliRaporMetniOlustur()'), report.indexOf('function minimalCanliRaporMetniOlustur()')).includes('operationIntelligence.scientificLedgerPartitions('), 'hafif panel ledger taramamali');

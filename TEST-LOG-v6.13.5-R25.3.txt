@@ -1,0 +1,737 @@
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot check
+> npm run test:syntax && npm run test:v672 && npm run test:v673 && npm run test:v674 && npm run test:v681 && npm run test:v682 && npm run test:v683 && npm run test:v684 && npm run test:v690 && npm run test:v691 && npm run test:v692 && npm run test:v693 && npm run test:v694 && npm run test:v610 && npm run test:v6101 && npm run test:v6102 && npm run test:v6103 && npm run test:v6104 && npm run test:v6105 && npm run test:v6106 && npm run test:v6107 && npm run test:v6108 && npm run test:v6109 && npm run test:v6110 && npm run test:v6112 && npm run test:v6122 && npm run test:v6123 && npm run test:v6130 && npm run test:v6132 && npm run test:v6133 && npm run test:v6134 && npm run test:v6135 && npm run test:v6135r2 && npm run test:v6137 && npm run test:v6138 && npm run test:v6139 && npm run test:v6140 && npm run test:v6141 && npm run test:v6142 && npm run test:v6143 && npm run test:v6144 && npm run test:v6153 && npm run test:v6149 && npm run test:v6150 && npm run test:v6157 && npm run test:v6158 && npm run test:v6159 && npm run test:v6160 && npm run test:v6161 && npm run test:v6162 && npm run test:v6163 && npm run test:v6164 && npm run test:v6165 && npm run test:v6166 && npm run test:v6167 && npm run test:v6168 && npm run test:v6169 && npm run test:v6170 && npm run test:v6171 && npm run test:v6172 && npm run test:v6173
+
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:syntax
+> node test_v674_full_source_syntax.js
+
+✅ v6.8.3 full source syntax passed | 189 JavaScript dosyası
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v672
+> node test_v672_single_delivery_safe_exit.js
+
+✅ v6.11.1 single-delivery Native Telegram + safe runner exit + report truth passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v673
+> node test_v673_live_lab_league.js
+
+✅ v6.8.2 persistent LAB lifecycle + true transitions + per-LAB N5 passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v674
+> node test_v674_telegram_startup_delivery.js
+
+✅ v6.11.0 Telegram circuit delivery + truthful curl diagnostics passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v681
+> node test_v681_live_report_reconciliation.js
+
+✅ AGROS ST2 v6.8.2 report reconciliation + uncut Telegram + duration truth passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v682
+> node test_v682_operation_transparency.js
+
+✅ AGROS ST2 v6.8.2 operation lifecycle + scientific separation + same-universe analytics passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v683
+> node test_v683_minimal_telegram_operations.js
+
+✅ AGROS ST2 v6.11.0 minimal Telegram + nonblocking startup + runtime export guard passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v684
+> node test_v684_operation_proof_telegram.js
+
+✅ AGROS ST2 v6.8.4 operation proof Telegram + entry/exit/replay visibility passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v690
+> node test_v690_final_premier_score_200_coin.js
+
+✅ AGROS ST2 v6.9.0 final Premier Score + 200 coin + replay separation passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v691
+> node test_v691_premier_walk_forward_calibration.js
+
+✅ AGROS ST2 v6.9.1 chronological Premier calibration + fail-closed policy + explainable pusu passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v692
+> node test_v692_fast_premier_calibration.js
+
+✅ AGROS ST2 v6.9.2 fast Premier calibration passed | 392000 model | 440 ms
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v693
+> node test_v693_live_5x_25usdt_final.js
+
+✅ AGROS ST2 v6.9.3 compatibility + current 4 USDT margin x 5 = 20 USDT risk + calibrated Premier ledger passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v694
+> node test_v694_configurable_live_risk.js
+
+✅ [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | İZİN
+🚫 [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | GERCEK_EMIR_MARJIN_GECERSIZ, GERCEK_EMIR_NOTIONAL_GECERSIZ
+🚫 [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | GERCEK_EMIR_MARJIN_GECERSIZ, GERCEK_EMIR_NOTIONAL_GECERSIZ, GERCEK_EMIR_KALDIRAC_GECERSIZ, GERCEK_EMIR_MARJIN_TIPI_GECERSIZ, GERCEK_EMIR_AKTIF_POZISYON_LIMITI_GECERSIZ
+🚫 [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | GERCEK_EMIR_KALDIRAC_GECERSIZ
+✅ AGROS ST2 v6.9.5 strict configurable live risk controls passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v610
+> node test_v610_real_order_execution_safety.js
+
+✅ v6.10.0 real order execution safety tests passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6101
+> node test_v6101_binance_endpoint_authority.js
+
+✅ v6.10.1 Binance Futures endpoint authority tests passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6102
+> node test_v6102_live_protection_recovery.js
+
+✅ v6.13.0 compatibility + current 20 real slots + independent protections + 21st-slot rejection + rollback accounting passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6103
+> node test_v6103_manual_close_shadow_safe_trailing.js
+
+💾 [KALICI HAFIZA] Kaydedildi: v6103-shadow-persistence-test
+💾 [KALICI HAFIZA] 1 canlı Shadow/GAP gözlem geri yüklendi. Günlük gerçek emir: 0/∞
+🛡️ [RESTART GAP] 1 aktif pozisyon öğrenme karantinasına alındı; muhasebe korunacak.
+✅ v6.10.6 manual close auto-rearm + safe single-stop trailing + exact commissions + real/shadow separation + Telegram reconciliation passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6104
+> node test_v6104_premier_close_counter_reconciliation.js
+
+✅ v6.10.4 real Score-Premier close counters + real/virtual split + Entry/Exit wording reconciliation passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6105
+> node test_v6105_active_exit_report_reconciliation.js
+
+✅ v6.13.5-R8 report truth: real Binance stop priority + virtual legacy compatibility + Restart-GAP reconciliation passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6106
+> node test_v6106_manual_close_auto_rearm_profit_economy.js
+
+✅ v6.10.6 manual-close auto-rearm + safe floor + runner breathing zone + net-economy replay passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6107
+> node test_v6107_operational_resilience.js
+
+✅ v6.10.7 close commit barrier + non-blocking historical startup + closed-candle network scheduling passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6108
+> node test_v6108_net_profit_brick_trail_restoration.js
+
+✅ v6.10.8 net-profit brick trail restoration + Entry binding proof + non-activated replay exclusion passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6109
+> node test_v6109_final_chain_reconciliation.js
+
+âœ… v6.10.9 final Entry binding + position-frozen Exit trail + exact net-profit replay chain passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6110
+> node test_v6110_golden_live_chain.js
+
+✅ [STARTUP ENTRY GATE] AÇILDI | Kaynak TEST_RECOVERY | 15m Mum 2/2 | 1m Renko ST 2/2 | Eşik %95
+✅ v6.11.0 golden live chain: time authority + staged startup + Telegram circuit + quantized atomic stop passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6112
+> node test_v6112_direct_profit_floor_two_slot.js
+
+✅ v6.11.2 direct floor/activation, no 2x rule, frozen brick trail and configurable 2-slot passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6122
+> node test_v6122_golden_renko_williams_shadow.js
+
+📚 [W%R SHADOW CLOSE] TESTUSDT SHORT | D2-T1 SUPPORTED | Net +1.0000 | Emir öğrenmesine etkisi YOK
+✅ v6.12.2 compatibility: Golden Renko + Entry Evolution + Williams shadow foundation passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6123
+> node test_v6123_renko_entry_confirmation_shadow.js
+
+🧪 [RENKO ENTRY CONFIRMATION SHADOW] MYXTEST LONG | RED->GREEN | Base 101 | 0.25T:WAITING 0.50T:WAITING 0.75T:WAITING | SAME+FULL yaşam | LEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek Entry Mode seçim yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION SAME WINDOW] MYXTEST LONG | Gerçek -0.1598 | 0.25T:NO_ENTRY_SAME_WINDOW 0.50T:NO_ENTRY_SAME_WINDOW 0.75T:NO_ENTRY_SAME_WINDOW | Full yaşam devam ediyor
+🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] MYXTEST LONG | 0.25T | 101.25 | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] MYXTEST LONG | 0.50T | 101.5 | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] MYXTEST LONG | 0.75T | 101.75 | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] MYXTEST LONG | 0.25T TP | Net +0.3000 | FULL_PROFIT_FLOOR_STOP | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] MYXTEST LONG | 0.50T TP | Net +0.1000 | FULL_INITIAL_SL | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] MYXTEST LONG | 0.75T SL | Net -1.6000 | FULL_INITIAL_SL | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+🧪 [RENKO ENTRY CONFIRMATION SHADOW] SHORTTEST SHORT | GREEN->RED | Base 99 | 0.25T:WAITING 0.50T:WAITING 0.75T:WAITING | SAME+FULL yaşam | LEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek Entry Mode seçim yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION SAME WINDOW] SHORTTEST SHORT | Gerçek -0.1000 | 0.25T:NO_ENTRY_SAME_WINDOW 0.50T:NO_ENTRY_SAME_WINDOW 0.75T:NO_ENTRY_SAME_WINDOW | Full yaşam devam ediyor
+📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] SHORTTEST SHORT | 0.25T | FULL_TRIGGER_WINDOW_EXPIRED | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] SHORTTEST SHORT | 0.50T | FULL_TRIGGER_WINDOW_EXPIRED | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] SHORTTEST SHORT | 0.75T | FULL_TRIGGER_WINDOW_EXPIRED | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+✅ v6.12.3-R2 Williams turn + Renko confirmation SAME_WINDOW + FULL_LIFECYCLE shadow passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6130
+> node test_v6130_dual_dimension_premier_accounting.js
+
+✅ v6.13.0 dual-dimension REAL/VIRTUAL + PREMIER/SHADOW accounting passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6132
+> node test_v6132_symbol_leverage_fallback.js
+
+✅ v6.13.2 symbol leverage fallback + margin-preserving sizing + fail-closed isolation passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6133
+> node test_v6133_profit_capture_and_cache_accounting.js
+
+✅ v6.13.3 MFE capture ratchet + monotonic profit protection + active-universe cache accounting passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6134
+> node test_v6134_unified_entry_mode_live_gate.js
+
+✅ v6.13.4 Entry Evolution mode+offset + exact-pattern CONFIRMED + single real entry gate passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6135
+> node test_v6135_economy_confirmed_real_size.js
+
+✅ v6.13.5-R3 separate early economy floor + success-first CONFIRMED + nearest-step real sizing passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6135r2
+> node test_v6136_success_first_confirmed_policy.js
+
+✅ v6.13.6 compatibility: R23.1 forced CONFIRMED + 15m authority + legacy 1m shadow isolation passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6137
+> node test_v6137_early_economy_floor_contract.js
+
+✅ v6.13.5-R3 K0.5 early economy + K1 safe floor + K2 Renko coexistence passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6138
+> node test_v6138_market_data_fast_refresh.js
+
+✅ v6.13.5-R8 fast-refresh retirement passed | R5 scheduler removed, visibility retained
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6139
+> node test_v6139_market_data_recovery_fairness.js
+
+📥 [AŞAMALI BAŞLANGIÇ] Golden Renko çekirdeği hazırlanıyor | 15m ATR-Renko + 1m Renko ST verisi | Worker 8 | Ağ concurrency 4 | 3m ST1 yalnız shadow sonra.
+✅ [STARTUP ENTRY GATE] AÇILDI | Kaynak INITIAL_GOLDEN_RENKO_PROGRESS | 15m Mum 4/4 | 1m Renko ST 4/4 | Eşik %95
+⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] İşlenen 4/4 | 15m Mum 4/4 | 1m Renko ST veri 4/4 | Hata 0
+✅ [AŞAMALI BAŞLANGIÇ] GOLDEN RENKO TAMAM | 15m Mum 4/4 | 1m Renko ST veri 4/4 | Eşik %95 | Süre 5 ms.
+🛡️ [CORE REFRESH DEFERRED] İlk Golden Renko taraması tamamlanana kadar 15m/1m toplu refresh YOK
+🧪 [ST1 SHADOW DEFERRED] İlk Golden Renko taraması tamamlanana kadar ağ isteği YOK | Giriş yetkisine etkisi YOK
+✅ v6.13.5-R8 known-good startup passed | full core load + fail-closed accounting
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6140
+> node test_v6140_market_data_transport_stability.js
+
+✅ v6.13.5-R8 transport rollback passed | shared 15s+2retry policy, no R5 queue expiry
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6141
+> node test_v6141_market_data_known_good_rollback.js
+
+✅ v6.13.5-R17 market-data contract passed | R8 bulk semantics preserved + dedicated fail-fast ticker isolation
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6142
+> node test_v6142_startup_panel_guard.js
+
+✅ v6.13.5-R17 startup panel guard passed | Gate READY korunur; ilk Renko taraması artık 30s panel cadence'ini bloke etmez
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6143
+> node test_v6143_telegram_live_panel_delivery_truth.js
+
+✅ v6.13.5-R17 Telegram delivery truth passed | bounded edit + latest-only worker + no transient send storm
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6144
+> node test_v6144_live_panel_runtime_cadence.js && node test_v6145_1m_renko_st_readiness.js
+
+✅ v6.13.5-R17 live panel runtime cadence passed | READY -> immediate, then exact 30s requests independent of full Renko scan
+✅ v6.13.5-R17 1m Renko ST readiness passed | raw80=80 | bricks=0 | gate uses actual ST readiness + 240/480 repair
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6153
+> node test_v6153_r12_main_loop_lifecycle.js
+
+🛡️ [ST2 GERÇEK ENTRY FAIL-CLOSED] NETWORK_PRICE_NOT_VERIFIED | Renko/pusu taraması DEVAM | Gerçek yeni emir YOK
+✅ v6.13.5-R17 main-loop lifecycle passed | 200 symbols READY + FIRST-AUDIT FALLBACK → 2x TICKER → PROTECTION → RENKO SCAN + zero loop errors
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6149
+> node test_v6149_market_price_fallback_live_chain.js
+
+✅ v6.13.5-R16 market price fallback live chain passed | first audit bypasses ticker + fresh 1m fallback survives ticker failure + real protection fail-closed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6150
+> node test_v6150_entry_authority_end_to_end.js
+
+🎯 [GOLDEN RENKO TETİK] TESTUSDT LONG | Mode DIRECT | Offset 0.50T 100.50000000 | Canlı 100.60000000 | 1m Renko ST UP | ST1 shadow SHADOW_ONLY | W%R NONE
+✅ [CONFIRMED 15M DÖNÜŞ HAZIR] TESTUSDT LONG | YOK | Base 0.000000000 | Offset 0.25T | Tetik 100.25000000 | 1m Renko ST son teyit
+🎯 [GOLDEN RENKO TETİK] TESTUSDT LONG | Mode CONFIRMED | Offset 0.25T 100.25000000 | Canlı 100.30000000 | 1m Renko ST UP | ST1 shadow SHADOW_ONLY | W%R NONE
+âœ… v6.13.5-R16 entry authority end-to-end passed | DIRECT + CONFIRMED valid triggers reach shared pozisyonAc authority
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6157
+> node test_v6157_unified_live_recovery.js
+
+🔎 [GERÇEK KAPANIŞ MUTABAKATI] GHOSTUSDT LONG | MANUAL_EXTERNAL_CLOSE / BINANCE FILL | Fill 101 | Net 1.000000 | Slot SERBEST
+✅ v6.13.5-R18 unified live recovery compatibility passed | ghost exchange close + price fallback + Telegram probe + nonblocking reconciliation
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6158
+> node test_v6158_nonblocking_control_plane_liveness.js
+
+✅ v6.13.5-R19 nonblocking control-plane liveness passed | hung reconciliation cannot stop Renko/pusu + real entry remains fail-closed + panel observability + Telegram hard deadline
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6159
+> node test_v6159_live_cpu_isolation.js
+
+✅ v6.13.5-R19 live CPU isolation passed | 30s panel RAM-only + Premier cohort cache + 2-symbol event-loop fairness + full slow-stage observability
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6160
+> node test_v6160_live_panel_direct_entry_truth.js
+
+✅ v6.13.5-R21 live panel direct + entry truth passed | R20 30s direct panel preserved + CONFIRMED target no fake zero
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6161
+> node test_v6161_15m_confirmed_timeframe_authority.js
+
+✅ v6.13.5-R21 15m CONFIRMED timeframe authority passed | closed 15m reversal + 15m offset + 1m ST final sniper; 1m lab remains shadow
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6162
+> node test_v6162_r22_15m_confirmed_bootstrap_evidence.js
+
+✅ v6.13.5-R22 15m bootstrap+live evidence authority passed | legacy 1m diagnostic only | global historical runtime default OFF
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6163
+> node test_v6163_r221_confirmed_shadow_live_learning.js
+
+✅ v6.13.5-R22.1 confirmed shadow live learning passed | DIRECT seçiliyken 15m CONFIRMED counterfactual öğrenir | panel funnel truth | legacy 1m real authority YOK
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6164
+> node test_v6164_r222_kasa_recovery_40usdt_postclose.js
+
+✅ v6.13.5-R23.1 risk/post-close compatibility passed | 20 USDT notional | CONFIRMED real authority | post-close 24h no-order tracker
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6165
+> node test_v6165_r231_confirmed_frozen_long_life.js
+
+✅ R24 preserves CONFIRMED frozen authority while reporting percent-economy override; legacy exit module compatibility passed
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6166
+> node test_v6166_r232_confirmed_first_reversal_fresh_window.js
+
+✅ R24 preserves R23.2 first reversal + fresh fractional window + frozen box + stale rearm guard | 20 slot x 20USDT
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6167
+> node test_v6167_r24_confirmed_percent_economy.js
+
+✅ R25 confirmed percent economy passed | 20 slot x 20USDT | SL -2.5 | +1.5=>+1.0 | 0.5pt trail | Premier/Real/Shadow live panel
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6168
+> node test_v6168_r242_unified_execution_stop_authority.js
+
+✅ R25 unified execution stop authority passed | Real Premier + main Shadow/Development SL -2.5 | early profit lock + MACD shadow | LAB stop replay-only | 20 slot x 20USDT
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6169
+> node test_v6169_r242_lotsize_safe_under_target.js
+
+✅ R24.2 LOT_SIZE hotfix passed | AVAX 19.464/20 = -2.680% REAL eligible | target overrun blocked | fill safety 2% preserved
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6170
+> node test_v6170_r25_early_profit_lock_exact_leverage.js
+
+✅ R25.1 early profit lock + exact leverage passed | +1.50=>+1.00 | +2.00=>+1.50 | +2.50=>+2.00 | monotonic LONG/SHORT | live exact 5x no silent fallback | 4 USDT margin x 5 = 20 USDT
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6171
+> node test_v6171_r25_macd_shadow_intelligence.js
+
+🟣 [MACD SHADOW] TESTUSDT LONG | 1m DECAY | MFE +%1.85 | Anlık +%1.20 | DECAY yalnız gözlem | Emir/stop etkisi YOK
+✅ R25.1 MACD replay shadow passed | 1m STRONG + 15m OPPOSED/EARLY_RECOVERY cohort | DECAY observe-only | OPPOSED/REVERSAL protection candidate | no entry/stop authority
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6172
+> node test_v6172_r252_incremental_1m_liveness.js
+
+📊 [2:12:04 PM] 1m Renko ST verisi (1m): 1 coin | ST1 shadow (3m): ATLANDI coin güncellendi, 0 hata | süre 17 ms.
+✅ R25.2 incremental 1m liveness passed | small refresh window + preserved history + startup-visible panel
+
+> para-makinesi-st2@6.13.5-r25.3-premier-selection-recovery-n5-20slot test:v6173
+> node test_v6173_r253_premier_selection_recovery.js
+
+✅ R25.3 Premier selection recovery passed | OOS COIN1000/1001 veto + N5 Shadow recovery/demotion + Renko preserve + at-open freeze + 20 slot x 20USDT
+
+
+===== ALL REPOSITORY test_*.js SWEEP =====
+===== test_v6101_binance_endpoint_authority.js =====
+✅ v6.10.1 Binance Futures endpoint authority tests passed
+===== test_v6102_live_protection_recovery.js =====
+✅ v6.13.0 compatibility + current 20 real slots + independent protections + 21st-slot rejection + rollback accounting passed
+===== test_v6103_manual_close_shadow_safe_trailing.js =====
+💾 [KALICI HAFIZA] Kaydedildi: v6103-shadow-persistence-test
+💾 [KALICI HAFIZA] 1 canlı Shadow/GAP gözlem geri yüklendi. Günlük gerçek emir: 0/∞
+🛡️ [RESTART GAP] 1 aktif pozisyon öğrenme karantinasına alındı; muhasebe korunacak.
+✅ v6.10.6 manual close auto-rearm + safe single-stop trailing + exact commissions + real/shadow separation + Telegram reconciliation passed
+===== test_v6104_premier_close_counter_reconciliation.js =====
+✅ v6.10.4 real Score-Premier close counters + real/virtual split + Entry/Exit wording reconciliation passed
+===== test_v6105_active_exit_report_reconciliation.js =====
+✅ v6.13.5-R8 report truth: real Binance stop priority + virtual legacy compatibility + Restart-GAP reconciliation passed
+===== test_v6106_manual_close_auto_rearm_profit_economy.js =====
+✅ v6.10.6 manual-close auto-rearm + safe floor + runner breathing zone + net-economy replay passed
+===== test_v6107_operational_resilience.js =====
+✅ v6.10.7 close commit barrier + non-blocking historical startup + closed-candle network scheduling passed
+===== test_v6108_net_profit_brick_trail_restoration.js =====
+✅ v6.10.8 net-profit brick trail restoration + Entry binding proof + non-activated replay exclusion passed
+===== test_v6109_final_chain_reconciliation.js =====
+âœ… v6.10.9 final Entry binding + position-frozen Exit trail + exact net-profit replay chain passed
+===== test_v610_real_order_execution_safety.js =====
+✅ v6.10.0 real order execution safety tests passed
+===== test_v6110_golden_live_chain.js =====
+✅ [STARTUP ENTRY GATE] AÇILDI | Kaynak TEST_RECOVERY | 15m Mum 2/2 | 1m Renko ST 2/2 | Eşik %95
+✅ v6.11.0 golden live chain: time authority + staged startup + Telegram circuit + quantized atomic stop passed
+===== test_v6111_profit_floor_two_slot.js =====
+✅ v6.11.1 minimum net +%0.30 floor first, frozen brick trail second, 0.50T update and current 20-slot risk settings passed
+===== test_v6112_direct_profit_floor_two_slot.js =====
+✅ v6.11.2 direct floor/activation, no 2x rule, frozen brick trail and configurable 2-slot passed
+===== test_v6120_st1_gated_renko_directional_report.js =====
+✅ current ST1 shadow isolation + DIRECT/CONFIRMED Renko authority + directional live report passed
+===== test_v6121_core_first_startup_warmup.js =====
+✅ current core-first 15m+1m Renko-ST startup gate + progressive health + deferred 3m ST1 shadow passed
+===== test_v6122_golden_renko_williams_shadow.js =====
+📚 [W%R SHADOW CLOSE] TESTUSDT SHORT | D2-T1 SUPPORTED | Net +1.0000 | Emir öğrenmesine etkisi YOK
+✅ v6.12.2 compatibility: Golden Renko + Entry Evolution + Williams shadow foundation passed
+===== test_v6123_renko_entry_confirmation_shadow.js =====
+🧪 [RENKO ENTRY CONFIRMATION SHADOW] MYXTEST LONG | RED->GREEN | Base 101 | 0.25T:WAITING 0.50T:WAITING 0.75T:WAITING | SAME+FULL yaşam | LEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek Entry Mode seçim yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION SAME WINDOW] MYXTEST LONG | Gerçek -0.1598 | 0.25T:NO_ENTRY_SAME_WINDOW 0.50T:NO_ENTRY_SAME_WINDOW 0.75T:NO_ENTRY_SAME_WINDOW | Full yaşam devam ediyor
+🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] MYXTEST LONG | 0.25T | 101.25 | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] MYXTEST LONG | 0.50T | 101.5 | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+🎯 [RENKO ENTRY CONFIRMATION FULL TETİK] MYXTEST LONG | 0.75T | 101.75 | Ana işlemden bağımsız laboratuvar yaşamı | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] MYXTEST LONG | 0.25T TP | Net +0.3000 | FULL_PROFIT_FLOOR_STOP | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] MYXTEST LONG | 0.50T TP | Net +0.1000 | FULL_INITIAL_SL | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL CLOSE] MYXTEST LONG | 0.75T SL | Net -1.6000 | FULL_INITIAL_SL | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+🧪 [RENKO ENTRY CONFIRMATION SHADOW] SHORTTEST SHORT | GREEN->RED | Base 99 | 0.25T:WAITING 0.50T:WAITING 0.75T:WAITING | SAME+FULL yaşam | LEGACY 1m SHADOW; laboratuvar emir göndermez; gerçek Entry Mode seçim yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION SAME WINDOW] SHORTTEST SHORT | Gerçek -0.1000 | 0.25T:NO_ENTRY_SAME_WINDOW 0.50T:NO_ENTRY_SAME_WINDOW 0.75T:NO_ENTRY_SAME_WINDOW | Full yaşam devam ediyor
+📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] SHORTTEST SHORT | 0.25T | FULL_TRIGGER_WINDOW_EXPIRED | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] SHORTTEST SHORT | 0.50T | FULL_TRIGGER_WINDOW_EXPIRED | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+📚 [RENKO ENTRY CONFIRMATION FULL NO_ENTRY] SHORTTEST SHORT | 0.75T | FULL_TRIGGER_WINDOW_EXPIRED | LEGACY 1m tanı kanıtı; gerçek mode yetkisi YOK
+✅ v6.12.3-R2 Williams turn + Renko confirmation SAME_WINDOW + FULL_LIFECYCLE shadow passed
+===== test_v6130_dual_dimension_premier_accounting.js =====
+✅ v6.13.0 dual-dimension REAL/VIRTUAL + PREMIER/SHADOW accounting passed
+===== test_v6131_scan_health_snapshot.js =====
+✅ v6.13.1 scan health completed-cache + in-progress refresh separation passed
+===== test_v6132_symbol_leverage_fallback.js =====
+✅ v6.13.2 symbol leverage fallback + margin-preserving sizing + fail-closed isolation passed
+===== test_v6133_profit_capture_and_cache_accounting.js =====
+✅ v6.13.3 MFE capture ratchet + monotonic profit protection + active-universe cache accounting passed
+===== test_v6134_unified_entry_mode_live_gate.js =====
+✅ v6.13.4 Entry Evolution mode+offset + exact-pattern CONFIRMED + single real entry gate passed
+===== test_v6135_economy_confirmed_real_size.js =====
+✅ v6.13.5-R3 separate early economy floor + success-first CONFIRMED + nearest-step real sizing passed
+===== test_v6136_success_first_confirmed_policy.js =====
+✅ v6.13.6 compatibility: R23.1 forced CONFIRMED + 15m authority + legacy 1m shadow isolation passed
+===== test_v6137_early_economy_floor_contract.js =====
+✅ v6.13.5-R3 K0.5 early economy + K1 safe floor + K2 Renko coexistence passed
+===== test_v6138_market_data_fast_refresh.js =====
+✅ v6.13.5-R8 fast-refresh retirement passed | R5 scheduler removed, visibility retained
+===== test_v6139_market_data_recovery_fairness.js =====
+📥 [AŞAMALI BAŞLANGIÇ] Golden Renko çekirdeği hazırlanıyor | 15m ATR-Renko + 1m Renko ST verisi | Worker 8 | Ağ concurrency 4 | 3m ST1 yalnız shadow sonra.
+✅ [STARTUP ENTRY GATE] AÇILDI | Kaynak INITIAL_GOLDEN_RENKO_PROGRESS | 15m Mum 4/4 | 1m Renko ST 4/4 | Eşik %95
+⏳ [AŞAMALI BAŞLANGIÇ İLERLEME] İşlenen 4/4 | 15m Mum 4/4 | 1m Renko ST veri 4/4 | Hata 0
+✅ [AŞAMALI BAŞLANGIÇ] GOLDEN RENKO TAMAM | 15m Mum 4/4 | 1m Renko ST veri 4/4 | Eşik %95 | Süre 5 ms.
+🛡️ [CORE REFRESH DEFERRED] İlk Golden Renko taraması tamamlanana kadar 15m/1m toplu refresh YOK
+🧪 [ST1 SHADOW DEFERRED] İlk Golden Renko taraması tamamlanana kadar ağ isteği YOK | Giriş yetkisine etkisi YOK
+✅ v6.13.5-R8 known-good startup passed | full core load + fail-closed accounting
+===== test_v6140_market_data_transport_stability.js =====
+✅ v6.13.5-R8 transport rollback passed | shared 15s+2retry policy, no R5 queue expiry
+===== test_v6141_market_data_known_good_rollback.js =====
+✅ v6.13.5-R17 market-data contract passed | R8 bulk semantics preserved + dedicated fail-fast ticker isolation
+===== test_v6142_startup_panel_guard.js =====
+✅ v6.13.5-R17 startup panel guard passed | Gate READY korunur; ilk Renko taraması artık 30s panel cadence'ini bloke etmez
+===== test_v6143_telegram_live_panel_delivery_truth.js =====
+✅ v6.13.5-R17 Telegram delivery truth passed | bounded edit + latest-only worker + no transient send storm
+===== test_v6144_live_panel_runtime_cadence.js =====
+✅ v6.13.5-R17 live panel runtime cadence passed | READY -> immediate, then exact 30s requests independent of full Renko scan
+===== test_v6145_1m_renko_st_readiness.js =====
+✅ v6.13.5-R17 1m Renko ST readiness passed | raw80=80 | bricks=0 | gate uses actual ST readiness + 240/480 repair
+===== test_v6146_core_loop_liveness_shadow_isolation.js =====
+✅ v6.13.5-R16 core loop liveness + ST1 shadow isolation passed | first Renko audit before shadow network load + watchdog truth
+===== test_v6147_critical_ticker_first_audit_isolation.js =====
+✅ v6.13.5-R16 critical ticker + first-audit isolation passed | CRITICAL overflow <400ms | hard deadline 1001ms
+===== test_v6148_dedicated_ticker_startup_isolation.js =====
+✅ v6.13.5-R16 dedicated ticker + startup isolation passed | ticker bypasses shared bulk queue/agent
+===== test_v6149_market_price_fallback_live_chain.js =====
+✅ v6.13.5-R16 market price fallback live chain passed | first audit bypasses ticker + fresh 1m fallback survives ticker failure + real protection fail-closed
+===== test_v6150_entry_authority_end_to_end.js =====
+🎯 [GOLDEN RENKO TETİK] TESTUSDT LONG | Mode DIRECT | Offset 0.50T 100.50000000 | Canlı 100.60000000 | 1m Renko ST UP | ST1 shadow SHADOW_ONLY | W%R NONE
+✅ [CONFIRMED 15M DÖNÜŞ HAZIR] TESTUSDT LONG | YOK | Base 0.000000000 | Offset 0.25T | Tetik 100.25000000 | 1m Renko ST son teyit
+🎯 [GOLDEN RENKO TETİK] TESTUSDT LONG | Mode CONFIRMED | Offset 0.25T 100.25000000 | Canlı 100.30000000 | 1m Renko ST UP | ST1 shadow SHADOW_ONLY | W%R NONE
+âœ… v6.13.5-R16 entry authority end-to-end passed | DIRECT + CONFIRMED valid triggers reach shared pozisyonAc authority
+===== test_v6151_renko_scan_io_liveness.js =====
+🧪 [W%R SHADOW EVENT] TEST0USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST1USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST2USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST3USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST4USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST5USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST6USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST7USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST8USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST9USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST10USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST11USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST12USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST13USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST14USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST15USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST16USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST17USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST18USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST19USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST20USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST21USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST22USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST23USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST24USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST25USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST26USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST27USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST28USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST29USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST30USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST31USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST32USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST33USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST34USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST35USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST36USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST37USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST38USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST39USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST40USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST41USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST42USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST43USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST44USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST45USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST46USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST47USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST48USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST49USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST50USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST51USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST52USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST53USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST54USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST55USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST56USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST57USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST58USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST59USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST60USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST61USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST62USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST63USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST64USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST65USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST66USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST67USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST68USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST69USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST70USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST71USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST72USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST73USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST74USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST75USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST76USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST77USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST78USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST79USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST80USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST81USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST82USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST83USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST84USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST85USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST86USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST87USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST88USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST89USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST90USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST91USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST92USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST93USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST94USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST95USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST96USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST97USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST98USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST99USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST100USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST101USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST102USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST103USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST104USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST105USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST106USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST107USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST108USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST109USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST110USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST111USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST112USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST113USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST114USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST115USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST116USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST117USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST118USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST119USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST120USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST121USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST122USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST123USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST124USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST125USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST126USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST127USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST128USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST129USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST130USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST131USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST132USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST133USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST134USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST135USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST136USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST137USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST138USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST139USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST140USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST141USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST142USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST143USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST144USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST145USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST146USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST147USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST148USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST149USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST150USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST151USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST152USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST153USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST154USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST155USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST156USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST157USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST158USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST159USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST160USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST161USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST162USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST163USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST164USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST165USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST166USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST167USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST168USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST169USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST170USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST171USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST172USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST173USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST174USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST175USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST176USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST177USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST178USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST179USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST180USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST181USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST182USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST183USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST184USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST185USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST186USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST187USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST188USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST189USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST190USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST191USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST192USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST193USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST194USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST195USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST196USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST197USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST198USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+🧪 [W%R SHADOW EVENT] TEST199USDT | TOP 1 | W%R -3.38 | Emir etkisi YOK
+✅ v6.13.5-R16 scan I/O liveness passed | 200 Williams updates = 0 per-symbol writes + 1 batched flush; startup pusu Telegram is background-only
+===== test_v6152_shadow_telegram_nonblocking_protection.js =====
+✅ v6.13.5-R16 shadow Telegram nonblocking protection passed | 200 never-resolving shadow sends do not block zero-position scan path or active protection
+===== test_v6153_r12_main_loop_lifecycle.js =====
+🛡️ [ST2 GERÇEK ENTRY FAIL-CLOSED] NETWORK_PRICE_NOT_VERIFIED | Renko/pusu taraması DEVAM | Gerçek yeni emir YOK
+✅ v6.13.5-R17 main-loop lifecycle passed | 200 symbols READY + FIRST-AUDIT FALLBACK → 2x TICKER → PROTECTION → RENKO SCAN + zero loop errors
+===== test_v6154_r12_live_liveness_recovery.js =====
+✅ v6.13.5-R17 live liveness recovery passed | first audit isolated + dedicated ticker + batched Williams + nonblocking shadow TG
+===== test_v6155_renko_scan_cpu_liveness.js =====
+✅ v6.13.5-R17 Renko scan CPU liveness passed | exact tail + bounded million-brick path + unchanged-state caches
+===== test_v6156_1m_st_cache_failclosed_scan.js =====
+✅ v6.13.5-R17 1m ST scan cache fail-closed passed | scan recompute YOK + slow-stage observability
+===== test_v6157_unified_live_recovery.js =====
+🔎 [GERÇEK KAPANIŞ MUTABAKATI] GHOSTUSDT LONG | MANUAL_EXTERNAL_CLOSE / BINANCE FILL | Fill 101 | Net 1.000000 | Slot SERBEST
+✅ v6.13.5-R18 unified live recovery compatibility passed | ghost exchange close + price fallback + Telegram probe + nonblocking reconciliation
+===== test_v6158_nonblocking_control_plane_liveness.js =====
+✅ v6.13.5-R19 nonblocking control-plane liveness passed | hung reconciliation cannot stop Renko/pusu + real entry remains fail-closed + panel observability + Telegram hard deadline
+===== test_v6159_live_cpu_isolation.js =====
+✅ v6.13.5-R19 live CPU isolation passed | 30s panel RAM-only + Premier cohort cache + 2-symbol event-loop fairness + full slow-stage observability
+===== test_v6160_live_panel_direct_entry_truth.js =====
+✅ v6.13.5-R21 live panel direct + entry truth passed | R20 30s direct panel preserved + CONFIRMED target no fake zero
+===== test_v6161_15m_confirmed_timeframe_authority.js =====
+✅ v6.13.5-R21 15m CONFIRMED timeframe authority passed | closed 15m reversal + 15m offset + 1m ST final sniper; 1m lab remains shadow
+===== test_v6162_r22_15m_confirmed_bootstrap_evidence.js =====
+✅ v6.13.5-R22 15m bootstrap+live evidence authority passed | legacy 1m diagnostic only | global historical runtime default OFF
+===== test_v6163_r221_confirmed_shadow_live_learning.js =====
+✅ v6.13.5-R22.1 confirmed shadow live learning passed | DIRECT seçiliyken 15m CONFIRMED counterfactual öğrenir | panel funnel truth | legacy 1m real authority YOK
+===== test_v6164_r222_kasa_recovery_40usdt_postclose.js =====
+✅ v6.13.5-R23.1 risk/post-close compatibility passed | 20 USDT notional | CONFIRMED real authority | post-close 24h no-order tracker
+===== test_v6165_r231_confirmed_frozen_long_life.js =====
+✅ R24 preserves CONFIRMED frozen authority while reporting percent-economy override; legacy exit module compatibility passed
+===== test_v6166_r232_confirmed_first_reversal_fresh_window.js =====
+✅ R24 preserves R23.2 first reversal + fresh fractional window + frozen box + stale rearm guard | 20 slot x 20USDT
+===== test_v6167_r24_confirmed_economy_10slot_20usdt.js =====
+✅ R25 confirmed percent economy passed | 20 slot x 20USDT | SL -2.5 | +1.5=>+1.0 | 0.5pt trail | Premier/Real/Shadow live panel
+===== test_v6167_r24_confirmed_percent_economy.js =====
+✅ R25 confirmed percent economy passed | 20 slot x 20USDT | SL -2.5 | +1.5=>+1.0 | 0.5pt trail | Premier/Real/Shadow live panel
+===== test_v6168_r242_unified_execution_stop_authority.js =====
+✅ R25 unified execution stop authority passed | Real Premier + main Shadow/Development SL -2.5 | early profit lock + MACD shadow | LAB stop replay-only | 20 slot x 20USDT
+===== test_v6169_r242_lotsize_safe_under_target.js =====
+✅ R24.2 LOT_SIZE hotfix passed | AVAX 19.464/20 = -2.680% REAL eligible | target overrun blocked | fill safety 2% preserved
+===== test_v6170_r25_early_profit_lock_exact_leverage.js =====
+✅ R25.1 early profit lock + exact leverage passed | +1.50=>+1.00 | +2.00=>+1.50 | +2.50=>+2.00 | monotonic LONG/SHORT | live exact 5x no silent fallback | 4 USDT margin x 5 = 20 USDT
+===== test_v6171_r25_macd_shadow_intelligence.js =====
+🟣 [MACD SHADOW] TESTUSDT LONG | 1m DECAY | MFE +%1.85 | Anlık +%1.20 | DECAY yalnız gözlem | Emir/stop etkisi YOK
+✅ R25.1 MACD replay shadow passed | 1m STRONG + 15m OPPOSED/EARLY_RECOVERY cohort | DECAY observe-only | OPPOSED/REVERSAL protection candidate | no entry/stop authority
+===== test_v6172_r252_incremental_1m_liveness.js =====
+📊 [2:11:32 PM] 1m Renko ST verisi (1m): 1 coin | ST1 shadow (3m): ATLANDI coin güncellendi, 0 hata | süre 20 ms.
+✅ R25.2 incremental 1m liveness passed | small refresh window + preserved history + startup-visible panel
+===== test_v6173_r253_premier_selection_recovery.js =====
+✅ R25.3 Premier selection recovery passed | OOS COIN1000/1001 veto + N5 Shadow recovery/demotion + Renko preserve + at-open freeze + 20 slot x 20USDT
+===== test_v672_full_source_syntax.js =====
+✅ v6.7.2 full source syntax passed | 189 JavaScript dosyası
+===== test_v672_single_delivery_safe_exit.js =====
+✅ v6.11.1 single-delivery Native Telegram + safe runner exit + report truth passed
+===== test_v673_full_source_syntax.js =====
+✅ v6.7.3 full source syntax passed | 189 JavaScript dosyası
+===== test_v673_live_lab_league.js =====
+✅ v6.8.2 persistent LAB lifecycle + true transitions + per-LAB N5 passed
+===== test_v674_full_source_syntax.js =====
+✅ v6.8.3 full source syntax passed | 189 JavaScript dosyası
+===== test_v674_telegram_startup_delivery.js =====
+✅ v6.11.0 Telegram circuit delivery + truthful curl diagnostics passed
+===== test_v681_live_report_reconciliation.js =====
+✅ AGROS ST2 v6.8.2 report reconciliation + uncut Telegram + duration truth passed
+===== test_v682_operation_transparency.js =====
+✅ AGROS ST2 v6.8.2 operation lifecycle + scientific separation + same-universe analytics passed
+===== test_v683_minimal_telegram_operations.js =====
+✅ AGROS ST2 v6.11.0 minimal Telegram + nonblocking startup + runtime export guard passed
+===== test_v684_operation_proof_telegram.js =====
+✅ AGROS ST2 v6.8.4 operation proof Telegram + entry/exit/replay visibility passed
+===== test_v690_final_premier_score_200_coin.js =====
+✅ AGROS ST2 v6.9.0 final Premier Score + 200 coin + replay separation passed
+===== test_v691_premier_walk_forward_calibration.js =====
+✅ AGROS ST2 v6.9.1 chronological Premier calibration + fail-closed policy + explainable pusu passed
+===== test_v692_fast_premier_calibration.js =====
+✅ AGROS ST2 v6.9.2 fast Premier calibration passed | 392000 model | 486 ms
+===== test_v693_live_5x_25usdt_final.js =====
+✅ AGROS ST2 v6.9.3 compatibility + current 4 USDT margin x 5 = 20 USDT risk + calibrated Premier ledger passed
+===== test_v694_configurable_live_risk.js =====
+✅ [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | İZİN
+🚫 [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | GERCEK_EMIR_MARJIN_GECERSIZ, GERCEK_EMIR_NOTIONAL_GECERSIZ
+🚫 [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | GERCEK_EMIR_MARJIN_GECERSIZ, GERCEK_EMIR_NOTIONAL_GECERSIZ, GERCEK_EMIR_KALDIRAC_GECERSIZ, GERCEK_EMIR_MARJIN_TIPI_GECERSIZ, GERCEK_EMIR_AKTIF_POZISYON_LIMITI_GECERSIZ
+🚫 [LİG KARAR TEŞHİSİ] BTCUSDT LONG | DNA #YOK | YON=LONG|BTC=GGGG|COIN=GGGG | Lig UNRANKED | Eşleşme NONE | Exit Mevcut Kademe Sistemi | Aktif HAYIR | Scope NONE | GERCEK_EMIR_KALDIRAC_GECERSIZ
+✅ AGROS ST2 v6.9.5 strict configurable live risk controls passed
