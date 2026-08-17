@@ -1,0 +1,9 @@
+AGROS ST2 v6.17.2-R29.2 — PACKAGE TARGETED VERIFICATION
+
+PASS: node test_v6187_r29_market_structure_authority.js
+PASS: node test_v6188_r291_formation_or_supertrend_final_gate.js
+PASS: node test_v6189_r292_formation_observability.js
+PASS: node -c on modified JS files
+PASS: trailing-whitespace scan on overlay files
+
+NOTE: This ZIP is an overlay, not a complete repository. Full `npm run check` must be run after overlaying it onto the user's complete ST2 working tree before commit/push.

@@ -10,9 +10,10 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const motor = require('./motor.js');
 const realExecution = require('./85_st2_real_order_execution.js');
-const formation = require('./77_st2_ha_formation_intelligence.js');
+const structureAuthority = require('./78_st2_ha_market_structure_authority.js');
+const finalStGate = require('./79_st2_ha_supertrend_final_gate.js');
 
-const VERSION = 'R28.1-HEIKIN-ASHI-STRICT-3STAGE-FORMATION';
+const VERSION = 'R29.2-HEIKIN-ASHI-FORMATION-OBSERVABILITY';
 
 function n(v, d = 0) { const x = Number(v); return Number.isFinite(x) ? x : d; }
 function upper(v) { return String(v || '').trim().toUpperCase(); }
@@ -174,16 +175,55 @@ async function processExisting(sym, series) {
   const price = n(h.state.canliFiyatlar?.[sym]);
   if (!livePriceCrossed(pusu.yon, price, pusu.bodyBoundary)) return false;
 
-  // R28: teyit + gövde kırılımı tek başına yeterli değildir. Yapının yanlış tarafında
-  // (ör. büyük düşüş sonrası dipte/dar BB içinde SHORT) gerçek emir veto edilir.
-  const formationNow = formation.formationGate(series, pusu.yon, pusu.bb);
-  pusu.formationNow = formationNow;
-  if (formationNow.veto === true) {
-    console.log(`🛑 [HA FORMASYON VETO] ${sym} ${pusu.yon} | ${formationNow.reasons.join(',')} | ${formation.shortSummary(formationNow)} | Gövde kırıldı ama REAL YOK`);
-    inc('formationVeto');
+  // R29.1: strict 3-stage yalnız zamanlama üretir. Formasyon kapısı OR mantığıdır:
+  // doğru Fincan/Kulp AL fazı VEYA doğru Butterfly D/PRZ. Bollinger rejimi ortam kontrolüdür.
+  const bbNow = bollingerAt(series.map(x=>x.close), Number(ayarlar.heikinAshiBollingerPeriod || 20), Number(ayarlar.heikinAshiBollingerCarpani || 2));
+  const structureNow = structureAuthority.evaluate(series, pusu.yon, bbNow || pusu.bb);
+  pusu.structureNow = structureNow;
+  const formationEvidence = structureAuthority.evidenceText(structureNow);
+  const evidenceKey = `${structureNow.label}|${structureNow.formation?.cupAllowReason||''}|${structureNow.formation?.butterflyAllowReason||''}|${structureNow.reasons?.join(',')||''}`;
+  if (pusu.lastFormationEvidenceKey !== evidenceKey) {
+    pusu.lastFormationEvidenceKey = evidenceKey;
+    console.log(`🔎 [HA FORMASYON KANITI] ${sym} ${pusu.yon}\n${formationEvidence}`);
+    if (ayarlar.heikinAshiFormasyonKanitiTelegram === true) {
+      const icon = structureNow.veto === true ? '🛑' : '✅';
+      Promise.resolve(h.telegramMesajGonder(
+        `<b>${icon} HA FORMASYON KANITI</b>\n${sym} ${pusu.yon} | ${structureAuthority.shortSummary(structureNow)}\n` +
+        `${formationEvidence}\n` +
+        `Strict: teyit KAPANMIŞ + sonraki 15m gövde kırılımı VAR. ST son kapı ${structureNow.veto===true?'çalıştırılmadı':'bekleniyor'}.`
+      )).catch(()=>{});
+    }
+  }
+  if (structureNow.veto === true) {
+    console.log(`🛑 [HA YAPI/FORMASYON VETO] ${sym} ${pusu.yon} | ${structureNow.reasons.join(',')} | ${structureAuthority.shortSummary(structureNow)} | Strict gövde kırıldı ama REAL YOK`);
+    inc('structureVeto'); inc('formationVeto');
     delete s.pusular[sym];
     return false;
   }
+  inc('structureAllow'); inc('formationAllow');
+
+  // SuperTrend en son tetik kapısıdır. Teyit mumu zaten KAPANMIŞ ve gövde kırılımı zaten görülmüş olmalıdır.
+  // 3m için yeni ağ yolu yok: R26'nın kapanmış 1m cache'i yerelde eksiksiz 3m bucket'lara toplanır.
+  const st = finalStGate.evaluateFromOneMinute(h.state.sniperMumlar?.[sym], pusu.yon, motor.hesaplaSuperTrend);
+  pusu.finalSuperTrend = st;
+  if (!st.ready) {
+    const key=`MISS|${st.tf}|${st.candleCount}`;
+    if (pusu.lastStGateKey !== key) {
+      pusu.lastStGateKey=key; inc('superTrendMissing');
+      console.log(`⏳ [HA SUPERTREND SON KAPI] ${sym} ${pusu.yon} | ST(${st.tf||'?'}) HAZIR DEĞİL | Kapanmış teyit + gövde kırılımı VAR | REAL BEKLİYOR`);
+    }
+    return false;
+  }
+  if (!st.allowed) {
+    const key=`WAIT|${st.tf}|${st.trend}|${st.value}`;
+    if (pusu.lastStGateKey !== key) {
+      pusu.lastStGateKey=key; inc('superTrendWait');
+      console.log(`⏳ [HA SUPERTREND SON KAPI] ${sym} ${pusu.yon} | ST(${st.tf}) ${st.trend} | Beklenen ${pusu.yon==='LONG'?'UP/YEŞİL':'DOWN/KIRMIZI'} | Kapanmış teyit + gövde kırılımı VAR | Aynı 15m tetik penceresinde bekleniyor`);
+    }
+    return false;
+  }
+  pusu.lastStGateKey=`ALLOW|${st.tf}|${st.trend}|${st.value}`;
+  inc('superTrendAllow');
 
   // Aynı Binance one-way sembolü iki stratejiye ayrı pozisyon olarak bölünemez.
   // Yarışı muhasebe olarak temiz tutmak için çakışan ikinci sinyal kovalanmadan kapanır.
@@ -215,11 +255,14 @@ async function processExisting(sym, series) {
     confirmationBodyBoundary:pusu.bodyBoundary, confirmationCloseTime:pusu.confirmationCloseTime,
     triggerCandleOpenTime:pusu.triggerOpenTime, triggerCandleCloseTimeExclusive:pusu.triggerCloseTimeExclusive,
     triggerWindowCandles:Number(ayarlar.heikinAshiTetikPenceresiMum || 1), sameCandleConfirmationTriggerForbidden:true, wickIgnored:true,
-    haFormationAtPusu:pusu.formationAtPusu || null, haFormation:formationNow,
-    formationAuthority:formationNow.support?.length ? 'SUPPORTED' : 'NEUTRAL',
-    raceVersion:'R28.1-HA-STRICT-3STAGE-FORMATION'
+    haStructureAtPusu:pusu.structureAtPusu || null, haStructureAuthority:structureNow,
+    haFormationAtPusu:pusu.structureAtPusu || null, haFormation:structureNow,
+    formationAuthority:structureNow.label, structureQuality:structureNow.quality,
+    formationOrGate:structureNow.formation || null,
+    finalSuperTrend:st, superTrendYonu:st.trend, stKaynak:`HA_FINAL_${st.tf}_${st.source}`, trendPeriyodu:st.tf,
+    raceVersion:'R29.2-HA-FORMATION-OBSERVABILITY'
   };
-  console.log(`🎯 [HA GERÇEK TETİK / SONRAKİ MUM] ${sym} ${pusu.yon} | Canlı ${price} ${pusu.yon === 'LONG' ? '>' : '<'} Gövde ${pusu.bodyBoundary} | Teyit kapanmış | Sayaç ${pusu.gecenMumSayisi}/${conf.max} | ${formation.shortSummary(formationNow)}`);
+  console.log(`🎯 [HA GERÇEK TETİK / FORMASYON+ST ONAYLI] ${sym} ${pusu.yon} | Canlı ${price} ${pusu.yon === 'LONG' ? '>' : '<'} Gövde ${pusu.bodyBoundary} | Teyit KAPANMIŞ | ST(${st.tf}) ${st.trend} | Sayaç ${pusu.gecenMumSayisi}/${conf.max} | ${structureAuthority.shortSummary(structureNow)}`);
   const opened = await motor.pozisyonAc(sym, pusu.yon, price, analysis);
   if (opened) { inc('opened'); delete s.pusular[sym]; return true; }
   return false;
@@ -239,7 +282,7 @@ function maybeCreate(sym, series, options = {}) {
     sym, yon:setup.side, scenario:setup.scenario, createdAt:Date.now(), sourceCloseTime:sourceTime,
     sourceCandle:candleCopy(setup.source), bb:setup.bb, bandGapPct:setup.bandGapPct,
     gecenMumSayisi:0, confirmation:null, bodyBoundary:null,
-    formationAtPusu:formation.formationGate(series, setup.side, setup.bb)
+    structureAtPusu:structureAuthority.evaluate(series, setup.side, setup.bb)
   };
   s.pusular[sym] = pusu;
   inc('yeniPusu');
@@ -248,7 +291,7 @@ function maybeCreate(sym, series, options = {}) {
     Promise.resolve(h.telegramMesajGonder(
       `<b>🕯️ YENİ HEIKIN ASHI PUSU</b>\n${sym} ${setup.side} | ${setup.scenario}\n` +
       `BB yaklaşma %${Number(setup.bandGapPct || 0).toFixed(3)} | Maks ${Number(ayarlar.heikinAshiMaxPusuBeklemeMum || 3)} mum\n` +
-      `Formasyon: ${formation.shortSummary(pusu.formationAtPusu)}\n` +
+      `Yapı: ${structureAuthority.shortSummary(pusu.structureAtPusu)}\n` +
       `Tetik: karşı renk HA mum KAPANIR → yalnız SONRAKİ 15m mumda çalışan gerçek fiyat teyit gövdesini kırar (iğne yok).`
     )).catch(()=>{});
   }
@@ -263,7 +306,7 @@ function pusuStatusText(p) {
 function initialSummarySend(active) {
   const rows=Array.isArray(active)?active:[];
   const longs=rows.filter(x=>x.yon==='LONG').length, shorts=rows.filter(x=>x.yon==='SHORT').length;
-  const sample=rows.slice(0,8).map(p=>`${p.sym} ${p.yon} | ${pusuStatusText(p)} | ${formation.shortSummary(p.formationAtPusu)}`);
+  const sample=rows.slice(0,8).map(p=>`${p.sym} ${p.yon} | ${pusuStatusText(p)} | ${structureAuthority.shortSummary(p.structureNow||p.structureAtPusu)}`);
   const more=Math.max(0,rows.length-sample.length);
   const text=[
     `<b>🕯️ HA AÇILIŞ PUSU ÖZETİ</b>`,

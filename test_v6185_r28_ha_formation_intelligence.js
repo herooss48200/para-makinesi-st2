@@ -68,13 +68,15 @@ assert.equal(detected.valid,true); assert.equal(detected.nearPrz,true); assert.e
 
 // Entegrasyon: gövde kırılımından sonra formasyon gate çağrılmalı; gerçek pozisyonlu sembol yeni HA pususu almamalı.
 const haSrc=fs.readFileSync(path.join(__dirname,'75_st2_heikin_ashi_entry.js'),'utf8');
-assert(haSrc.includes("formation.formationGate(series, pusu.yon, pusu.bb)"));
-assert(haSrc.includes('[HA FORMASYON VETO]'));
+assert(haSrc.includes("require('./78_st2_ha_market_structure_authority.js')"));
+assert(haSrc.includes('structureAuthority.evaluate(series, pusu.yon'));
+assert(haSrc.includes('[HA YAPI/FORMASYON VETO]'));
 assert(haSrc.includes('if (occupiedSymbol(sym)) return null;'));
 assert(haSrc.includes('HA AÇILIŞ PUSU ÖZETİ'));
 const reportSrc=fs.readFileSync(path.join(__dirname,'2_rapor.js'),'utf8');
 assert(reportSrc.includes('HA AKTİF PUSU'));
-assert(reportSrc.includes('Formasyon'));
+assert(reportSrc.includes('HA Formasyon Otoritesi'));
+assert(reportSrc.includes('Fincan/Kulp doğru AL fazı VEYA Butterfly doğru D/PRZ'));
 
 // R28.1: güçlü devam yapısı, ters yöndeki sıradan HA girişini veto etmelidir.
 function trendSeries(dir=1){
@@ -93,4 +95,4 @@ const down=form.formationGate(trendSeries(-1),'LONG');
 assert.equal(down.veto,true);
 assert(down.reasons.some(x=>x.includes('LONG_AGAINST_BEARISH_STRUCTURE')));
 
-console.log('✅ R28.1 HA formation intelligence passed | cup/handle + Butterfly | cup-bottom veto | bullish HH/HL SHORT veto | bearish LL/LH LONG veto | occupied-symbol suppression | HA active pusu summary');
+console.log('✅ R29.1 HA formation detector base passed | cup/handle + Butterfly detectors preserved | occupied-symbol suppression | formation OR authority wired');

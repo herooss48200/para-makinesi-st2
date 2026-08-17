@@ -4,7 +4,7 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const versiyon = require('./versiyon.js');
 const realExecution = require('./85_st2_real_order_execution.js');
-const haFormation = require('./77_st2_ha_formation_intelligence.js');
+const haStructure = require('./78_st2_ha_market_structure_authority.js');
 
 let raporZinciriCalisiyor = false;
 let raporTekrarIstegi = false;
@@ -92,8 +92,10 @@ function canliRaporMetniOlustur() {
     `🏁 RENKO Sayaç: Aç ${n(renkoRace.opened)} | Kap ${n(renkoRace.closed)} | W/L/BE ${n(renkoRace.wins)}/${n(renkoRace.losses)}/${n(renkoRace.be)} | WR %${n(renkoRace.wr).toFixed(1)} | Net ${n(renkoRace.netPnl)>=0?'+':''}${n(renkoRace.netPnl).toFixed(4)} | Kom ${n(renkoRace.commission).toFixed(4)}`,
     `🏁 HA Sayaç: Aç ${n(haRace.opened)} | Kap ${n(haRace.closed)} | W/L/BE ${n(haRace.wins)}/${n(haRace.losses)}/${n(haRace.be)} | WR %${n(haRace.wr).toFixed(1)} | Net ${n(haRace.netPnl)>=0?'+':''}${n(haRace.netPnl).toFixed(4)} | Kom ${n(haRace.commission).toFixed(4)}`,
     `🧠 RENKO: 15m ATR-Renko/BB → Entry Evolution → CONFIRMED → 1m Renko ST → Premier/N5 → REAL`,
-    `🕯️ HA: KAPANMIŞ 15m HA/BB pusu → ≤${n(ayarlar.heikinAshiMaxPusuBeklemeMum,3)} kapanmış mum → KAPANMIŞ renk teyit → yalnız SONRAKİ 15m mumda gövde kırılımı → Formasyon → REAL/VETO`,
-    `🧩 HA Formasyon: ${ayarlar.heikinAshiFormasyonVetoAktif===false?'SHADOW':'LIVE VETO'} | Veto ${n(haAudit.formationVeto)} | Pozisyonlu sembol temiz ${n(haAudit.occupiedDrop)}`,
+    `🕯️ HA: KAPANMIŞ 15m HA/BB pusu → ≤${n(ayarlar.heikinAshiMaxPusuBeklemeMum,3)} kapanmış mum → KAPANMIŞ teyit → SONRAKİ 15m gövde kırılımı → FİNCAN/KULP AL FAZI VEYA BUTTERFLY D/PRZ → ST(${ayarlar.heikinAshiFinalSuperTrendPeriyodu||'3m'}) SON KAPI → REAL`,
+    `🧠 HA Formasyon Otoritesi: ${ayarlar.heikinAshiStructureAuthorityAktif===false?'OFF':'CUP/HANDLE OR BUTTERFLY'} | FormAllow ${n(haAudit.formationAllow)} | Veto ${n(haAudit.structureVeto)} | ST Allow/Wait/Miss ${n(haAudit.superTrendAllow)}/${n(haAudit.superTrendWait)}/${n(haAudit.superTrendMissing)} | Pozisyonlu sembol temiz ${n(haAudit.occupiedDrop)}`,
+    `↳ Kombinasyon: Bollinger rejimi ortam kontrolü + (Fincan/Kulp doğru AL fazı VEYA Butterfly doğru D/PRZ) + kapanmış ${ayarlar.heikinAshiFinalSuperTrendPeriyodu||'3m'} SuperTrend son kapı`,
+    `🔎 Formasyon Kanıtı: ${ayarlar.heikinAshiFormasyonKanitiTelegram===true?'TELEGRAM+LOG':'LOG'} | Fincan dudak/dip/kulp seviyeleri + Butterfly X/A/B/C/D ve Fibonacci oranları gösterilir`,
     `🛡️ Ortak ekonomi: SL -%${n(ayarlar.sabitStopYuzdesi).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra %${n(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde).toFixed(2)} geriden / ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`,
   ];
   if (real.length) {
@@ -103,7 +105,7 @@ function canliRaporMetniOlustur() {
   if (haPusular.length) {
     const sample=haPusular.slice(0,6);
     lines.push('', `🕯️ HA AKTİF PUSU (${sample.length}/${haPusular.length})`);
-    lines.push(...sample.map(p => `${sym(p)} ${yon(p)} | ${p.confirmation?'SONRAKİ MUM GÖVDE BEKLİYOR':'KAPANMIŞ TEYİT BEKLİYOR'} ${n(p.gecenMumSayisi)}/${n(ayarlar.heikinAshiMaxPusuBeklemeMum,3)} | ${haFormation.shortSummary(p.formationNow||p.formationAtPusu)}`));
+    lines.push(...sample.map(p => `${sym(p)} ${yon(p)} | ${p.confirmation?'SONRAKİ MUM GÖVDE BEKLİYOR':'KAPANMIŞ TEYİT BEKLİYOR'} ${n(p.gecenMumSayisi)}/${n(ayarlar.heikinAshiMaxPusuBeklemeMum,3)} | ${haStructure.shortSummary(p.structureNow||p.structureAtPusu)}`));
     if (haPusular.length>sample.length) lines.push(`… +${haPusular.length-sample.length} HA pusu`);
   }
   return lines.join('\n').slice(0, 3900);

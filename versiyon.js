@@ -2,10 +2,10 @@
 
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'R28.1-HA-STRICT-3STAGE-FORMATION-VETO',
-    kod: 'AGROS ST2 v6.16.1-R28.1 — HA STRICT 3-STAGE / CUP-HANDLE + BUTTERFLY + STRUCTURE VETO',
-    botSurumu: '6.16.1-R28.1-HA-STRICT-3STAGE-FORMATION-VETO-10X10-20USDT',
-    stratejiSurumu: '1.2.1',
+    kodAdi: 'R29.2-HA-FORMATION-OBSERVABILITY',
+    kod: 'AGROS ST2 v6.17.2-R29.2 — HA FORMATION OBSERVABILITY / CUP-HANDLE LEVELS + BUTTERFLY XABCD PROOF + BB REGIME + 3M ST FINAL GATE',
+    botSurumu: '6.17.2-R29.2-HA-FORMATION-PROOF-10X10-20USDT',
+    stratejiSurumu: '1.3.2',
     yayinTarihi: '17.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
 });

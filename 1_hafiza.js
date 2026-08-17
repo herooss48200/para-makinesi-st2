@@ -42,7 +42,7 @@ const state = {
     yerelPusuHafizasi: {},
     pusuListesi: {},
     st2Renko: { seriler: {}, onaySerileri1m: {}, pusular: {}, sonIslenenTugla: {}, boxSize: {}, onayBoxSize1m: {}, audit: null },
-    st2HeikinAshi: { pusular: {}, sonKaynakMum: {}, audit: { yeniPusu: 0, teyit: 0, tetik: 0, expired: 0, collision: 0, slotRed: 0, occupiedDrop: 0, formationVeto: 0, opened: 0, initialSummarySent: false } },
+    st2HeikinAshi: { pusular: {}, sonKaynakMum: {}, audit: { yeniPusu: 0, teyit: 0, tetik: 0, expired: 0, collision: 0, slotRed: 0, occupiedDrop: 0, formationVeto: 0, formationAllow: 0, structureVeto: 0, structureAllow: 0, superTrendAllow: 0, superTrendWait: 0, superTrendMissing: 0, opened: 0, initialSummarySent: false } },
     aktifPozisyonlar: [],
     alinanlar: [],
     aktifShortlar: [],

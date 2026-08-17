@@ -16,7 +16,8 @@ assert(src.includes('triggerWindowForConfirmation'));
 assert(src.includes('triggerWindowState'));
 assert(src.includes("state:'NEXT_CANDLE_ACTIVE'"));
 assert(src.includes('[HA TETİK MUMU EXPIRED]'));
-assert(src.includes('[HA GERÇEK TETİK / SONRAKİ MUM]'));
+assert(src.includes('[HA GERÇEK TETİK / FORMASYON+ST ONAYLI]'));
+assert(src.includes('structureAuthority.evaluate(series, pusu.yon'));
 assert(src.includes("entryTimingAuthority:'CLOSED_15M_HA_CONFIRMATION_NEXT_15M_BODY_BREAK'"));
 assert(src.includes('sameCandleConfirmationTriggerForbidden:true'));
 assert(src.includes('triggerWindowCandles:Number(ayarlar.heikinAshiTetikPenceresiMum || 1)'));
@@ -27,4 +28,4 @@ assert(src.includes('triggerCloseTimeExclusive = triggerOpenTime + periodMs * tr
 // Eski davranış geri dönmesin: teyit penceresi sınırsız yaşayamaz.
 assert(!src.includes("entryTimingAuthority:'CLOSED_15M_HEIKIN_ASHI_REVERSAL_BODY_BREAK'"));
 
-console.log('✅ R28.1 HA strict 3-stage passed | CLOSED pusu -> CLOSED confirmation <=3 -> NEXT 15m only body break | same-candle forbidden | wick ignored | stale confirmation expires');
+console.log('✅ R29.1 HA strict 3-stage passed | CLOSED pusu -> CLOSED confirmation <=3 -> NEXT 15m only body break -> formation OR -> ST final gate | same-candle forbidden | wick ignored | stale confirmation expires');
