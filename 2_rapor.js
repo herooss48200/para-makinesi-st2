@@ -4,6 +4,7 @@ const h = require('./1_hafiza.js');
 const ayarlar = require('./ayarlar.js');
 const versiyon = require('./versiyon.js');
 const realExecution = require('./85_st2_real_order_execution.js');
+const renkoScoreboard = require('./95_st2_renko_scoreboard.js');
 
 let raporZinciriCalisiyor = false;
 let raporTekrarIstegi = false;
@@ -63,7 +64,7 @@ function canliRaporMetniOlustur() {
   const real = list.filter(p => p?.sanal === false);
   const renkoReal = real.filter(renkoPozisyonMu);
   const eskiReal = real.length - renkoReal.length;
-  const renkoPerf = realExecution.renkoPerformanceSummary();
+  const renkoPerf = renkoScoreboard.currentScoreboard();
   const warm = h.state.startupMarketWarmup || {};
   const data = st2VeriSagligiOzeti();
   const time = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy:false, offsetMs:0 };
@@ -83,7 +84,7 @@ function canliRaporMetniOlustur() {
     `⚙️ Saat ${time.healthy ? 'HEALTHY' : 'DEGRADED'} ${n(time.offsetMs)>=0?'+':''}${n(time.offsetMs)}ms | Fiyat ${String(price.source || 'BEKLIYOR')} ${n(pc.fresh)}/${n(pc.total)} | TG ${tg.transport?.nativeCircuitOpen ? 'NATIVE-CIRCUIT' : 'OK'} | Kuyruk ${n(tg.critical)}/${n(tg.panel)}/${n(tg.detail)}`,
     `🔁 Mutabakat ${String(rec.status || 'BEKLIYOR')} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (safety.ready === true && data.ready ? 'READY' : `FAIL-CLOSED/${String(!data.ready ? 'MARKET_WARMUP_NOT_READY' : (safety.reason || 'NOT_READY'))}`)}`,
     `🎯 Pusu RENKO ${pusular.length} (L${pusular.filter(x=>yon(x)==='LONG').length}/S${pusular.filter(x=>yon(x)==='SHORT').length})`,
-    `🏁 RENKO Sayaç: Aç ${n(renkoPerf.opened)} | Kap ${n(renkoPerf.closed)} | W/L/BE ${n(renkoPerf.wins)}/${n(renkoPerf.losses)}/${n(renkoPerf.be)} | WR %${n(renkoPerf.wr).toFixed(1)} | Net ${n(renkoPerf.netPnl)>=0?'+':''}${n(renkoPerf.netPnl).toFixed(4)} | Kom ${n(renkoPerf.commission).toFixed(4)}`,
+    `🏁 RENKO Sayaç (YARIŞTAN BERİ): Aç ${n(renkoPerf.opened)} | Kap ${n(renkoPerf.closed)} | W/L/BE ${n(renkoPerf.wins)}/${n(renkoPerf.losses)}/${n(renkoPerf.be)} | WR %${n(renkoPerf.wr).toFixed(1)} | Net ${n(renkoPerf.netPnl)>=0?'+':''}${n(renkoPerf.netPnl).toFixed(4)} | Kom ${n(renkoPerf.commission).toFixed(4)}`,
     `🧠 RENKO: 15m ATR-Renko/BB → Entry Evolution → CONFIRMED → 1m Renko ST → Premier/N5 → REAL`,
     `🛡️ Ekonomi: SL -%${n(ayarlar.sabitStopYuzdesi).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra %${n(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde).toFixed(2)} geriden / ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`
   ];

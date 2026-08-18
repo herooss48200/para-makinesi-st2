@@ -2,9 +2,9 @@
 
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'R30-RENKO-ONLY-20-SLOT',
-    kod: 'AGROS ST2 v6.18.0-R30 — RENKO ONLY / PREMIER-N5 / 20 REAL SLOT / CLEAN TELEGRAM',
-    botSurumu: '6.18.0-R30-RENKO-ONLY-20SLOT-20USDT',
+    kodAdi: 'R30.1-RENKO-RACE-COUNTER',
+    kod: 'AGROS ST2 v6.18.1-R30.1 — RENKO ONLY / RACE COUNTER / 20 REAL SLOT',
+    botSurumu: '6.18.1-R30.1-RENKO-RACE-COUNTER-20SLOT-20USDT',
     stratejiSurumu: '1.4.0',
     yayinTarihi: '18.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
