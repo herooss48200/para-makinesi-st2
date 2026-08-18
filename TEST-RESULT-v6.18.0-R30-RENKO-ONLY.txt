@@ -1,0 +1,26 @@
+AGROS ST2 v6.18.0-R30 RENKO-ONLY TEST RESULT
+Date: 18.08.2026
+Base: 8617b481b4d240e3c9427d2e4d98cfcdf43df5dc
+
+PASS: node --check on all top-level JavaScript files (41 files).
+PASS: test_v6180_r26_core_only.js
+PASS: test_v6181_r26_percent_stop_core.js
+PASS: test_v6182_r26_startup_isolation.js
+PASS: test_v6183_r26_phased_startup.js
+PASS: test_v6200_r30_renko_only_20slot.js
+PASS: runtime dependency closure = 35 files.
+PASS: entryStrategyMode = ST2_RENKO.
+PASS: gercekEmirMaxAktifPozisyon = 20.
+PASS: renkoGercekMaxAktifPozisyon = 20.
+PASS: Renko pusu Telegram = false.
+PASS: supplied source tree contains no removed-strategy runtime string/file residue outside Git history.
+PASS: Renko core files unchanged from base commit:
+  72_st2_renko_core.js
+  72_st2_renko_entry.js
+  73_st2_renko_entry_evolution.js
+  76_st2_adaptive_dna_entry.js
+  83_st2_premier_quality_score.js
+  90_st2_renko_entry_mode_policy.js
+  62_n5_premier_economy.js
+
+Environment note: dependency-loading tests were run with isolated test stubs for dotenv/binance-api-node because package installation/network access was unavailable in the artifact environment. No live Binance order was sent. Run `npm ci` then `npm test` locally/AWS before deployment.

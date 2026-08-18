@@ -32,20 +32,8 @@ assert.ok(core.length <= 43, `core dependency closure too large: ${core.length}`
 for (const f of core) cp.execFileSync(process.execPath,['--check',path.join(ROOT,f)],{stdio:'pipe'});
 
 const a=require('./ayarlar');
-assert.equal(a.entryStrategyMode,'ST2_DUAL_REAL');
-assert.equal(a.renkoGercekMaxAktifPozisyon,10);
-assert.equal(a.heikinAshiGercekMaxAktifPozisyon,10);
-assert.equal(a.heikinAshiFormasyonAktif,true);
-assert.equal(a.heikinAshiFormasyonVetoAktif,true);
-assert.equal(a.heikinAshiTetikPenceresiMum,1);
-assert.equal(a.heikinAshiStructureAuthorityAktif,true);
-assert.equal(a.heikinAshiStructureMinQuality,64);
-assert.equal(a.heikinAshiFormationOrGateAktif,true);
-assert.equal(a.heikinAshiFinalSuperTrendAktif,true);
-assert.equal(a.heikinAshiFinalSuperTrendPeriyodu,'3m');
-assert.equal(a.heikinAshiBbWidePercentile,72);
-assert.equal(a.heikinAshiCupBuyukBakisMum,80);
-assert.equal(a.heikinAshiButterflyMinScore,72);
+assert.equal(a.entryStrategyMode,'ST2_RENKO');
+assert.equal(a.renkoGercekMaxAktifPozisyon,20);
 assert.equal(a.sanalEmirModu,false);
 assert.equal(a.taranacakCoinSayisi,200);
 assert.equal(a.calisilmakIstenenUsdtMiktar,4);
@@ -88,4 +76,4 @@ assert.ok(!pqSrc.includes('st2-renko-exit-evolution.json'),'Premier score still 
 
 const report=require('./2_rapor');
 for (const oldName of ['exitEvolutionDashboardGonder','analizRaporuGonder','championshipRaporuGonder']) assert.equal(report[oldName],undefined);
-console.log(`✅ R29.1 CORE passed | runtime closure ${core.length} files | Renko N5 preserved + HA formation-OR + 3m ST final gate | 10+10 slots x 20USDT | no legacy Shadow/LAB runtime`);
+console.log(`✅ R30 CORE passed | runtime closure ${core.length} files | Renko Premier/N5 preserved | 20 Renko slots x 20USDT | no alternate live strategy runtime`);

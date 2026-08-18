@@ -23,9 +23,9 @@ function pozisyonListelerindenSil(pos) {
     else h.state.aktifShortlar = (h.state.aktifShortlar || []).filter(x => x !== pos.sym);
 }
 
-function strategyLane(pos) {
-    const raw = String(pos?.strategyLane || pos?.entryStrategy || pos?.girisAnalizi?.strategyLane || pos?.girisAnalizi?.entryStrategy || 'ST2_RENKO').toUpperCase();
-    return raw.includes('HEIKIN') || raw === 'HA' ? 'HEIKIN_ASHI' : 'RENKO';
+function renkoPozisyonMu(pos) {
+    const raw = String(pos?.strategyLane || pos?.entryStrategy || pos?.girisAnalizi?.strategyLane || pos?.girisAnalizi?.entryStrategy || '').trim().toUpperCase();
+    return !raw || raw === 'RENKO' || raw === 'ST2_RENKO';
 }
 
 function yuzdelikKarHesapla(pos, canliFiyat) {
@@ -132,7 +132,7 @@ async function minimalKapanisRaporu(pos, closePrice, reason) {
     const sureMs = Math.max(0, Date.now() - Number(pos?.acilisZamani || Date.now()));
     await h.telegramMesajGonder(
         `<b>✅ GERÇEK POZİSYON KAPANDI</b>\n\n` +
-        `🔀 ${pos.sym} ${pos.yon} | ${strategyLane(pos) === 'HEIKIN_ASHI' ? '🕯️ HA REAL' : '🧱 RENKO REAL'}\n` +
+        `🔀 ${pos.sym} ${pos.yon} | ${renkoPozisyonMu(pos) ? '🧱 RENKO REAL' : '⚠️ ESKİ STRATEJİ REAL'}\n` +
         `Giriş ${entry} → Çıkış ${exit}\n` +
         `Net ${net >= 0 ? '+' : ''}${net.toFixed(4)} USDT\n` +
         `Sebep: ${reason || exec.reason || 'EXCHANGE_POSITION_CLOSED'}\n` +
@@ -197,7 +197,7 @@ async function izSurmeyiGuncelle(options = {}) {
                     committed = commit.ok === true;
                     if (committed) {
                         closedCount++;
-                        if (commit.manual !== true && strategyLane(pos) === 'RENKO') {
+                        if (commit.manual !== true && renkoPozisyonMu(pos)) {
                             try { n5Economy.close(pos, { net: Number(mutabakat.netPnl || 0), commission: Number(mutabakat.commission || 0), outcome: Number(mutabakat.netPnl || 0) > 0 ? 'TP' : (Number(mutabakat.netPnl || 0) < 0 ? 'SL' : 'BE'), reason: commit.reason }); }
                             catch (err) { console.warn(`⚠️ [N5 CLOSE LEARN] ${pos.sym} ${pos.yon} | ${err.message}`); }
                             try { entryEvolution.close(pos, { exitPrice: Number(commit.closePrice || mutabakat.exitPrice || 0), net: Number(mutabakat.netPnl || 0), commission: Number(mutabakat.commission || 0), reason: commit.reason, closedAt: Date.now() }); }

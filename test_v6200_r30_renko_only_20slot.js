@@ -1,0 +1,22 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const assert = require('assert');
+const cp = require('child_process');
+const ROOT = __dirname;
+const a = require('./ayarlar');
+assert.equal(a.entryStrategyMode, 'ST2_RENKO');
+assert.equal(a.gercekEmirMaxAktifPozisyon, 20);
+assert.equal(a.renkoGercekMaxAktifPozisyon, 20);
+assert.equal(a.renkoPusuKanitTelegram, false);
+for(const prefix of ['75_st2_','77_st2_','78_st2_','79_st2_']) assert.equal(fs.readdirSync(ROOT).filter(x=>x.startsWith(prefix)).length,0,`Kaldırılmış runtime numarası geri geldi: ${prefix}`);
+const runtimeFiles=['1_hafiza.js','2_rapor.js','4_pozisyon.js','74_st2_safe_startup.js','85_st2_real_order_execution.js','ayarlar.js','bot.js','motor.js','revizyon.js','versiyon.js'];
+for(const f of runtimeFiles){const p=path.join(ROOT,f);cp.execFileSync(process.execPath,['--check',p],{stdio:'pipe'});}
+const motorSrc=fs.readFileSync(path.join(ROOT,'motor.js'),'utf8');
+for(const marker of ['st2PremierScoreBagla','identityChain.prepare','gercekDirectTuglaKapisi']) assert.ok(motorSrc.includes(marker),`Renko çekirdek işareti kayıp: ${marker}`);
+assert.ok(motorSrc.includes("const strategyLane = 'RENKO'")); assert.ok(motorSrc.includes("requestedStrategy !== 'ST2_RENKO'"));
+const entrySrc=fs.readFileSync(path.join(ROOT,'72_st2_renko_entry.js'),'utf8');
+for(const marker of ["entryStrategy: 'ST2_RENKO'",'renkoEntryBrickDistance','historicalEntryGate','confirmationGate']) assert.ok(entrySrc.includes(marker),`Renko entry işareti kayıp: ${marker}`);
+const posSrc=fs.readFileSync(path.join(ROOT,'4_pozisyon.js'),'utf8'); assert.ok(posSrc.includes('confirmedYuzdeselEkonomiAktivasyonYuzde'));
+const reportSrc=fs.readFileSync(path.join(ROOT,'2_rapor.js'),'utf8'); assert.ok(reportSrc.includes('AGROS ST2 RENKO ONLY'));
+console.log('✅ R30 RENKO-ONLY passed | alternate live runtime removed | 20 real Renko slots | Premier/N5 + Renko entry preserved | pusu Telegram silent');

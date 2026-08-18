@@ -137,8 +137,8 @@ function startupMarketDurumuGuncelle(source = 'REFRESH') {
         pusuHazir,
         trendHazir: onayHazir,
         sniperHazir: cacheHazirSayisiSemboller(h.state.sniperMumlar, coreSymbols),
-        renko1mStHazir: ['ST2_RENKO','ST2_DUAL_REAL'].includes(ayarlar.entryStrategyMode) ? onayHazir : undefined,
-        renko1mStYetersiz: ['ST2_RENKO','ST2_DUAL_REAL'].includes(ayarlar.entryStrategyMode) ? Math.max(0, total - onayHazir) : undefined,
+        renko1mStHazir: ayarlar.entryStrategyMode === 'ST2_RENKO' ? onayHazir : undefined,
+        renko1mStYetersiz: ayarlar.entryStrategyMode === 'ST2_RENKO' ? Math.max(0, total - onayHazir) : undefined,
         oran: ratio,
         sonKontrol: new Date().toISOString(),
         sonKaynak: source
@@ -194,10 +194,9 @@ function renko1mIncrementalFetchLimit(sym, now = Date.now()) {
     return Math.max(minLimit, Math.min(maxLimit, missed + 2));
 }
 function superTrendOnayPeriyodu() { return ayarlar.superTrendPeriyodu || ayarlar.trendPeriyodu || ayarlar.sniperPeriyodu || '5m'; }
-function pusuKaynakPeriyodu() { return ['ST2_RENKO','ST2_DUAL_REAL'].includes(ayarlar.entryStrategyMode) ? (ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu || '15m') : (ayarlar.pusuPeriyodu || '5m'); }
+function pusuKaynakPeriyodu() { return ayarlar.renkoKaynakPeriyodu || ayarlar.pusuPeriyodu || '15m'; }
 function pusuMumLimiti() {
     const normal = (ayarlar.bollingerperiod || 20) + 5;
-    if (!['ST2_RENKO','ST2_DUAL_REAL'].includes(ayarlar.entryStrategyMode)) return normal;
     return Math.max(normal, Number(ayarlar.renkoKaynakMumLimiti || 250));
 }
 function intervalMs(interval) {

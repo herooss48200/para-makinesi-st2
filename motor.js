@@ -64,29 +64,8 @@ function aktifGercekPozisyonSayisi() {
 }
 
 
-function strategyLaneFromAnalysis(girisAnalizi = {}) {
-    const raw = String(girisAnalizi?.strategyLane || girisAnalizi?.entryStrategy || '').toUpperCase();
-    return raw.includes('HEIKIN') || raw === 'HA' ? 'HEIKIN_ASHI' : 'RENKO';
-}
-
-function strategyEntryName(girisAnalizi = {}) {
-    return strategyLaneFromAnalysis(girisAnalizi) === 'HEIKIN_ASHI' ? 'ST2_HEIKIN_ASHI' : 'ST2_RENKO';
-}
-
-function aktifGercekPozisyonSayisiLane(lane) {
-    const wanted = String(lane || 'RENKO').toUpperCase();
-    return (h.state.aktifPozisyonlar || []).filter(pos => {
-        if (pos?.sanal !== false) return false;
-        const raw = String(pos?.strategyLane || pos?.entryStrategy || pos?.girisAnalizi?.strategyLane || pos?.girisAnalizi?.entryStrategy || 'ST2_RENKO').toUpperCase();
-        const actual = raw.includes('HEIKIN') || raw === 'HA' ? 'HEIKIN_ASHI' : 'RENKO';
-        return actual === wanted;
-    }).length;
-}
-
-function strategyLaneLimit(lane) {
-    return lane === 'HEIKIN_ASHI'
-        ? Math.max(0, Number(ayarlar.heikinAshiGercekMaxAktifPozisyon ?? 10))
-        : Math.max(0, Number(ayarlar.renkoGercekMaxAktifPozisyon ?? 10));
+function requestedEntryStrategy(girisAnalizi = {}) {
+    return String(girisAnalizi?.entryStrategy || 'ST2_RENKO').trim().toUpperCase();
 }
 
 function gercekSembolKuraliGecerli(kural) {
@@ -203,15 +182,10 @@ function st2PremierScoreBagla(pos, girisAnalizi, symbol, yon) {
 
 async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
     try {
-        const requestedStrategy = strategyEntryName(girisAnalizi || {});
-        const strategyLane = strategyLaneFromAnalysis({ ...(girisAnalizi || {}), entryStrategy: requestedStrategy });
-        const dualMode = ayarlar.entryStrategyMode === 'ST2_DUAL_REAL';
-        if (!(dualMode || (ayarlar.entryStrategyMode === 'ST2_RENKO' && requestedStrategy === 'ST2_RENKO'))) {
-            console.log(`⛔ [CORE_ONLY] ${symbol} ${yon} | Strateji modu ${ayarlar.entryStrategyMode} / istek ${requestedStrategy}`);
-            return false;
-        }
-        if (requestedStrategy === 'ST2_HEIKIN_ASHI' && ayarlar.heikinAshiAktif !== true) {
-            console.log(`⛔ [HA REAL] ${symbol} ${yon} | Heikin Ashi lane kapalı`);
+        const requestedStrategy = requestedEntryStrategy(girisAnalizi || {});
+        const strategyLane = 'RENKO';
+        if (ayarlar.entryStrategyMode !== 'ST2_RENKO' || requestedStrategy !== 'ST2_RENKO') {
+            console.log(`⛔ [RENKO ONLY] ${symbol} ${yon} | Strateji modu ${ayarlar.entryStrategyMode} / istek ${requestedStrategy}`);
             return false;
         }
         if (ayarlar.sanalEmirModu) {
@@ -251,17 +225,9 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             console.log(`🚫 [GERÇEK SLOT DOLU] ${symbol} ${yon} | ${aktifGercekPozisyonSayisi()}/${maxReal}`);
             return false;
         }
-        const laneLimit = strategyLaneLimit(strategyLane);
-        const laneActive = aktifGercekPozisyonSayisiLane(strategyLane);
-        if (!(laneLimit > 0) || laneActive >= laneLimit) {
-            console.log(`🚫 [${strategyLane} SLOT DOLU] ${symbol} ${yon} | ${laneActive}/${laneLimit}`);
-            if (strategyLane === 'HEIKIN_ASHI') h.state.st2HeikinAshi.audit.slotRed = Number(h.state.st2HeikinAshi.audit.slotRed || 0) + 1;
-            return false;
-        }
         const symbolOccupied = (h.state.aktifPozisyonlar || []).some(pos => pos?.sanal === false && String(pos?.sym || '').toUpperCase() === String(symbol).toUpperCase());
         if (symbolOccupied) {
             console.log(`🚫 [STRATEJİ ÇAKIŞMASI] ${symbol} ${yon} | Binance one-way: sembolde başka gerçek pozisyon var`);
-            if (strategyLane === 'HEIKIN_ASHI') h.state.st2HeikinAshi.audit.collision = Number(h.state.st2HeikinAshi.audit.collision || 0) + 1;
             return false;
         }
 
@@ -282,18 +248,12 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             sanal: false, acilisZamani: Date.now(), entryStrategy: requestedStrategy, strategyLane, girisAnalizi: etkinGirisAnalizi
         };
 
-        if (requestedStrategy === 'ST2_RENKO') {
-            // Renko lane mevcut Premier/N5 otoritesini aynen korur.
-            await identityChain.prepare(hazirKimlik, { realMode: true });
-            const labGercekKarar = st2PremierScoreBagla(hazirKimlik, etkinGirisAnalizi, symbol, yon);
-            if (!labGercekKarar.realTradingAuthorized) {
-                console.log(`🚫 [PREMIER/N5 GERÇEK RED] ${symbol} ${yon} | ${labGercekKarar.proofLevel}`);
-                return false;
-            }
-        } else {
-            // HA lane kendi pusu + kapanmış teyit + gövde kırılımıyla yarışır; Renko DNA/Premier verisiyle kirletilmez.
-            hazirKimlik.gercekLig = 'HEIKIN_ASHI_CONFIRMED';
-            hazirKimlik.premierSelectionFrozenAtOpen = false;
+        // Renko Premier/N5 otoritesi aynen korunur.
+        await identityChain.prepare(hazirKimlik, { realMode: true });
+        const labGercekKarar = st2PremierScoreBagla(hazirKimlik, etkinGirisAnalizi, symbol, yon);
+        if (!labGercekKarar.realTradingAuthorized) {
+            console.log(`🚫 [PREMIER/N5 GERÇEK RED] ${symbol} ${yon} | ${labGercekKarar.proofLevel}`);
+            return false;
         }
 
         const auth = realOrderBridge.realAuthorization();
@@ -302,12 +262,10 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             return false;
         }
 
-        if (requestedStrategy === 'ST2_RENKO') {
-            const directGate = gercekDirectTuglaKapisi(etkinGirisAnalizi);
-            if (!directGate.allowed) {
-                console.log(`🛡️ [DIRECT T MOTOR FAIL-CLOSED] ${symbol} ${yon} | ${directGate.reason}`);
-                return false;
-            }
+        const directGate = gercekDirectTuglaKapisi(etkinGirisAnalizi);
+        if (!directGate.allowed) {
+            console.log(`🛡️ [DIRECT T MOTOR FAIL-CLOSED] ${symbol} ${yon} | ${directGate.reason}`);
+            return false;
         }
 
         const safety = h.state.st2RealEntrySafety || {};
@@ -392,7 +350,7 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             gerceklesenNotionalUsdt: Number(gerceklesenNotional.toFixed(6)),
             kaldirac, marjinTipi: risk.marginType, ligBoyutCarpani,
             entryStrategy: requestedStrategy, strategyLane,
-            gercekLig: requestedStrategy === 'ST2_RENKO' ? 'PREMIER' : 'HEIKIN_ASHI_CONFIRMED', sanal: false, borsaOrderId: fill.order?.orderId || null,
+            gercekLig: 'PREMIER', sanal: false, borsaOrderId: fill.order?.orderId || null,
             acilisZamani: Date.now(), mevcutTpYuzdesi: 0, tpKademe: 0, sonTpSeviyesi: tp,
             breakevenAktif: false, girisAnalizi: etkinGirisAnalizi,
             renkoPremierDecision: hazirKimlik.renkoPremierDecision,
@@ -420,21 +378,20 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
 
         if (ayarlar.telegramIslemAcilisMesaji === true) {
             const score = yeniPozisyon.renkoPremierDecision?.premierScore || {};
-            const strategyText = requestedStrategy === 'ST2_RENKO' ? '🧱 RENKO REAL / PREMIER' : '🕯️ HEIKIN ASHI REAL / CONFIRMED';
-            const haForm = etkinGirisAnalizi?.haFormation || {};
-            const haSupport = Array.isArray(haForm.support) && haForm.support.length ? haForm.support.join(',') : 'NEUTRAL';
-            const scoreText = requestedStrategy === 'ST2_RENKO'
-                ? `⭐ Score ${Number(score.score || 0).toFixed(1)}/${Number(score.threshold || 0).toFixed(1)} | Sıra #${Number(score.rank || 0)}/${Number(score.cohortSize || 0)}\n`
-                : `✅ HA KAPANMIŞ pusu + KAPANMIŞ renk teyidi + yalnız SONRAKİ 15m mumda gövde kırılımı\n🧩 Formasyon ${String(haForm.label || 'FORMATION_NEUTRAL')} | ${haSupport}\n`;
+            const scoreText = `⭐ Score ${Number(score.score || 0).toFixed(1)}/${Number(score.threshold || 0).toFixed(1)} | Sıra #${Number(score.rank || 0)}/${Number(score.cohortSize || 0)}
+`;
             await h.telegramMesajGonder(
-                `<b>✅ GERÇEK POZİSYON AÇILDI</b>\n\n` +
-                `🔀 ${symbol} ${yon} | ${strategyText}\n` +
+                `<b>✅ GERÇEK POZİSYON AÇILDI</b>
+
+` +
+                `🔀 ${symbol} ${yon} | 🧱 RENKO REAL / PREMIER
+` +
                 scoreText +
-                `Giriş ${gerceklesenFiyat} | SL ${sl} | TP ${tp}\n` +
-                `Notional ${gerceklesenNotional.toFixed(2)} USDT | ${kaldirac}x\n` +
-                (requestedStrategy === 'ST2_RENKO'
-                    ? `Mode ${etkinGirisAnalizi.entryMode || 'YOK'} | ${Number(etkinGirisAnalizi.renkoEntryBrickDistance || 0).toFixed(2)}T`
-                    : `Mode CONFIRMED_NEXT_CANDLE_BODY_BREAK | Sayaç ${Number(etkinGirisAnalizi.pusuSayaci || 0)}/${Number(etkinGirisAnalizi.maxPusuBeklemeMum || 3)}`)
+                `Giriş ${gerceklesenFiyat} | SL ${sl} | TP ${tp}
+` +
+                `Notional ${gerceklesenNotional.toFixed(2)} USDT | ${kaldirac}x
+` +
+                `Mode ${etkinGirisAnalizi.entryMode || 'YOK'} | ${Number(etkinGirisAnalizi.renkoEntryBrickDistance || 0).toFixed(2)}T`
             ).catch(() => {});
         }
         console.log(`✅ [CORE REAL OPEN] ${symbol} ${yon} | ${strategyLane} | ${gerceklesenNotional.toFixed(2)} USDT`);
@@ -516,8 +473,5 @@ module.exports = {
     gercekMiktarHedefeEnYakinKlip,
     fiyatKlip,
     gercekDirectTuglaKapisi,
-    strategyLaneFromAnalysis,
-    aktifGercekPozisyonSayisiLane,
-    strategyLaneLimit,
     _st2PremierScoreBagla: st2PremierScoreBagla
 };

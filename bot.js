@@ -235,7 +235,7 @@ async function baslat() {
                 });
         });
 
-        console.log('🧹 [CORE RUNTIME] ST2 Renko + Premier/N5 ve HA Formasyon bağlamlı gerçek execution zinciri aktif.');
+        console.log('🧱 [CORE RUNTIME] ST2 RENKO ONLY + Premier/N5 gerçek execution zinciri aktif.');
 
         const emirModu = ayarlar.sanalEmirModu ? 'SANAL EMİR MODU' : 'BINANCE EMİR MODU';
         const baslangicMesaji = `🚀 <b>PARA MAKİNESİ BOTU AKTİF</b>\n\n` +
@@ -283,7 +283,7 @@ async function baslat() {
         // v6.13.5-R11: ST2 canlı panel ritmi ağır 200-sembol Renko taramasının DIŞINDADIR.
         // Gate READY olduğunda ilk panel hemen talep edilir; sonrasında ayarlanan cadence ile devam eder.
         // Bu scheduler yalnız rapor ister; giriş/çıkış/Renko karar matematiğine dokunmaz.
-        if (['ST2_RENKO','ST2_DUAL_REAL'].includes(ayarlar.entryStrategyMode)) {
+        if (ayarlar.entryStrategyMode === 'ST2_RENKO') {
             const st2LivePanelScheduler = createSt2LivePanelScheduler({
                 enabled: () => ayarlar.canliRaporAktif === true,
                 ready: () => h.state.startupMarketReady === true, // R26: warmup CPU tek başına; operasyon paneli READY sonrası.
@@ -405,14 +405,6 @@ async function baslat() {
                         h.state.st2RenkoScanInProgress = false;
                         h.state.st2RenkoScanFinishedAt = Date.now();
                     }
-                    donguAsama = 'HEIKIN_ASHI_SCAN';
-                    if (ayarlar.entryStrategyMode === 'ST2_DUAL_REAL' && ayarlar.heikinAshiAktif === true) {
-                        try {
-                            h.state.st2HeikinAshiLastAudit = await require('./75_st2_heikin_ashi_entry.js').taraVeDegerlendir();
-                        } catch (err) {
-                            console.error(`⚠️ [HA SCAN] ${err?.message || err}`);
-                        }
-                    }
                     donguAsama = 'POST_RENKO';
                     if (!ilkSt2TaramaTamamlandi) {
                         ilkSt2TaramaTamamlandi = true;
@@ -440,10 +432,8 @@ async function baslat() {
                     ? 'READY'
                     : `${warm.asama || warm.durum || 'BEKLIYOR'} READY ${warmHazir}/${Number(warm.toplam || h.state.semboller.length || 0)} (işlenen ${Number(warm.islenen || 0)})`;
                 const renkoPusu = Object.keys(h.state.st2Renko?.pusular || {}).length;
-                const haPusu = Object.keys(h.state.st2HeikinAshi?.pusular || {}).length;
-                const renkoPos = (h.state.aktifPozisyonlar || []).filter(x => x?.sanal === false && String(x?.strategyLane || x?.entryStrategy || x?.girisAnalizi?.entryStrategy || 'ST2_RENKO').toUpperCase().includes('HEIKIN') === false).length;
-                const haPos = (h.state.aktifPozisyonlar || []).filter(x => x?.sanal === false && String(x?.strategyLane || x?.entryStrategy || x?.girisAnalizi?.entryStrategy || '').toUpperCase().includes('HEIKIN')).length;
-                console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu R/H ${renkoPusu}/${haPusu} | Pozisyon R/H ${renkoPos}/${haPos} | Entry Gate: ${warmMetni} | ST Güncelleme: ${sonStGuncelleme ? new Date(sonStGuncelleme).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow} | TG Kritik ${tg.critical} Panel ${tg.panel} Detay ${tg.detail}`);
+                const renkoPos = (h.state.aktifPozisyonlar || []).filter(x => x?.sanal === false).length;
+                console.log(`💓 [BOT AKTİF] Sembol: ${h.state.semboller.length} | Pusu RENKO ${renkoPusu} | Pozisyon RENKO ${renkoPos}/${Number(ayarlar.renkoGercekMaxAktifPozisyon || 20)} | Entry Gate: ${warmMetni} | ST Güncelleme: ${sonStGuncelleme ? new Date(sonStGuncelleme).toLocaleTimeString() : 'yok'} | Ağ: OK ${agDurum.succeeded}, Hata ${agDurum.failed}, Retry ${agDurum.retried}, Birleşen ${agDurum.deduped}, Kuyruk ${agDurum.queuedNow} | TG Kritik ${tg.critical} Panel ${tg.panel} Detay ${tg.detail}`);
                 }
             } catch (e) {
                 if (e.message && (e.message.includes('429') || e.message.includes('1095'))) {

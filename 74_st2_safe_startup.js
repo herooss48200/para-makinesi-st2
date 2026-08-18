@@ -5,7 +5,7 @@ const ayarlar = require('./ayarlar.js');
 const h = require('./1_hafiza.js');
 const evo = require('./73_st2_renko_entry_evolution.js');
 function verifyOrThrow(){
-  if(!['ST2_RENKO','ST2_DUAL_REAL'].includes(ayarlar.entryStrategyMode)) throw new Error('ST2_SAFE_STARTUP: ST2_RENKO/ST2_DUAL_REAL bekleniyor.');
+  if(ayarlar.entryStrategyMode !== 'ST2_RENKO') throw new Error('ST2_SAFE_STARTUP: yalnız ST2_RENKO bekleniyor.');
   const summary=evo.summary();
   const stateCount=Number(summary.health?.stateRecords ?? summary.total?.closed ?? 0);
   const ledgerCount=Number(summary.health?.ledgerRecords ?? summary.total?.closed ?? 0);

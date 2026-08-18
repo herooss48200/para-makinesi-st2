@@ -1,16 +1,15 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.17.2-r29.2-ha-formation-observability",
-  "description": "AGROS ST2 v6.17.2-R29.2: R29.1 trading logic unchanged; adds observable cup/handle price levels and Butterfly X/A/B/C/D + ratio/PRZ proof to log/Telegram before ST final gate.",
+  "version": "6.18.0-r30-renko-only-20slot",
+  "description": "AGROS ST2 v6.18.0-R30: Renko-only live runtime, Premier/N5 preserved, 20 real Renko slots, clean Telegram.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6184_r27_dual_real_race.js && node test_v6185_r28_ha_formation_intelligence.js && node test_v6186_r281_ha_strict_3stage.js && node test_v6187_r29_market_structure_authority.js && node test_v6188_r291_formation_or_supertrend_final_gate.js && node test_v6189_r292_formation_observability.js",
+    "check": "node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6200_r30_renko_only_20slot.js",
     "test": "npm run check",
-    "test:core": "node test_v6180_r26_core_only.js",
+    "test:core": "node test_v6180_r26_core_only.js && node test_v6200_r30_renko_only_20slot.js",
     "test:stop": "node test_v6181_r26_percent_stop_core.js",
-    "test:startup": "node test_v6182_r26_startup_isolation.js",
-    "test:dual": "node test_v6184_r27_dual_real_race.js && node test_v6185_r28_ha_formation_intelligence.js && node test_v6186_r281_ha_strict_3stage.js && node test_v6187_r29_market_structure_authority.js && node test_v6188_r291_formation_or_supertrend_final_gate.js && node test_v6189_r292_formation_observability.js"
+    "test:startup": "node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js"
   },
   "dependencies": {
     "axios": "^1.13.2",
