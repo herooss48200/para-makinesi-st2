@@ -5,6 +5,7 @@ const ayarlar = require('./ayarlar.js');
 const versiyon = require('./versiyon.js');
 const realExecution = require('./85_st2_real_order_execution.js');
 const renkoScoreboard = require('./95_st2_renko_scoreboard.js');
+const mtfScoreboard = require('./97_st2_mtf_scoreboard.js');
 
 let raporZinciriCalisiyor = false;
 let raporTekrarIstegi = false;
@@ -29,11 +30,24 @@ function stopPct(p) {
   if (!(e > 0 && sl > 0)) return null;
   return side === 'SHORT' ? ((e - sl) / e) * 100 : ((sl - e) / e) * 100;
 }
+
+function kaynakTf(p) { return String(p?.sourceTimeframe || p?.girisAnalizi?.sourceTimeframe || p?.girisAnalizi?.pusuPeriyodu || '15m').toLowerCase(); }
+function trtSaat(ts) {
+  const t = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
+  if (!Number.isFinite(t) || t <= 0) return 'YOK';
+  return new Date(t).toLocaleTimeString('tr-TR',{timeZone:'Europe/Istanbul',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function tfStores() {
+  const out = { '15m': h.state.st2Renko || {} };
+  for (const [tf,store] of Object.entries(h.state.st2RenkoTf || {})) out[String(tf).toLowerCase()] = store || {};
+  return out;
+}
 function posLine(p) {
   const profit = pnlPct(p); const sp = stopPct(p);
   const mode = String(p?.girisAnalizi?.entryMode || p?.entryMode || 'DIRECT').toUpperCase();
   const q = p?.renkoPremierDecision?.premierScore || p?.labPremierDecision?.premierScore || {};
-  let out = `${sym(p)} ${yon(p)} | ${renkoPozisyonMu(p) ? 'RENKO' : 'ESKI'}-${mode} | Anlık ${profit >= 0 ? '+' : ''}%${profit.toFixed(2)}`;
+  const renk = profit >= 0 ? '🟢' : '🔴';
+  let out = `${renk} ${sym(p)} ${yon(p)} | ⏱️ ${kaynakTf(p)} | Giriş ${trtSaat(p?.acilisZamani)} | ${renkoPozisyonMu(p) ? 'RENKO' : 'ESKI'}-${mode} | Anlık ${profit >= 0 ? '+' : ''}%${profit.toFixed(2)}`;
   if (sp != null) out += ` | SL ${sp >= 0 ? '+' : ''}%${sp.toFixed(2)}`;
   if (Number.isFinite(Number(q.score))) out += ` | Skor ${n(q.score).toFixed(1)}/${n(q.threshold).toFixed(1)}`;
   return out;
@@ -65,6 +79,7 @@ function canliRaporMetniOlustur() {
   const renkoReal = real.filter(renkoPozisyonMu);
   const eskiReal = real.length - renkoReal.length;
   const renkoPerf = renkoScoreboard.currentScoreboard();
+  const mtfPerf = mtfScoreboard.current();
   const warm = h.state.startupMarketWarmup || {};
   const data = st2VeriSagligiOzeti();
   const time = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy:false, offsetMs:0 };
@@ -73,20 +88,25 @@ function canliRaporMetniOlustur() {
   const safety = h.state.st2RealEntrySafety || {};
   const price = h.state.st2PriceRuntime || {};
   const pc = price.coverage || {};
-  const pusular = Object.values(h.state.st2Renko?.pusular || {});
+  const stores = tfStores();
+  const pusularByTf = Object.fromEntries(Object.entries(stores).map(([tf,st])=>[tf,Object.values(st?.pusular||{})]));
+  const pusular = Object.values(pusularByTf).flat();
+  const mtfAudit = h.state.st2MultiTfLastAudit || {};
   const gate = data.ready ? 'READY' : `${String(warm.durum || 'CALISIYOR')}/${String(warm.asama || 'CORE_15M_1M_RENKO')} ${data.processed}/${data.selected}`;
   const lines = [
     `📊 AGROS ST2 RENKO ONLY — ${versiyon.botSurumu}`,
     `🕒 ${new Date().toLocaleTimeString('tr-TR',{hour12:false})} | ${ayarlar.sanalEmirModu ? 'SANAL' : 'BINANCE'}`,
     `🛡️ Gerçek pozisyon ${real.length} | RENKO ${renkoReal.length}/${n(ayarlar.renkoGercekMaxAktifPozisyon,20)}${eskiReal > 0 ? ` | ESKİ ${eskiReal}` : ''}`,
     `🌐 Evren ${data.selected}/${data.requested} | Gate ${gate}`,
-    `📡 15m ${data.candles}/${data.selected} | 1m ${data.oneMin}/${data.selected} | 1m Renko ST ${data.renkoSt}/${data.selected} | Hata ${data.errors} | Son tarama ${data.scanned}/${data.selected} ${(data.scanMs/1000).toFixed(1)}sn`,
+    `📡 15m taban ${data.candles}/${data.selected} | 1m ${data.oneMin}/${data.selected} | 1m Renko ST ${data.renkoSt}/${data.selected} | Hata ${data.errors} | MTF tarama ${n(mtfAudit.sembol)}/${data.selected * Math.max(1,(ayarlar.renkoCanliKaynakPeriyotlari||['15m']).length)} ${(n(mtfAudit.sureMs)/1000).toFixed(1)}sn`,
     `⚙️ Saat ${time.healthy ? 'HEALTHY' : 'DEGRADED'} ${n(time.offsetMs)>=0?'+':''}${n(time.offsetMs)}ms | Fiyat ${String(price.source || 'BEKLIYOR')} ${n(pc.fresh)}/${n(pc.total)} | TG ${tg.transport?.nativeCircuitOpen ? 'NATIVE-CIRCUIT' : 'OK'} | Kuyruk ${n(tg.critical)}/${n(tg.panel)}/${n(tg.detail)}`,
     `🔁 Mutabakat ${String(rec.status || 'BEKLIYOR')} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (safety.ready === true && data.ready ? 'READY' : `FAIL-CLOSED/${String(!data.ready ? 'MARKET_WARMUP_NOT_READY' : (safety.reason || 'NOT_READY'))}`)}`,
-    `🎯 Pusu RENKO ${pusular.length} (L${pusular.filter(x=>yon(x)==='LONG').length}/S${pusular.filter(x=>yon(x)==='SHORT').length})`,
+    `🎯 Pusu ${Object.entries(pusularByTf).map(([tf,x])=>`${tf}:${x.length}`).join(' | ')} | Toplam ${pusular.length}`,
     `🏁 RENKO Sayaç (YARIŞTAN BERİ): Aç ${n(renkoPerf.opened)} | Kap ${n(renkoPerf.closed)} | W/L/BE ${n(renkoPerf.wins)}/${n(renkoPerf.losses)}/${n(renkoPerf.be)} | WR %${n(renkoPerf.wr).toFixed(1)} | Net ${n(renkoPerf.netPnl)>=0?'+':''}${n(renkoPerf.netPnl).toFixed(4)} | Kom ${n(renkoPerf.commission).toFixed(4)}`,
-    `🧠 RENKO: 15m ATR-Renko/BB → Entry Evolution → CONFIRMED → 1m Renko ST → Premier/N5 → REAL`,
-    `🛡️ Ekonomi: SL -%${n(ayarlar.sabitStopYuzdesi).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra %${n(ayarlar.confirmedYuzdeselEkonomiTakipMesafeYuzde).toFixed(2)} geriden / ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`
+    `⏱️ TF Sayaç (R31 CANLI):`,
+    ...Object.values(mtfPerf.rows).map(q=>`${q.tf} | Aç ${q.opened} Kap ${q.closed} | W/L/BE ${q.wins}/${q.losses}/${q.be} | WR %${n(q.wr).toFixed(1)} | Net ${n(q.netPnl)>=0?'+':''}${n(q.netPnl).toFixed(4)} | PF ${n(q.pf).toFixed(2)}`),
+    `🧠 RENKO LIVE TF: ${(ayarlar.renkoCanliKaynakPeriyotlari||['15m']).join(' / ')} → ATR-Renko/BB → CONFIRMED → 1m Renko ST → Premier/N5 → REAL`,
+    `🛡️ Ekonomi: İlk SL karşı tuğla dışı ${n(ayarlar.renkoYapisalStopBufferT,0.25).toFixed(2)}T | Maks risk -%${n(ayarlar.renkoYapisalStopMaksRiskYuzde,2.5).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`
   ];
   if (real.length) {
     lines.push('', `💼 GERÇEK POZİSYONLAR (${Math.min(real.length,20)}/${real.length})`);

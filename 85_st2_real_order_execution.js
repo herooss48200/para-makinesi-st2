@@ -276,6 +276,7 @@ function contextFingerprint(symbol, side, context = {}) {
   const readiness = context?.realOrderReadiness || {};
   const source = [
     sanitize(symbol, 16), upper(side), 'RENKO',
+    analysis.sourceTimeframe || analysis.pusuPeriyodu || pusu.sourceTimeframe || '15m',
     pusu.patternSignature || analysis.patternSignature || analysis.patternId || analysis.patternKodu || 'PATTERN_YOK',
     pusu.sonKapaliTuglaZamani || analysis.sonKapaliTuglaZamani || 0,
     pusu.referansTuglaId || analysis.referansTuglaId || 0,
@@ -767,16 +768,17 @@ async function executeEntry({ reservation, quantity, referencePrice, minQty, min
   }
 
   const resolvedOrder = order || { orderId: null, clientOrderId: record.ids.entry, status: 'AMBIGUOUS_RECOVERED' };
+  const fillVerifiedAt = nowIso();
   saveRecord(reservation.fingerprint, {
     status: 'SUBMITTED', entryOrder: clone(resolvedOrder), actualQty, avgPrice, notional,
-    position: clone(position), ambiguityRecovered: Boolean(submitError), fillVerifiedAt: nowIso()
+    position: clone(position), ambiguityRecovered: Boolean(submitError), fillVerifiedAt
   });
   audit('ENTRY_FILL_VERIFIED', {
     symbol, side, fingerprint: reservation.fingerprint, orderId: resolvedOrder.orderId || null,
     clientOrderId: record.ids.entry, status: resolvedOrder.status || null, actualQty, avgPrice, notional,
     ambiguityRecovered: Boolean(submitError)
   });
-  return { order: resolvedOrder, position, actualQty, avgPrice, notional, deviationPct, ambiguityRecovered: Boolean(submitError) };
+  return { order: resolvedOrder, position, actualQty, avgPrice, notional, deviationPct, ambiguityRecovered: Boolean(submitError), fillVerifiedAt };
 }
 
 async function createProtection({ symbol, side, type, triggerPrice, clientAlgoId, client = h.client }) {
@@ -1402,7 +1404,7 @@ async function finalizeExchangeClose(pos, fallbackPrice, client = h.client) {
     });
   }
   audit('EXCHANGE_CLOSE_RECONCILED', { symbol: pos.sym, side: pos.yon, classification, accounting, protectionStatus });
-  return { ...accounting, ...classification, protectionStatus, exitPrice: finite(accounting.exitPrice, fallbackPrice) };
+  return { ...accounting, ...classification, protectionStatus, exitPrice: finite(accounting.exitPrice, fallbackPrice), closedAt };
 }
 
 async function ensureProtectionForPosition(pos, client = h.client) {

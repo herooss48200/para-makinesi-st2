@@ -28,6 +28,23 @@ function renkoPozisyonMu(pos) {
     return !raw || raw === 'RENKO' || raw === 'ST2_RENKO';
 }
 
+function trtZaman(ts) {
+    const t = typeof ts === 'number' ? ts : Date.parse(String(ts || ''));
+    if (!Number.isFinite(t) || t <= 0) return 'YOK';
+    return new Date(t).toLocaleString('tr-TR', {
+        timeZone: 'Europe/Istanbul', hour12: false,
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+}
+function sureMetni(ms) {
+    const total = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return h > 0 ? `${h}sa ${m}dk ${s}sn` : `${m}dk ${s}sn`;
+}
+
 function yuzdelikKarHesapla(pos, canliFiyat) {
     const giris = Number(pos?.girisFiyati || 0);
     const fiyat = Number(canliFiyat || 0);
@@ -129,14 +146,23 @@ async function minimalKapanisRaporu(pos, closePrice, reason) {
     const net = Number(exec.netPnl || 0);
     const entry = Number(pos?.girisFiyati || 0);
     const exit = Number(closePrice || exec.exitPrice || 0);
-    const sureMs = Math.max(0, Date.now() - Number(pos?.acilisZamani || Date.now()));
+    const openedAt = Number(pos?.acilisZamani || Date.now());
+    const closedAtParsed = Date.parse(String(exec?.closedAt || ''));
+    const closedAt = Number.isFinite(closedAtParsed) ? closedAtParsed : Date.now();
+    const sureMs = Math.max(0, closedAt - openedAt);
+    const icon = net > 1e-9 ? '✅' : (net < -1e-9 ? '❌' : '⚖️');
+    const sonuc = net > 1e-9 ? 'KÂRLI' : (net < -1e-9 ? 'ZARARLI' : 'NÖTR');
+    const tf = String(pos?.sourceTimeframe || pos?.girisAnalizi?.sourceTimeframe || pos?.girisAnalizi?.pusuPeriyodu || '15m');
     await h.telegramMesajGonder(
-        `<b>✅ GERÇEK POZİSYON KAPANDI</b>\n\n` +
-        `🔀 ${pos.sym} ${pos.yon} | ${renkoPozisyonMu(pos) ? '🧱 RENKO REAL' : '⚠️ ESKİ STRATEJİ REAL'}\n` +
+        `<b>${icon} GERÇEK POZİSYON KAPANDI</b>\n\n` +
+        `🔀 ${pos.sym} ${pos.yon} | ${renkoPozisyonMu(pos) ? '🧱 RENKO REAL' : '⚠️ ESKİ STRATEJİ REAL'} | ⏱️ ${tf}\n` +
+        `🎨 Sonuç: ${icon} ${sonuc}\n` +
+        `🕒 Giriş: ${trtZaman(openedAt)} TRT\n` +
+        `🕒 Çıkış: ${trtZaman(closedAt)} TRT\n` +
+        `⌛ Süre: ${sureMetni(sureMs)}\n` +
         `Giriş ${entry} → Çıkış ${exit}\n` +
         `Net ${net >= 0 ? '+' : ''}${net.toFixed(4)} USDT\n` +
-        `Sebep: ${reason || exec.reason || 'EXCHANGE_POSITION_CLOSED'}\n` +
-        `Süre: ${Math.floor(sureMs / 60000)} dk`
+        `Sebep: ${reason || exec.reason || 'EXCHANGE_POSITION_CLOSED'}`
     );
 }
 
@@ -198,18 +224,25 @@ async function izSurmeyiGuncelle(options = {}) {
                     if (committed) {
                         closedCount++;
                         if (commit.manual !== true && renkoPozisyonMu(pos)) {
-                            try { n5Economy.close(pos, { net: Number(mutabakat.netPnl || 0), commission: Number(mutabakat.commission || 0), outcome: Number(mutabakat.netPnl || 0) > 0 ? 'TP' : (Number(mutabakat.netPnl || 0) < 0 ? 'SL' : 'BE'), reason: commit.reason }); }
-                            catch (err) { console.warn(`⚠️ [N5 CLOSE LEARN] ${pos.sym} ${pos.yon} | ${err.message}`); }
-                            try { entryEvolution.close(pos, { exitPrice: Number(commit.closePrice || mutabakat.exitPrice || 0), net: Number(mutabakat.netPnl || 0), commission: Number(mutabakat.commission || 0), reason: commit.reason, closedAt: Date.now() }); }
-                            catch (err) { console.warn(`⚠️ [ENTRY EVOLUTION CLOSE LEARN] ${pos.sym} ${pos.yon} | ${err.message}`); }
-                            try {
-                                const entry = Number(pos.girisFiyati || 0);
-                                const exit = Number(commit.closePrice || mutabakat.exitPrice || 0);
-                                const netPct = entry > 0 && exit > 0
-                                    ? (pos.yon === 'LONG' ? ((exit-entry)/entry)*100 : ((entry-exit)/entry)*100)
-                                    : 0;
-                                confirmedEvidence.recordLiveClose(pos, { netPct, at: new Date().toISOString(), closedAt: Date.now() });
-                            } catch (err) { console.warn(`⚠️ [ENTRY MODE CLOSE LEARN] ${pos.sym} ${pos.yon} | ${err.message}`); }
+                            const sourceTf = String(pos?.sourceTimeframe || pos?.girisAnalizi?.sourceTimeframe || pos?.girisAnalizi?.pusuPeriyodu || '15m').toLowerCase();
+                            // R31: 30m/1h/2h/4h GERCEK emirlerdir; ancak kanitlanmis 15m Premier/N5
+                            // ogrenme havuzunu birbirine karistirmamak icin ilk fazda yalniz ayri TF sayacina yazilir.
+                            if (sourceTf === '15m') {
+                                try { n5Economy.close(pos, { net: Number(mutabakat.netPnl || 0), commission: Number(mutabakat.commission || 0), outcome: Number(mutabakat.netPnl || 0) > 0 ? 'TP' : (Number(mutabakat.netPnl || 0) < 0 ? 'SL' : 'BE'), reason: commit.reason }); }
+                                catch (err) { console.warn(`⚠️ [N5 CLOSE LEARN] ${pos.sym} ${pos.yon} | ${err.message}`); }
+                                try { entryEvolution.close(pos, { exitPrice: Number(commit.closePrice || mutabakat.exitPrice || 0), net: Number(mutabakat.netPnl || 0), commission: Number(mutabakat.commission || 0), reason: commit.reason, closedAt: Date.now() }); }
+                                catch (err) { console.warn(`⚠️ [ENTRY EVOLUTION CLOSE LEARN] ${pos.sym} ${pos.yon} | ${err.message}`); }
+                                try {
+                                    const entry = Number(pos.girisFiyati || 0);
+                                    const exit = Number(commit.closePrice || mutabakat.exitPrice || 0);
+                                    const netPct = entry > 0 && exit > 0
+                                        ? (pos.yon === 'LONG' ? ((exit-entry)/entry)*100 : ((entry-exit)/entry)*100)
+                                        : 0;
+                                    confirmedEvidence.recordLiveClose(pos, { netPct, at: new Date().toISOString(), closedAt: Date.now() });
+                                } catch (err) { console.warn(`⚠️ [ENTRY MODE CLOSE LEARN] ${pos.sym} ${pos.yon} | ${err.message}`); }
+                            } else {
+                                console.log(`📊 [MTF LIVE CLOSE] ${sourceTf} ${pos.sym} ${pos.yon} | Net ${Number(mutabakat.netPnl || 0).toFixed(4)} | Ayrı TF sayaç; 15m öğrenme havuzu değişmedi`);
+                            }
                         }
                     }
                     console.log(`🔎 [GERÇEK KAPANIŞ MUTABAKATI] ${pos.sym} ${pos.yon} | ${commit.reason} | Fill ${commit.closePrice || fallbackPrice} | Net ${Number(mutabakat.netPnl || 0).toFixed(6)} | Slot SERBEST`);

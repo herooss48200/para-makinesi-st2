@@ -1,0 +1,28 @@
+AGROS ST2 v6.19.0-R31 TEST RESULT
+Date: 2026-08-19
+
+PASS test_v6190_r31_mtf_live_struct_stop.js
+  - Live TF list: 15m / 30m / 1h / 2h / 4h
+  - Higher TF OHLC aggregation from closed 15m source
+  - Structural stop LONG/SHORT 0.25T
+  - 2.50% maximum initial-risk hard cap
+  - Frozen Renko source append-only false-brick hardening
+  - Telegram result icon + entry/exit time markers
+  - Separate TF scoreboard marker
+
+PASS existing regression
+  - test_v6180_r26_core_only.js
+  - test_v6181_r26_percent_stop_core.js
+  - test_v6182_r26_startup_isolation.js
+  - test_v6183_r26_phased_startup.js
+  - test_v6200_r30_renko_only_20slot.js
+
+PASS syntax
+  - all top-level JavaScript files: node --check
+
+SAFETY
+  - total real slot remains 20
+  - same-symbol one-way collision guard preserved
+  - Premier/N5 real authorization preserved
+  - control-plane / startup fail-closed preserved
+  - existing open positions are not retroactively assigned the new structural initial stop

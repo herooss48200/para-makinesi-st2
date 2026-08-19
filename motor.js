@@ -64,6 +64,41 @@ function aktifGercekPozisyonSayisi() {
 }
 
 
+function renkoYapisalStopPlani(symbol, yon, referencePrice, girisAnalizi = {}) {
+    const entry = Number(referencePrice || 0);
+    const side = String(yon || '').toUpperCase();
+    const hardCapPct = Math.max(0.05, Number(ayarlar.renkoYapisalStopMaksRiskYuzde || ayarlar.sabitStopYuzdesi || 2.5));
+    const hardCap = side === 'LONG' ? entry * (1 - hardCapPct / 100) : entry * (1 + hardCapPct / 100);
+    if (ayarlar.renkoYapisalStopAktif !== true || girisAnalizi?.entryStrategy !== 'ST2_RENKO') {
+        return { valid: entry > 0, stop: fiyatKlip(symbol, hardCap), source: 'PERCENT_HARD_CAP', hardCapPct };
+    }
+    const c = girisAnalizi?.confirmationGate?.reversal || girisAnalizi?.pusuTuglasi?.confirmation15m || {};
+    const previous = c?.previous || {};
+    const box = Number(girisAnalizi?.confirmationGate?.boxSize || girisAnalizi?.pusuTuglasi?.confirmation15m?.boxSize || girisAnalizi?.renkoBoxSize || 0);
+    const bufferT = Math.max(0, Number(ayarlar.renkoYapisalStopBufferT ?? 0.25));
+    const edge = side === 'LONG'
+        ? Number(previous?.low || girisAnalizi?.pusuTuglasi?.confirmation15m?.previousLow || 0)
+        : Number(previous?.high || girisAnalizi?.pusuTuglasi?.confirmation15m?.previousHigh || 0);
+    if (!(entry > 0) || !(box > 0) || !(edge > 0) || !['LONG','SHORT'].includes(side)) {
+        return { valid: false, reason: 'STRUCTURAL_STOP_REFERENCE_MISSING', entry, box, edge, side };
+    }
+    const structural = side === 'LONG' ? edge - bufferT * box : edge + bufferT * box;
+    const stopRaw = side === 'LONG' ? Math.max(structural, hardCap) : Math.min(structural, hardCap);
+    const stop = fiyatKlip(symbol, stopRaw);
+    const correctSide = side === 'LONG' ? stop < entry : stop > entry;
+    if (!(stop > 0) || !correctSide) {
+        return { valid: false, reason: 'STRUCTURAL_STOP_INVALID_SIDE', entry, structural, hardCap, stop, side };
+    }
+    const riskPct = Math.abs((stop / entry - 1) * 100);
+    return {
+        valid: true, stop, structuralStop: fiyatKlip(symbol, structural), hardCapStop: fiyatKlip(symbol, hardCap),
+        hardCapPct, bufferT, boxSize: box, referenceEdge: edge, riskPct,
+        source: Math.abs(stop - structural) <= Math.max(1e-12, Number(h.state.basamaklar?.[symbol]?.tickSize || 0)/2)
+            ? `RENKO_STRUCTURE_${bufferT.toFixed(2)}T` : `RENKO_STRUCTURE_${bufferT.toFixed(2)}T_HARD_CAP`
+    };
+}
+
+
 function requestedEntryStrategy(girisAnalizi = {}) {
     return String(girisAnalizi?.entryStrategy || 'ST2_RENKO').trim().toUpperCase();
 }
@@ -235,13 +270,17 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
         const minQty = Number(kural.minQty || 0);
         const minNotional = Number(kural.minNotional || 5);
         const etkinStopYuzdesi = Number(ayarlar.sabitStopYuzdesi || 2.5);
-        const etkinStopOrani = etkinStopYuzdesi / 100;
         const tpYuzdesi = Number(ayarlar.maxTpYuzdesi || 10);
         const tpOrani = tpYuzdesi / 100;
-        let sl = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 - etkinStopOrani) : canliFiyat * (1 + etkinStopOrani));
-        let tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
-
         const etkinGirisAnalizi = { ...(girisAnalizi || {}), entryStrategy: requestedStrategy, strategyLane };
+        const preStopPlan = renkoYapisalStopPlani(symbol, yon, canliFiyat, etkinGirisAnalizi);
+        if (!preStopPlan.valid) {
+            console.log(`🧯 [YAPISAL STOP ENTRY RED] ${symbol} ${yon} | ${preStopPlan.reason || 'INVALID'} | TF ${etkinGirisAnalizi.sourceTimeframe || etkinGirisAnalizi.pusuPeriyodu || '15m'}`);
+            return false;
+        }
+        let sl = preStopPlan.stop;
+        let tp = fiyatKlip(symbol, yon === 'LONG' ? canliFiyat * (1 + tpOrani) : canliFiyat * (1 - tpOrani));
+        etkinGirisAnalizi.initialStopPlan = { ...preStopPlan, frozenAt: new Date().toISOString() };
         const hazirKimlik = {
             sym: symbol, yon, girisFiyati: Number(canliFiyat), sl, tp,
             miktar: miktarKlip(symbol, risk.notionalUsdt / Number(canliFiyat)),
@@ -328,8 +367,11 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             });
 
             const fillPrice = Number(fill.avgPrice);
-            sl = fiyatKlip(symbol, yon === 'LONG' ? fillPrice * (1 - etkinStopOrani) : fillPrice * (1 + etkinStopOrani));
+            const fillStopPlan = renkoYapisalStopPlani(symbol, yon, fillPrice, etkinGirisAnalizi);
+            if (!fillStopPlan.valid) throw new Error(`YAPISAL_STOP_FILL_FAIL_CLOSED:${fillStopPlan.reason || 'INVALID'}`);
+            sl = fillStopPlan.stop;
             tp = fiyatKlip(symbol, yon === 'LONG' ? fillPrice * (1 + tpOrani) : fillPrice * (1 - tpOrani));
+            etkinGirisAnalizi.initialStopPlan = { ...fillStopPlan, frozenAt: etkinGirisAnalizi.initialStopPlan?.frozenAt || new Date().toISOString(), fillValidatedAt: new Date().toISOString() };
             protections = await realExecution.installProtections({
                 reservation, side: yon, stopPrice: sl.toFixed(pPrecision), takeProfitPrice: tp.toFixed(pPrecision), client: h.client
             });
@@ -351,8 +393,10 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             kaldirac, marjinTipi: risk.marginType, ligBoyutCarpani,
             entryStrategy: requestedStrategy, strategyLane,
             gercekLig: 'PREMIER', sanal: false, borsaOrderId: fill.order?.orderId || null,
-            acilisZamani: Date.now(), mevcutTpYuzdesi: 0, tpKademe: 0, sonTpSeviyesi: tp,
+            acilisZamani: Number.isFinite(Date.parse(String(fill.fillVerifiedAt || ''))) ? Date.parse(String(fill.fillVerifiedAt)) : Date.now(), mevcutTpYuzdesi: 0, tpKademe: 0, sonTpSeviyesi: tp,
             breakevenAktif: false, girisAnalizi: etkinGirisAnalizi,
+            sourceTimeframe: etkinGirisAnalizi.sourceTimeframe || etkinGirisAnalizi.pusuPeriyodu || '15m',
+            initialStopPlan: etkinGirisAnalizi.initialStopPlan || null,
             renkoPremierDecision: hazirKimlik.renkoPremierDecision,
             labPremierDecision: hazirKimlik.labPremierDecision,
             dnaId: hazirKimlik.dnaId, dnaLabel: hazirKimlik.dnaLabel, dnaIdentityKey: hazirKimlik.dnaIdentityKey,
@@ -384,10 +428,14 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
                 `<b>✅ GERÇEK POZİSYON AÇILDI</b>
 
 ` +
-                `🔀 ${symbol} ${yon} | 🧱 RENKO REAL / PREMIER
+                `🔀 ${symbol} ${yon} | 🧱 RENKO REAL / PREMIER | ⏱️ ${yeniPozisyon.sourceTimeframe}
 ` +
                 scoreText +
+                `🕒 Giriş ${new Date(yeniPozisyon.acilisZamani).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul',hour12:false})}
+` +
                 `Giriş ${gerceklesenFiyat} | SL ${sl} | TP ${tp}
+` +
+                `🛡️ İlk stop ${yeniPozisyon.initialStopPlan?.source || 'PERCENT'} | Risk %${Number(yeniPozisyon.initialStopPlan?.riskPct || etkinStopYuzdesi).toFixed(2)}
 ` +
                 `Notional ${gerceklesenNotional.toFixed(2)} USDT | ${kaldirac}x
 ` +
@@ -473,5 +521,6 @@ module.exports = {
     gercekMiktarHedefeEnYakinKlip,
     fiyatKlip,
     gercekDirectTuglaKapisi,
+    renkoYapisalStopPlani,
     _st2PremierScoreBagla: st2PremierScoreBagla
 };
