@@ -130,7 +130,7 @@ function guvenliStopUygula(pos, oncekiSl, adaySl) {
 }
 
 function gercekOkumaDeadline(promise, timeoutMs, label = 'SIGNED_READ_TIMEOUT') {
-    const ms = Math.max(2000, Number(timeoutMs || 8000));
+    const ms = Math.max(5000, Number(timeoutMs || 20000));
     let timer;
     return Promise.race([
         Promise.resolve(promise),
@@ -139,6 +139,28 @@ function gercekOkumaDeadline(promise, timeoutMs, label = 'SIGNED_READ_TIMEOUT') 
             timer.unref?.();
         })
     ]).finally(() => clearTimeout(timer));
+}
+
+// R31.3: positionRisk signed-read single-flight. A timed-out HTTP promise may still be
+// alive inside binance-api-node; starting a fresh request every scheduler tick creates a
+// self-amplifying queue. Reuse the same in-flight request until it really settles.
+let positionRiskSingleFlight = null;
+function positionRiskSingleFlightRead() {
+    if (!positionRiskSingleFlight) {
+        const startedAt = Date.now();
+        const promise = Promise.resolve().then(() => h.client.futuresPositionRisk());
+        const task = { promise, startedAt };
+        positionRiskSingleFlight = task;
+        promise.then(
+            () => { if (positionRiskSingleFlight === task) positionRiskSingleFlight = null; },
+            () => { if (positionRiskSingleFlight === task) positionRiskSingleFlight = null; }
+        );
+    }
+    h.state.st2PositionRiskRead ||= {};
+    h.state.st2PositionRiskRead.inFlight = true;
+    h.state.st2PositionRiskRead.startedAt = positionRiskSingleFlight.startedAt;
+    h.state.st2PositionRiskRead.ageMs = Date.now() - positionRiskSingleFlight.startedAt;
+    return positionRiskSingleFlight.promise;
 }
 
 async function minimalKapanisRaporu(pos, closePrice, reason) {
@@ -187,12 +209,25 @@ async function izSurmeyiGuncelle(options = {}) {
     if (!skipExchangeReconcile) {
         try {
             borsaPozisyonlar = await gercekOkumaDeadline(
-                h.client.futuresPositionRisk(),
-                ayarlar.gercekPozisyonMutabakatTimeoutMs || 8000,
+                positionRiskSingleFlightRead(),
+                ayarlar.gercekPozisyonMutabakatTimeoutMs || 20000,
                 'FUTURES_POSITION_RISK_TIMEOUT'
             );
+            h.state.st2PositionRiskRead = {
+                ...(h.state.st2PositionRiskRead || {}),
+                inFlight: Boolean(positionRiskSingleFlight),
+                lastOkAt: Date.now(),
+                lastError: null
+            };
         } catch (e) {
-            console.error(`❌ [GERÇEK POZİSYON MUTABAKATI] ${e.message}`);
+            h.state.st2PositionRiskRead = {
+                ...(h.state.st2PositionRiskRead || {}),
+                inFlight: Boolean(positionRiskSingleFlight),
+                ageMs: positionRiskSingleFlight ? Date.now() - positionRiskSingleFlight.startedAt : 0,
+                lastErrorAt: Date.now(),
+                lastError: String(e?.message || e)
+            };
+            console.error(`❌ [GERÇEK POZİSYON MUTABAKATI] ${e.message} | single-flight ${positionRiskSingleFlight ? 'KORUNUYOR' : 'BOSTA'}`);
             return { exchangeOk: false, error: e.message, reconciled: 0, closed: 0, failures: 1 };
         }
     }

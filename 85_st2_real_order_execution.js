@@ -702,19 +702,10 @@ async function executeEntry({ reservation, quantity, referencePrice, minQty, min
   if (!guard.dataOk) {
     audit('ONUR_FINAL_GUARD_DATA_FAIL_OPEN', { symbol, side, btc: guard.btc, eth: guard.eth });
   }
-  if (side === 'LONG') {
-    audit('ONUR_LONG_SHADOW', {
-      symbol,
-      btcTrend: guard.btc?.trend || 'DATA',
-      btcGap: guard.btc?.gap ?? null,
-      wouldVeto: guard.longShadowWouldVeto === true,
-      source: guard.btc?.source || 'DATA'
-    });
-  }
   if (guard.hardVeto === true) {
-    const reason = 'ONUR_FINAL_SHORT_HARD_VETO';
+    const reason = guard.reason;
     audit(reason, {
-      symbol,
+      symbol, side,
       btcTrend: guard.btc.trend,
       ethTrend: guard.eth.trend,
       btcGap: guard.btc.gap,
@@ -722,7 +713,7 @@ async function executeEntry({ reservation, quantity, referencePrice, minQty, min
       source: guard.btc.source
     });
     releaseReservation(reservation, reason);
-    console.log(`🛡️ [ONUR SHORT HARD VETO] ${symbol} SHORT | BTC ${guard.btc.trend} gap %${guard.btc.gap.toFixed(3)} | ETH ${guard.eth.trend} gap %${guard.eth.gap.toFixed(3)} | Binance emri GÖNDERİLMEDİ`);
+    console.log(`🛡️ [ONUR ${side} HARD VETO] ${symbol} ${side} | BTC ${guard.btc.trend} gap %${guard.btc.gap.toFixed(3)} | ETH ${guard.eth.trend} gap %${guard.eth.gap.toFixed(3)} | Binance emri GÖNDERİLMEDİ`);
     return { ok: false, vetoed: true, reason, guard };
   }
 

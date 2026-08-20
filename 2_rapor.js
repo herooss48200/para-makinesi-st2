@@ -119,7 +119,7 @@ function canliRaporMetniOlustur() {
     `⏱️ CANLI TF Sayaç:`,
     ...activeTfs.map(tf => mtfPerf.rows?.[tf]).filter(Boolean).map(q=>`${q.tf} | Aç ${q.opened} Kap ${q.closed} | W/L/BE ${q.wins}/${q.losses}/${q.be} | WR %${n(q.wr).toFixed(1)} | Net ${n(q.netPnl)>=0?'+':''}${n(q.netPnl).toFixed(4)} | PF ${n(q.pf).toFixed(2)}`),
     `🧠 RENKO LIVE: ${activeTfs.join(' / ')} ATR-Renko/BB → CONFIRMED → 1m Renko ST → Premier/N5 → Onur Guard → REAL`,
-    `🧭 Onur Guard: SHORT veto ${n(directionGuard.shortVeto)} | SHORT keep ${n(directionGuard.shortKeep)} | LONG shadow-veto ${n(directionGuard.longShadowWouldVeto)} | Veri fail-open ${n(directionGuard.dataMissing)}`,
+    `🧭 Onur Guard: SHORT veto ${n(directionGuard.shortVeto)} | SHORT keep ${n(directionGuard.shortKeep)} | LONG veto ${n(directionGuard.longVeto)} | LONG keep ${n(directionGuard.longKeep)} | Veri fail-open ${n(directionGuard.dataMissing)}`,
     `🛡️ Ekonomi: İlk SL karşı tuğla dışı ${n(ayarlar.renkoYapisalStopBufferT,0.25).toFixed(2)}T | Maks risk -%${n(ayarlar.renkoYapisalStopMaksRiskYuzde,2.5).toFixed(2)} | +%${n(ayarlar.confirmedYuzdeselEkonomiAktivasyonYuzde).toFixed(2)} → SL +%${n(ayarlar.confirmedYuzdeselEkonomiIlkKilitYuzde).toFixed(2)} | sonra ${n(ayarlar.confirmedYuzdeselEkonomiAdimYuzde).toFixed(2)} puan`
   ];
   if (real.length) {

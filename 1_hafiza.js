@@ -461,9 +461,12 @@ async function telegramTekDeneme(apiPath, veri, options = {}) {
     const curlOpen = telegramTransport.curlCircuitUntil > now;
     const atMostOnce = options.atMostOnce === true;
     const idempotent = telegramIdempotentIstekMi(apiPath, options);
+    const requestedTimeout = Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS);
     const nativeTimeout = priority === 'critical'
-        ? Math.min(6000, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS))
-        : Math.min(3500, Number(options.timeoutMs || TELEGRAM_TIMEOUT_MS));
+        ? Math.min(6000, requestedTimeout)
+        : priority === 'panel'
+            ? Math.min(6000, requestedTimeout)
+            : Math.min(3500, requestedTimeout);
 
     // Tekil pusu gibi at-most-once mesajlar tek taze Native bağlantı kullanır.
     // Timeout/bağlantı kopması belirsiz teslimdir; ikinci taşıma ile çift mesaj riski alınmaz.

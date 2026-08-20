@@ -1,0 +1,23 @@
+AGROS ST2 v6.19.3-R31.3 TEST RESULT
+
+PASS 1: R31.3 reconcile single-flight
+- positionRisk timeout 20s
+- background cadence 30s
+- freshness 180s
+- unresolved timed-out request reuse / no request pile-up
+- Telegram panel lane supports configured 6s Native timeout
+
+PASS 2: R31.2 symmetric Onur guard
+- strong BTC+ETH UP => SHORT hard veto
+- strong BTC+ETH DOWN => LONG hard veto
+- missing data => fail-open
+- veto before SUBMITTED/MARKET
+
+PASS 3: R31 compatibility
+PASS 4: R30 CORE
+PASS 5: R26 percent stop core
+PASS 6: R26 startup isolation
+PASS 7: R26 phased startup
+PASS 8: R30 RENKO-ONLY
+
+Result: 8/8 PASS

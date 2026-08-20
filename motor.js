@@ -366,7 +366,7 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
                 minQty, minNotional, maxNotionalDeviationPct: maksNotionalSapmaYuzde, client: h.client
             });
             if (fill?.ok === false) {
-                if (fill.vetoed === true && fill.reason === 'ONUR_FINAL_SHORT_HARD_VETO') {
+                if (fill.vetoed === true && ['ONUR_FINAL_SHORT_HARD_VETO', 'ONUR_FINAL_LONG_HARD_VETO'].includes(fill.reason)) {
                     console.log(`🛡️ [CORE ENTRY VETO] ${symbol} ${yon} | ${fill.reason} | Gerçek MARKET emir gönderilmedi`);
                     return false;
                 }
