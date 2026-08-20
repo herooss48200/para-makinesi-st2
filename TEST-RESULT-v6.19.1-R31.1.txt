@@ -1,0 +1,16 @@
+AGROS ST2 v6.19.1-R31.1 TEST RESULT
+Date: 2026-08-20
+
+Syntax checks: PASS
+Git diff --check: PASS
+
+npm test:
+✅ R31.1 15m stable passed | 15m REAL + 1m confirm | Onur SHORT hard-veto before submit | LONG shadow | critical open/close Telegram | reconcile freshness hardened
+✅ R31 compatibility passed | live authority 15m-only | higher-TF aggregation helper dormant | 0.25T structure + 2.5% cap
+✅ R30 CORE passed | runtime closure 38 files | Renko Premier/N5 preserved | 20 Renko slots x 20USDT | no alternate live strategy runtime
+✅ R26 percent stop core passed | SL -2.5 | +1.50 -> +1.00 | then 0.50 behind / 0.50 step | LONG+SHORT monotonic
+✅ R26 startup isolation passed | warmup gets CPU priority | real protection only before READY | no ST1/Williams/MACD/LAB runtime
+✅ R26 phased startup passed | 1 bounded positionRisk safety snapshot | full reconcile + panel deferred until READY | real entry market-gated
+✅ R30 RENKO-ONLY passed | alternate live runtime removed | 20 real Renko slots | Premier/N5 + Renko entry preserved | pusu Telegram silent
+
+Note: snapshot intentionally excluded node_modules. Tests were run with lightweight test-only stubs for dotenv/binance-api-node; production dependencies are unchanged in package-lock.json except package version metadata.

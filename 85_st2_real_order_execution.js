@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const ayarlar = require('./ayarlar.js');
 const h = require('./1_hafiza.js');
 const realOrderBridge = require('./50_real_order_readiness_bridge.js');
+const finalDirectionGuard = require('./98_st2_final_direction_guard.js');
 const binanceEndpointAuthority = require('./86_st2_binance_endpoint_authority.js');
 
 const VERSION = 'v6.11.2-DIRECT-PROFIT-FLOOR-TWO-SLOT';
@@ -696,6 +697,34 @@ async function executeEntry({ reservation, quantity, referencePrice, minQty, min
 
   const auth = realOrderBridge.realAuthorization();
   if (!auth.valid) throw new Error('GERCEK_EMIR_SON_AN_YETKI_KONTROLU_BASARISIZ');
+
+  const guard = finalDirectionGuard.evaluate({ symbol, side });
+  if (!guard.dataOk) {
+    audit('ONUR_FINAL_GUARD_DATA_FAIL_OPEN', { symbol, side, btc: guard.btc, eth: guard.eth });
+  }
+  if (side === 'LONG') {
+    audit('ONUR_LONG_SHADOW', {
+      symbol,
+      btcTrend: guard.btc?.trend || 'DATA',
+      btcGap: guard.btc?.gap ?? null,
+      wouldVeto: guard.longShadowWouldVeto === true,
+      source: guard.btc?.source || 'DATA'
+    });
+  }
+  if (guard.hardVeto === true) {
+    const reason = 'ONUR_FINAL_SHORT_HARD_VETO';
+    audit(reason, {
+      symbol,
+      btcTrend: guard.btc.trend,
+      ethTrend: guard.eth.trend,
+      btcGap: guard.btc.gap,
+      ethGap: guard.eth.gap,
+      source: guard.btc.source
+    });
+    releaseReservation(reservation, reason);
+    console.log(`🛡️ [ONUR SHORT HARD VETO] ${symbol} SHORT | BTC ${guard.btc.trend} gap %${guard.btc.gap.toFixed(3)} | ETH ${guard.eth.trend} gap %${guard.eth.gap.toFixed(3)} | Binance emri GÖNDERİLMEDİ`);
+    return { ok: false, vetoed: true, reason, guard };
+  }
 
   saveRecord(reservation.fingerprint, { status: 'SUBMITTED', submittedAt: nowIso(), requestedQty: qty, referencePrice });
   let order = null;

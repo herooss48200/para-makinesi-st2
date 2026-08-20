@@ -13,8 +13,9 @@ const path = require('path');
 const pusuNotificationDedupe = require('./81_st2_pusu_notification_dedupe.js');
 const renkoEntryModePolicy = require('./90_st2_renko_entry_mode_policy.js');
 
-// R31 MTF LIVE: 15m taban kapali mumlardan 30m/1h/2h/4h kapanmis kaynaklar lokal uretilir.
-// Ek Binance istekleri acilmaz; her kaynak TF kendi Renko/pusu state'ini ve sayacini tasir.
+// R31.1 LIVE AUTHORITY: gerçek giriş kaynağı ayarlar.renkoCanliKaynakPeriyotlari ile sınırlıdır.
+// Üretimde yalnız 15m aktiftir; 1m yalnız Renko-ST teyididir. Higher-TF aggregation helper'ları
+// geçmiş kayıt/geri dönüş uyumluluğu için tutulur, gerçek entry taramasına katılmaz.
 let AKTIF_KAYNAK_TF = null;
 const TF_MS = Object.freeze({ '15m': 15*60_000, '30m': 30*60_000, '1h': 60*60_000, '2h': 2*60*60_000, '4h': 4*60*60_000 });
 function canliKaynakTfListesi() {

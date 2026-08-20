@@ -2,9 +2,9 @@
 
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'R31-MTF-LIVE-STRUCT-STOP',
-    kod: 'AGROS ST2 v6.19.0-R31 — MTF LIVE / STRUCTURAL 0.25T STOP / FALSE-BRICK HARDENING',
-    botSurumu: '6.19.0-R31-MTF-LIVE-15M-30M-1H-2H-4H-STRUCT025T',
+    kodAdi: 'R31.1-15M-STABLE-ONUR-TG',
+    kod: 'AGROS ST2 v6.19.1-R31.1 — 15M ONLY / 1M CONFIRM / ONUR SHORT GUARD / CRITICAL TRADE TELEGRAM',
+    botSurumu: '6.19.1-R31.1-15M-ONLY-ONUR-TG',
     stratejiSurumu: '1.5.0',
     yayinTarihi: '19.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })

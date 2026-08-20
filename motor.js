@@ -365,6 +365,13 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
                 reservation, quantity: gercekMiktar, referencePrice: canliFiyat,
                 minQty, minNotional, maxNotionalDeviationPct: maksNotionalSapmaYuzde, client: h.client
             });
+            if (fill?.ok === false) {
+                if (fill.vetoed === true && fill.reason === 'ONUR_FINAL_SHORT_HARD_VETO') {
+                    console.log(`🛡️ [CORE ENTRY VETO] ${symbol} ${yon} | ${fill.reason} | Gerçek MARKET emir gönderilmedi`);
+                    return false;
+                }
+                throw new Error(fill.reason || 'GERCEK_ENTRY_EXECUTION_REJECTED');
+            }
 
             const fillPrice = Number(fill.avgPrice);
             const fillStopPlan = renkoYapisalStopPlani(symbol, yon, fillPrice, etkinGirisAnalizi);
@@ -379,7 +386,7 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             console.error(`🚨 [GERÇEK AÇILIŞ ZİNCİRİ HATASI] ${symbol} ${yon} | ${executionError.message}`);
             const rollback = await realExecution.rollbackEntry({ reservation, side: yon, reason: executionError.message, client: h.client })
                 .catch(err => ({ ok: false, reason: err.message }));
-            await h.telegramMesajGonder(`🚨 GERÇEK EMİR FAIL-CLOSED\n${symbol} ${yon}\nHata: ${executionError.message}\nRollback: ${rollback.ok ? 'DOĞRULANDI' : 'BAŞARISIZ'}`).catch(() => {});
+            await h.telegramMesajGonderKritikTeslim(`🚨 GERÇEK EMİR FAIL-CLOSED\n${symbol} ${yon}\nHata: ${executionError.message}\nRollback: ${rollback.ok ? 'DOĞRULANDI' : 'BAŞARISIZ'}`, { coalesceKey: `real-entry-fail:${reservation.fingerprint}` }).catch(err => console.error(`⚠️ [GERÇEK FAIL-CLOSED TELEGRAM] ${symbol} | ${err.message}`));
             return false;
         }
 
@@ -424,7 +431,7 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
             const score = yeniPozisyon.renkoPremierDecision?.premierScore || {};
             const scoreText = `⭐ Score ${Number(score.score || 0).toFixed(1)}/${Number(score.threshold || 0).toFixed(1)} | Sıra #${Number(score.rank || 0)}/${Number(score.cohortSize || 0)}
 `;
-            await h.telegramMesajGonder(
+            const openMessage =
                 `<b>✅ GERÇEK POZİSYON AÇILDI</b>
 
 ` +
@@ -439,8 +446,15 @@ async function pozisyonAc(symbol, yon, canliFiyat, girisAnalizi = null) {
 ` +
                 `Notional ${gerceklesenNotional.toFixed(2)} USDT | ${kaldirac}x
 ` +
-                `Mode ${etkinGirisAnalizi.entryMode || 'YOK'} | ${Number(etkinGirisAnalizi.renkoEntryBrickDistance || 0).toFixed(2)}T`
-            ).catch(() => {});
+                `Mode ${etkinGirisAnalizi.entryMode || 'YOK'} | ${Number(etkinGirisAnalizi.renkoEntryBrickDistance || 0).toFixed(2)}T`;
+            setImmediate(() => {
+                Promise.resolve(h.telegramMesajGonderKritikTeslim(openMessage, { coalesceKey: `real-open:${reservation.fingerprint}` }))
+                    .then(telegramOpenResults => {
+                        const telegramOpenOk = Array.isArray(telegramOpenResults) && telegramOpenResults.length > 0 && telegramOpenResults.every(x => x?.sonuc?.ok === true || x?.sonuc?.ambiguousDelivery === true);
+                        console.log(`${telegramOpenOk ? '✅' : '⚠️'} [GERÇEK AÇILIŞ TELEGRAM] ${symbol} ${yon} | ${telegramOpenOk ? 'TESLİM' : 'TESLİM DOĞRULANAMADI'}`);
+                    })
+                    .catch(err => console.error(`⚠️ [GERÇEK AÇILIŞ TELEGRAM] ${symbol} ${yon} | ${err.message}`));
+            });
         }
         console.log(`✅ [CORE REAL OPEN] ${symbol} ${yon} | ${strategyLane} | ${gerceklesenNotional.toFixed(2)} USDT`);
         return true;

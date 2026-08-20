@@ -1,6 +1,6 @@
 'use strict';
 
-// AGROS ST2 v6.14.0-R26 CORE-ONLY CONFIGURATION
+// AGROS ST2 v6.19.1-R31.1 15M-ONLY STABLE CONFIGURATION
 // Yalnız canlı çekirdeğin gerçekten okuduğu ayarlar tutulur.
 
 const ayarlar = {
@@ -87,7 +87,7 @@ const ayarlar = {
         "1001"
     ],
     "pusuPeriyodu": "15m",
-    "renkoCanliKaynakPeriyotlari": ["15m", "30m", "1h", "2h", "4h"],
+    "renkoCanliKaynakPeriyotlari": ["15m"],
     "renkoYapisalStopAktif": true,
     "renkoYapisalStopBufferT": 0.25,
     "renkoYapisalStopMaksRiskYuzde": 2.5,
@@ -124,7 +124,7 @@ const ayarlar = {
     "renkoGirisVarsayilanTugla": 0.75,
     "renkoGirisYenidenHesaplamaAdimi": 5,
     "renkoKanitTuglaSayisi": 10,
-    "renkoKaynakMumLimiti": 800,
+    "renkoKaynakMumLimiti": 260,
     "renkoKaynakPeriyodu": "15m",
     "renkoOnayAtrPeriod": 14,
     "renkoOnayDerinOnarimMumLimiti": 240,
@@ -155,7 +155,7 @@ const ayarlar = {
     "sabitTpYuzdesi": 0.4,
     "sanalEmirModu": false,
     "sniperPeriyodu": "1m",
-    "st2ExchangeReconcileFreshMs": 15000,
+    "st2ExchangeReconcileFreshMs": 180000,
     "st2ExchangeReconcileIntervalMs": 5000,
     "st2MainLoopWatchdogLogAralikMs": 30000,
     "st2MainLoopWatchdogMs": 20000,

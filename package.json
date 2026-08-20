@@ -1,16 +1,16 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.19.0-r31-mtf-live-struct-stop",
-  "description": "AGROS ST2 v6.19.0-R31: 15m/30m/1h/2h/4h live Renko lanes, structural 0.25T stop with 2.5% hard cap, false-brick hardening, TF scoreboard.",
+  "version": "6.19.1-r31.1-15m-stable-onur-tg",
+  "description": "AGROS ST2 v6.19.1-R31.1: 15m-only live Renko source, 1m Renko-ST confirmation, Onur SHORT final-direction hard veto, critical open/close Telegram delivery, hardened reconciliation freshness.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "node test_v6190_r31_mtf_live_struct_stop.js && node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6200_r30_renko_only_20slot.js",
+    "check": "node test_v6191_r311_15m_stable.js && node test_v6190_r31_mtf_live_struct_stop.js && node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6200_r30_renko_only_20slot.js",
     "test": "npm run check",
     "test:core": "node test_v6180_r26_core_only.js && node test_v6200_r30_renko_only_20slot.js",
     "test:stop": "node test_v6181_r26_percent_stop_core.js",
     "test:startup": "node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js",
-    "test:mtf": "node test_v6190_r31_mtf_live_struct_stop.js"
+    "test:live": "node test_v6191_r311_15m_stable.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

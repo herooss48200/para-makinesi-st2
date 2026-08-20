@@ -153,7 +153,8 @@ async function minimalKapanisRaporu(pos, closePrice, reason) {
     const icon = net > 1e-9 ? '✅' : (net < -1e-9 ? '❌' : '⚖️');
     const sonuc = net > 1e-9 ? 'KÂRLI' : (net < -1e-9 ? 'ZARARLI' : 'NÖTR');
     const tf = String(pos?.sourceTimeframe || pos?.girisAnalizi?.sourceTimeframe || pos?.girisAnalizi?.pusuPeriyodu || '15m');
-    await h.telegramMesajGonder(
+    const closeFingerprint = String(pos?.realExecutionFingerprint || pos?.gercekEmirYurutme?.fingerprint || `${pos.sym}-${pos.yon}`);
+    const telegramCloseResults = await h.telegramMesajGonderKritikTeslim(
         `<b>${icon} GERÇEK POZİSYON KAPANDI</b>\n\n` +
         `🔀 ${pos.sym} ${pos.yon} | ${renkoPozisyonMu(pos) ? '🧱 RENKO REAL' : '⚠️ ESKİ STRATEJİ REAL'} | ⏱️ ${tf}\n` +
         `🎨 Sonuç: ${icon} ${sonuc}\n` +
@@ -162,8 +163,12 @@ async function minimalKapanisRaporu(pos, closePrice, reason) {
         `⌛ Süre: ${sureMetni(sureMs)}\n` +
         `Giriş ${entry} → Çıkış ${exit}\n` +
         `Net ${net >= 0 ? '+' : ''}${net.toFixed(4)} USDT\n` +
-        `Sebep: ${reason || exec.reason || 'EXCHANGE_POSITION_CLOSED'}`
+        `Sebep: ${reason || exec.reason || 'EXCHANGE_POSITION_CLOSED'}`,
+        { coalesceKey: `real-close:${closeFingerprint}:${closedAt}` }
     );
+    const telegramCloseOk = Array.isArray(telegramCloseResults) && telegramCloseResults.length > 0 && telegramCloseResults.every(x => x?.sonuc?.ok === true || x?.sonuc?.ambiguousDelivery === true);
+    console.log(`${telegramCloseOk ? '✅' : '⚠️'} [GERÇEK KAPANIŞ TELEGRAM] ${pos.sym} ${pos.yon} | ${telegramCloseOk ? 'TESLİM' : 'TESLİM DOĞRULANAMADI'}`);
+    if (!telegramCloseOk) throw new Error('GERCEK_KAPANIS_TELEGRAM_TESLIM_DOGRULANAMADI');
 }
 
 async function izSurmeyiGuncelle(options = {}) {

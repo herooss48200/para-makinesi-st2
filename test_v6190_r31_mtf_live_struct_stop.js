@@ -20,13 +20,13 @@ const motor = require('./motor.js');
 
 assert.deepStrictEqual(
   ayarlar.renkoCanliKaynakPeriyotlari,
-  ['15m','30m','1h','2h','4h'],
-  'R31 live TF listesi sabit olmali'
+  ['15m'],
+  'R31.1 live authority 15m-only olmali'
 );
 assert.strictEqual(ayarlar.renkoYapisalStopAktif, true);
 assert.strictEqual(Number(ayarlar.renkoYapisalStopBufferT), 0.25);
 assert.strictEqual(Number(ayarlar.renkoYapisalStopMaksRiskYuzde), 2.5);
-assert(Number(ayarlar.renkoKaynakMumLimiti) >= 640, '4h icin yeterli 15m kaynak korunmali');
+assert(Number(ayarlar.renkoKaynakMumLimiti) >= 201, 'EMA200 ve 15m Renko icin yeterli kaynak korunmali');
 
 // 15m kapali mumlardan higher-TF OHLC aggregation.
 const sym = 'TESTUSDT';
@@ -91,7 +91,8 @@ assert(source4.includes('🕒 Çıkış:'));
 assert(source4.includes('sourceTimeframe'));
 
 const source2 = fs.readFileSync('./2_rapor.js','utf8');
-assert(source2.includes('TF Sayaç (R31 CANLI)'));
+assert(source2.includes('CANLI TF Sayaç'));
+assert(source2.includes('Onur Guard: SHORT veto'));
 assert(source2.includes("require('./97_st2_mtf_scoreboard.js')"));
 
-console.log('✅ R31 MTF live structural stop passed | 15m/30m/1h/2h/4h REAL | 0.25T structure + 2.5% cap | false-brick append-only | TF scoreboard + Telegram result/time');
+console.log('✅ R31 compatibility passed | live authority 15m-only | higher-TF aggregation helper dormant | 0.25T structure + 2.5% cap');
