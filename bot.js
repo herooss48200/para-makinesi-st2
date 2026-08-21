@@ -21,6 +21,7 @@ let donguBaslangic = 0;
 let donguAsama = 'IDLE';
 let sonDonguWatchdogLog = 0;
 let exchangeReconcileTask = null;
+let exchangeFinalizeTask = null;
 let startupExchangeReconcileTask = null;
 let sonStartupProtectionAt = 0;
 
@@ -41,7 +42,9 @@ function st2RealEntrySafetyUpdate(priceNetworkOk = null) {
     const rec = st2ExchangeReconcileState();
     const now = Date.now();
     const freshMs = Math.max(5000, Number(ayarlar.st2ExchangeReconcileFreshMs || 15000));
-    const reconciliationFresh = ayarlar.sanalEmirModu === true || (rec.ok === true && Number(rec.lastOkAt || 0) > 0 && now - Number(rec.lastOkAt || 0) <= freshMs);
+    const posRead = h.state.st2PositionRiskRead || {};
+    const snapshotFresh = posRead.snapshotSafe === true && Number(posRead.snapshotVerifiedAt || 0) > 0 && now - Number(posRead.snapshotVerifiedAt || 0) <= freshMs;
+    const reconciliationFresh = ayarlar.sanalEmirModu === true || snapshotFresh || (rec.ok === true && Number(rec.lastOkAt || 0) > 0 && now - Number(rec.lastOkAt || 0) <= freshMs);
     const previous = h.state.st2RealEntrySafety || {};
     const networkOk = priceNetworkOk == null ? previous.priceNetworkOk === true : priceNetworkOk === true;
     const marketReady = h.state.startupMarketReady === true;
@@ -72,15 +75,34 @@ async function st2ExchangeReconcileBackground(reason = 'INTERVAL') {
     rec.status = 'RUNNING'; rec.lastAttemptAt = startedAt; rec.reason = reason;
     exchangeReconcileTask = (async () => {
         try {
-            const result = await p.izSurmeyiGuncelle({ reconcileOnly: true });
+            // R31.4: REAL entry liveness authority yalniz hizli/full positionRisk snapshot'tir.
+            // Kapanmis pozisyonun fill/algo/komisyon muhasebesi ayri task'ta akar; bu agir
+            // muhasebe artik tum yeni girisleri EXCHANGE_RECONCILIATION_STALE'e kilitlemez.
+            const snapshot = await p.exchangePositionSnapshot();
             rec.lastFinishAt = Date.now();
             rec.lastDurationMs = rec.lastFinishAt - startedAt;
-            rec.ok = result?.exchangeOk !== false;
+            rec.ok = snapshot?.exchangeOk === true;
             rec.status = rec.ok ? 'READY' : 'DEGRADED';
-            rec.error = rec.ok ? null : String(result?.error || 'EXCHANGE_RECONCILIATION_FAILED');
+            rec.error = rec.ok ? null : String(snapshot?.error || 'EXCHANGE_POSITION_SNAPSHOT_FAILED');
             if (rec.ok) rec.lastOkAt = rec.lastFinishAt;
             st2RealEntrySafetyUpdate();
-            return result;
+
+            if (rec.ok && !exchangeFinalizeTask) {
+                exchangeFinalizeTask = Promise.resolve()
+                    .then(() => p.izSurmeyiGuncelle({ reconcileOnly: true, exchangeSnapshot: snapshot.positions || [] }))
+                    .then(result => {
+                        h.state.st2ExchangeFinalize = { status: result?.exchangeOk === false ? 'DEGRADED' : 'READY', finishedAt: Date.now(), error: result?.error || null, closed: Number(result?.closed || 0) };
+                        return result;
+                    })
+                    .catch(err => {
+                        h.state.st2ExchangeFinalize = { status: 'DEGRADED', finishedAt: Date.now(), error: String(err?.message || err) };
+                        console.error(`⚠️ [ST2 EXCHANGE FINALIZE BG] ${err?.message || err}`);
+                        return { exchangeOk: false, error: String(err?.message || err) };
+                    })
+                    .finally(() => { exchangeFinalizeTask = null; });
+                h.state.st2ExchangeFinalize = { status: 'RUNNING', startedAt: Date.now(), error: null };
+            }
+            return snapshot;
         } catch (err) {
             rec.lastFinishAt = Date.now();
             rec.lastDurationMs = rec.lastFinishAt - startedAt;

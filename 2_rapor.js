@@ -98,6 +98,8 @@ function canliRaporMetniOlustur() {
   const time = typeof h.binanceTimeHealth === 'function' ? h.binanceTimeHealth() : { healthy:false, offsetMs:0 };
   const tg = typeof h.telegramKuyrukOzeti === 'function' ? h.telegramKuyrukOzeti() : { critical:0, panel:0, detail:0, transport:{} };
   const rec = h.state.st2ExchangeReconciliation || {};
+  const finalize = h.state.st2ExchangeFinalize || {};
+  const posRead = h.state.st2PositionRiskRead || {};
   const safety = h.state.st2RealEntrySafety || {};
   const price = h.state.st2PriceRuntime || {};
   const pc = price.coverage || {};
@@ -113,7 +115,7 @@ function canliRaporMetniOlustur() {
     `🌐 Evren ${data.selected}/${data.requested} | Gate ${gate}`,
     `📡 15m taban ${data.candles}/${data.selected} | 1m ${data.oneMin}/${data.selected} | 1m Renko ST ${data.renkoSt}/${data.selected} | Hata ${data.errors} | Renko tarama ${n(mtfAudit.sembol)}/${data.selected * Math.max(1,activeTfs.length)} ${(n(mtfAudit.sureMs)/1000).toFixed(1)}sn`,
     `⚙️ Saat ${time.healthy ? 'HEALTHY' : 'DEGRADED'} ${n(time.offsetMs)>=0?'+':''}${n(time.offsetMs)}ms | Fiyat ${String(price.source || 'BEKLIYOR')} ${n(pc.fresh)}/${n(pc.total)} | TG ${tg.transport?.nativeCircuitOpen ? 'NATIVE-CIRCUIT' : 'OK'} | Kuyruk ${n(tg.critical)}/${n(tg.panel)}/${n(tg.detail)} | Kritik teslim ${n(tg.delivered?.critical)}/${n(tg.failed?.critical)}`,
-    `🔁 Mutabakat ${String(rec.status || 'BEKLIYOR')} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (safety.ready === true && data.ready ? 'READY' : `FAIL-CLOSED/${String(!data.ready ? 'MARKET_WARMUP_NOT_READY' : (safety.reason || 'NOT_READY'))}`)}`,
+    `🔁 Mutabakat ${String(rec.status || 'BEKLIYOR')} | Snapshot ${posRead.snapshotSafe === true ? 'OK' : 'BEKLIYOR'}${Number(posRead.snapshotVerifiedAt||0)>0 ? ` ${Math.max(0,Math.round((Date.now()-Number(posRead.snapshotVerifiedAt))/1000))}sn` : ''} | Finalize ${String(finalize.status || 'IDLE')} | Gerçek Entry ${ayarlar.sanalEmirModu ? 'SANAL' : (safety.ready === true && data.ready ? 'READY' : `FAIL-CLOSED/${String(!data.ready ? 'MARKET_WARMUP_NOT_READY' : (safety.reason || 'NOT_READY'))}`)}`,
     `🎯 Pusu ${Object.entries(pusularByTf).map(([tf,x])=>`${tf}:${x.length}`).join(' | ')} | Toplam ${pusular.length}`,
     `🏁 RENKO Sayaç (YARIŞTAN BERİ): Aç ${n(renkoPerf.opened)} | Kap ${n(renkoPerf.closed)} | W/L/BE ${n(renkoPerf.wins)}/${n(renkoPerf.losses)}/${n(renkoPerf.be)} | WR %${n(renkoPerf.wr).toFixed(1)} | Net ${n(renkoPerf.netPnl)>=0?'+':''}${n(renkoPerf.netPnl).toFixed(4)} | Kom ${n(renkoPerf.commission).toFixed(4)}`,
     `⏱️ CANLI TF Sayaç:`,

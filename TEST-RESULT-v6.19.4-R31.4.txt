@@ -1,0 +1,21 @@
+AGROS ST2 v6.19.4-R31.4 TEST RESULT
+PASS 9/9
+
+PASS R31.4 snapshot liveness
+PASS R31.3 positionRisk single-flight contract
+PASS R31.2 symmetric Onur guard
+PASS R31 compatibility
+PASS R30 CORE
+PASS R26 percent stop core
+PASS R26 startup isolation
+PASS R26 phased startup
+PASS R30 RENKO-ONLY
+
+Key safety assertions:
+- positionRisk 20s deadline retained
+- single-flight hard-stale rotation 60s
+- exchange snapshot refresh decoupled from close accounting
+- unknown exchange positions fail-closed
+- close finalize bounded to 6s per signed API call in fast reconcile path
+- 15m live + 1m confirmation preserved
+- symmetric Onur LONG/SHORT hard veto preserved

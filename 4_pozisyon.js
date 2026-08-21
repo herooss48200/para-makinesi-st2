@@ -141,15 +141,31 @@ function gercekOkumaDeadline(promise, timeoutMs, label = 'SIGNED_READ_TIMEOUT') 
     ]).finally(() => clearTimeout(timer));
 }
 
-// R31.3: positionRisk signed-read single-flight. A timed-out HTTP promise may still be
-// alive inside binance-api-node; starting a fresh request every scheduler tick creates a
-// self-amplifying queue. Reuse the same in-flight request until it really settles.
+// R31.4: positionRisk signed-read single-flight + hard-stale rotation.
+// Normal timeout alttaki HTTP istegini iptal etmeyebilir. Ayni hung promise sonsuza kadar
+// yeniden kullanilirsa mutabakat kalici STALE olur. En fazla belirlenen yas boyunca ayni
+// istegi paylas; bundan eski task'i abandoned sayip yalniz bir yeni probe ac.
 let positionRiskSingleFlight = null;
-function positionRiskSingleFlightRead() {
+let positionRiskSingleFlightSeq = 0;
+function positionRiskSingleFlightRead(client = h.client) {
+    const now = Date.now();
+    const maxAgeMs = Math.max(30000, Number(ayarlar.gercekPozisyonMutabakatSingleFlightMaxAgeMs || 60000));
+    if (positionRiskSingleFlight) {
+        const ageMs = now - Number(positionRiskSingleFlight.startedAt || now);
+        const clientChanged = positionRiskSingleFlight.client !== client;
+        if (clientChanged || ageMs > maxAgeMs) {
+            h.state.st2PositionRiskRead ||= {};
+            h.state.st2PositionRiskRead.abandoned = Number(h.state.st2PositionRiskRead.abandoned || 0) + 1;
+            h.state.st2PositionRiskRead.lastAbandonedAt = now;
+            h.state.st2PositionRiskRead.lastAbandonedAgeMs = ageMs;
+            positionRiskSingleFlight = null;
+        }
+    }
     if (!positionRiskSingleFlight) {
         const startedAt = Date.now();
-        const promise = Promise.resolve().then(() => h.client.futuresPositionRisk());
-        const task = { promise, startedAt };
+        const id = ++positionRiskSingleFlightSeq;
+        const promise = Promise.resolve().then(() => client.futuresPositionRisk());
+        const task = { promise, startedAt, client, id };
         positionRiskSingleFlight = task;
         promise.then(
             () => { if (positionRiskSingleFlight === task) positionRiskSingleFlight = null; },
@@ -158,9 +174,68 @@ function positionRiskSingleFlightRead() {
     }
     h.state.st2PositionRiskRead ||= {};
     h.state.st2PositionRiskRead.inFlight = true;
+    h.state.st2PositionRiskRead.flightId = positionRiskSingleFlight.id;
     h.state.st2PositionRiskRead.startedAt = positionRiskSingleFlight.startedAt;
     h.state.st2PositionRiskRead.ageMs = Date.now() - positionRiskSingleFlight.startedAt;
     return positionRiskSingleFlight.promise;
+}
+
+function exchangeYon(row) {
+    const amt = Number(row?.positionAmt || 0);
+    return amt > 0 ? 'LONG' : (amt < 0 ? 'SHORT' : null);
+}
+
+async function exchangePositionSnapshot(client = h.client) {
+    try {
+        const rows = await gercekOkumaDeadline(
+            positionRiskSingleFlightRead(client),
+            ayarlar.gercekPozisyonMutabakatTimeoutMs || 20000,
+            'FUTURES_POSITION_RISK_TIMEOUT'
+        );
+        const all = Array.isArray(rows) ? rows : [];
+        const exchangeActive = all.filter(row => Math.abs(Number(row?.positionAmt || 0)) > 0);
+        const localActive = (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false);
+        const localBySymbol = new Map(localActive.map(pos => [String(pos?.sym || '').toUpperCase(), pos]));
+        const unknown = [];
+        const sideMismatch = [];
+        for (const row of exchangeActive) {
+            const symbol = String(row?.symbol || '').toUpperCase();
+            const local = localBySymbol.get(symbol);
+            if (!local) { unknown.push(symbol); continue; }
+            const exSide = exchangeYon(row);
+            const localSide = String(local?.yon || '').toUpperCase();
+            if (exSide && localSide && exSide !== localSide) sideMismatch.push(`${symbol}:${localSide}->${exSide}`);
+        }
+        const now = Date.now();
+        const safe = unknown.length === 0 && sideMismatch.length === 0;
+        h.state.st2PositionRiskRead = {
+            ...(h.state.st2PositionRiskRead || {}),
+            inFlight: Boolean(positionRiskSingleFlight),
+            lastOkAt: now,
+            snapshotVerifiedAt: safe ? now : Number(h.state.st2PositionRiskRead?.snapshotVerifiedAt || 0),
+            snapshotSafe: safe,
+            exchangeActiveCount: exchangeActive.length,
+            localActiveCount: localActive.length,
+            unknownSymbols: unknown,
+            sideMismatch,
+            lastError: safe ? null : (unknown.length ? `EXCHANGE_UNTRACKED_POSITION:${unknown.join(',')}` : `EXCHANGE_SIDE_MISMATCH:${sideMismatch.join(',')}`)
+        };
+        if (!safe) {
+            return { exchangeOk: false, error: h.state.st2PositionRiskRead.lastError, positions: all, exchangeActive, unknown, sideMismatch };
+        }
+        return { exchangeOk: true, positions: all, exchangeActive, unknown: [], sideMismatch: [] };
+    } catch (e) {
+        h.state.st2PositionRiskRead = {
+            ...(h.state.st2PositionRiskRead || {}),
+            inFlight: Boolean(positionRiskSingleFlight),
+            ageMs: positionRiskSingleFlight ? Date.now() - positionRiskSingleFlight.startedAt : 0,
+            snapshotSafe: false,
+            lastErrorAt: Date.now(),
+            lastError: String(e?.message || e)
+        };
+        console.error(`❌ [GERÇEK POZİSYON SNAPSHOT] ${e.message} | single-flight ${positionRiskSingleFlight ? 'KORUNUYOR' : 'BOSTA'}`);
+        return { exchangeOk: false, error: String(e?.message || e), positions: [] };
+    }
 }
 
 async function minimalKapanisRaporu(pos, closePrice, reason) {
@@ -196,6 +271,7 @@ async function minimalKapanisRaporu(pos, closePrice, reason) {
 async function izSurmeyiGuncelle(options = {}) {
     const reconcileOnly = options.reconcileOnly === true;
     const skipExchangeReconcile = options.skipExchangeReconcile === true;
+    const providedExchangeSnapshot = Array.isArray(options.exchangeSnapshot) ? options.exchangeSnapshot : null;
     const aktif = h.state.aktifPozisyonlar || [];
     if (aktif.length === 0) return { exchangeOk: true, reconciled: 0, closed: 0, failures: 0 };
 
@@ -207,28 +283,14 @@ async function izSurmeyiGuncelle(options = {}) {
 
     let borsaPozisyonlar = [];
     if (!skipExchangeReconcile) {
-        try {
-            borsaPozisyonlar = await gercekOkumaDeadline(
-                positionRiskSingleFlightRead(),
-                ayarlar.gercekPozisyonMutabakatTimeoutMs || 20000,
-                'FUTURES_POSITION_RISK_TIMEOUT'
-            );
-            h.state.st2PositionRiskRead = {
-                ...(h.state.st2PositionRiskRead || {}),
-                inFlight: Boolean(positionRiskSingleFlight),
-                lastOkAt: Date.now(),
-                lastError: null
-            };
-        } catch (e) {
-            h.state.st2PositionRiskRead = {
-                ...(h.state.st2PositionRiskRead || {}),
-                inFlight: Boolean(positionRiskSingleFlight),
-                ageMs: positionRiskSingleFlight ? Date.now() - positionRiskSingleFlight.startedAt : 0,
-                lastErrorAt: Date.now(),
-                lastError: String(e?.message || e)
-            };
-            console.error(`❌ [GERÇEK POZİSYON MUTABAKATI] ${e.message} | single-flight ${positionRiskSingleFlight ? 'KORUNUYOR' : 'BOSTA'}`);
-            return { exchangeOk: false, error: e.message, reconciled: 0, closed: 0, failures: 1 };
+        if (providedExchangeSnapshot) {
+            borsaPozisyonlar = providedExchangeSnapshot;
+        } else {
+            const snapshot = await exchangePositionSnapshot(h.client);
+            if (snapshot?.exchangeOk !== true) {
+                return { exchangeOk: false, error: snapshot?.error || 'EXCHANGE_POSITION_SNAPSHOT_FAILED', reconciled: 0, closed: 0, failures: 1 };
+            }
+            borsaPozisyonlar = snapshot.positions || [];
         }
     }
 
@@ -238,6 +300,7 @@ async function izSurmeyiGuncelle(options = {}) {
 
     for (let i = aktif.length - 1; i >= 0; i--) {
         const pos = aktif[i];
+        if (skipExchangeReconcile && pos?.kapanisIsleniyor) continue;
 
         if (!skipExchangeReconcile) {
             const borsaPoz = borsaPozisyonlar.find(p => p.symbol === pos.sym);
@@ -249,7 +312,7 @@ async function izSurmeyiGuncelle(options = {}) {
                 let committed = false;
                 try {
                     const fallbackPrice = Number(h.state.canliFiyatlar[pos.sym] || pos.girisFiyati || 0);
-                    const mutabakat = await realExecution.finalizeExchangeClose(pos, fallbackPrice, h.client);
+                    const mutabakat = await realExecution.finalizeExchangeClose(pos, fallbackPrice, h.client, { fastReconcile: true });
                     const commit = closeLifecycle.commitRealClose({
                         state: h.state,
                         pos,
@@ -380,6 +443,7 @@ async function izSurmeyiGuncelle(options = {}) {
 
 module.exports = {
     izSurmeyiGuncelle,
+    exchangePositionSnapshot,
     _yuzdeselEkonomiHesapla: yuzdeselEkonomiHesapla,
     _guvenliStopUygula: guvenliStopUygula
 };

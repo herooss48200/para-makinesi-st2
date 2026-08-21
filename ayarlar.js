@@ -66,6 +66,8 @@ const ayarlar = {
     "gercekEmirOnayKodu": "LIVE_TRADING_CONFIRMED",
     "gercekEmirYetkilendirmeAktif": true,
     "gercekPozisyonMutabakatTimeoutMs": 20000,
+    "gercekPozisyonMutabakatSingleFlightMaxAgeMs": 60000,
+    "gercekKapanisMutabakatReadTimeoutMs": 6000,
     "gercekStopMinGuncellemeAralikMs": 3000,
     "gunlukMaxYeniEmir": 0,
     "kaliciHafizaLogAktif": true,

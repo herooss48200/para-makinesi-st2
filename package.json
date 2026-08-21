@@ -1,16 +1,16 @@
 {
   "name": "para-makinesi-st2",
-  "version": "6.19.3-r31.3-15m-symmetric-onur-reconcile",
-  "description": "AGROS ST2 v6.19.3-R31.3: 15m-only live Renko source, 1m Renko-ST confirmation, symmetric Onur LONG+SHORT hard veto, positionRisk single-flight reconciliation, critical open/close Telegram delivery.",
+  "version": "6.19.4-r31.4-reconcile-snapshot-liveness",
+  "description": "AGROS ST2 v6.19.4-R31.4: 15m live Renko, symmetric Onur hard veto, positionRisk snapshot liveness separated from close accounting/finalize.",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
-    "check": "node test_v6193_r313_reconcile_singleflight.js && node test_v6192_r312_symmetric_onur_guard.js && node test_v6190_r31_mtf_live_struct_stop.js && node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6200_r30_renko_only_20slot.js",
+    "check": "node test_v6194_r314_reconcile_snapshot_liveness.js && node test_v6193_r313_reconcile_singleflight.js && node test_v6192_r312_symmetric_onur_guard.js && node test_v6190_r31_mtf_live_struct_stop.js && node test_v6180_r26_core_only.js && node test_v6181_r26_percent_stop_core.js && node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js && node test_v6200_r30_renko_only_20slot.js",
     "test": "npm run check",
     "test:core": "node test_v6180_r26_core_only.js && node test_v6200_r30_renko_only_20slot.js",
     "test:stop": "node test_v6181_r26_percent_stop_core.js",
     "test:startup": "node test_v6182_r26_startup_isolation.js && node test_v6183_r26_phased_startup.js",
-    "test:live": "node test_v6193_r313_reconcile_singleflight.js && node test_v6192_r312_symmetric_onur_guard.js"
+    "test:live": "node test_v6194_r314_reconcile_snapshot_liveness.js && node test_v6193_r313_reconcile_singleflight.js && node test_v6192_r312_symmetric_onur_guard.js"
   },
   "dependencies": {
     "axios": "^1.13.2",

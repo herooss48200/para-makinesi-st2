@@ -2,11 +2,11 @@
 
 const versiyon = Object.freeze({
     isim: 'Para Makinesi Binance',
-    kodAdi: 'R31.3-15M-SYMMETRIC-ONUR-RECONCILE',
-    kod: 'AGROS ST2 v6.19.3-R31.3 — 15M ONLY / 1M CONFIRM / ONUR SYMMETRIC HARD GUARD / POSITION-RISK SINGLE-FLIGHT / CRITICAL TRADE TELEGRAM',
-    botSurumu: '6.19.3-R31.3-15M-SYMMETRIC-ONUR-RECONCILE',
+    kodAdi: 'R31.4-RECONCILE-SNAPSHOT-LIVENESS',
+    kod: 'AGROS ST2 v6.19.4-R31.4 — 15M ONLY / 1M CONFIRM / ONUR SYMMETRIC HARD GUARD / POSITION SNAPSHOT LIVENESS / ASYNC CLOSE FINALIZE',
+    botSurumu: '6.19.4-R31.4-RECONCILE-SNAPSHOT-LIVENESS',
     stratejiSurumu: '1.5.0',
-    yayinTarihi: '20.08.2026',
+    yayinTarihi: '21.08.2026',
     ortam: Object.freeze({ emirModu: 'GERCEK_FAIL_CLOSED' })
 });
 function kisaOzet() { return `${versiyon.isim} ${versiyon.botSurumu} | ${versiyon.kodAdi} | Strateji ${versiyon.stratejiSurumu}`; }

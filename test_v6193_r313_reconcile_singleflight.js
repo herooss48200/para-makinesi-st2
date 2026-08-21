@@ -7,11 +7,11 @@ const versiyon = require('./versiyon.js');
 assert.strictEqual(Number(ayarlar.gercekPozisyonMutabakatTimeoutMs), 20000, 'positionRisk deadline must be 20s');
 assert.strictEqual(Number(ayarlar.st2ExchangeReconcileIntervalMs), 30000, 'reconcile cadence must be 30s');
 assert.strictEqual(Number(ayarlar.st2ExchangeReconcileFreshMs), 180000, 'reconcile freshness must remain 180s');
-assert(String(versiyon.botSurumu).includes('R31.3'), 'version must be R31.3');
+assert(/R31\.(3|4)/.test(String(versiyon.botSurumu)), 'version must preserve R31.3 reconciliation contract or newer');
 
 const pos = fs.readFileSync(require.resolve('./4_pozisyon.js'), 'utf8');
 assert(pos.includes('positionRiskSingleFlight'), 'positionRisk single-flight authority missing');
-assert(pos.includes('positionRiskSingleFlightRead()'), 'reconcile must call single-flight read');
+assert(pos.includes('positionRiskSingleFlightRead('), 'reconcile must call single-flight read');
 assert(pos.includes("single-flight ${positionRiskSingleFlight ? 'KORUNUYOR' : 'BOSTA'}"), 'timeout log must expose single-flight state');
 assert(!pos.includes("h.client.futuresPositionRisk(),\n                ayarlar.gercekPozisyonMutabakatTimeoutMs || 8000"), 'old direct 8s reconcile read must be removed');
 

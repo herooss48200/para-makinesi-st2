@@ -369,6 +369,23 @@ function signedReadDeadline(factory, label = 'SIGNED_READ_TIMEOUT', timeoutMs = 
   ]).finally(() => { if (timer) clearTimeout(timer); });
 }
 
+function boundedReconcileClient(client = h.client, timeoutMs = null) {
+  const ms = Math.max(3000, Number(timeoutMs || ayarlar.gercekKapanisMutabakatReadTimeoutMs || 6000));
+  const bounded = new Set([
+    'futuresGetAlgoOrder', 'futuresGetOpenAlgoOrders', 'futuresOpenOrders',
+    'futuresGetOrder', 'futuresAllOrders', 'futuresUserTrades',
+    'futuresCancelAlgoOrder', 'futuresCancelOrder'
+  ]);
+  return new Proxy(client, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== 'function') return value;
+      if (!bounded.has(String(prop))) return value.bind(target);
+      return (...args) => signedReadDeadline(() => value.apply(target, args), `RECONCILE_${String(prop).toUpperCase()}_TIMEOUT`, ms);
+    }
+  });
+}
+
 async function allPositions(client = h.client) {
   const rows = await signedReadDeadline(() => client.futuresPositionRisk(), 'FUTURES_POSITION_RISK_TIMEOUT');
   return Array.isArray(rows) ? rows : [];
@@ -1319,7 +1336,7 @@ async function collectAccountingReliable(pos, options = {}) {
   const expectedEntryOrderId = positiveId(
     pos?.borsaOrderId ?? pos?.girisEmriCevabi?.orderId ?? pos?.gercekEmirYurutme?.entryOrder?.orderId
   );
-  const delays = [0, 150, 250, 400, 650, 900, 1200, 1600];
+  const delays = options.fastReconcile === true ? [0, 250, 750, 1500] : [0, 150, 250, 400, 650, 900, 1200, 1600];
   for (let attempt = 0; attempt < delays.length; attempt++) {
     if (delays[attempt] > 0) await sleep(delays[attempt]);
     accounting = await collectAccounting(pos, options);
@@ -1359,11 +1376,12 @@ function classifyExchangeClose(pos, accounting, fallbackPrice, protectionStatus 
   };
 }
 
-async function protectionStatusSnapshot(pos, client = h.client) {
+async function protectionStatusSnapshot(pos, client = h.client, options = {}) {
   const known = protectionsFromPosition(pos);
   let snapshot = { stop: null, takeProfit: null };
   let unresolved = [];
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const maxAttempts = options.fastReconcile === true ? 2 : 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const [stopResult, takeProfitResult] = await Promise.all([
       getAlgoByIdDetailed(pos?.sym || pos?.symbol, known.stop, client),
       getAlgoByIdDetailed(pos?.sym || pos?.symbol, known.takeProfit, client)
@@ -1375,18 +1393,20 @@ async function protectionStatusSnapshot(pos, client = h.client) {
     ];
     if (triggeredProtectionType(snapshot)) break;
     if (!unresolved.length) break;
-    if (attempt < 2) await sleep(200 * (attempt + 1));
+    if (attempt < maxAttempts - 1) await sleep(200 * (attempt + 1));
   }
   if (unresolved.length) throw new Error(`ALGO_KAPANIS_DURUMU_DOGRULANAMADI:${unresolved.join('|')}`);
   return snapshot;
 }
 
-async function finalizeExchangeClose(pos, fallbackPrice, client = h.client) {
-  const protectionStatus = await protectionStatusSnapshot(pos, client);
+async function finalizeExchangeClose(pos, fallbackPrice, client = h.client, options = {}) {
+  const fastReconcile = options.fastReconcile === true;
+  const reconcileClient = fastReconcile ? boundedReconcileClient(client) : client;
+  const protectionStatus = await protectionStatusSnapshot(pos, reconcileClient, { fastReconcile });
   const triggered = triggeredProtectionType(protectionStatus);
   const triggeredRow = triggered === 'STOP' ? protectionStatus.stop : triggered === 'TAKE_PROFIT' ? protectionStatus.takeProfit : null;
   const closeOrderId = positiveId(triggeredRow?.actualOrderId);
-  const accounting = await collectAccountingReliable(pos, { client, closeOrderId, closeTime: Date.now() });
+  const accounting = await collectAccountingReliable(pos, { client: reconcileClient, closeOrderId, closeTime: Date.now(), fastReconcile });
   if (accounting.exitTradeCount <= 0) {
     const fingerprint = pos?.gercekEmirYurutme?.fingerprint || pos?.realExecutionFingerprint || contextFingerprint(pos.sym, pos.yon, pos);
     saveRecord(fingerprint, { status: 'QUARANTINED', closeAccountingError: 'BINANCE_EXIT_FILL_YOK', protectionStatus });
@@ -1395,7 +1415,7 @@ async function finalizeExchangeClose(pos, fallbackPrice, client = h.client) {
   }
   const classification = classifyExchangeClose(pos, accounting, fallbackPrice, protectionStatus);
   const fingerprint = pos?.gercekEmirYurutme?.fingerprint || pos?.realExecutionFingerprint || contextFingerprint(pos.sym, pos.yon, pos);
-  const cleanup = await cancelOwnedProtections(pos, client);
+  const cleanup = await cancelOwnedProtections(pos, reconcileClient);
   if (cleanup.failed > 0) {
     saveRecord(fingerprint, {
       status: 'QUARANTINED', closedAt: nowIso(), closeReason: classification.reason,
