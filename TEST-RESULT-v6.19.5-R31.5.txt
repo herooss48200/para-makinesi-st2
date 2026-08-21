@@ -1,0 +1,24 @@
+AGROS ST2 v6.19.5-R31.5 TEST RESULT
+Date: 2026-08-21
+
+PASS:
+- R31.5 startup entry fast reconcile
+- R31.4 snapshot liveness
+- R31.3 reconcile single-flight
+- R31.2 symmetric Onur guard
+- R31 compatibility
+- R30 CORE
+- R26 percent stop core
+- R26 startup isolation
+- R26 phased startup
+- R30 RENKO-ONLY
+
+Syntax check PASS for all R31.5 changed JS files.
+
+R31.5 contract:
+- post-warmup REAL gate uses fast startupEntryReconcile, not heavy historical startupReconcile
+- two positionRisk safety snapshots before REAL READY
+- account-wide AGST2 orphan order cleanup before REAL READY
+- unknown / side-changed exchange position remains HARD FAIL-CLOSED
+- historical close accounting moves to CLOSE_ACCOUNTING_PENDING and drains asynchronously
+- symmetric Onur guard, 15m live authority, 1m confirmation, 20 slots and R26 stop economics preserved

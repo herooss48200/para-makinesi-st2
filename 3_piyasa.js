@@ -128,6 +128,39 @@ async function acikPozisyonlariHizliDevral() {
     return snapshot;
 }
 
+
+async function acikPozisyonlariGirisIcinDevral() {
+    if (ayarlar.sanalEmirModu) return acikPozisyonlariBorsadanDevral();
+    try {
+        const reconciliation = await realExecution.startupEntryReconcile(h.client);
+        const gercekAktifler = Array.isArray(reconciliation.positions) ? reconciliation.positions.filter(pos => pos?.sanal === false) : [];
+        reconciliation.positions = gercekAktifler;
+        h.state.aktifPozisyonlar = gercekAktifler;
+        h.state.alinanlar = [...new Set(gercekAktifler.filter(p => String(p?.yon || '').toUpperCase() === 'LONG').map(p => p.sym).filter(Boolean))];
+        h.state.aktifShortlar = [...new Set(gercekAktifler.filter(p => String(p?.yon || '').toUpperCase() === 'SHORT').map(p => p.sym).filter(Boolean))];
+        h.state.realOrderStartupReconciliation = {
+            at: new Date().toISOString(),
+            mode: 'ENTRY_FAST_PATH',
+            restored: reconciliation.restored || 0,
+            adopted: reconciliation.adopted || 0,
+            protectionFailures: reconciliation.protectionFailures || 0,
+            closeAccountingPending: reconciliation.closeAccountingPending || 0,
+            blocked: Boolean(reconciliation.blocked)
+        };
+        h.state.realOrderStartupBlocked = Boolean(reconciliation.blocked);
+        h.state.semboller = [...new Set([...(h.state.semboller || []), ...gercekAktifler.map(p => p.sym).filter(Boolean)])];
+        const coreSet = new Set((h.state.st2CoreUniverseSymbols || []).map(String));
+        h.state.st2ProtectionExtraSymbols = h.state.semboller.filter(sym => !coreSet.has(String(sym)));
+        console.log(`🔐 [GERÇEK STARTUP ENTRY MUTABAKATI] Gerçek açık ${gercekAktifler.length} | Close accounting pending ${Number(reconciliation.closeAccountingPending || 0)} | Koruma hatası ${Number(reconciliation.protectionFailures || 0)} | REAL ${reconciliation.blocked ? 'FAIL-CLOSED' : 'READY'}`);
+        if (reconciliation.blocked) throw new Error(`GERCEK_STARTUP_ENTRY_FAIL_CLOSED:KORUMA_HATASI=${reconciliation.protectionFailures || 0}`);
+        return reconciliation;
+    } catch (e) {
+        h.state.realOrderStartupBlocked = true;
+        console.error(`🚨 [GERÇEK STARTUP ENTRY MUTABAKAT FAIL-CLOSED] ${e.message || e}`);
+        throw e;
+    }
+}
+
 async function acikPozisyonlariBorsadanDevral() {
     if (ayarlar.sanalEmirModu) {
         const aktifler = Array.isArray(h.state.aktifPozisyonlar) ? h.state.aktifPozisyonlar : [];
@@ -196,4 +229,4 @@ async function acikPozisyonlariBorsadanDevral() {
     }
 }
 
-module.exports = { sembolleriYukle, acikPozisyonlariHizliDevral, acikPozisyonlariBorsadanDevral, tickerListesi, hacimSiralamasiCek };
+module.exports = { sembolleriYukle, acikPozisyonlariHizliDevral, acikPozisyonlariGirisIcinDevral, acikPozisyonlariBorsadanDevral, tickerListesi, hacimSiralamasiCek };

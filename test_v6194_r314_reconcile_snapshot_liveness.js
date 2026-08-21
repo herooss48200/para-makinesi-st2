@@ -27,7 +27,7 @@ const p = require('./4_pozisyon.js');
 const versiyon = require('./versiyon.js');
 
 (async () => {
-  assert(String(versiyon.botSurumu).includes('R31.4'));
+  assert(/R31\.(4|5)/.test(String(versiyon.botSurumu)), 'version must preserve R31.4 snapshot-liveness contract or newer');
   assert.strictEqual(Number(ayarlar.gercekPozisyonMutabakatTimeoutMs), 20000);
   assert.strictEqual(Number(ayarlar.gercekPozisyonMutabakatSingleFlightMaxAgeMs), 60000);
   assert.strictEqual(Number(ayarlar.gercekKapanisMutabakatReadTimeoutMs), 6000);

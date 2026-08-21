@@ -18,7 +18,7 @@ const guard = require('./98_st2_final_direction_guard.js');
 const versiyon = require('./versiyon.js');
 
 assert.deepStrictEqual(ayarlar.renkoCanliKaynakPeriyotlari, ['15m']);
-assert(/R31\.(2|3|4)/.test(versiyon.botSurumu));
+assert(/R31\.(2|3|4|5)/.test(versiyon.botSurumu));
 
 function rows(start, step) {
   return Array.from({length:201}, (_,i)=>({ close: String(start + i*step) }));

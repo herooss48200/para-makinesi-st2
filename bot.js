@@ -89,9 +89,13 @@ async function st2ExchangeReconcileBackground(reason = 'INTERVAL') {
 
             if (rec.ok && !exchangeFinalizeTask) {
                 exchangeFinalizeTask = Promise.resolve()
-                    .then(() => p.izSurmeyiGuncelle({ reconcileOnly: true, exchangeSnapshot: snapshot.positions || [] }))
+                    .then(async () => {
+                        const live = await p.izSurmeyiGuncelle({ reconcileOnly: true, exchangeSnapshot: snapshot.positions || [] });
+                        const pending = await require('./85_st2_real_order_execution.js').finalizePendingStartupClosures(h.client, { limit: 2 });
+                        return { ...live, pendingAccounting: pending };
+                    })
                     .then(result => {
-                        h.state.st2ExchangeFinalize = { status: result?.exchangeOk === false ? 'DEGRADED' : 'READY', finishedAt: Date.now(), error: result?.error || null, closed: Number(result?.closed || 0) };
+                        h.state.st2ExchangeFinalize = { status: result?.exchangeOk === false ? 'DEGRADED' : (Number(result?.pendingAccounting?.failed || 0) > 0 ? 'PENDING' : 'READY'), finishedAt: Date.now(), error: result?.error || null, closed: Number(result?.closed || 0), pendingAccounting: Number(result?.pendingAccounting?.pending || 0), accountingFailed: Number(result?.pendingAccounting?.failed || 0) };
                         return result;
                     })
                     .catch(err => {
@@ -229,7 +233,7 @@ async function baslat() {
                         h.state.realOrderStartupBlocked = true;
                         st2RealEntrySafetyUpdate();
                         startupExchangeReconcileTask = Promise.resolve()
-                            .then(() => piyasa.acikPozisyonlariBorsadanDevral())
+                            .then(() => piyasa.acikPozisyonlariGirisIcinDevral())
                             .then(result => {
                                 rec.status = 'READY'; rec.ok = true; rec.lastFinishAt = Date.now();
                                 rec.lastDurationMs = rec.lastFinishAt - Number(rec.lastAttemptAt || rec.lastFinishAt);

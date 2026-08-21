@@ -7,7 +7,7 @@ const versiyon = require('./versiyon.js');
 assert.strictEqual(Number(ayarlar.gercekPozisyonMutabakatTimeoutMs), 20000, 'positionRisk deadline must be 20s');
 assert.strictEqual(Number(ayarlar.st2ExchangeReconcileIntervalMs), 30000, 'reconcile cadence must be 30s');
 assert.strictEqual(Number(ayarlar.st2ExchangeReconcileFreshMs), 180000, 'reconcile freshness must remain 180s');
-assert(/R31\.(3|4)/.test(String(versiyon.botSurumu)), 'version must preserve R31.3 reconciliation contract or newer');
+assert(/R31\.(3|4|5)/.test(String(versiyon.botSurumu)), 'version must preserve R31.3 reconciliation contract or newer');
 
 const pos = fs.readFileSync(require.resolve('./4_pozisyon.js'), 'utf8');
 assert(pos.includes('positionRiskSingleFlight'), 'positionRisk single-flight authority missing');

@@ -1409,8 +1409,9 @@ async function finalizeExchangeClose(pos, fallbackPrice, client = h.client, opti
   const accounting = await collectAccountingReliable(pos, { client: reconcileClient, closeOrderId, closeTime: Date.now(), fastReconcile });
   if (accounting.exitTradeCount <= 0) {
     const fingerprint = pos?.gercekEmirYurutme?.fingerprint || pos?.realExecutionFingerprint || contextFingerprint(pos.sym, pos.yon, pos);
-    saveRecord(fingerprint, { status: 'QUARANTINED', closeAccountingError: 'BINANCE_EXIT_FILL_YOK', protectionStatus });
-    setGlobalBlock('KAPANIS_MUHASEBESI_DOGRULANAMADI', { symbol: pos.sym });
+    const nonBlockingAccounting = options.nonBlockingAccounting === true;
+    saveRecord(fingerprint, { status: nonBlockingAccounting ? 'CLOSE_ACCOUNTING_PENDING' : 'QUARANTINED', closeAccountingError: 'BINANCE_EXIT_FILL_YOK', protectionStatus });
+    if (!nonBlockingAccounting) setGlobalBlock('KAPANIS_MUHASEBESI_DOGRULANAMADI', { symbol: pos.sym });
     throw new Error('KAPANIS_MUHASEBESI_DOGRULANAMADI:BINANCE_EXIT_FILL_YOK');
   }
   const classification = classifyExchangeClose(pos, accounting, fallbackPrice, protectionStatus);
@@ -1576,6 +1577,231 @@ async function startupSafetySnapshot(client = h.client) {
   }
   audit('STARTUP_SAFETY_SNAPSHOT', { exchangeOpen: openPositions.length, restored: restored.length - adopted, adopted });
   return { positions: restored, restored: restored.length - adopted, adopted, blocked: true, safetyOnly: true };
+}
+
+
+async function startupEntryReconcile(client = h.client) {
+  if (ayarlar.sanalEmirModu) return { positions: h.state.aktifPozisyonlar || [], restored: 0, adopted: 0, blocked: false, entryFastPath: true };
+  const processLock = acquireProcessLock();
+  if (!processLock.ok) throw new Error(processLock.reason);
+  const state = readState();
+  if (upper(state?.globalBlock?.reason) === 'STATE_CORRUPTION_NO_RECOVERY') throw new Error('STATE_CORRUPTION_NO_RECOVERY');
+
+  // R31.5: startup REAL kapisi tarihsel fill/accounting taramasini beklemez. Once mevcut
+  // borsa pozisyonlari + hesap-geneli AGST2 orphan emirleri dogrulanir. Tum signed order
+  // okumalar bounded; positionRisk ise kendi 20s otoritesini kullanir.
+  const reconcileClient = boundedReconcileClient(client);
+  const firstRows = await allPositions(client);
+  if (firstRows.some(row => !positionSideSupported(row))) {
+    setGlobalBlock('HEDGE_MODE_DESTEKLENMIYOR_ONE_WAY_ZORUNLU');
+    throw new Error('HEDGE_MODE_DESTEKLENMIYOR_ONE_WAY_ZORUNLU');
+  }
+  const firstOpen = firstRows.filter(row => positionAmount(row) > 0);
+  const firstOpenSet = new Set(firstOpen.map(row => upper(row.symbol)));
+
+  const [accountRegularOrders, accountAlgoOrders] = await Promise.all([
+    openRegularOrders(undefined, reconcileClient),
+    openAlgoOrders(undefined, reconcileClient)
+  ]);
+  const orphanFailures = [];
+  for (const order of accountRegularOrders) {
+    const symbol = upper(order?.symbol);
+    if (!ownedId(order?.clientOrderId) || firstOpenSet.has(symbol)) continue;
+    await cancelRegularOrderIfOpen(symbol, order, reconcileClient);
+    const after = await getOrderByClientId(symbol, order.clientOrderId, reconcileClient);
+    if (after && !TERMINAL_ORDER_STATUSES.has(upper(after.status))) orphanFailures.push(`NORMAL:${symbol}:${order.clientOrderId}`);
+  }
+  for (const algo of accountAlgoOrders) {
+    const symbol = upper(algo?.symbol);
+    if (!ownedId(algo?.clientAlgoId || algo?.clientOrderId) || firstOpenSet.has(symbol)) continue;
+    const canceled = await cancelAlgoVerified(symbol, algo, reconcileClient);
+    if (!canceled.ok) orphanFailures.push(`ALGO:${symbol}:${algo.clientAlgoId || algo.algoId}`);
+  }
+  if (orphanFailures.length) {
+    setGlobalBlock('ORPHAN_AGROS_EMIRLERI_TEMIZLENEMEDI', { orphanFailures });
+    throw new Error(`ORPHAN_AGROS_EMIRLERI_TEMIZLENEMEDI:${orphanFailures.join(',')}`);
+  }
+
+  // Orphan temizligi ile ayni anda bir giris fill olmus olabilir. REAL kapisini acmadan
+  // hemen once ikinci positionRisk zorunludur; startup safety snapshot'ta olmayan yeni
+  // pozisyon veya yon degisimi kesin fail-closed kalir.
+  const verifyRows = await allPositions(client);
+  if (verifyRows.some(row => !positionSideSupported(row))) {
+    setGlobalBlock('HEDGE_MODE_DESTEKLENMIYOR_ONE_WAY_ZORUNLU');
+    throw new Error('HEDGE_MODE_DESTEKLENMIYOR_ONE_WAY_ZORUNLU');
+  }
+  const verifiedOpen = verifyRows.filter(row => positionAmount(row) > 0);
+  const startupLocal = (h.state.aktifPozisyonlar || []).filter(pos => pos?.sanal === false);
+  const localBySymbol = new Map(startupLocal.map(pos => [upper(pos?.sym), pos]));
+  const unknown = [];
+  const sideMismatch = [];
+  for (const row of verifiedOpen) {
+    const symbol = upper(row?.symbol);
+    const local = localBySymbol.get(symbol);
+    if (!local) { unknown.push(symbol); continue; }
+    const actualSide = positionDirection(row);
+    const expectedSide = upper(local?.yon);
+    if (actualSide && expectedSide && actualSide !== expectedSide) sideMismatch.push(`${symbol}:${expectedSide}->${actualSide}`);
+  }
+  if (unknown.length || sideMismatch.length) {
+    const reason = unknown.length ? 'STARTUP_UNTRACKED_POSITION_AFTER_SNAPSHOT' : 'STARTUP_POSITION_SIDE_CHANGED_AFTER_SNAPSHOT';
+    setGlobalBlock(reason, { unknown, sideMismatch });
+    throw new Error(`${reason}:${[...unknown, ...sideMismatch].join(',')}`);
+  }
+
+  const restored = [];
+  let protectionFailures = 0;
+  for (const row of verifiedOpen) {
+    const pos = localBySymbol.get(upper(row.symbol));
+    if (!pos) continue;
+    try {
+      await ensureProtectionForPosition(pos, reconcileClient);
+      restored.push(pos);
+    } catch (err) {
+      protectionFailures++;
+      const fingerprint = pos?.gercekEmirYurutme?.fingerprint || pos?.realExecutionFingerprint || contextFingerprint(pos.sym, pos.yon, pos);
+      saveRecord(fingerprint, { status: 'QUARANTINED', symbol: pos.sym, side: pos.yon, protectionError: err.message, positionSnapshot: snapshotPosition(pos) });
+      setGlobalBlock('RESTART_KORUMA_MUTABAKATI_BASARISIZ', { symbol: pos.sym, error: err.message });
+    }
+  }
+  if (protectionFailures > 0) throw new Error(`RESTART_KORUMA_MUTABAKATI_BASARISIZ:${protectionFailures}`);
+
+  const verifiedOpenSet = new Set(verifiedOpen.map(row => upper(row.symbol)));
+  let closeAccountingPending = 0;
+  let notFilled = 0;
+  for (const record of Object.values(readState().records || {})) {
+    if (!activeRecord(record)) continue;
+    if (verifiedOpenSet.has(upper(record?.symbol))) continue;
+    const snapshot = record.positionSnapshot || record.preparedSnapshot;
+    const status = upper(record.status);
+    if (snapshot && ['OPEN', 'CLOSING', 'QUARANTINED'].includes(status)) {
+      saveRecord(record.fingerprint, {
+        status: 'CLOSE_ACCOUNTING_PENDING',
+        startupCloseAccountingPendingAt: nowIso(),
+        startupCloseAccountingPreviousStatus: status
+      });
+      closeAccountingPending++;
+    } else {
+      saveRecord(record.fingerprint, { status: 'CLOSED_EXTERNALLY_OR_NOT_FILLED', closedAt: nowIso(), startupFastReconcile: true });
+      notFilled++;
+    }
+  }
+
+  // Eski restart/kapanis kaynakli global blok, ilgili sembol artik borsada acik degilse
+  // eski full-reconcile ile ayni guvenli liste uzerinden temizlenebilir. Koruma/unknown
+  // pozisyon kaynakli yeni bloklar bu listede olmadigindan otomatik acilmaz.
+  let autoClearedGlobalBlock = null;
+  mutate(next => {
+    if (!next.globalBlock) return;
+    const autoClear = new Set([
+      'RESTART_KORUMA_MUTABAKATI_BASARISIZ',
+      'HEDGE_MODE_DESTEKLENMIYOR_ONE_WAY_ZORUNLU',
+      'RESTART_YARIM_EMIR_POZISYONA_DONUSTU',
+      'GERCEK_POZISYON_KAPATILAMADI',
+      'GERCEK_ACILIS_ROLLBACK_BASARISIZ',
+      'KAPATMA_YON_MUTABAKATSIZLIGI',
+      'TERS_YON_POZISYON_MUTABAKATSIZLIGI',
+      'DOLUM_SONRASI_AKTIF_POZISYON_LIMITI_ASILDI',
+      'ESKI_STOP_IPTAL_EDILEMEDI',
+      'CIFT_STOP_KORUMA_MUTABAKATSIZLIGI',
+      'AGROS_NORMAL_EMIR_IPTAL_EDILEMEDI',
+      'ORPHAN_AGROS_EMIRLERI_TEMIZLENEMEDI',
+      'KAPANIS_SONRASI_KORUMA_IPTAL_EDILEMEDI',
+      'KAPANIS_MUHASEBESI_DOGRULANAMADI',
+      'RESTART_KAPANIS_MUTABAKATI_BASARISIZ'
+    ]);
+    const blockedReason = upper(next.globalBlock.reason);
+    const blockedSymbol = upper(next.globalBlock.symbol || next.globalBlock.details?.symbol);
+    const blockedSymbolStillOpen = blockedSymbol && verifiedOpenSet.has(blockedSymbol);
+    const canClearWhileOpen = blockedReason === 'ESKI_STOP_IPTAL_EDILEMEDI';
+    if (blockedReason === MANUAL_REARM_BLOCK && !blockedSymbolStillOpen) {
+      autoClearedGlobalBlock = blockedReason;
+      next.globalBlock = null;
+    } else if (autoClear.has(blockedReason) && (!blockedSymbolStillOpen || canClearWhileOpen)) {
+      autoClearedGlobalBlock = blockedReason;
+      next.globalBlock = null;
+    }
+  });
+  if (autoClearedGlobalBlock) audit('STARTUP_FAST_GLOBAL_BLOCK_CLEARED', { reason: autoClearedGlobalBlock, exchangeOpen: verifiedOpen.length });
+
+  const now = Date.now();
+  h.state.st2PositionRiskRead = {
+    ...(h.state.st2PositionRiskRead || {}),
+    inFlight: false,
+    lastOkAt: now,
+    snapshotVerifiedAt: now,
+    snapshotSafe: true,
+    exchangeActiveCount: verifiedOpen.length,
+    localActiveCount: restored.length,
+    unknownSymbols: [],
+    sideMismatch: [],
+    lastError: null
+  };
+  const adopted = restored.filter(pos => pos?.manualExternalPosition === true).length;
+  audit('STARTUP_ENTRY_RECONCILIATION', {
+    exchangeOpen: verifiedOpen.length,
+    restored: restored.length - adopted,
+    adopted,
+    closeAccountingPending,
+    notFilled,
+    orphanRegularChecked: accountRegularOrders.length,
+    orphanAlgoChecked: accountAlgoOrders.length
+  });
+  return {
+    positions: restored,
+    restored: restored.length - adopted,
+    adopted,
+    protectionFailures: 0,
+    closeAccountingPending,
+    notFilled,
+    blocked: false,
+    entryFastPath: true
+  };
+}
+
+async function finalizePendingStartupClosures(client = h.client, options = {}) {
+  if (ayarlar.sanalEmirModu) return { attempted: 0, closed: 0, pending: 0, failed: 0 };
+  const limit = Math.max(1, Number(options.limit || 2));
+  const records = Object.values(readState().records || {})
+    .filter(record => upper(record?.status) === 'CLOSE_ACCOUNTING_PENDING')
+    .slice(0, limit);
+  let closed = 0;
+  let failed = 0;
+  const results = [];
+  for (const record of records) {
+    const snapshot = record.positionSnapshot || record.preparedSnapshot;
+    if (!snapshot) {
+      saveRecord(record.fingerprint, { status: 'CLOSED_EXTERNALLY_OR_NOT_FILLED', closedAt: nowIso(), closeAccountingMissingSnapshot: true });
+      closed++;
+      continue;
+    }
+    try {
+      const result = await finalizeExchangeClose({
+        ...snapshot,
+        sym: record.symbol || snapshot.sym,
+        yon: record.side || snapshot.yon,
+        sanal: false,
+        gercekEmirYurutme: {
+          ...(snapshot.gercekEmirYurutme || {}),
+          fingerprint: record.fingerprint,
+          entryOrder: record.entryOrder || snapshot?.gercekEmirYurutme?.entryOrder,
+          protections: record.protections || snapshot?.gercekEmirYurutme?.protections
+        }
+      }, snapshot.girisFiyati, client, { fastReconcile: true, nonBlockingAccounting: true });
+      results.push({ symbol: record.symbol, fingerprint: record.fingerprint, ...result });
+      closed++;
+    } catch (err) {
+      failed++;
+      saveRecord(record.fingerprint, {
+        status: 'CLOSE_ACCOUNTING_PENDING',
+        closeAccountingRetryAt: nowIso(),
+        closeAccountingRetryError: String(err?.message || err)
+      });
+    }
+  }
+  const pending = Object.values(readState().records || {}).filter(record => upper(record?.status) === 'CLOSE_ACCOUNTING_PENDING').length;
+  audit('STARTUP_CLOSE_ACCOUNTING_BG', { attempted: records.length, closed, failed, pending });
+  return { attempted: records.length, closed, failed, pending, results };
 }
 
 async function startupReconcile(client = h.client) {
@@ -1769,6 +1995,6 @@ module.exports = {
   markOpen, persistPosition, replaceStopAtomic, closePositionMarket,
   renkoPerformanceSummary, isRenkoRecord,
   cancelOwnedProtections, collectAccounting, finalizeExchangeClose,
-  ensureProtectionForPosition, startupReconcile, statusSummary,
+  ensureProtectionForPosition, startupEntryReconcile, finalizePendingStartupClosures, startupReconcile, statusSummary,
   _test: { blankState, finite, positiveId, positionDirection, positionAmount, classifyExchangeClose, triggeredProtectionType, stopRevisionClientId, stopRecoveryClientId, restartProtectionClientId, accountingRecordFields, algoOrderStatus, algoOrderType, algoPayloadRows, normalizeAlgoOrder, normalizeTriggerPrice, verifyAlgoActiveReliable, protectionTrigger, triggerEqual, adoptDesiredStop, signedReadDeadline }
 };
